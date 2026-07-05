@@ -5,12 +5,65 @@
 
 datasource db {
   provider = "postgresql"
-  url =env("DATABASE_URL")
+  url      = env("DATABASE_URL")
 }
 
 generator client {
   provider = "prisma-client"
 }
 
+model Role {
+  roleId      Int    @id @default(autoincrement())
+  role_name   String
+  description String
+  users       User[]
+}
 
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String
+  roleId    Int
+  role      Role     @relation(fields: [roleId], references: [roleId])
+  createdAt DateTime @default(now())
+  student   Student?
+}
 
+model Course {
+  id         Int      @id @default(autoincrement())
+  courseCode String   @unique
+  courseName String
+  createdAt  DateTime @default(now())
+  exams      Exam[] // ← Course หนึ่งตัว มี Exam ได้หลายตัว
+}
+
+model Exam {
+  id       Int      @id @default(autoincrement())
+  examName String
+  examDate DateTime
+  courseId Int // ← เก็บ id ของ Course ที่เชื่อมด้วย
+  course   Course   @relation(fields: [courseId], references: [id]) // ← ประกาศความสัมพันธ์
+}
+
+model Faculty {
+  faculty_id   Int       @id @default(autoincrement())
+  faculty_name String
+  students     Student[]
+}
+
+model Room {
+  roomId   Int    @id @default(autoincrement())
+  roomName String
+}
+
+model Student {
+  studentId    String  @id
+  userId       Int     @unique
+  user         User    @relation(fields: [userId], references: [id])
+  academicYear Int
+  facultyId    Int
+  faculty      Faculty @relation(fields: [facultyId], references: [faculty_id])
+}
+//model room {
+
+//}
