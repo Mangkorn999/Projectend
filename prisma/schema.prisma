@@ -1,69 +1,161 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 generator client {
-  provider = "prisma-client"
+  provider = "prisma-client-js"
 }
 
+// 1. ตารางจัดเก็บข้อมูลบทบาทของผู้ใช้งานในระบบ
 model Role {
-  roleId      Int    @id @default(autoincrement())
-  role_name   String
-  description String
+  role_id     Int    @id @default(autoincrement()) // รหัสบทบาท
+  role_name   String @db.VarChar(50)               // ชื่อบทบาท (เช่น officer, student, executives)
+  description String @db.VarChar(255)              // คำอธิบายบทบาท
   users       User[]
+
+  @@map("roles")
 }
 
+// 2. ตารางจัดเก็บข้อมูลของผู้ใช้งานในระบบทุก Role
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  name      String
-  roleId    Int
-  role      Role     @relation(fields: [roleId], references: [roleId])
-  createdAt DateTime @default(now())
-  student   Student?
+  user_id         Int               @id @default(autoincrement()) // รหัสผู้ใช้งาน
+  role_id         Int                                             // รหัสบทบาท
+  role            Role              @relation(fields: [role_id], references: [role_id])
+  psu_passport_id String            @db.VarChar(100)              // รหัส PSU One Passport
+  first_name      String            @db.VarChar(100)              // ชื่อ
+  last_name       String            @db.VarChar(100)              // นามสกุล
+  email           String            @db.VarChar(100)              // อีเมล
+  phone           String            @db.VarChar(20)               // เบอร์โทรศัพท์
+  created_at      DateTime          @default(now())               // วันที่สร้างบัญชีในระบบ
+  student         Student?                                        // One-to-One กับ Student
+
+  // กำหนดฝั่งตรงข้ามของความสัมพันธ์ให้ชัดเจนตามชื่อ Relation Name
+  created_rounds  SubmissionRound[] @relation("UserToRound")
+  confirmed_exams ExamResult[]      @relation("UserToExamResult")
+  news            News[]            @relation("UserToNews")
+
+  @@map("users")
 }
 
-model Course {
-  id         Int      @id @default(autoincrement())
-  courseCode String   @unique
-  courseName String
-  createdAt  DateTime @default(now())
-  exams      Exam[] // ← Course หนึ่งตัว มี Exam ได้หลายตัว
-}
-
-model Exam {
-  id       Int      @id @default(autoincrement())
-  examName String
-  examDate DateTime
-  courseId Int // ← เก็บ id ของ Course ที่เชื่อมด้วย
-  course   Course   @relation(fields: [courseId], references: [id]) // ← ประกาศความสัมพันธ์
-}
-
+// 3. ตารางสำหรับจัดเก็บข้อมูลคณะ
 model Faculty {
-  faculty_id   Int       @id @default(autoincrement())
-  faculty_name String
+  faculty_id   Int       @id @default(autoincrement()) // รหัสคณะ
+  faculty_name String    @db.VarChar(150)              // ชื่อคณะ
   students     Student[]
+
+  @@map("faculties")
 }
 
+// 4. ตารางสำหรับจัดเก็บข้อมูลห้องเรียน
 model Room {
-  roomId   Int    @id @default(autoincrement())
-  roomName String
+  room_id   Int       @id @default(autoincrement()) // รหัสห้องเรียน
+  room_name String    @db.VarChar(20)               // ชื่อห้องเรียน
+  students  Student[]
+
+  @@map("rooms")
 }
 
+// 5. ตารางสำหรับจัดเก็บข้อมูลนักศึกษาพยาบาล
 model Student {
-  studentId    String  @id
-  userId       Int     @unique
-  user         User    @relation(fields: [userId], references: [id])
-  academicYear Int
-  facultyId    Int
-  faculty      Faculty @relation(fields: [facultyId], references: [faculty_id])
-}
-//model room {
+  student_id               String       @id @db.VarChar(20) // รหัสนักศึกษา
+  user_id                  Int          @unique             // รหัสผู้ใช้งาน (ความสัมพันธ์ 1:1 กับ User)
+  user                     User         @relation(fields: [user_id], references: [user_id])
+  faculty_id               Int                              // รหัสคณะ
+  faculty                  Faculty      @relation(fields: [faculty_id], references: [faculty_id])
+  academic_year            Int                              // ปีการศึกษา
+  room_id                  Int                              // รหัสห้องเรียน
+  room                     Room         @relation(fields: [room_id], references: [room_id])
+  nursing_council_email    String       @db.VarChar(100)    // อีเมลสภาการพยาบาล
+  nursing_council_password String       @db.VarChar(255)    // รหัสผ่านสภาการพยาบาล
+  exam_results             ExamResult[]
 
-//}
+  @@map("students")
+}
+
+// 6. ตารางจัดเก็บข้อมูลรายวิชาที่ใช้ในการสอบใบประกอบวิชาชีพ
+model Subject {
+  subject_id   Int             @id @default(autoincrement()) // ลำดับที่
+  subject_code String          @db.VarChar(10)               // รหัสวิชา
+  subject_name String          @db.VarChar(200)              // ชื่อวิชา
+  results      SubjectResult[]
+
+  @@map("subjects")
+}
+
+// 7. ตารางจัดเก็บข้อมูลรอบการกรอกผลสอบ
+model SubmissionRound {
+  round_id       Int          @id @default(autoincrement()) // รหัสรอบการกรอก
+  created_by     Int                                        // ใครสร้างรอบ
+  creator        User         @relation("UserToRound", fields: [created_by], references: [user_id])
+  academic_year  Int                                        // ปีการศึกษา
+  attempt_number Int                                        // ครั้งที่สอบ
+  open_date      DateTime                                   // วันที่เปิดรับการกรอก
+  close_date     DateTime                                   // วันที่ปิดรับการกรอก
+  status         String       @db.VarChar(10)               // สถานะ (เช่น OPEN, CLOSED)
+  exam_results   ExamResult[]
+  news           News[]
+
+  @@map("submission_rounds")
+}
+
+// 8. ตารางสำหรับจัดเก็บข้อมูลผลการสอบของนักศึกษา
+model ExamResult {
+  result_id       Int             @id @default(autoincrement()) // รหัสผลสอบ
+  student_id      String          @db.VarChar(20)               // รหัสนักศึกษา
+  student         Student         @relation(fields: [student_id], references: [student_id])
+  round_id        Int                                           // รอบการกรอก
+  round           SubmissionRound @relation(fields: [round_id], references: [round_id])
+  confirmed_by    Int?                                          // ใครยืนยัน (Nullable)
+  confirmer       User?           @relation("UserToExamResult", fields: [confirmed_by], references: [user_id])
+  student_status  String          @db.VarChar(15)               // สถานะการกรอกนักศึกษา
+  staff_status    String          @db.VarChar(20)               // สถานะการตรวจสอบเจ้าหน้าที่
+  remark          String?         @db.Text                      // หมายเหตุ
+  submitted_at    DateTime        @default(now())               // วันที่กรอกผลสอบ
+  confirmed_at    DateTime?                                     // วันที่ยืนยันผลสอบ
+  subject_results SubjectResult[]
+  certificates    Certificate[]
+
+  @@map("exam_results")
+}
+
+// 9. ตารางจัดเก็บข้อมูลผลสอบรายวิชาของนักศึกษา
+model SubjectResult {
+  subject_result_id Int        @id @default(autoincrement()) // รหัสผลสอบรายวิชา
+  result_id         Int                                      // ผลสอบชุดไหน
+  exam_result       ExamResult @relation(fields: [result_id], references: [result_id])
+  subject_id        Int                                      // วิชาไหน
+  subject           Subject    @relation(fields: [subject_id], references: [subject_id])
+  is_passed         Boolean                                  // ผลสอบผ่านหรือไม่
+
+  @@map("subject_results")
+}
+
+// 10. ตารางสำหรับจัดเก็บข้อมูลไฟล์หลักฐานของนักศึกษา
+model Certificate {
+  certificate_id   Int        @id @default(autoincrement()) // รหัสไฟล์หลักฐาน
+  result_id        Int                                      // ผลสอบชุดไหน
+  exam_result      ExamResult @relation(fields: [result_id], references: [result_id])
+  certificate_type String     @db.VarChar(20)               // ประเภทเอกสาร
+  file_name        String     @db.VarChar(255)              // ชื่อไฟล์
+  file_path        String     @db.VarChar(500)              // ที่อยู่ไฟล์
+  file_type        String     @db.VarChar(10)               // ประเภทไฟล์
+  uploaded_at      DateTime   @default(now())               // วันที่อัปโหลดไฟล์
+
+  @@map("certificates")
+}
+
+// 11. ตารางสำหรับจัดเก็บข้อมูลประกาศและข่าวสารในระบบ
+model News {
+  news_id    Int             @id @default(autoincrement()) // รหัสข่าว
+  posted_by  Int                                           // ใครโพสต์
+  poster     User            @relation("UserToNews", fields: [posted_by], references: [user_id])
+  round_id   Int                                           // รอบข่าวสาร
+  round      SubmissionRound @relation(fields: [round_id], references: [round_id])
+  title      String          @db.VarChar(255)              // หัวข้อข่าว
+  content    String          @db.Text                      // เนื้อหาข่าว
+  posted_at  DateTime        @default(now())               // วันที่โพสต์
+  updated_at DateTime        @updatedAt                    // วันที่แก้ไขล่าสุด
+
+  @@map("news")
+}
