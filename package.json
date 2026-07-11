@@ -1,0 +1,13 @@
+{
+  "name": "syntax-craft",
+  "version": "1.0.0",
+  "description": "Interactive learning platform for programming syntax and logic.",
+  "main": "frontend/pages/index.html",
+  "scripts": {
+    "build:css": "tailwindcss -i ./frontend/assets/css/input.css -o ./frontend/assets/css/main.css --minify",
+    "watch:css": "tailwindcss -i ./frontend/assets/css/input.css -o ./frontend/assets/css/main.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.1"
+  }
+}

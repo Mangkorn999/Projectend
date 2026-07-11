@@ -1,0 +1,31 @@
+# Node dependencies
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Environment and sensitive keys — never commit real credentials
+.env
+.env.local
+.env.*.local
+
+# Build / dist output
+.dist/
+
+# IDE and editor configs
+.vscode/
+.idea/
+.gemini/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Compiled styles sourcemaps
+frontend/assets/css/main.css.map
+
+# PHP cache / logs
+*.log
+/backend/logs/
