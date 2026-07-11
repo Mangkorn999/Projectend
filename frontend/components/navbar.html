@@ -1,0 +1,73 @@
+<nav class="sticky top-0 z-50 backdrop-blur-md bg-slate-950/80 border-b border-slate-800">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="flex items-center justify-between h-16">
+      <!-- Logo -->
+      <div class="flex items-center">
+        <a href="index.html" class="flex items-center gap-2 group">
+          <div class="p-2 bg-gradient-to-tr from-indigo-500 to-violet-500 rounded-lg text-white font-bold text-lg shadow-lg shadow-indigo-500/20 group-hover:scale-105 transition-transform duration-300">
+            ⚡
+          </div>
+          <span class="text-xl font-bold bg-gradient-to-r from-white via-indigo-200 to-violet-400 bg-clip-text text-transparent">
+            SyntaxCraft
+          </span>
+        </a>
+      </div>
+
+      <!-- Desktop Navigation Links -->
+      <div class="hidden md:flex items-center gap-1">
+        <a href="index.html" data-nav="index" class="nav-link px-4 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/50 transition-all duration-200">
+          📚 Syntax Hub
+        </a>
+        <a href="visualizer.html" data-nav="visualizer" class="nav-link px-4 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/50 transition-all duration-200">
+          👁️ Logic Visualizer
+        </a>
+        <a href="playground.html" data-nav="playground" class="nav-link px-4 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/50 transition-all duration-200">
+          🔬 Dissector Sandbox
+        </a>
+        <a href="quiz.html" data-nav="quiz" class="nav-link px-4 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/50 transition-all duration-200">
+          🎮 Quiz Game
+        </a>
+      </div>
+
+      <!-- Action Area / Progress Indicator -->
+      <div class="hidden md:flex items-center gap-4">
+        <div class="flex items-center gap-2 text-xs bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-full text-slate-400">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span id="nav-xp-display">XP: 0</span>
+        </div>
+      </div>
+
+      <!-- Mobile menu button -->
+      <div class="flex md:hidden">
+        <button id="mobile-menu-btn" type="button" class="inline-flex items-center justify-center p-2 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500" aria-controls="mobile-menu" aria-expanded="false">
+          <span class="sr-only">เปิดเมนูหลัก</span>
+          <svg class="block h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile Menu, show/hide based on menu state. -->
+  <div class="hidden md:hidden bg-slate-950 border-b border-slate-900" id="mobile-menu">
+    <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+      <a href="index.html" data-nav="index" class="nav-link block px-3 py-2 rounded-md text-base font-medium text-slate-300 hover:text-white hover:bg-slate-800">
+        📚 Syntax Comparison
+      </a>
+      <a href="visualizer.html" data-nav="visualizer" class="nav-link block px-3 py-2 rounded-md text-base font-medium text-slate-300 hover:text-white hover:bg-slate-800">
+        👁️ Logic Visualizer
+      </a>
+      <a href="playground.html" data-nav="playground" class="nav-link block px-3 py-2 rounded-md text-base font-medium text-slate-300 hover:text-white hover:bg-slate-800">
+        🔬 Dissector Sandbox
+      </a>
+      <a href="quiz.html" data-nav="quiz" class="nav-link block px-3 py-2 rounded-md text-base font-medium text-slate-300 hover:text-white hover:bg-slate-800">
+        🎮 Quiz Game
+      </a>
+      <div class="border-t border-slate-800 mt-2 pt-2 px-3 flex items-center justify-between">
+        <span class="text-xs text-slate-400">ระดับทักษะ:</span>
+        <span class="text-xs text-indigo-400 font-bold" id="mobile-xp-display">XP: 0</span>
+      </div>
+    </div>
+  </div>
+</nav>
