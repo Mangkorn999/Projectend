@@ -1,0 +1,159 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Role {
+  role_id     Int    @id @default(autoincrement())
+  role_name   String @db.VarChar(50)
+  description String @db.VarChar(255)
+  users       User[]
+
+  @@map("roles")
+}
+
+model User {
+  user_id         Int               @id @default(autoincrement())
+  role_id         Int
+  psu_passport_id String            @db.VarChar(100)
+  first_name      String            @db.VarChar(100)
+  last_name       String            @db.VarChar(100)
+  email           String            @db.VarChar(100)
+  phone           String            @db.VarChar(20)
+  created_at      DateTime          @default(now())
+  confirmed_exams ExamResult[]      @relation("UserToExamResult")
+  news            News[]            @relation("UserToNews")
+  sessions        Session[]
+  student         Student?
+  created_rounds  SubmissionRound[] @relation("UserToRound")
+  role            Role              @relation(fields: [role_id], references: [role_id])
+
+  @@map("users")
+}
+
+model Faculty {
+  faculty_id   Int       @id @default(autoincrement())
+  faculty_name String    @db.VarChar(150)
+  students     Student[]
+
+  @@map("faculties")
+}
+
+model Room {
+  room_id   Int       @id @default(autoincrement())
+  room_name String    @db.VarChar(20)
+  students  Student[]
+
+  @@map("rooms")
+}
+
+model Student {
+  student_id               String       @id @db.VarChar(20)
+  user_id                  Int          @unique
+  faculty_id               Int
+  academic_year            Int
+  room_id                  Int
+  nursing_council_email    String       @db.VarChar(100)
+  nursing_council_password String       @db.VarChar(255)
+  exam_results             ExamResult[]
+  faculty                  Faculty      @relation(fields: [faculty_id], references: [faculty_id])
+  room                     Room         @relation(fields: [room_id], references: [room_id])
+  user                     User         @relation(fields: [user_id], references: [user_id])
+
+  @@map("students")
+}
+
+model Subject {
+  subject_id   Int             @id @default(autoincrement())
+  subject_code String          @db.VarChar(10)
+  subject_name String          @db.VarChar(200)
+  results      SubjectResult[]
+
+  @@map("subjects")
+}
+
+model SubmissionRound {
+  round_id       Int          @id @default(autoincrement())
+  created_by     Int
+  academic_year  Int
+  attempt_number Int
+  open_date      DateTime
+  close_date     DateTime
+  status         String       @db.VarChar(10)
+  exam_results   ExamResult[]
+  news           News[]
+  creator        User         @relation("UserToRound", fields: [created_by], references: [user_id])
+
+  @@map("submission_rounds")
+}
+
+model ExamResult {
+  result_id       Int             @id @default(autoincrement())
+  student_id      String          @db.VarChar(20)
+  round_id        Int
+  confirmed_by    Int?
+  student_status  String          @db.VarChar(15)
+  staff_status    String          @db.VarChar(20)
+  remark          String?
+  submitted_at    DateTime        @default(now())
+  confirmed_at    DateTime?
+  certificates    Certificate[]
+  confirmer       User?           @relation("UserToExamResult", fields: [confirmed_by], references: [user_id])
+  round           SubmissionRound @relation(fields: [round_id], references: [round_id])
+  student         Student         @relation(fields: [student_id], references: [student_id])
+  subject_results SubjectResult[]
+
+  @@map("exam_results")
+}
+
+model SubjectResult {
+  subject_result_id Int        @id @default(autoincrement())
+  result_id         Int
+  subject_id        Int
+  is_passed         Boolean
+  exam_result       ExamResult @relation(fields: [result_id], references: [result_id])
+  subject           Subject    @relation(fields: [subject_id], references: [subject_id])
+
+  @@map("subject_results")
+}
+
+model Certificate {
+  certificate_id   Int        @id @default(autoincrement())
+  result_id        Int
+  certificate_type String     @db.VarChar(20)
+  file_name        String     @db.VarChar(255)
+  file_path        String     @db.VarChar(500)
+  file_type        String     @db.VarChar(10)
+  uploaded_at      DateTime   @default(now())
+  exam_result      ExamResult @relation(fields: [result_id], references: [result_id])
+
+  @@map("certificates")
+}
+
+model News {
+  news_id    Int             @id @default(autoincrement())
+  posted_by  Int
+  round_id   Int
+  title      String          @db.VarChar(255)
+  content    String
+  posted_at  DateTime        @default(now())
+  updated_at DateTime        @updatedAt
+  poster     User            @relation("UserToNews", fields: [posted_by], references: [user_id])
+  round      SubmissionRound @relation(fields: [round_id], references: [round_id])
+
+  @@map("news")
+}
+
+model Session {
+  session_id Int      @id @default(autoincrement())
+  user_id    Int
+  created_at DateTime @default(now())
+  expires_at DateTime
+  user       User     @relation(fields: [user_id], references: [user_id])
+
+  @@map("sessions")
+}
