@@ -1,8 +1,0 @@
-# Apache Configurations for SyntaxCraft CORS & Redirects
-
-<IfModule mod_headers.c>
-    # Enable CORS for API dev matching rules
-    Header set Access-Control-Allow-Origin "*"
-    Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
-    Header set Access-Control-Allow-Headers "Content-Type, Authorization"
-</IfModule>

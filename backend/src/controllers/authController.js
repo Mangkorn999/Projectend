@@ -4,7 +4,7 @@ import jwt from "jsonwebtoken";
 const prisma = new PrismaClient();
 
 // 1. สร้างฟังก์ชัน login
-export const login = async (req, res) => { // 
+export const login = async (req, res) => {
   try {
     const { psu_passport_id } = req.body;
 
