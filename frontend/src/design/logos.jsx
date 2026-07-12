@@ -24,7 +24,7 @@ export function PSUSeal({ size = 44, light }) {
         <rect x="42" y="61" width="16" height="3.4" rx="1.7" />
       </g>
       {/* monogram */}
-      <text x="50" y="82" textAnchor="middle" fontFamily="Sarabun, sans-serif" fontWeight="800" fontSize="16" fill={fg} letterSpacing="1">ม.อ.</text>
+      <text x="50" y="82" textAnchor="middle" fontFamily="'LINE Seed Sans TH', sans-serif" fontWeight="800" fontSize="16" fill={fg} letterSpacing="1">ม.อ.</text>
     </svg>
   );
 }

@@ -219,8 +219,8 @@ export function LineChart({ points, height=150, color='var(--navy-600)', suffix=
       {points.map((p,i)=>(
         <g key={i}>
           <circle cx={xs(i)} cy={ys(p.value)} r="4.5" fill="#fff" stroke={color} strokeWidth="2.5" />
-          <text x={xs(i)} y={ys(p.value)-12} textAnchor="middle" fontSize="12" fontWeight="700" fill="var(--ink-800)" fontFamily="Sarabun">{p.value}{suffix}</text>
-          <text x={xs(i)} y={height-6} textAnchor="middle" fontSize="11" fill="var(--ink-500)" fontFamily="Sarabun">{p.label}</text>
+          <text x={xs(i)} y={ys(p.value)-12} textAnchor="middle" fontSize="12" fontWeight="700" fill="var(--ink-800)" fontFamily="'LINE Seed Sans TH', sans-serif">{p.value}{suffix}</text>
+          <text x={xs(i)} y={height-6} textAnchor="middle" fontSize="11" fill="var(--ink-500)" fontFamily="'LINE Seed Sans TH', sans-serif">{p.label}</text>
         </g>
       ))}
     </svg>
@@ -243,11 +243,11 @@ export function MultiLineChart({ series, categories, height=180, suffix='%', yMi
             <path d={path} fill="none" stroke={s.color} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
             {s.values.map((v,i)=>(<g key={i}>
               <circle cx={xs(i)} cy={ys(v)} r="4.5" fill="#fff" stroke={s.color} strokeWidth="2.6" />
-              <text x={xs(i)} y={ys(v)-11} textAnchor="middle" fontSize="11.5" fontWeight="700" fill={s.color} fontFamily="Sarabun">{v}{suffix}</text>
+              <text x={xs(i)} y={ys(v)-11} textAnchor="middle" fontSize="11.5" fontWeight="700" fill={s.color} fontFamily="'LINE Seed Sans TH', sans-serif">{v}{suffix}</text>
             </g>))}
           </g>;
         })}
-        {categories.map((c,i)=>(<text key={i} x={xs(i)} y={height-7} textAnchor="middle" fontSize="11.5" fill="var(--ink-500)" fontFamily="Sarabun">{c}</text>))}
+        {categories.map((c,i)=>(<text key={i} x={xs(i)} y={height-7} textAnchor="middle" fontSize="11.5" fill="var(--ink-500)" fontFamily="'LINE Seed Sans TH', sans-serif">{c}</text>))}
       </svg>
       <div style={{ display:'flex', gap:18, justifyContent:'center', marginTop:8 }}>
         {series.map((s,i)=>(<div key={i} style={{ display:'flex', alignItems:'center', gap:7, fontSize:12.5, color:'var(--ink-600)' }}>
