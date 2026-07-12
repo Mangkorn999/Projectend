@@ -1,3 +1,28 @@
-{"name":"backend","version":"1.0.0","type":"module","main":"app.js","scripts":{"test":"echo \"Error: no test specified\" && exit 1","start":"node server.js"},"author":"","license":"ISC","description":"","dependencies":{"@prisma/client":"^5.22.0","cors":"^2.8.6","dotenv":"^17.4.2","express":"^5.2.1","jsonwebtoken":"^9.0.3"},"devDependencies":{"@types/express":"^5.0.6","prisma":"^5.22.0"},"prisma": {
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "nodemon": "^3.1.14",
+    "prisma": "^5.22.0"
+  },
+  "prisma": {
     "seed": "node prisma/seed.js"
-  }}
+  }
+}
