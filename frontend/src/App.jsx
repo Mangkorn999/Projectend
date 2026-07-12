@@ -1,7 +1,8 @@
-import LoginPage from "./pages/Login/LoginPage";
+import './design/styles.css';
+import { App as DesignApp } from './design/app.jsx';
 
 function App() {
-  return <LoginPage />;
+  return <DesignApp />;
 }
 
 export default App;
