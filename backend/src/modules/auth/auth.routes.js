@@ -1,5 +1,5 @@
 import express from "express";
-import { login } from "../controllers/authController.js"; // <--- ต้องมี { } ครอบ login
+import { login } from "../../controllers/authController.js";
 
 const router = express.Router();
 

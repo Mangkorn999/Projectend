@@ -7,23 +7,37 @@ export const login = async (req, res) => {
   try {
     const { psu_passport_id, first_name, last_name, email } = req.body;
 
-    // upsert: ถ้าไม่มีข้อมูลในระบบจะสร้างใหม่ทันที ถ้ามีแล้วจะอัปเดตข้อมูลให้เป็นปัจจุบัน
-    const user = await prisma.user.upsert({
+    // ค้นหาผู้ใช้ที่มี psu_passport_id นี้อยู่แล้ว
+    let user = await prisma.user.findFirst({
       where: { psu_passport_id: psu_passport_id },
-      update: {
-        first_name: first_name,
-        last_name: last_name,
-        email: email
-      },
-      create: {
-        psu_passport_id: psu_passport_id,
-        first_name: first_name,
-        last_name: last_name,
-        email: email,
-        role_id: 2 // default role เช่น นักศึกษา
-      },
       include: { role: true },
     });
+
+    if (user) {
+      // อัปเดตข้อมูลให้เป็นปัจจุบัน
+      user = await prisma.user.update({
+        where: { user_id: user.user_id },
+        data: {
+          first_name: first_name,
+          last_name: last_name,
+          email: email,
+        },
+        include: { role: true },
+      });
+    } else {
+      // สร้างข้อมูลใหม่
+      user = await prisma.user.create({
+        data: {
+          psu_passport_id: psu_passport_id,
+          first_name: first_name,
+          last_name: last_name,
+          email: email,
+          phone: "",
+          role_id: 2, // default role เช่น นักศึกษา
+        },
+        include: { role: true },
+      });
+    }
 
     // JWT Token
     const token = jwt.sign(
