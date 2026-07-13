@@ -58,7 +58,7 @@ async function main() {
   for (const role of roleData) {
     await prisma.role.create({ data: role });
   }
-  console.log("✅ Roles created.");
+  console.log("Roles created.");
 
   // 2. สร้าง Faculty & Room
   const faculty = await prisma.faculty.create({
@@ -72,7 +72,7 @@ async function main() {
   const room = await prisma.room.findFirst({
     where: { room_name: "ห้องเรียนปกติ" },
   });
-  console.log("✅ Faculty and Rooms created.");
+  console.log("Faculty and Rooms created.");
 
   // 3. ดึง Role มาใช้ (ใช้ findFirst เพื่อความชัวร์หากยังไม่ได้ทำ @unique ใน schema)
   const studentRole = await prisma.role.findFirst({
@@ -106,7 +106,7 @@ async function main() {
       phone: "0899999999",
     },
   });
-  console.log("✅ Users created.");
+  console.log("Users created.");
 
   // 5. สร้าง Student Profile
   await prisma.student.create({
@@ -120,14 +120,14 @@ async function main() {
       nursing_council_password: "password123",
     },
   });
-  console.log("✅ Student profile created.");
+  console.log("Student profile created.");
 
-  console.log("🎉 Seeding successfully!");
+  console.log("Seeding successfully!");
 }
 
 main()
   .catch((e) => {
-    console.error("❌ Error:", e);
+    console.error("Error:", e);
     process.exit(1);
   })
   .finally(async () => {
