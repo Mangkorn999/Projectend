@@ -72,7 +72,7 @@ export const getme = async (req, res) => {
     });
     //ส่งข้อมูลเป็น json
     res.json({
-      succeess: true,
+      success: true,
       data: {
         id: user.user_id,
         name: user.first_name,
@@ -82,6 +82,6 @@ export const getme = async (req, res) => {
     // ถ้าไม่มี token ก็จะ เเจ้ง error server
   } catch (error) {
     console.error(error);
-    res.status(500).json({ succeess: false, message: "server error" });
+    res.status(500).json({ success: false, message: "server error" });
   }
 };
