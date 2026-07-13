@@ -27,7 +27,7 @@ export function ManageRounds({ toast }) {
               <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'var(--ink-500)' }}>เปิดรับ</span><b>{r.open}</b></div>
               <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'var(--ink-500)' }}>ปิดรับ</span><b>{r.close}</b></div>
             </div>
-            {r.status==='OPEN' && <div style={{ marginTop:14 }}><div className="pbar"><i style={{ width:'62%', background:'var(--gold-500)' }}></i></div>
+            {r.status==='OPEN' && <div style={{ marginTop:14 }}><div className="pbar"><i style={{ width:'62%', background:'#8b5e34' }}></i></div>
               <div style={{ fontSize:11.5, color:'var(--ink-500)', marginTop:6 }}>กรอกแล้ว 62% · เหลือ 4 วัน</div></div>}
           </div>
         ))}

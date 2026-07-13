@@ -71,7 +71,7 @@ function DashKPI({ st, segs }) {
         <div style={{ display:'flex', flexDirection:'column', gap:15 }}>
           {st.perSubject.map(s=>(
             <BarRow key={s.id} label={s.name} value={s.rate} right={s.rate+'%'}
-              color={s.rate>=80?'var(--pass)':s.rate>=60?'var(--gold-500)':'var(--fail)'}
+              color={s.rate>=80?'var(--pass)':s.rate>=60?'#c9971f':'var(--fail)'}
               sub={`ผ่าน ${s.pass} · ไม่ผ่าน ${s.fail}`} />
           ))}
         </div>
@@ -98,7 +98,7 @@ function DashCharts({ st, segs }) {
       <div className="card card-pad">
         <h3 style={{ margin:'0 0 16px', fontSize:16, fontWeight:800 }}>อัตราการสอบผ่านรายวิชา</h3>
         <ColumnChart height={180} fmt={v=>v+'%'} data={st.perSubject.map(s=>({ label:s.code, value:s.rate,
-          color:s.rate>=80?'var(--pass)':s.rate>=60?'var(--gold-500)':'var(--fail)' }))} />
+          color:s.rate>=80?'var(--pass)':s.rate>=60?'#c9971f':'var(--fail)' }))} />
         <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginTop:16 }} className="subj-legend">
           {st.perSubject.map(s=>(
             <div key={s.id} style={{ fontSize:11.5, color:'var(--ink-500)' }}><b className="mono" style={{ color:'var(--ink-700)' }}>{s.code}</b> {s.name}</div>

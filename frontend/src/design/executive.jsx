@@ -79,7 +79,7 @@ export function ExecutiveDashboard({ go }) {
           <h3 style={{ margin:'0 0 4px', fontSize:16, fontWeight:800 }}>อัตราสอบผ่านแยกตามครั้งที่สอบ</h3>
           <p style={{ margin:'0 0 14px', color:'var(--ink-500)', fontSize:13 }}>ปีการศึกษา {year} · ร้อยละผู้สอบผ่านในแต่ละครั้งที่เข้าสอบ</p>
           <ColumnChart height={170} fmt={v=>v+'%'} data={yr.attempts.map((a,i)=>({ label:a.label, value:a.rate,
-            color:i===0?'var(--navy-600)':i===1?'var(--gold-500)':'var(--ink-400)' }))} />
+            color:i===0?'var(--navy-600)':i===1?'#8b5e34':'var(--ink-400)' }))} />
           <div style={{ display:'flex', gap:10, marginTop:14 }}>
             {yr.attempts.map((a,i)=>(
               <div key={i} style={{ flex:1, padding:'10px 12px', background:'var(--ink-50)', borderRadius:10, textAlign:'center' }}>
@@ -125,7 +125,7 @@ export function ExecutiveDashboard({ go }) {
         <div className="grid g-2" style={{ gap:'14px 30px' }}>
           {st.perSubject.map(s=>(
             <BarRow key={s.id} label={s.name} value={s.rate} right={s.rate+'%'}
-              color={s.rate>=80?'var(--pass)':s.rate>=60?'var(--gold-500)':'var(--fail)'}
+              color={s.rate>=80?'var(--pass)':s.rate>=60?'#c9971f':'var(--fail)'}
               sub={`ผ่าน ${s.pass} · ไม่ผ่าน ${s.fail} จาก ${s.pass+s.fail} คน`} />
           ))}
         </div>

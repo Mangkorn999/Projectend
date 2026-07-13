@@ -7,20 +7,20 @@
 @import url('https://cdn.jsdelivr.net/gh/lazywasabi/thai-web-fonts@7/fonts/LINESeedSansTH/LINESeedSansTH.css');
 
 :root {
-  /* ---- Brand: PSU navy + academic gold ---- */
-  --navy-900: #0c1f3d;
-  --navy-800: #122a52;
-  --navy-700: #15366b;   /* primary */
-  --navy-600: #1c4485;
-  --navy-500: #2456a3;
+  /* ---- Brand: PSU orange + academic gold ---- */
+  --navy-900: #7a3d02;
+  --navy-800: #a34e00;
+  --navy-700: #f58220;   /* primary */
+  --navy-600: #f7962f;
+  --navy-500: #f9ab52;
   --blue-600: #2563eb;   /* interactive / link */
   --blue-500: #3b82f6;
   --blue-100: #dbeafe;
   --blue-50:  #eff6ff;
-  --gold-600: #b88508;
-  --gold-500: #d4a017;   /* accent */
-  --gold-100: #fbf0d2;
-  --gold-50:  #fdf8ec;
+  --gold-600: #fbfbfb;   /* icon/text inside (white) */
+  --gold-500: #faf5e8;   /* accent (cream, near-white) */
+  --gold-100: #fbe9b8;
+  --gold-50:  #f0c05a;   /* frame/background (gold) */
 
   /* ---- Neutrals ---- */
   --ink-900: #0f172a;
@@ -33,7 +33,7 @@
   --ink-100: #f1f5f9;
   --ink-50:  #f8fafc;
   --white: #ffffff;
-  --canvas: #f4f6fb;
+  --canvas: #ffffff;
 
   /* ---- Status ---- */
   --status-draft-bg:#eef1f6; --status-draft-fg:#5a6678; --status-draft-dot:#94a3b8;
@@ -86,8 +86,8 @@ a { color: var(--blue-600); text-decoration: none; }
 .btn svg { width:18px; height:18px; }
 .btn-primary { background: var(--navy-700); color:#fff; box-shadow: var(--sh-xs); }
 .btn-primary:hover { background: var(--navy-600); }
-.btn-gold { background: var(--gold-500); color:#3a2c05; }
-.btn-gold:hover { background: var(--gold-600); color:#fff; }
+.btn-gold { background: var(--navy-700); color:#fff; }
+.btn-gold:hover { background: var(--navy-600); color:#fff; }
 .btn-ghost { background:#fff; color: var(--ink-700); border-color: var(--ink-200); }
 .btn-ghost:hover { background: var(--ink-50); border-color: var(--ink-300); }
 .btn-subtle { background: var(--ink-100); color: var(--ink-700); }

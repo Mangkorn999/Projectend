@@ -15,7 +15,7 @@ import { AdminDashboard, AdminUsers, AdminAudit, AdminArchive, AdminSettings } f
 const TWEAK_DEFAULTS = {
   examFormStyle: 'toggle',
   dashboardStyle: 'kpi',
-  accent: '#d4a017',
+  accent: '#faf5e8',
   autosave: true,
   density: 'regular',
 };

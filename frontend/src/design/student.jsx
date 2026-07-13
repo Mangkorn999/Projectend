@@ -41,12 +41,12 @@ export function StudentNews({ go }) {
             onMouseLeave={e=>e.currentTarget.style.boxShadow='var(--sh-sm)'}>
             <div style={{ display:'flex', alignItems:'flex-start', gap:15 }}>
               <div style={{ width:44, height:44, borderRadius:12, flex:'none', display:'flex', alignItems:'center', justifyContent:'center',
-                background: n.pinned?'var(--gold-50)':'var(--blue-50)', color: n.pinned?'var(--gold-600)':'var(--blue-600)' }}>
+                background: n.pinned?'var(--navy-700)':'var(--blue-50)', color: n.pinned?'#fff':'var(--blue-600)' }}>
                 <Icon name={n.pinned?'star':'news'} size={21} />
               </div>
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ display:'flex', alignItems:'center', gap:9, marginBottom:5, flexWrap:'wrap' }}>
-                  {n.pinned && <span className="chip" style={{ background:'var(--gold-50)', color:'var(--gold-600)', fontWeight:700, fontSize:11.5, padding:'3px 9px' }}>ปักหมุด</span>}
+                  {n.pinned && <span className="chip" style={{ background:'var(--navy-700)', color:'#fff', fontWeight:700, fontSize:11.5, padding:'3px 9px' }}>ปักหมุด</span>}
                   <span className="chip" style={{ fontSize:11.5, padding:'3px 9px' }}>{n.round}</span>
                 </div>
                 <div style={{ fontSize:16, fontWeight:700, color:'var(--ink-900)', lineHeight:1.35 }}>{n.title}</div>
