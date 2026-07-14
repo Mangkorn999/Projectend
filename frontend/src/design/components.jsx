@@ -243,11 +243,11 @@ export function MultiLineChart({ series, categories, height=180, suffix='%', yMi
             <path d={path} fill="none" stroke={s.color} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
             {s.values.map((v,i)=>(<g key={i}>
               <circle cx={xs(i)} cy={ys(v)} r="4.5" fill="#fff" stroke={s.color} strokeWidth="2.6" />
-              <text x={xs(i)} y={ys(v)-11} textAnchor="middle" fontSize="11.5" fontWeight="700" fill={s.color} fontFamily="'LINE Seed Sans TH', sans-serif">{v}{suffix}</text>
+              <text x={xs(i)} y={ys(v)-11} textAnchor="middle" fontSize="6" fontWeight="700" fill={s.color} fontFamily="'LINE Seed Sans TH', sans-serif">{v}{suffix}</text>
             </g>))}
           </g>;
         })}
-        {categories.map((c,i)=>(<text key={i} x={xs(i)} y={height-7} textAnchor="middle" fontSize="11.5" fill="var(--ink-500)" fontFamily="'LINE Seed Sans TH', sans-serif">{c}</text>))}
+        {categories.map((c,i)=>(<text key={i} x={xs(i)} y={height-7} textAnchor="middle" fontSize="9" fill="var(--ink-500)" fontFamily="'LINE Seed Sans TH', sans-serif">{c}</text>))}
       </svg>
       <div style={{ display:'flex', gap:18, justifyContent:'center', marginTop:8 }}>
         {series.map((s,i)=>(<div key={i} style={{ display:'flex', alignItems:'center', gap:7, fontSize:12.5, color:'var(--ink-600)' }}>
