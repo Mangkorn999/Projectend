@@ -16,7 +16,7 @@ import subjectsRouter from "./modules/subjects/subjects.routes.js";
 import cors from "cors";
 
 // ตรวจ .env ก่อนเริ่ม app — ถ้าขาดตัวไหน throw error ทันที
-validateEnv();
+validateEnv();98
 
 const app = express();
 
