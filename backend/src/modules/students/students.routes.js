@@ -3,12 +3,18 @@
 // POST   /api/subjects       → เพิ่มรายวิชา (staff เท่านั้น)
 // PUT    /api/subjects/:id   → แก้ไขรายวิชา (staff เท่านั้น)
 // DELETE /api/subjects/:id   → ลบรายวิชา (staff เท่านั้น)
-import express from "express";
+  import express from "express";
+  import { authenticate } from "../../middlewares/auth.js";
+  import { requireRole } from "../../middlewares/requireRole.js";
+  import { getAll, getById, updateMyCredentials } from "./students.controller.js";
 
-const router = express.Router();
+  const router = express.Router();
+  router.get("/", authenticate, requireRole("officer"), getAll);
+  router.get("/:id", authenticate, getById); // staff, student ดูได้ (เช็ค ownership เพิ่มถ้า student ดูของคนอื่น)
+  router.patch("/me/credentials", authenticate, requireRole("student"), updateMyCredentials);
 
-// TODO: import authenticate, requireRole, และ controller
-// router.get("/", authenticate, subjectsController.getAll);
-// router.post("/", authenticate, requireRole("staff"), subjectsController.create);
+  export default router;
 
-export default router;
+  const router = express.Router();
+  router.get("/", authenticate, requireRole("officer"), getAll);
+  export default router;
