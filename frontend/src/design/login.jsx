@@ -19,7 +19,7 @@ export function Login({ onLogin }) {
   return (
     <div style={{ minHeight:'100vh', display:'grid', gridTemplateColumns:'1.05fr 1fr' }} className="login-wrap">
       {/* left brand panel */}
-      <div className="login-brand" style={{ background:'linear-gradient(155deg,var(--navy-700),var(--navy-900))',
+      <div className="login-brand" style={{ background:'linear-gradient(155deg,var(--navy-800),#4a2601)',
         color:'#fff', padding:'48px 56px', display:'flex', flexDirection:'column', position:'relative', overflow:'hidden' }}>
         <div style={{ position:'absolute', width:480, height:480, borderRadius:'50%', right:-160, top:-160,
           background:'radial-gradient(circle,rgba(212,160,23,.20),transparent 70%)' }}></div>
@@ -36,7 +36,7 @@ export function Login({ onLogin }) {
           <div className="chip" style={{ alignSelf:'flex-start', background:'rgba(255,255,255,.12)', color:'var(--gold-500)', fontWeight:700, marginBottom:20 }}>
             <Icon name="shield" size={15} /> ระบบสารสนเทศคณะ
           </div>
-          <h1 style={{ fontSize:38, fontWeight:800, margin:'0 0 16px', lineHeight:1.18, letterSpacing:'-.01em' }}>
+          <h1 style={{ fontSize:38, fontWeight:800, margin:'0 0 16px', lineHeight:1.18, letterSpacing:'-.01em', color:'#fff' }}>
             ระบบบันทึก<br/>ใบประกอบวิชาชีพ
           </h1>
           <p style={{ fontSize:15.5, opacity:.85, maxWidth:380, lineHeight:1.6, margin:0 }}>

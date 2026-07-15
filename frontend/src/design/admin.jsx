@@ -19,7 +19,7 @@ const ROLE_META = {
   student:   { label:'นักศึกษา', icon:'graduation', color:'var(--navy-700)', bg:'var(--blue-50)' },
   officer:   { label:'เจ้าหน้าที่คณะ', icon:'shield', color:'#0d7a6e', bg:'#e3f5f1' },
   executive: { label:'ผู้บริหารคณะ', icon:'chart', color:'var(--blue-600)', bg:'var(--blue-50)' },
-  admin:     { label:'ผู้ดูแลระบบ', icon:'key', color:'var(--gold-600)', bg:'var(--gold-50)' },
+  admin:     { label:'ผู้ดูแลระบบ', icon:'key', color:'#fff', bg:'var(--navy-700)' },
 };
 const AUDIT = [
   { id:1, who:'สมหญิง ใจดี', role:'officer', action:'ยืนยันผลสอบ', target:'นักศึกษา 6610210559', time:'5 มิ.ย. 2569 14:32', tone:'ok' },
