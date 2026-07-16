@@ -27,11 +27,12 @@ export function Avatar({ name, size = 38, bg }) {
 /* ---- App shell: TopBar ---- */
 export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=3 }) {
   const [open, setOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const roles = [
     { k:'student', label:'นักศึกษา', icon:'graduation' },
     { k:'officer', label:'เจ้าหน้าที่คณะ', icon:'shield' },
     { k:'executive', label:'ผู้บริหารคณะ', icon:'chart' },
-    { k:'admin', label:'ผู้ดูแลระบบ', icon:'key' },
+    { k:'admin', label:'ผู้ดูแลระบบ', icon:'settings' },
   ];
   return (
     <header style={{ height:'var(--header-h)', background:'#fff', borderBottom:'1px solid var(--ink-200)',
@@ -45,11 +46,15 @@ export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=3 })
         <div style={{ fontSize:11.5, color:'var(--ink-500)', fontWeight:500 }}>คณะพยาบาลศาสตร์ · มหาวิทยาลัยสงขลานครินทร์</div>
       </div>
       <div style={{ flex:1 }}></div>
-      <button className="btn btn-ghost btn-sm" style={{ position:'relative', padding:9, border:'1px solid var(--ink-200)' }}>
+      <button className="btn btn-ghost btn-sm" style={{ position:'relative', padding:9, border:'1px solid var(--ink-200)' }}
+        onClick={()=>setNotifOpen(true)}>
         <Icon name="bell" size={19} />
         {notif>0 && <span style={{ position:'absolute', top:5, right:5, width:8, height:8, borderRadius:'50%',
           background:'var(--fail)', boxShadow:'0 0 0 2px #fff' }}></span>}
       </button>
+      <Modal open={notifOpen} onClose={()=>setNotifOpen(false)} title="การแจ้งเตือน">
+        <Empty icon="bell" title="ยังไม่มีการแจ้งเตือน" sub="เมื่อมีการแจ้งเตือนใหม่ จะแสดงที่นี่" />
+      </Modal>
       <div style={{ position:'relative' }}>
         <button onClick={()=>setOpen(o=>!o)} className="btn btn-ghost" style={{ padding:'5px 8px 5px 5px', gap:9 }}>
           <Avatar name={user.firstName} size={32} />
@@ -300,9 +305,9 @@ export function Modal({ open, onClose, title, children, footer, width=480, tone 
       <div className="card fade-up" onClick={e=>e.stopPropagation()} style={{ width, maxWidth:'100%', maxHeight:'90vh',
         overflow:'auto', boxShadow:'var(--sh-lg)', borderRadius:16 }}>
         {title && <div style={{ padding:'18px 22px', borderBottom:'1px solid var(--ink-100)', display:'flex',
-          alignItems:'center', justifyContent:'space-between', gap:12 }}>
-          <h3 style={{ margin:0, fontSize:17, fontWeight:800, color: tone||'var(--ink-900)' }}>{title}</h3>
-          <button className="btn btn-ghost btn-sm" style={{ padding:7, border:'none' }} onClick={onClose}><Icon name="x" size={18} /></button>
+          alignItems:'center', justifyContent:'center', gap:12, position:'relative' }}>
+          <h3 style={{ margin:0, fontSize:17, fontWeight:800, color: tone||'var(--ink-900)', textAlign:'center' }}>{title}</h3>
+          <button className="btn btn-ghost btn-sm" style={{ padding:7, border:'none', position:'absolute', right:22, top:'50%', transform:'translateY(-50%)' }} onClick={onClose}><Icon name="x" size={18} /></button>
         </div>}
         <div style={{ padding:'20px 22px' }}>{children}</div>
         {footer && <div style={{ padding:'14px 22px', borderTop:'1px solid var(--ink-100)', display:'flex',

@@ -19,7 +19,7 @@ const ROLE_META = {
   student:   { label:'นักศึกษา', icon:'graduation', color:'var(--navy-700)', bg:'var(--blue-50)' },
   officer:   { label:'เจ้าหน้าที่คณะ', icon:'shield', color:'#0d7a6e', bg:'#e3f5f1' },
   executive: { label:'ผู้บริหารคณะ', icon:'chart', color:'var(--blue-600)', bg:'var(--blue-50)' },
-  admin:     { label:'ผู้ดูแลระบบ', icon:'key', color:'#fff', bg:'var(--navy-700)' },
+  admin:     { label:'ผู้ดูแลระบบ', icon:'settings', color:'#fff', bg:'var(--navy-700)' },
 };
 const AUDIT = [
   { id:1, who:'สมหญิง ใจดี', role:'officer', action:'ยืนยันผลสอบ', target:'นักศึกษา 6610210559', time:'5 มิ.ย. 2569 14:32', tone:'ok' },
@@ -37,7 +37,7 @@ export function AdminDashboard({ go }) {
   return (
     <div className="fade-up">
       <PageHead title="ศูนย์ควบคุมระบบ" sub="ภาพรวมระบบและสิทธิ์การเข้าถึงทั้งหมด"
-        crumb={<span style={{ display:'inline-flex', alignItems:'center', gap:6 }}><Icon name="key" size={14}/> Super Admin</span>}
+        crumb={<span style={{ display:'inline-flex', alignItems:'center', gap:6 }}><Icon name="settings" size={14}/> Super Admin</span>}
         actions={<button className="btn btn-primary" onClick={()=>go('users')}><Icon name="users" size={17}/> จัดการผู้ใช้งาน</button>} />
 
       {/* user counts by role */}
@@ -116,7 +116,7 @@ export function AdminUsers({ toast }) {
   return (
     <div className="fade-up">
       <PageHead title="จัดการผู้ใช้งานทั้งหมด" sub={`${filtered.length} บัญชี · ทุกบทบาทในระบบ`}
-        crumb={<span style={{ display:'inline-flex', alignItems:'center', gap:6 }}><Icon name="key" size={14}/> Super Admin</span>}
+        crumb={<span style={{ display:'inline-flex', alignItems:'center', gap:6 }}><Icon name="settings" size={14}/> Super Admin</span>}
         actions={<button className="btn btn-primary" onClick={()=>setModal({})}><Icon name="plus" size={17}/> เพิ่มบัญชี</button>} />
       <div className="card" style={{ padding:14, marginBottom:18, display:'flex', gap:12, flexWrap:'wrap', alignItems:'center' }}>
         <div style={{ position:'relative', flex:'1 1 220px' }}>
@@ -175,7 +175,7 @@ export function AdminAudit() {
   return (
     <div className="fade-up">
       <PageHead title="บันทึกการใช้งานระบบ (Audit Log)" sub="ร่องรอยทุกการกระทำ — ตรวจสอบย้อนหลังได้"
-        crumb={<span style={{ display:'inline-flex', alignItems:'center', gap:6 }}><Icon name="key" size={14}/> Super Admin</span>}
+        crumb={<span style={{ display:'inline-flex', alignItems:'center', gap:6 }}><Icon name="settings" size={14}/> Super Admin</span>}
         actions={<button className="btn btn-ghost"><Icon name="download" size={16}/> ส่งออก CSV</button>} />
       <div style={{ display:'flex', gap:6, marginBottom:16, flexWrap:'wrap' }}>
         {[['ALL','ทั้งหมด'],['student','นักศึกษา'],['officer','เจ้าหน้าที่'],['admin','ผู้ดูแล']].map(([k,l])=>(
@@ -207,7 +207,7 @@ export function AdminArchive({ toast }) {
   return (
     <div className="fade-up">
       <PageHead title="ข้อมูลย้อนหลังรายปี" sub="จัดเก็บและเปรียบเทียบข้อมูลผลสอบข้ามปีการศึกษา"
-        crumb={<span style={{ display:'inline-flex', alignItems:'center', gap:6 }}><Icon name="key" size={14}/> Super Admin</span>} />
+        crumb={<span style={{ display:'inline-flex', alignItems:'center', gap:6 }}><Icon name="settings" size={14}/> Super Admin</span>} />
       <div className="note-card" style={{ display:'flex', gap:12, alignItems:'flex-start', padding:'14px 18px', background:'var(--blue-50)', borderRadius:13, marginBottom:20 }}>
         <Icon name="info" size={20} style={{ color:'var(--navy-600)', flex:'none', marginTop:1 }}/>
         <div style={{ fontSize:13.5, color:'var(--navy-700)' }}>
@@ -254,7 +254,7 @@ export function AdminSettings({ toast }) {
   return (
     <div className="fade-up">
       <PageHead title="ตั้งค่าระบบ" sub="กำหนดค่าพื้นฐาน นโยบายข้อมูล และการเชื่อมต่อ"
-        crumb={<span style={{ display:'inline-flex', alignItems:'center', gap:6 }}><Icon name="key" size={14}/> Super Admin</span>}
+        crumb={<span style={{ display:'inline-flex', alignItems:'center', gap:6 }}><Icon name="settings" size={14}/> Super Admin</span>}
         actions={<button className="btn btn-primary" onClick={()=>toast('บันทึกการตั้งค่าแล้ว')}><Icon name="check" size={17}/> บันทึก</button>} />
       <div style={{ maxWidth:720, display:'flex', flexDirection:'column', gap:18 }}>
         <div className="card card-pad">

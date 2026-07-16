@@ -12,7 +12,7 @@ export function Login({ onLogin }) {
     { k:'student', label:'นักศึกษา', desc:'กรอกผลสอบ · อัปโหลดหลักฐาน · ดูสถานะ', icon:'graduation' },
     { k:'officer', label:'เจ้าหน้าที่คณะ', desc:'ตรวจสอบ · ยืนยัน · จัดการระบบ · ออกรายงาน', icon:'shield' },
     { k:'executive', label:'ผู้บริหารคณะ', desc:'Dashboard · สถิติ · รายงานสรุป', icon:'chart' },
-    { k:'admin', label:'ผู้ดูแลระบบ', desc:'จัดการผู้ใช้ · audit · ตั้งค่าระบบ', icon:'key' },
+    { k:'admin', label:'ผู้ดูแลระบบ', desc:'จัดการผู้ใช้ · audit · ตั้งค่าระบบ', icon:'settings' },
   ];
   const go = () => { setLoading(true); setTimeout(()=>onLogin(role), 850); };
 
