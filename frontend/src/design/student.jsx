@@ -80,12 +80,12 @@ export function StudentNews({ go }) {
 }
 
 /* ---------- Exam form (with variation styles) ---------- */
-export function ExamForm({ go, toast, tweaks }) {
+export function ExamForm({ go, toast, tweaks, initialStep=0 }) {
   const variant = tweaks?.examFormStyle || 'toggle';
   const autosave = tweaks?.autosave !== false;
   const [council, setCouncil] = useState(ME.councilSet);
   const [results, setResults] = useState(()=>SUBJECTS.map(s=>({ id:s.id, passed:null })));
-  const [step, setStep] = useState(0); // 0 creds, 1 results, 2 upload, 3 review
+  const [step, setStep] = useState(initialStep); // 0 creds, 1 results, 2 upload, 3 review
   const [files, setFiles] = useState({}); // keyed by slot: { EXAM:{...}, LICENSE:{...} }
   const [saved, setSaved] = useState(false);
   const filled = results.filter(r=>r.passed!==null).length;
@@ -455,7 +455,7 @@ export function StudentStatus({ go }) {
 }
 
 /* ---------- History ---------- */
-export function StudentHistory() {
+export function StudentHistory({ go }) {
   const rows = [
     { round:'1/2569', date:'5 มิ.ย. 2569', status:'SUBMITTED', passed:7 },
     { round:'2/2568', date:'8 ม.ค. 2569', status:'CONFIRMED', passed:8 },
@@ -475,7 +475,11 @@ export function StudentHistory() {
                   <td style={{ color:'var(--ink-600)' }}>{r.date}</td>
                   <td><span className="tnum" style={{ fontWeight:700, color: r.passed===8?'var(--pass)':'var(--ink-800)' }}>{r.passed}/8</span> <span style={{ color:'var(--ink-400)', fontSize:13 }}>ผ่าน</span></td>
                   <td><StatusBadge status={r.status} /></td>
-                  <td style={{ textAlign:'right' }}><button className="btn btn-ghost btn-sm"><Icon name="eye" size={15}/> ดู</button></td>
+                  <td style={{ textAlign:'right' }}>
+                    <button className="btn btn-ghost btn-sm" disabled={r.status==='CONFIRMED'||r.status==='REJECTED'}
+                      onClick={()=>go('form',1)}><Icon name="edit" size={15}/> แก้ไข</button>{' '}
+                    <button className="btn btn-ghost btn-sm"><Icon name="eye" size={15}/> ดู</button>
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -52,8 +52,10 @@ export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=3 })
         {notif>0 && <span style={{ position:'absolute', top:5, right:5, width:8, height:8, borderRadius:'50%',
           background:'var(--fail)', boxShadow:'0 0 0 2px #fff' }}></span>}
       </button>
-      <Modal open={notifOpen} onClose={()=>setNotifOpen(false)} title="การแจ้งเตือน">
-        <Empty icon="bell" title="ยังไม่มีการแจ้งเตือน" sub="เมื่อมีการแจ้งเตือนใหม่ จะแสดงที่นี่" />
+      <Modal open={notifOpen} onClose={()=>setNotifOpen(false)} title="การแจ้งเตือน" width={680}>
+        <div style={{ minHeight:440, display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <Empty icon="bell" title="ยังไม่มีการแจ้งเตือน" sub="เมื่อมีการแจ้งเตือนใหม่ จะแสดงที่นี่" />
+        </div>
       </Modal>
       <div style={{ position:'relative' }}>
         <button onClick={()=>setOpen(o=>!o)} className="btn btn-ghost" style={{ padding:'5px 8px 5px 5px', gap:9 }}>

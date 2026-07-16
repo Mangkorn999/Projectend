@@ -70,6 +70,7 @@ export function App() {
   const [sel, setSel] = useState(null);
   const [sbOpen, setSbOpen] = useState(false);
   const [toast, showToast] = useToast();
+  const [formStep, setFormStep] = useState(0);
 
   // accent override
   useEffect(()=>{ document.documentElement.style.setProperty('--gold-500', t.accent);
@@ -78,15 +79,15 @@ export function App() {
   if(!role) return <><Login onLogin={r=>{ setRole(r); setPage(DEFAULT_PAGE[r]); }} /><TweaksUI t={t} setTweak={setTweak} /></>;
 
   const nav = NAV[role];
-  const go = (p)=>{ setPage(p); window.scrollTo(0,0); };
+  const go = (p, step=0)=>{ setPage(p); setFormStep(step); window.scrollTo(0,0); };
   const switchRole = (r)=>{ if(r==='logout'){ setRole(null); return; } setRole(r); setPage(DEFAULT_PAGE[r]); setSel(null); };
 
   const render = ()=>{
     if(role==='student'){
       if(page==='news') return <StudentNews go={go} />;
-      if(page==='form') return <ExamForm go={go} toast={showToast} tweaks={t} />;
+      if(page==='form') return <ExamForm go={go} toast={showToast} tweaks={t} initialStep={formStep} />;
       if(page==='status') return <StudentStatus go={go} />;
-      if(page==='history') return <StudentHistory />;
+      if(page==='history') return <StudentHistory go={go} />;
     }
     if(role==='officer'){
       if(page==='dashboard') return <OfficerDashboard go={go} tweaks={t} />;
