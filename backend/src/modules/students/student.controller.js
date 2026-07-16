@@ -13,7 +13,7 @@ export const getAll = async (req, res, next) => {
 export const getById = async (req, res, next) => {
   try {
     const student = await studentRepo.findById(req.params.id);
-    if (student) delete student.nursing_council_password;
+    if (student         ) delete student.nursing_council_password;
     res.json({ succes: true, data: student });
   } catch (err) {
     next(err);
