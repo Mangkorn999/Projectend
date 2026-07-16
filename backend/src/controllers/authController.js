@@ -3,6 +3,9 @@ import jwt from "jsonwebtoken";
 
 const prisma = new PrismaClient();
 
+// login ผ่านระบบ sso เเต่ตอนนี้จำลองไปก่อน
+// เช็ค jwt สร้าง token ไหม
+// นำ ข้อมูล jwt เเกะ token  เเล้วข้อมูลถูกไหม
 export const login = async (req, res) => {
   try {
     const { psu_passport_id, first_name, last_name, email } = req.body;
@@ -58,5 +61,27 @@ export const login = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "server error" });
+  }
+};
+export const getme = async (req, res) => {
+  try {
+    //ดึงข้อมูลจาก jwt
+    const user = await prisma.user.findUnique({
+      where: { user_id: req.user.userId },
+      include: { role: true },
+    });
+    //ส่งข้อมูลเป็น json
+    res.json({
+      success: true,
+      data: {
+        id: user.user_id,
+        name: user.first_name,
+        role: user.role.role_name,
+      },
+    });
+    // ถ้าไม่มี token ก็จะ เเจ้ง error server
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "server error" });
   }
 };

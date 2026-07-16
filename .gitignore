@@ -30,3 +30,4 @@ npm-debug.log*
 
 # prisma generated client
 backend/generated/
+backend/test.http

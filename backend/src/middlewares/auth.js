@@ -9,7 +9,9 @@ export const authenticate = (req, res, next) => {
   const token = authHeader && authHeader.split(" ")[1]; // "Bearer <token>"
 
   if (!token) {
-    return res.status(401).json({ success: false, message: "กรุณาเข้าสู่ระบบก่อน" });
+    return res
+      .status(401)
+      .json({ success: false, message: "กรุณาเข้าสู่ระบบก่อน" });
   }
 
   try {
@@ -17,6 +19,9 @@ export const authenticate = (req, res, next) => {
     req.user = decoded; // { userId, role }
     next();
   } catch (err) {
-    return res.status(401).json({ success: false, message: "Token ไม่ถูกต้องหรือหมดอายุ" });
+    console.error("JWT verify error:", err.message);
+    return res
+      .status(401)
+      .json({ success: false, message: "Token ไม่ถูกต้องหรือหมดอายุ" });
   }
 };
