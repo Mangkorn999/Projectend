@@ -2,7 +2,7 @@
    Officer screens — dashboard, review, management
    ============================================================ */
 import { useState, useEffect, useMemo } from 'react';
-import { Icon, ROUNDS, STUDENTS, SUBJECTS, computeStats, TREND, plural, ROOMS } from './data.jsx';
+import { Icon, ROUNDS, STUDENTS, SUBJECTS, computeStats, TREND, plural, ROOMS, YEARS, YEARLY } from './data.jsx';
 import { PageHead, StatCard, Donut, BarRow, ColumnChart, LineChart, Avatar, Modal, Empty, StatusBadge, PassBadge } from './components.jsx';
 
 /* ---------- Officer Dashboard (variation-driven) ---------- */
@@ -42,6 +42,28 @@ export function OfficerDashboard({ go, tweaks }) {
 
 /* Variant A: balanced KPI + donut + subject bars */
 function DashKPI({ st, segs }) {
+  const [subjYear, setSubjYear] = useState(YEARS[0]);
+  const [yearOpen, setYearOpen] = useState(false);
+  const yearFactor = subjYear===YEARS[0] ? 1 : (YEARLY[subjYear].firstAttempt / YEARLY[YEARS[0]].firstAttempt);
+  const perSubjectForYear = st.perSubject.map(s=>{
+    if(subjYear===YEARS[0]) return s;
+    const rate = Math.min(100, Math.round(s.rate*yearFactor));
+    const tot = s.pass+s.fail;
+    const pass = Math.round(tot*rate/100);
+    return { ...s, rate, pass, fail: tot-pass };
+  });
+  const overallForYear = subjYear===YEARS[0] ? st.overallPassRate : YEARLY[subjYear].firstAttempt;
+
+  const evaluated = STUDENTS.filter(s=>s.status!=='DRAFT');
+  const passSegs = [
+    { key:'FULL', label:'ผ่านครบ 8 วิชา', value:evaluated.filter(s=>s.passedCount===8).length, color:'var(--pass)' },
+    { key:'P7',   label:'ผ่าน 7 วิชา',    value:evaluated.filter(s=>s.passedCount===7).length, color:'#e8c02f' },
+    { key:'P6',   label:'ผ่าน 6 วิชา',    value:evaluated.filter(s=>s.passedCount===6).length, color:'#e8951f' },
+    { key:'P5',   label:'ผ่าน 5 วิชา',    value:evaluated.filter(s=>s.passedCount===5).length, color:'#d97319' },
+    { key:'LOW',  label:'ผ่านต่ำกว่า 5 วิชา', value:evaluated.filter(s=>s.passedCount<5).length, color:'var(--fail)' },
+  ];
+  const fullPassRate = evaluated.length ? Math.round(passSegs[0].value/evaluated.length*100) : 0;
+
   return (
     <div className="row wrap-m" style={{ alignItems:'stretch' }}>
       <div className="card card-pad" style={{ flex:'0 0 340px' }}>
@@ -61,15 +83,58 @@ function DashKPI({ st, segs }) {
             </div>
           ))}
         </div>
+
+        <div className="hr" style={{ margin:'20px 0' }}></div>
+
+        <h3 style={{ margin:'0 0 4px', fontSize:16, fontWeight:800 }}>สัดส่วนร้อยละผู้สอบผ่าน</h3>
+        <p style={{ margin:'0 0 14px', color:'var(--ink-500)', fontSize:13 }}>จำแนกตามจำนวนวิชาผ่าน-ครั้งแรก จากผู้ส่งผลแล้ว {evaluated.length} คน</p>
+        <div style={{ display:'flex', justifyContent:'center', marginBottom:16 }}>
+          <Donut segments={passSegs} size={184} thickness={28}
+            center={<><div className="tnum" style={{ fontSize:30, fontWeight:800 }}>{fullPassRate}%</div><div style={{ fontSize:11.5, color:'var(--ink-500)' }}>ผ่านครบ</div></>} />
+        </div>
+        <div style={{ display:'flex', flexDirection:'column', gap:9 }}>
+          {passSegs.map(s=>(
+            <div key={s.key} style={{ display:'flex', alignItems:'center', gap:9, fontSize:13.5 }}>
+              <span style={{ width:11, height:11, borderRadius:3, background:s.color, flex:'none' }}></span>
+              <span style={{ color:'var(--ink-700)' }}>{s.label}</span>
+              <span className="tnum" style={{ marginLeft:'auto', fontWeight:700 }}>{s.value}</span>
+              <span className="tnum" style={{ color:'var(--ink-400)', width:42, textAlign:'right', fontSize:12.5 }}>{evaluated.length?Math.round(s.value/evaluated.length*100):0}%</span>
+            </div>
+          ))}
+        </div>
       </div>
       <div className="card card-pad" style={{ flex:1, minWidth:0 }}>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16, flexWrap:'wrap', gap:10 }}>
           <div><h3 style={{ margin:0, fontSize:16, fontWeight:800 }}>อัตราการสอบผ่านรายวิชา</h3>
             <p style={{ margin:'3px 0 0', color:'var(--ink-500)', fontSize:13 }}>ร้อยละผู้สอบผ่านในแต่ละวิชา (8 วิชา)</p></div>
-          <span className="chip" style={{ background:'var(--status-ok-bg)', color:'var(--status-ok-fg)', fontWeight:700 }}>เฉลี่ย {st.overallPassRate}%</span>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <div style={{ position:'relative' }}>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setYearOpen(o=>!o)}>
+                <Icon name="calendar" size={15}/> พ.ศ. {subjYear} <Icon name="chevD" size={14}/>
+              </button>
+              {yearOpen && <>
+                <div style={{ position:'fixed', inset:0, zIndex:50 }} onClick={()=>setYearOpen(false)}></div>
+                <div className="card fade-up" style={{ position:'absolute', right:0, top:'calc(100% + 6px)', width:150,
+                  zIndex:51, boxShadow:'var(--sh-lg)', padding:6 }}>
+                  {YEARS.map(y=>(
+                    <button key={y} onClick={()=>{ setSubjYear(y); setYearOpen(false); }}
+                      style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 9px', borderRadius:8, border:'none',
+                        background: y===subjYear?'var(--blue-50)':'transparent', textAlign:'left', width:'100%',
+                        color: y===subjYear?'var(--navy-700)':'var(--ink-700)', fontWeight: y===subjYear?700:500, fontSize:13.5 }}>
+                      พ.ศ. {y}{y===YEARS[0] && <span style={{ marginLeft:'auto', fontSize:11, color:'var(--ink-400)' }}>ปัจจุบัน</span>}
+                    </button>
+                  ))}
+                </div>
+              </>}
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:2 }}>
+              <span className="chip" style={{ background:'var(--status-ok-bg)', color:'var(--status-ok-fg)', fontWeight:700 }}>เฉลี่ย {overallForYear}%</span>
+              <span style={{ fontSize:10.5, color:'var(--ink-400)' }}>ผ่านครบทุกวิชา</span>
+            </div>
+          </div>
         </div>
         <div style={{ display:'flex', flexDirection:'column', gap:15 }}>
-          {st.perSubject.map(s=>(
+          {[...perSubjectForYear].sort((a,b)=>b.rate-a.rate).map(s=>(
             <BarRow key={s.id} label={s.name} value={s.rate} right={s.rate+'%'}
               color={s.rate>=80?'var(--pass)':s.rate>=60?'#c9971f':'var(--fail)'}
               sub={`ผ่าน ${s.pass} · ไม่ผ่าน ${s.fail}`} />
