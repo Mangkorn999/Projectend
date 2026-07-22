@@ -70,6 +70,7 @@ export function App() {
   const [sbOpen, setSbOpen] = useState(false);
   const [toast, showToast] = useToast();
   const [formStep, setFormStep] = useState(0);
+  const [lang, setLang] = useState('TH'); // 'TH' | 'EN' — UI toggle only for now; page content isn't translated yet
 
   // accent override
   useEffect(()=>{ document.documentElement.style.setProperty('--gold-500', t.accent);
@@ -118,7 +119,8 @@ export function App() {
 
   return (
     <div data-density={t.density}>
-      <TopBar role={role} roleLabel={ROLE_LABEL[role]} user={ROLE_USER[role]} onMenu={()=>setSbOpen(true)} onSwitchRole={switchRole} />
+      <TopBar role={role} roleLabel={ROLE_LABEL[role]} user={ROLE_USER[role]} onMenu={()=>setSbOpen(true)} onSwitchRole={switchRole}
+        lang={lang} setLang={setLang} />
       <div className="app-shell">
         <Sidebar items={nav} active={activeNav} onNav={go} open={sbOpen} onClose={()=>setSbOpen(false)}
           footer={<div className="card" style={{ padding:'12px 13px', background:'var(--ink-50)', border:'1px solid var(--ink-200)', boxShadow:'none' }}>

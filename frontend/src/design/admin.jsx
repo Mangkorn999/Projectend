@@ -256,7 +256,7 @@ export function AdminSettings({ toast }) {
       <PageHead title="ตั้งค่าระบบ" sub="กำหนดค่าพื้นฐาน นโยบายข้อมูล และการเชื่อมต่อ"
         crumb={<span style={{ display:'inline-flex', alignItems:'center', gap:6 }}><Icon name="settings" size={14}/> Super Admin</span>}
         actions={<button className="btn btn-primary" onClick={()=>toast('บันทึกการตั้งค่าแล้ว')}><Icon name="check" size={17}/> บันทึก</button>} />
-      <div style={{ maxWidth:720, display:'flex', flexDirection:'column', gap:18 }}>
+      <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
         <div className="card card-pad">
           <h3 style={{ margin:'0 0 16px', fontSize:16, fontWeight:800 }}>ข้อมูลทั่วไป</h3>
           <div className="grid g-2" style={{ gap:16 }}>

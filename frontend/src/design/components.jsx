@@ -40,7 +40,7 @@ const NOTIFS = {
 };
 
 /* ---- App shell: TopBar ---- */
-export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=3 }) {
+export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=3, lang='TH', setLang }) {
   const [open, setOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const roles = [
@@ -61,6 +61,14 @@ export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=3 })
         <div style={{ fontSize:11.5, color:'var(--ink-500)', fontWeight:500 }}>คณะพยาบาลศาสตร์ · มหาวิทยาลัยสงขลานครินทร์</div>
       </div>
       <div style={{ flex:1 }}></div>
+      {setLang && <div style={{ display:'inline-flex', background:'var(--ink-100)', borderRadius:999, padding:3, gap:3 }}>
+        <button onClick={()=>setLang('TH')} style={{ border:'none', padding:'5px 12px', borderRadius:999, fontSize:12, fontWeight:700,
+          fontFamily:'inherit', cursor:'pointer', transition:'.13s',
+          background: lang==='TH'?'var(--navy-700)':'transparent', color: lang==='TH'?'#fff':'var(--ink-500)' }}>TH</button>
+        <button onClick={()=>setLang('EN')} style={{ border:'none', padding:'5px 12px', borderRadius:999, fontSize:12, fontWeight:700,
+          fontFamily:'inherit', cursor:'pointer', transition:'.13s',
+          background: lang==='EN'?'var(--navy-700)':'transparent', color: lang==='EN'?'#fff':'var(--ink-500)' }}>EN</button>
+      </div>}
       <button className="btn btn-ghost btn-sm" style={{ position:'relative', padding:9, border:'1px solid var(--ink-200)' }}
         onClick={()=>setNotifOpen(true)}>
         <Icon name="bell" size={19} />

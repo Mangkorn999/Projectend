@@ -39,21 +39,22 @@ export function Login({ onLogin }) {
   const submit = () => { setLoading(true); setTimeout(()=>onLogin(ROLES.STUDENT), 850); };
 
   return (
-    <div style={{ minHeight:'100vh', display:'grid', gridTemplateColumns:'1.05fr 1fr', position:'relative' }} className="login-wrap">
+    <div style={{ minHeight:'100vh', display:'flex', position:'relative' }} className="login-wrap">
       {/* language toggle — top right, above everything */}
       <div style={{ position:'absolute', top:18, right:22, zIndex:10, display:'inline-flex',
-        background:'rgba(255,255,255,.9)', borderRadius:9, padding:3, gap:3, boxShadow:'var(--sh-sm)' }}>
-        <button onClick={()=>setLang('TH')} style={{ border:'none', padding:'6px 14px', borderRadius:7, fontSize:12.5, fontWeight:700,
+        background:'rgba(255,255,255,.9)', borderRadius:999, padding:3, gap:3, boxShadow:'var(--sh-sm)' }}>
+        <button onClick={()=>setLang('TH')} style={{ border:'none', padding:'6px 14px', borderRadius:999, fontSize:12.5, fontWeight:700,
           fontFamily:'inherit', cursor:'pointer', transition:'.13s',
           background: !isEN?'var(--navy-700)':'transparent', color: !isEN?'#fff':'var(--ink-500)' }}>TH</button>
-        <button onClick={()=>setLang('EN')} style={{ border:'none', padding:'6px 14px', borderRadius:7, fontSize:12.5, fontWeight:700,
+        <button onClick={()=>setLang('EN')} style={{ border:'none', padding:'6px 14px', borderRadius:999, fontSize:12.5, fontWeight:700,
           fontFamily:'inherit', cursor:'pointer', transition:'.13s',
           background: isEN?'var(--navy-700)':'transparent', color: isEN?'#fff':'var(--ink-500)' }}>EN</button>
       </div>
 
       {/* left brand panel */}
-      <div className="login-brand" style={{ background:'linear-gradient(155deg,var(--navy-800),#4a2601)',
-        color:'#fff', padding:'48px 56px', display:'flex', flexDirection:'column', position:'relative', overflow:'hidden' }}>
+      <div className="login-brand" style={{ background:'linear-gradient(155deg,var(--navy-700),#b3550a)',
+        color:'#fff', padding:'48px 56px', display:'flex', flexDirection:'column', position:'relative', overflow:'hidden',
+        flex:'1.05 1 480px' }}>
         <div style={{ position:'absolute', width:480, height:480, borderRadius:'50%', right:-160, top:-160,
           background:'radial-gradient(circle,rgba(212,160,23,.20),transparent 70%)' }}></div>
         <div style={{ position:'absolute', width:360, height:360, borderRadius:'50%', left:-120, bottom:-140,
@@ -89,7 +90,8 @@ export function Login({ onLogin }) {
       </div>
 
       {/* right form */}
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', padding:'40px 32px', background:'var(--canvas)' }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', padding:'40px 32px', background:'var(--canvas)',
+        flex:'1 1 380px', overflowY:'auto' }}>
         <div style={{ width:'100%', maxWidth:404 }}>
           <div className="only-mobile" style={{ marginBottom:24, justifyContent:'center' }}><Logo size={44} /></div>
 
@@ -125,7 +127,7 @@ export function Login({ onLogin }) {
           </div>}
         </div>
       </div>
-      <style>{`@media(max-width:860px){.login-wrap{grid-template-columns:1fr!important;} .login-brand{display:none!important;}}`}</style>
+      <style>{`@media(max-width:860px){.login-brand{display:none!important;}}`}</style>
     </div>
   );
 }
