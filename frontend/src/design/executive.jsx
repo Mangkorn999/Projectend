@@ -192,7 +192,7 @@ export function Reports({ toast }) {
               <td style={{ fontWeight:500 }}>{s.name}</td>
               <td className="tnum" style={{ textAlign:'right', color:'var(--pass)', fontWeight:700 }}>{s.pass}</td>
               <td className="tnum" style={{ textAlign:'right', color:'var(--fail)', fontWeight:700 }}>{s.fail}</td>
-              <td style={{ textAlign:'right' }}><span className="badge" style={{ background: s.rate>=80?'var(--status-ok-bg)':s.rate>=60?'var(--gold-50)':'var(--status-reject-bg)', color: s.rate>=80?'var(--status-ok-fg)':s.rate>=60?'var(--gold-600)':'var(--status-reject-fg)' }}>{s.rate}%</span></td></tr>
+              <td style={{ textAlign:'right' }}><span className="badge" style={{ background: s.rate>=80?'var(--status-ok-bg)':s.rate>=60?'var(--gold-50)':'var(--status-reject-bg)', color: s.rate>=80?'var(--status-ok-fg)':s.rate>=60?'#fff':'var(--status-reject-fg)' }}>{s.rate}%</span></td></tr>
           ))}</tbody>
         </table>
 

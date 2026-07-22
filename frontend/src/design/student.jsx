@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import { Icon, ROUNDS, NEWS, SUBJECTS, ME } from './data.jsx';
 import { PageHead, Modal, StatusBadge, PassBadge, Donut, Stepper } from './components.jsx';
+import { Logo } from './logos.jsx';
 
 /* ---------- News / Announcements ---------- */
 export function StudentNews({ go }) {
@@ -109,9 +110,9 @@ export function ExamForm({ go, toast, tweaks, initialStep=0 }) {
 
       {/* STEP 0: council credentials */}
       {step===0 && (
-        <div className="card card-pad fade-up" style={{ maxWidth:620 }}>
+        <div className="card card-pad fade-up">
           <div style={{ display:'flex', gap:12, alignItems:'flex-start', marginBottom:18 }}>
-            <div style={{ width:42, height:42, borderRadius:11, background:'var(--blue-50)', color:'var(--blue-600)', display:'flex', alignItems:'center', justifyContent:'center', flex:'none' }}><Icon name="key" size={21}/></div>
+            <div style={{ width:42, height:42, borderRadius:11, background:'var(--blue-50)', display:'flex', alignItems:'center', justifyContent:'center', flex:'none' }}><Logo size={24}/></div>
             <div>
               <h3 style={{ margin:0, fontSize:17, fontWeight:800 }}>ข้อมูลบัญชีสภาการพยาบาล</h3>
               <p style={{ margin:'4px 0 0', color:'var(--ink-500)', fontSize:13.5 }}>ใช้สำหรับอ้างอิงผลสอบจากระบบสภาฯ (กรอกครั้งเดียว ใช้ได้ทุกรอบ)</p>
@@ -173,7 +174,7 @@ export function ExamForm({ go, toast, tweaks, initialStep=0 }) {
 
       {/* STEP 2: upload — conditional slots */}
       {step===2 && (
-        <div className="fade-up" style={{ maxWidth:680 }}>
+        <div className="fade-up">
           {(()=>{ const allPass = results.every(r=>r.passed===true);
             return <>
               <div className="card" style={{ padding:'14px 18px', marginBottom:16, display:'flex', gap:11, alignItems:'flex-start',
@@ -203,7 +204,7 @@ export function ExamForm({ go, toast, tweaks, initialStep=0 }) {
 
       {/* STEP 3: review & submit */}
       {step===3 && (
-        <div className="fade-up" style={{ maxWidth:680 }}>
+        <div className="fade-up" style={{ maxWidth:900 }}>
           <div className="card card-pad">
             <h3 style={{ margin:'0 0 4px', fontSize:17, fontWeight:800 }}>ตรวจทานก่อนส่ง</h3>
             <p style={{ margin:'0 0 18px', color:'var(--ink-500)', fontSize:13.5 }}>โปรดตรวจสอบความถูกต้อง เมื่อส่งแล้วสถานะจะเปลี่ยนเป็น “รอตรวจสอบ”</p>
@@ -266,8 +267,8 @@ function ExamToggle({ results, setRes }) {
           </div>
         </div>;
       })}
-      <style>{`.seg{display:inline-flex;background:var(--ink-100);border-radius:9px;padding:3px;gap:3px;flex:none;}
-        .seg button{border:none;background:transparent;padding:7px 16px;border-radius:7px;font-size:13.5px;font-weight:600;color:var(--ink-500);transition:.13s;font-family:inherit;}
+      <style>{`.seg{display:inline-flex;background:var(--ink-100);border-radius:999px;padding:3px;gap:3px;flex:none;}
+        .seg button{border:none;background:transparent;padding:7px 16px;border-radius:999px;font-size:13.5px;font-weight:600;color:var(--ink-500);transition:.13s;font-family:inherit;}
         .seg button.on.pass{background:var(--pass);color:#fff;box-shadow:var(--sh-xs);}
         .seg button.on.fail{background:var(--fail);color:#fff;box-shadow:var(--sh-xs);}`}</style>
     </div>
@@ -352,10 +353,10 @@ export function UploadSlots({ slots, files, setFiles, toast }) {
             {!f ? (
               <div onClick={()=>add(slot)} onDragOver={e=>{e.preventDefault();setDrag(slot.key);}} onDragLeave={()=>setDrag(null)}
                 onDrop={e=>{e.preventDefault();setDrag(null);add(slot);}}
-                style={{ border:'2px dashed '+(drag===slot.key?'var(--blue-500)':'var(--ink-300)'), borderRadius:13, padding:'24px 20px',
+                style={{ border:'2px dashed '+(drag===slot.key?'var(--blue-500)':'var(--ink-300)'), borderRadius:13, padding:'40px 20px',
                   textAlign:'center', cursor:'pointer', background: drag===slot.key?'var(--blue-50)':'var(--ink-50)', transition:'.15s' }}>
                 <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:11 }}>
-                  <div style={{ width:42, height:42, borderRadius:11, background:'#fff', boxShadow:'var(--sh-sm)', display:'flex', alignItems:'center', justifyContent:'center', color:'var(--navy-600)', flex:'none' }}><Icon name="cloud" size={22}/></div>
+                  <div style={{ width:52, height:52, borderRadius:13, background:'#fff', boxShadow:'var(--sh-sm)', display:'flex', alignItems:'center', justifyContent:'center', color:'var(--navy-600)', flex:'none' }}><Icon name="cloud" size={26}/></div>
                   <div style={{ textAlign:'left' }}>
                     <div style={{ fontWeight:700, fontSize:14, color:'var(--ink-800)' }}>ลากไฟล์มาวาง หรือคลิกเพื่อเลือก</div>
                     <div style={{ fontSize:12.5, color:'var(--ink-500)' }}>{slot.hint} · PDF ≤ 10 MB</div>

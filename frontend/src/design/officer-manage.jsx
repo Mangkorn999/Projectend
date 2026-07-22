@@ -5,36 +5,122 @@ import { useState } from 'react';
 import { Icon, ROUNDS, SUBJECTS, NEWS } from './data.jsx';
 import { PageHead, Modal, Avatar } from './components.jsx';
 
-/* ---------- Round management ---------- */
-export function ManageRounds({ toast }) {
+/* ---------- Round + Subject management (combined page, tabbed) ---------- */
+export function ManageRoundsSubjects({ toast }) {
+  const [tab, setTab] = useState('rounds'); // 'rounds' | 'subjects'
   const [rounds] = useState(ROUNDS);
-  const [modal, setModal] = useState(null); // 'new' | round
+  const [subs] = useState(SUBJECTS);
+  const [roundModal, setRoundModal] = useState(null); // 'new' | null
+  const [subjectModal, setSubjectModal] = useState(null); // subject | {} | null
+  const [viewRound, setViewRound] = useState(null); // round | null
+  const [editRound, setEditRound] = useState(null); // round | null
+
   return (
     <div className="fade-up">
-      <PageHead title="จัดการรอบการกรอก" sub="เปิด/ปิดรอบการกรอกผลสอบของแต่ละครั้งสอบ"
-        actions={<button className="btn btn-primary" onClick={()=>setModal('new')}><Icon name="plus" size={17}/> เปิดรอบใหม่</button>} />
-      <div className="grid g-3">
-        {rounds.map(r=>(
-          <div key={r.id} className="card card-pad" style={{ position:'relative' }}>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
-              <span className={'badge '+(r.status==='OPEN'?'ok':'draft')}><span className="dot"></span>{r.status==='OPEN'?'เปิดรับ':'ปิดแล้ว'}</span>
-              <button className="btn btn-ghost btn-sm" style={{ padding:7, border:'none' }}><Icon name="edit" size={16}/></button>
-            </div>
-            <div style={{ fontSize:18, fontWeight:800 }}>รอบที่ {r.attempt} / {r.year}</div>
-            <div style={{ fontSize:13, color:'var(--ink-500)', marginTop:4 }}>ปีการศึกษา {r.year}</div>
-            <div className="hr" style={{ margin:'14px 0' }}></div>
-            <div style={{ display:'flex', flexDirection:'column', gap:8, fontSize:13 }}>
-              <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'var(--ink-500)' }}>เปิดรับ</span><b>{r.open}</b></div>
-              <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'var(--ink-500)' }}>ปิดรับ</span><b>{r.close}</b></div>
-            </div>
-            {r.status==='OPEN' && <div style={{ marginTop:14 }}><div className="pbar"><i style={{ width:'62%', background:'#8b5e34' }}></i></div>
-              <div style={{ fontSize:11.5, color:'var(--ink-500)', marginTop:6 }}>กรอกแล้ว 62% · เหลือ 4 วัน</div></div>}
-          </div>
-        ))}
+      <PageHead title="จัดการรอบการกรอก และรายวิชา"
+        sub={tab==='rounds' ? 'เปิด/ปิดรอบการกรอกผลสอบของแต่ละครั้งสอบ' : 'รายวิชาที่ใช้ในการสอบใบประกอบวิชาชีพ'}
+        actions={tab==='rounds'
+          ? <button className="btn btn-primary" onClick={()=>setRoundModal('new')}><Icon name="plus" size={17}/> เปิดรอบใหม่</button>
+          : <button className="btn btn-primary" onClick={()=>setSubjectModal({})}><Icon name="plus" size={17}/> เพิ่มรายวิชา</button>} />
+
+      <div style={{ display:'inline-flex', background:'var(--ink-100)', borderRadius:9, padding:3, gap:3, marginBottom:18 }}>
+        <button onClick={()=>setTab('rounds')} style={{ border:'none', padding:'8px 18px', borderRadius:7, fontSize:13.5, fontWeight:600,
+          fontFamily:'inherit', cursor:'pointer', transition:'.13s',
+          background: tab==='rounds'?'var(--navy-700)':'transparent', color: tab==='rounds'?'#fff':'var(--ink-500)',
+          boxShadow: tab==='rounds'?'var(--sh-xs)':'none' }}>รอบการกรอก</button>
+        <button onClick={()=>setTab('subjects')} style={{ border:'none', padding:'8px 18px', borderRadius:7, fontSize:13.5, fontWeight:600,
+          fontFamily:'inherit', cursor:'pointer', transition:'.13s',
+          background: tab==='subjects'?'var(--navy-700)':'transparent', color: tab==='subjects'?'#fff':'var(--ink-500)',
+          boxShadow: tab==='subjects'?'var(--sh-xs)':'none' }}>รายวิชา</button>
       </div>
-      <Modal open={!!modal} onClose={()=>setModal(null)} title="เปิดรอบการกรอกใหม่"
-        footer={<><button className="btn btn-ghost" onClick={()=>setModal(null)}>ยกเลิก</button>
-          <button className="btn btn-primary" onClick={()=>{ setModal(null); toast('เปิดรอบใหม่เรียบร้อย'); }}><Icon name="check" size={16}/> เปิดรอบ</button></>}>
+
+      {tab==='rounds' && (
+        <div className="grid g-3">
+          {rounds.map(r=>(
+            <div key={r.id} className="card card-pad" style={{ position:'relative' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+                <span className={'badge '+(r.status==='OPEN'?'ok':'draft')}><span className="dot"></span>{r.status==='OPEN'?'เปิดรับ':'ปิดแล้ว'}</span>
+                <div style={{ display:'flex', gap:4 }}>
+                  <button className="btn btn-ghost btn-sm" style={{ padding:7, border:'none' }} onClick={()=>setViewRound(r)}><Icon name="eye" size={16}/></button>
+                  <button className="btn btn-ghost btn-sm" style={{ padding:7, border:'none' }} disabled={r.status!=='OPEN'} onClick={()=>setEditRound(r)}><Icon name="edit" size={16}/></button>
+                </div>
+              </div>
+              <div style={{ fontSize:18, fontWeight:800 }}>รอบที่ {r.attempt} / {r.year}</div>
+              <div style={{ fontSize:13, color:'var(--ink-500)', marginTop:4 }}>ปีการศึกษา {r.year}</div>
+              <div className="hr" style={{ margin:'14px 0' }}></div>
+              <div style={{ display:'flex', flexDirection:'column', gap:8, fontSize:13 }}>
+                <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'var(--ink-500)' }}>เปิดรับ</span><b>{r.open}</b></div>
+                <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'var(--ink-500)' }}>ปิดรับ</span><b>{r.close}</b></div>
+              </div>
+              {r.status==='OPEN' && <div style={{ marginTop:14 }}><div className="pbar"><i style={{ width:'62%', background:'#8b5e34' }}></i></div>
+                <div style={{ fontSize:11.5, color:'var(--ink-500)', marginTop:6 }}>กรอกแล้ว 62% · เหลือ 4 วัน</div></div>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab==='subjects' && (
+        <div className="card" style={{ overflow:'hidden' }}>
+          <table className="tbl">
+            <thead><tr><th style={{ width:80 }}>ลำดับ</th><th style={{ width:120 }}>รหัสวิชา</th><th>ชื่อวิชา</th><th></th></tr></thead>
+            <tbody>{subs.map((s,i)=>(
+              <tr key={s.id}><td className="tnum" style={{ color:'var(--ink-500)' }}>{i+1}</td>
+                <td><span className="chip mono" style={{ fontSize:12.5 }}>{s.code}</span></td>
+                <td style={{ fontWeight:500 }}>{s.name}</td>
+                <td style={{ textAlign:'right' }}>
+                  <button className="btn btn-ghost btn-sm" style={{ padding:7, border:'none' }} onClick={()=>setSubjectModal(s)}><Icon name="edit" size={16}/></button>
+                  <button className="btn btn-ghost btn-sm" style={{ padding:7, border:'none', color:'var(--fail)' }}><Icon name="trash" size={16}/></button>
+                </td></tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )}
+
+      <Modal open={!!viewRound} onClose={()=>setViewRound(null)} title={viewRound && `รอบที่ ${viewRound.attempt} / ${viewRound.year}`} width={420}
+        footer={<button className="btn btn-primary" onClick={()=>setViewRound(null)}>ปิด</button>}>
+        {viewRound && <div style={{ display:'flex', flexDirection:'column', gap:10, fontSize:14 }}>
+          <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'var(--ink-500)' }}>สถานะ</span>
+            <span className={'badge '+(viewRound.status==='OPEN'?'ok':'draft')}><span className="dot"></span>{viewRound.status==='OPEN'?'เปิดรับ':'ปิดแล้ว'}</span></div>
+          <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'var(--ink-500)' }}>ปีการศึกษา</span><b>{viewRound.year}</b></div>
+          <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'var(--ink-500)' }}>ครั้งที่สอบ</span><b>{viewRound.attempt}</b></div>
+          <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'var(--ink-500)' }}>วันที่เปิดรับ</span><b>{viewRound.open}</b></div>
+          <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'var(--ink-500)' }}>วันที่ปิดรับ</span><b>{viewRound.close}</b></div>
+        </div>}
+      </Modal>
+
+      <Modal open={!!editRound} onClose={()=>setEditRound(null)} title="แก้ไขรอบการกรอก" width={480}
+        footer={<><button className="btn btn-ghost" onClick={()=>setEditRound(null)}>ยกเลิก</button>
+          <button className="btn btn-primary" onClick={()=>{ setEditRound(null); toast('บันทึกการแก้ไขเรียบร้อย'); }}><Icon name="check" size={16}/> บันทึก</button></>}>
+        {editRound && <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+          <div className="grid g-2" style={{ gap:14 }}>
+            <div className="field"><label>ประเภทใบอนุญาต *</label>
+              <select className="select" defaultValue="">
+                <option value="" disabled>-- เลือก --</option>
+                <option value="nurse">ใบอนุญาตประกอบวิชาชีพการพยาบาล</option>
+                <option value="midwife">ใบอนุญาตประกอบวิชาชีพการผดุงครรภ์</option>
+              </select>
+            </div>
+            <div className="field"><label>รอบที่ *</label><input className="input" type="number" defaultValue={editRound.attempt}/></div>
+          </div>
+          <div className="grid g-2" style={{ gap:14 }}>
+            <div className="field"><label>ปีการศึกษา *</label><input className="input" defaultValue={editRound.year}/></div>
+            <div className="field"><label>วันสอบ</label><input className="input" type="date"/></div>
+          </div>
+          <div className="field"><label>สถานที่สอบ</label><input className="input" placeholder="สถานที่สอบ"/></div>
+          <div className="field"><label>หน่วยงานจัดสอบ</label><input className="input" placeholder="เช่น สภาการพยาบาล"/></div>
+          <div className="grid g-2" style={{ gap:14 }}>
+            <div className="field"><label>วันปิดรับสมัคร</label><input className="input" type="date" defaultValue={editRound.close}/></div>
+            <div className="field"><label>วันประกาศผล</label><input className="input" type="date"/></div>
+          </div>
+          <label style={{ display:'flex', alignItems:'center', gap:9, fontSize:14, fontWeight:600, cursor:'pointer' }}>
+            <input type="checkbox" defaultChecked={editRound.status==='OPEN'} style={{ width:17, height:17 }}/> สถานะ: เปิดใช้งาน
+          </label>
+        </div>}
+      </Modal>
+
+      <Modal open={!!roundModal} onClose={()=>setRoundModal(null)} title="เปิดรอบการกรอกใหม่"
+        footer={<><button className="btn btn-ghost" onClick={()=>setRoundModal(null)}>ยกเลิก</button>
+          <button className="btn btn-primary" onClick={()=>{ setRoundModal(null); toast('เปิดรอบใหม่เรียบร้อย'); }}><Icon name="check" size={16}/> เปิดรอบ</button></>}>
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
           <div className="grid g-2" style={{ gap:14 }}>
             <div className="field"><label>ปีการศึกษา</label><input className="input" defaultValue="2569"/></div>
@@ -46,38 +132,13 @@ export function ManageRounds({ toast }) {
           </div>
         </div>
       </Modal>
-    </div>
-  );
-}
 
-/* ---------- Subject management ---------- */
-export function ManageSubjects({ toast }) {
-  const [subs] = useState(SUBJECTS);
-  const [modal, setModal] = useState(null);
-  return (
-    <div className="fade-up">
-      <PageHead title="จัดการรายวิชา" sub="รายวิชาที่ใช้ในการสอบใบประกอบวิชาชีพ"
-        actions={<button className="btn btn-primary" onClick={()=>setModal({})}><Icon name="plus" size={17}/> เพิ่มรายวิชา</button>} />
-      <div className="card" style={{ overflow:'hidden' }}>
-        <table className="tbl">
-          <thead><tr><th style={{ width:80 }}>ลำดับ</th><th style={{ width:120 }}>รหัสวิชา</th><th>ชื่อวิชา</th><th></th></tr></thead>
-          <tbody>{subs.map((s,i)=>(
-            <tr key={s.id}><td className="tnum" style={{ color:'var(--ink-500)' }}>{i+1}</td>
-              <td><span className="chip mono" style={{ fontSize:12.5 }}>{s.code}</span></td>
-              <td style={{ fontWeight:500 }}>{s.name}</td>
-              <td style={{ textAlign:'right' }}>
-                <button className="btn btn-ghost btn-sm" style={{ padding:7, border:'none' }} onClick={()=>setModal(s)}><Icon name="edit" size={16}/></button>
-                <button className="btn btn-ghost btn-sm" style={{ padding:7, border:'none', color:'var(--fail)' }}><Icon name="trash" size={16}/></button>
-              </td></tr>
-          ))}</tbody>
-        </table>
-      </div>
-      <Modal open={!!modal} onClose={()=>setModal(null)} title={modal?.id?'แก้ไขรายวิชา':'เพิ่มรายวิชา'} width={440}
-        footer={<><button className="btn btn-ghost" onClick={()=>setModal(null)}>ยกเลิก</button>
-          <button className="btn btn-primary" onClick={()=>{ setModal(null); toast('บันทึกรายวิชาเรียบร้อย'); }}>บันทึก</button></>}>
+      <Modal open={!!subjectModal} onClose={()=>setSubjectModal(null)} title={subjectModal?.id?'แก้ไขรายวิชา':'เพิ่มรายวิชา'} width={440}
+        footer={<><button className="btn btn-ghost" onClick={()=>setSubjectModal(null)}>ยกเลิก</button>
+          <button className="btn btn-primary" onClick={()=>{ setSubjectModal(null); toast('บันทึกรายวิชาเรียบร้อย'); }}>บันทึก</button></>}>
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-          <div className="field"><label>รหัสวิชา</label><input className="input" defaultValue={modal?.code} placeholder="เช่น NLE9"/></div>
-          <div className="field"><label>ชื่อวิชา</label><input className="input" defaultValue={modal?.name} placeholder="ชื่อรายวิชา"/></div>
+          <div className="field"><label>รหัสวิชา</label><input className="input" defaultValue={subjectModal?.code} placeholder="เช่น NLE9"/></div>
+          <div className="field"><label>ชื่อวิชา</label><input className="input" defaultValue={subjectModal?.name} placeholder="ชื่อรายวิชา"/></div>
         </div>
       </Modal>
     </div>

@@ -24,8 +24,23 @@ export function Avatar({ name, size = 38, bg }) {
   return <span className="avatar" style={{ width:size, height:size, fontSize:size*0.42, background:bg }}>{init}</span>;
 }
 
+/* ---- Mock notifications per role ---- */
+const NOTIFS = {
+  officer: [
+    { icon:'checkCircle', tone:'wait', title:'มีนักศึกษาส่งผลสอบใหม่รอตรวจสอบ', sub:'6 รายการ · รอบ 1/2569', time:'10 นาทีที่แล้ว' },
+    { icon:'clock', tone:'reject', title:'รอบการกรอกใกล้ปิดรับสมัครแล้ว', sub:'รอบ 1/2569 · ปิดรับใน 4 วัน', time:'2 ชม. ที่แล้ว' },
+  ],
+  student: [
+    { icon:'xCircle', tone:'reject', title:'ผลสอบของคุณถูกตีกลับ', sub:'เอกสารหลักฐานไม่ชัดเจน กรุณาแก้ไขและส่งใหม่', time:'1 ชม. ที่แล้ว' },
+    { icon:'clock', tone:'wait', title:'รอบการกรอกใกล้ปิดรับสมัครแล้ว', sub:'รอบ 1/2569 · ปิดรับใน 4 วัน', time:'5 ชม. ที่แล้ว' },
+  ],
+  executive: [
+    { icon:'report', tone:'ok', title:'รายงานสรุปผลสอบรอบ 1/2569 พร้อมแล้ว', sub:'ยืนยันผลครบ 60 คน จาก 120 คน', time:'30 นาทีที่แล้ว' },
+  ],
+};
+
 /* ---- App shell: TopBar ---- */
-export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=3 }) {
+export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=3, lang='TH', setLang }) {
   const [open, setOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const roles = [
@@ -46,6 +61,14 @@ export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=3 })
         <div style={{ fontSize:11.5, color:'var(--ink-500)', fontWeight:500 }}>คณะพยาบาลศาสตร์ · มหาวิทยาลัยสงขลานครินทร์</div>
       </div>
       <div style={{ flex:1 }}></div>
+      {setLang && <div style={{ display:'inline-flex', background:'var(--ink-100)', borderRadius:999, padding:3, gap:3 }}>
+        <button onClick={()=>setLang('TH')} style={{ border:'none', padding:'5px 12px', borderRadius:999, fontSize:12, fontWeight:700,
+          fontFamily:'inherit', cursor:'pointer', transition:'.13s',
+          background: lang==='TH'?'var(--navy-700)':'transparent', color: lang==='TH'?'#fff':'var(--ink-500)' }}>TH</button>
+        <button onClick={()=>setLang('EN')} style={{ border:'none', padding:'5px 12px', borderRadius:999, fontSize:12, fontWeight:700,
+          fontFamily:'inherit', cursor:'pointer', transition:'.13s',
+          background: lang==='EN'?'var(--navy-700)':'transparent', color: lang==='EN'?'#fff':'var(--ink-500)' }}>EN</button>
+      </div>}
       <button className="btn btn-ghost btn-sm" style={{ position:'relative', padding:9, border:'1px solid var(--ink-200)' }}
         onClick={()=>setNotifOpen(true)}>
         <Icon name="bell" size={19} />
@@ -53,9 +76,26 @@ export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=3 })
           background:'var(--fail)', boxShadow:'0 0 0 2px #fff' }}></span>}
       </button>
       <Modal open={notifOpen} onClose={()=>setNotifOpen(false)} title="การแจ้งเตือน" width={680}>
-        <div style={{ minHeight:440, display:'flex', alignItems:'center', justifyContent:'center' }}>
-          <Empty icon="bell" title="ยังไม่มีการแจ้งเตือน" sub="เมื่อมีการแจ้งเตือนใหม่ จะแสดงที่นี่" />
-        </div>
+        {NOTIFS[role] ? (
+          <div style={{ minHeight:440, display:'flex', flexDirection:'column', gap:2 }}>
+            {NOTIFS[role].map((n,i)=>(
+              <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:13, padding:'13px 6px',
+                borderBottom: i<NOTIFS[role].length-1?'1px solid var(--ink-100)':'none' }}>
+                <div style={{ width:38, height:38, borderRadius:10, flex:'none', display:'flex', alignItems:'center', justifyContent:'center',
+                  background:`var(--status-${n.tone}-bg)`, color:`var(--status-${n.tone}-fg)` }}><Icon name={n.icon} size={18}/></div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:14, fontWeight:700, color:'var(--ink-900)' }}>{n.title}</div>
+                  <div style={{ fontSize:13, color:'var(--ink-500)', marginTop:2 }}>{n.sub}</div>
+                </div>
+                <div style={{ fontSize:11.5, color:'var(--ink-400)', flex:'none', whiteSpace:'nowrap' }}>{n.time}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ minHeight:440, display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <Empty icon="bell" title="ยังไม่มีการแจ้งเตือน" sub="เมื่อมีการแจ้งเตือนใหม่ จะแสดงที่นี่" />
+          </div>
+        )}
       </Modal>
       <div style={{ position:'relative' }}>
         <button onClick={()=>setOpen(o=>!o)} className="btn btn-ghost" style={{ padding:'5px 8px 5px 5px', gap:9 }}>
@@ -98,11 +138,12 @@ export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=3 })
 
 /* ---- Sidebar nav ---- */
 export function Sidebar({ items, active, onNav, open, onClose, footer }) {
+  const [collapsed, setCollapsed] = useState(false);
   return (
     <>
       {open && <div className="only-mobile" onClick={onClose}
         style={{ position:'fixed', inset:0, background:'rgba(12,31,61,.4)', zIndex:45 }}></div>}
-      <aside className={'app-sidebar'+(open?' open':'')}>
+      <aside className={'app-sidebar'+(open?' open':'')+(collapsed?' collapsed':'')}>
         <nav style={{ padding:'14px 12px', display:'flex', flexDirection:'column', gap:2, flex:1, overflowY:'auto' }}>
           {items.map(it=> it.section
             ? <div key={it.section} className="sec-title" style={{ padding:'14px 10px 6px', fontSize:11 }}>{it.section}</div>
@@ -117,6 +158,9 @@ export function Sidebar({ items, active, onNav, open, onClose, footer }) {
         </nav>
         {footer && <div style={{ padding:14, borderTop:'1px solid var(--ink-200)' }}>{footer}</div>}
       </aside>
+      <button className="only-desktop sidebar-toggle" onClick={()=>setCollapsed(c=>!c)}>
+        <Icon name={collapsed?'chevR':'chevL'} size={15} />
+      </button>
     </>
   );
 }

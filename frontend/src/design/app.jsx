@@ -8,7 +8,7 @@ import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakToggle, TweakCol
 import { Login } from './login.jsx';
 import { StudentNews, ExamForm, StudentStatus, StudentHistory } from './student.jsx';
 import { OfficerDashboard, OfficerReview, OfficerStudents, StudentDetail } from './officer.jsx';
-import { ManageRounds, ManageSubjects, ManageUsers, ManageNews } from './officer-manage.jsx';
+import { ManageRoundsSubjects, ManageUsers, ManageNews } from './officer-manage.jsx';
 import { ExecutiveDashboard, Reports } from './executive.jsx';
 import { AdminDashboard, AdminUsers, AdminAudit, AdminArchive, AdminSettings } from './admin.jsx';
 
@@ -33,8 +33,7 @@ const NAV = {
     { k:'review', label:'ตรวจสอบ/ยืนยันผล', icon:'checkCircle', badge:'29' },
     { k:'students', label:'ข้อมูลนักศึกษา', icon:'users' },
     { section:'จัดการระบบ' },
-    { k:'rounds', label:'รอบการกรอก', icon:'calendar' },
-    { k:'subjects', label:'รายวิชา', icon:'book' },
+    { k:'rounds', label:'รอบการกรอก & รายวิชา', icon:'calendar' },
     { k:'usermgmt', label:'ผู้ใช้งานผู้บริหาร', icon:'shield' },
     { k:'newsmgmt', label:'ข่าวสาร / ประกาศ', icon:'news' },
     { section:'รายงาน' },
@@ -71,6 +70,7 @@ export function App() {
   const [sbOpen, setSbOpen] = useState(false);
   const [toast, showToast] = useToast();
   const [formStep, setFormStep] = useState(0);
+  const [lang, setLang] = useState('TH'); // 'TH' | 'EN' — UI toggle only for now; page content isn't translated yet
 
   // accent override
   useEffect(()=>{ document.documentElement.style.setProperty('--gold-500', t.accent);
@@ -94,8 +94,7 @@ export function App() {
       if(page==='review') return <OfficerReview go={go} setSel={setSel} toast={showToast} />;
       if(page==='students') return <OfficerStudents go={go} setSel={setSel} />;
       if(page==='detail') return <StudentDetail student={sel} go={go} toast={showToast} />;
-      if(page==='rounds') return <ManageRounds toast={showToast} />;
-      if(page==='subjects') return <ManageSubjects toast={showToast} />;
+      if(page==='rounds') return <ManageRoundsSubjects toast={showToast} />;
       if(page==='usermgmt') return <ManageUsers toast={showToast} />;
       if(page==='newsmgmt') return <ManageNews toast={showToast} />;
       if(page==='reports') return <Reports toast={showToast} />;
@@ -120,7 +119,8 @@ export function App() {
 
   return (
     <div data-density={t.density}>
-      <TopBar role={role} roleLabel={ROLE_LABEL[role]} user={ROLE_USER[role]} onMenu={()=>setSbOpen(true)} onSwitchRole={switchRole} />
+      <TopBar role={role} roleLabel={ROLE_LABEL[role]} user={ROLE_USER[role]} onMenu={()=>setSbOpen(true)} onSwitchRole={switchRole}
+        lang={lang} setLang={setLang} />
       <div className="app-shell">
         <Sidebar items={nav} active={activeNav} onNav={go} open={sbOpen} onClose={()=>setSbOpen(false)}
           footer={<div className="card" style={{ padding:'12px 13px', background:'var(--ink-50)', border:'1px solid var(--ink-200)', boxShadow:'none' }}>
