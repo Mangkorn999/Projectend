@@ -72,6 +72,15 @@ export const SUBJECTS = [
   { id:8, code:'NLE8', name:'กฎหมายและจรรยาบรรณวิชาชีพ' },
 ];
 
+/* user roles — keys match backend `roles` table naming (roles.name), so backend/frontend stay in sync
+   when auth switches from PSU One Passport SSO to normal signin/signup */
+export const ROLES = {
+  STUDENT:   'student',
+  OFFICER:   'officer',
+  EXECUTIVE: 'executive',
+  ADMIN:     'admin',
+};
+
 /* status keys: DRAFT, SUBMITTED(รอตรวจสอบ), CONFIRMED(ยืนยันแล้ว), REJECTED(ตีกลับ) */
 export const STATUS = {
   DRAFT:     { key:'draft',  label:'ยังไม่กรอก' },

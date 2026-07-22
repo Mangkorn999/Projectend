@@ -1,23 +1,56 @@
 /* ============================================================
-   Login screen — PSU One Passport
+   Login screen — normal signin/signup
+   (SSO via PSU One Passport was ruled out by the advisor; may return later —
+    role keys stay on ROLES from data.jsx so a future SSO swap stays easy)
    ============================================================ */
 import { useState } from 'react';
-import { Icon } from './data.jsx';
+import { Icon, ROLES } from './data.jsx';
 import { Logo } from './logos.jsx';
 
+/* English strings suffixed with _EN for easy grep/review; Thai stays inline as the default */
+const facultyName_EN = 'Faculty of Nursing';
+const universityName_EN = 'Prince of Songkla University';
+const heroTag_EN = 'Faculty Information System';
+const heroTitle_EN = ['Nursing License', 'Record System'];
+const heroDesc_EN = 'Central hub to record, track, verify, and summarize the nursing license examination — for students, faculty officers, and executives.';
+const heroStats_EN = [['8','Exam subjects'],['4','User roles'],['100%','Fully auditable']];
+const footerNote_EN = '© 2026 Faculty of Nursing, PSU · Prototype demo';
+const staffTitle_EN = 'Staff Only';
+const backToStudent_EN = '← Back to student login';
+const signinTitle_EN = 'Sign In';
+const signinSub_EN = 'Enter your email and password to sign in';
+const staffSub_EN = 'For faculty officers / executives / admins';
+const emailLabel_EN = 'Email';
+const usernameLabel_EN = 'Username / Email';
+const passwordLabel_EN = 'Password';
+const forgotPassword_EN = 'Forgot password?';
+const loggingIn_EN = 'Signing in…';
+const signInBtn_EN = 'Sign In';
+const staffOnlyLink_EN = 'Staff Only';
+
 export function Login({ onLogin }) {
-  const [role, setRole] = useState('student');
+  const [staffMode, setStaffMode] = useState(false);
   const [loading, setLoading] = useState(false);
-  const roles = [
-    { k:'student', label:'นักศึกษา', desc:'กรอกผลสอบ · อัปโหลดหลักฐาน · ดูสถานะ', icon:'graduation' },
-    { k:'officer', label:'เจ้าหน้าที่คณะ', desc:'ตรวจสอบ · ยืนยัน · จัดการระบบ · ออกรายงาน', icon:'shield' },
-    { k:'executive', label:'ผู้บริหารคณะ', desc:'Dashboard · สถิติ · รายงานสรุป', icon:'chart' },
-    { k:'admin', label:'ผู้ดูแลระบบ', desc:'จัดการผู้ใช้ · audit · ตั้งค่าระบบ', icon:'settings' },
-  ];
-  const go = () => { setLoading(true); setTimeout(()=>onLogin(role), 850); };
+  const [lang, setLang] = useState('TH'); // 'TH' | 'EN'
+  const isEN = lang==='EN';
+
+  // role will come from the backend once real auth is wired up; defaults to
+  // student for now — use the post-login "สลับมุมมองบทบาท (เดโม)" switcher to preview other roles
+  const submit = () => { setLoading(true); setTimeout(()=>onLogin(ROLES.STUDENT), 850); };
 
   return (
-    <div style={{ minHeight:'100vh', display:'grid', gridTemplateColumns:'1.05fr 1fr' }} className="login-wrap">
+    <div style={{ minHeight:'100vh', display:'grid', gridTemplateColumns:'1.05fr 1fr', position:'relative' }} className="login-wrap">
+      {/* language toggle — top right, above everything */}
+      <div style={{ position:'absolute', top:18, right:22, zIndex:10, display:'inline-flex',
+        background:'rgba(255,255,255,.9)', borderRadius:9, padding:3, gap:3, boxShadow:'var(--sh-sm)' }}>
+        <button onClick={()=>setLang('TH')} style={{ border:'none', padding:'6px 14px', borderRadius:7, fontSize:12.5, fontWeight:700,
+          fontFamily:'inherit', cursor:'pointer', transition:'.13s',
+          background: !isEN?'var(--navy-700)':'transparent', color: !isEN?'#fff':'var(--ink-500)' }}>TH</button>
+        <button onClick={()=>setLang('EN')} style={{ border:'none', padding:'6px 14px', borderRadius:7, fontSize:12.5, fontWeight:700,
+          fontFamily:'inherit', cursor:'pointer', transition:'.13s',
+          background: isEN?'var(--navy-700)':'transparent', color: isEN?'#fff':'var(--ink-500)' }}>EN</button>
+      </div>
+
       {/* left brand panel */}
       <div className="login-brand" style={{ background:'linear-gradient(155deg,var(--navy-800),#4a2601)',
         color:'#fff', padding:'48px 56px', display:'flex', flexDirection:'column', position:'relative', overflow:'hidden' }}>
@@ -28,23 +61,23 @@ export function Login({ onLogin }) {
         <div style={{ display:'flex', alignItems:'center', gap:13, position:'relative' }}>
           <Logo size={46} light />
           <div style={{ lineHeight:1.3 }}>
-            <div style={{ fontWeight:800, fontSize:16, whiteSpace:'nowrap' }}>คณะพยาบาลศาสตร์</div>
-            <div style={{ fontSize:12.5, opacity:.8, whiteSpace:'nowrap' }}>มหาวิทยาลัยสงขลานครินทร์</div>
+            <div style={{ fontWeight:800, fontSize:16, whiteSpace:'nowrap' }}>{isEN?facultyName_EN:'คณะพยาบาลศาสตร์'}</div>
+            <div style={{ fontSize:12.5, opacity:.8, whiteSpace:'nowrap' }}>{isEN?universityName_EN:'มหาวิทยาลัยสงขลานครินทร์'}</div>
           </div>
         </div>
         <div style={{ margin:'auto 0', position:'relative' }}>
           <div className="chip" style={{ alignSelf:'flex-start', background:'rgba(255,255,255,.12)', color:'var(--gold-500)', fontWeight:700, marginBottom:20 }}>
-            <Icon name="shield" size={15} /> ระบบสารสนเทศคณะ
+            <Icon name="shield" size={15} /> {isEN?heroTag_EN:'ระบบสารสนเทศคณะ'}
           </div>
           <h1 style={{ fontSize:38, fontWeight:800, margin:'0 0 16px', lineHeight:1.18, letterSpacing:'-.01em', color:'#fff' }}>
-            ระบบบันทึก<br/>ใบประกอบวิชาชีพ
+            {isEN ? <>{heroTitle_EN[0]}<br/>{heroTitle_EN[1]}</> : <>ระบบบันทึก<br/>ใบประกอบวิชาชีพ</>}
           </h1>
           <p style={{ fontSize:15.5, opacity:.85, maxWidth:380, lineHeight:1.6, margin:0 }}>
-            ศูนย์กลางบันทึก ติดตาม ตรวจสอบ และสรุปผลการสอบความรู้เพื่อขึ้นทะเบียน
-            ใบประกอบวิชาชีพการพยาบาล — สำหรับนักศึกษา เจ้าหน้าที่ และผู้บริหารคณะ
+            {isEN ? heroDesc_EN : <>ศูนย์กลางบันทึก ติดตาม ตรวจสอบ และสรุปผลการสอบความรู้เพื่อขึ้นทะเบียน
+            ใบประกอบวิชาชีพการพยาบาล — สำหรับนักศึกษา เจ้าหน้าที่ และผู้บริหารคณะ</>}
           </p>
           <div style={{ display:'flex', gap:26, marginTop:34 }}>
-            {[['8','รายวิชาสอบ'],['4','บทบาทผู้ใช้'],['100%','ตรวจสอบย้อนหลังได้']].map(([n,l])=>(
+            {(isEN?heroStats_EN:[['8','รายวิชาสอบ'],['4','บทบาทผู้ใช้'],['100%','ตรวจสอบย้อนหลังได้']]).map(([n,l])=>(
               <div key={l}>
                 <div className="tnum" style={{ fontSize:26, fontWeight:800, color:'var(--gold-500)' }}>{n}</div>
                 <div style={{ fontSize:12.5, opacity:.78 }}>{l}</div>
@@ -52,46 +85,44 @@ export function Login({ onLogin }) {
             ))}
           </div>
         </div>
-        <div style={{ fontSize:12, opacity:.6, position:'relative' }}>© 2569 Faculty of Nursing, PSU · เดโมต้นแบบ</div>
+        <div style={{ fontSize:12, opacity:.6, position:'relative' }}>{isEN?footerNote_EN:'© 2569 Faculty of Nursing, PSU · เดโมต้นแบบ'}</div>
       </div>
 
       {/* right form */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'center', padding:'40px 32px', background:'var(--canvas)' }}>
         <div style={{ width:'100%', maxWidth:404 }}>
           <div className="only-mobile" style={{ marginBottom:24, justifyContent:'center' }}><Logo size={44} /></div>
-          <h2 style={{ margin:'0 0 6px', fontSize:24, fontWeight:800, color:'var(--ink-900)' }}>เข้าสู่ระบบ</h2>
-          <p style={{ margin:'0 0 24px', color:'var(--ink-500)', fontSize:14.5 }}>เลือกบทบาทเพื่อทดลองใช้งานระบบต้นแบบ</p>
 
-          <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:22 }}>
-            {roles.map(r=>(
-              <button key={r.k} onClick={()=>setRole(r.k)}
-                style={{ display:'flex', alignItems:'center', gap:13, padding:'13px 15px', borderRadius:13, textAlign:'left',
-                  background: role===r.k?'#fff':'transparent', cursor:'pointer', transition:'.15s', width:'100%',
-                  border:'1.5px solid '+(role===r.k?'var(--navy-600)':'var(--ink-200)'),
-                  boxShadow: role===r.k?'0 0 0 3px var(--blue-50)':'none' }}>
-                <div style={{ width:40, height:40, borderRadius:11, flex:'none', display:'flex', alignItems:'center', justifyContent:'center',
-                  background: role===r.k?'var(--navy-700)':'var(--ink-100)', color: role===r.k?'var(--gold-500)':'var(--ink-500)' }}>
-                  <Icon name={r.icon} size={21} />
-                </div>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontWeight:700, fontSize:15, color:'var(--ink-900)' }}>{r.label}</div>
-                  <div style={{ fontSize:12.5, color:'var(--ink-500)' }}>{r.desc}</div>
-                </div>
-                <div style={{ width:20, height:20, borderRadius:'50%', flex:'none',
-                  border:'2px solid '+(role===r.k?'var(--navy-600)':'var(--ink-300)'),
-                  background: role===r.k?'var(--navy-600)':'#fff', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                  {role===r.k && <Icon name="check" size={12} style={{ color:'#fff' }} />}
-                </div>
-              </button>
-            ))}
+          {staffMode ? (
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
+              <h2 style={{ margin:0, fontSize:24, fontWeight:800, color:'var(--ink-900)' }}>{isEN?staffTitle_EN:'สำหรับเจ้าหน้าที่'}</h2>
+              <a onClick={()=>setStaffMode(false)} style={{ fontSize:13, cursor:'pointer' }}>{isEN?backToStudent_EN:'← กลับหน้านักศึกษา'}</a>
+            </div>
+          ) : (
+            <h2 style={{ margin:'0 0 6px', fontSize:24, fontWeight:800, color:'var(--ink-900)' }}>{isEN?signinTitle_EN:'เข้าสู่ระบบ'}</h2>
+          )}
+          <p style={{ margin:'0 0 20px', color:'var(--ink-500)', fontSize:14.5 }}>
+            {staffMode ? (isEN?staffSub_EN:'สำหรับเจ้าหน้าที่คณะ / ผู้บริหารคณะ / ผู้ดูแลระบบ') : (isEN?signinSub_EN:'กรอกอีเมลและรหัสผ่านเพื่อเข้าสู่ระบบ')}
+          </p>
+
+          <div className="field" style={{ marginBottom:12 }}>
+            <label>{staffMode ? (isEN?usernameLabel_EN:'ชื่อผู้ใช้ / อีเมล') : (isEN?emailLabel_EN:'อีเมล')}</label>
+            <input className="input" type={staffMode?'text':'email'} placeholder="you@psu.ac.th"/>
+          </div>
+          <div className="field" style={{ marginBottom:8 }}>
+            <label>{isEN?passwordLabel_EN:'รหัสผ่าน'}</label><input className="input" type="password" placeholder="••••••••"/>
+          </div>
+          <div style={{ textAlign:'right', marginBottom:18 }}>
+            <a style={{ fontSize:13, cursor:'pointer' }}>{isEN?forgotPassword_EN:'ลืมรหัสผ่าน?'}</a>
           </div>
 
-          <button className="btn btn-primary btn-lg btn-block" onClick={go} disabled={loading} style={{ gap:10 }}>
-            {loading ? <>กำลังเข้าสู่ระบบ…</> : <><Icon name="key" size={18} /> เข้าสู่ระบบด้วย PSU One Passport</>}
+          <button className="btn btn-primary btn-lg btn-block" onClick={submit} disabled={loading}>
+            {loading ? (isEN?loggingIn_EN:'กำลังเข้าสู่ระบบ…') : (isEN?signInBtn_EN:'เข้าสู่ระบบ')}
           </button>
-          <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:18, color:'var(--ink-500)', fontSize:12.5, justifyContent:'center' }}>
-            <Icon name="shield" size={15} /> ยืนยันตัวตนผ่านบัญชี PSU One Passport อย่างปลอดภัย
-          </div>
+
+          {!staffMode && <div style={{ textAlign:'center', marginTop:16 }}>
+            <a onClick={()=>setStaffMode(true)} style={{ fontSize:13, fontWeight:600, cursor:'pointer' }}>{isEN?staffOnlyLink_EN:'สำหรับเจ้าหน้าที่'}</a>
+          </div>}
         </div>
       </div>
       <style>{`@media(max-width:860px){.login-wrap{grid-template-columns:1fr!important;} .login-brand{display:none!important;}}`}</style>
