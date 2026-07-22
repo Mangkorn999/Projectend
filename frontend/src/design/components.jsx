@@ -4,18 +4,19 @@
 import React, { useState } from 'react';
 import { STATUS, Icon } from './data.jsx';
 import { Logo } from './logos.jsx';
+import { t } from './i18n.js';
 
 /* ---- Status badge ---- */
-export function StatusBadge({ status, size }) {
+export function StatusBadge({ status, size, lang='TH' }) {
   const s = STATUS[status] || STATUS.DRAFT;
   return <span className={'badge '+s.key} style={ size==='lg'?{fontSize:13.5,padding:'6px 13px'}:null }>
-    <span className="dot"></span>{s.label}</span>;
+    <span className="dot"></span>{t(lang,'status.'+status)}</span>;
 }
-export function PassBadge({ passed }) {
-  if (passed===null||passed===undefined) return <span className="badge draft"><span className="dot"></span>—</span>;
+export function PassBadge({ passed, lang='TH' }) {
+  if (passed===null||passed===undefined) return <span className="badge draft"><span className="dot"></span>{t(lang,'pass.none')}</span>;
   return passed
-    ? <span className="badge pass"><span className="dot"></span>ผ่าน</span>
-    : <span className="badge fail"><span className="dot"></span>ไม่ผ่าน</span>;
+    ? <span className="badge pass"><span className="dot"></span>{t(lang,'pass.true')}</span>
+    : <span className="badge fail"><span className="dot"></span>{t(lang,'pass.false')}</span>;
 }
 
 /* ---- Avatar ---- */
@@ -44,10 +45,10 @@ export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=3, l
   const [open, setOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const roles = [
-    { k:'student', label:'นักศึกษา', icon:'graduation' },
-    { k:'officer', label:'เจ้าหน้าที่คณะ', icon:'shield' },
-    { k:'executive', label:'ผู้บริหารคณะ', icon:'chart' },
-    { k:'admin', label:'ผู้ดูแลระบบ', icon:'settings' },
+    { k:'student', label:t(lang,'role.student'), icon:'graduation' },
+    { k:'officer', label:t(lang,'role.officer'), icon:'shield' },
+    { k:'executive', label:t(lang,'role.executive'), icon:'chart' },
+    { k:'admin', label:t(lang,'role.admin'), icon:'settings' },
   ];
   return (
     <header style={{ height:'var(--header-h)', background:'#fff', borderBottom:'1px solid var(--ink-200)',
@@ -57,8 +58,8 @@ export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=3, l
       </button>
       <div className="only-desktop"><Logo /></div>
       <div className="only-desktop" style={{ flexDirection:'column', justifyContent:'center', lineHeight:1.15, whiteSpace:'nowrap' }}>
-        <div style={{ fontWeight:800, fontSize:14.5, color:'var(--navy-700)' }}>ระบบบันทึกใบประกอบวิชาชีพ</div>
-        <div style={{ fontSize:11.5, color:'var(--ink-500)', fontWeight:500 }}>คณะพยาบาลศาสตร์ · มหาวิทยาลัยสงขลานครินทร์</div>
+        <div style={{ fontWeight:800, fontSize:14.5, color:'var(--navy-700)' }}>{t(lang,'topbar.title')}</div>
+        <div style={{ fontSize:11.5, color:'var(--ink-500)', fontWeight:500 }}>{t(lang,'topbar.subtitle')}</div>
       </div>
       <div style={{ flex:1 }}></div>
       {setLang && <div style={{ display:'inline-flex', background:'var(--ink-100)', borderRadius:999, padding:3, gap:3 }}>
@@ -75,7 +76,7 @@ export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=3, l
         {notif>0 && <span style={{ position:'absolute', top:5, right:5, width:8, height:8, borderRadius:'50%',
           background:'var(--fail)', boxShadow:'0 0 0 2px #fff' }}></span>}
       </button>
-      <Modal open={notifOpen} onClose={()=>setNotifOpen(false)} title="การแจ้งเตือน" width={680}>
+      <Modal open={notifOpen} onClose={()=>setNotifOpen(false)} title={t(lang,'topbar.notifTitle')} width={680}>
         {NOTIFS[role] ? (
           <div style={{ minHeight:440, display:'flex', flexDirection:'column', gap:2 }}>
             {NOTIFS[role].map((n,i)=>(
@@ -93,7 +94,7 @@ export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=3, l
           </div>
         ) : (
           <div style={{ minHeight:440, display:'flex', alignItems:'center', justifyContent:'center' }}>
-            <Empty icon="bell" title="ยังไม่มีการแจ้งเตือน" sub="เมื่อมีการแจ้งเตือนใหม่ จะแสดงที่นี่" />
+            <Empty icon="bell" title={t(lang,'topbar.notifEmptyTitle')} sub={t(lang,'topbar.notifEmptySub')} />
           </div>
         )}
       </Modal>
@@ -111,7 +112,7 @@ export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=3, l
           <div className="card fade-up" style={{ position:'absolute', right:0, top:'calc(100% + 8px)', width:248,
             zIndex:51, boxShadow:'var(--sh-lg)', padding:8 }}>
             <div style={{ padding:'8px 10px 10px', borderBottom:'1px solid var(--ink-100)', marginBottom:6 }}>
-              <div style={{ fontSize:11, color:'var(--ink-500)', fontWeight:600, marginBottom:7 }}>สลับมุมมองบทบาท (เดโม)</div>
+              <div style={{ fontSize:11, color:'var(--ink-500)', fontWeight:600, marginBottom:7 }}>{t(lang,'topbar.switchRole')}</div>
               <div style={{ display:'flex', flexDirection:'column', gap:3 }}>
                 {roles.map(r=>(
                   <button key={r.k} onClick={()=>{ onSwitchRole(r.k); setOpen(false); }}
@@ -127,7 +128,7 @@ export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=3, l
             <button onClick={()=>onSwitchRole('logout')} style={{ display:'flex', alignItems:'center', gap:10,
               padding:'8px 9px', borderRadius:8, border:'none', background:'transparent', width:'100%', textAlign:'left',
               color:'var(--ink-600)', fontSize:13.5, fontWeight:500 }}>
-              <Icon name="logout" size={17} /> ออกจากระบบ
+              <Icon name="logout" size={17} /> {t(lang,'topbar.logout')}
             </button>
           </div>
         </>}

@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
 import { TopBar, Sidebar, Toast, useToast, Empty } from './components.jsx';
+import { t as translate } from './i18n.js';
 import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakToggle, TweakColor } from './tweaks-panel.jsx';
 import { Login } from './login.jsx';
 import { StudentNews, ExamForm, StudentStatus, StudentHistory } from './student.jsx';
@@ -20,13 +21,15 @@ const TWEAK_DEFAULTS = {
   density: 'regular',
 };
 
+const navStudent = (lang)=>[
+  { k:'news', label:translate(lang,'nav.student.news'), icon:'news' },
+  { k:'form', label:translate(lang,'nav.student.form'), icon:'edit', badge:'!' },
+  { k:'status', label:translate(lang,'nav.student.status'), icon:'clock' },
+  { k:'history', label:translate(lang,'nav.student.history'), icon:'history' },
+];
+
 const NAV = {
-  student: [
-    { k:'news', label:'ข่าวสาร / ประกาศ', icon:'news' },
-    { k:'form', label:'กรอกผลสอบ', icon:'edit', badge:'!' },
-    { k:'status', label:'สถานะการกรอก', icon:'clock' },
-    { k:'history', label:'ประวัติการกรอก', icon:'history' },
-  ],
+  student: [],
   officer: [
     { section:'ภาพรวม' },
     { k:'dashboard', label:'Dashboard', icon:'grid' },
@@ -53,7 +56,6 @@ const NAV = {
     { k:'settings', label:'ตั้งค่าระบบ', icon:'settings' },
   ],
 };
-const ROLE_LABEL = { student:'นักศึกษา', officer:'เจ้าหน้าที่คณะ', executive:'ผู้บริหารคณะ', admin:'ผู้ดูแลระบบ' };
 const ROLE_USER = {
   student:{ firstName:'ธัญเทพ', lastName:'จิ้วตั้น' },
   officer:{ firstName:'สมหญิง', lastName:'ใจดี' },
@@ -70,7 +72,7 @@ export function App() {
   const [sbOpen, setSbOpen] = useState(false);
   const [toast, showToast] = useToast();
   const [formStep, setFormStep] = useState(0);
-  const [lang, setLang] = useState('TH'); // 'TH' | 'EN' — UI toggle only for now; page content isn't translated yet
+  const [lang, setLang] = useState('TH'); // 'TH' | 'EN' — wired into student-side pages via i18n.js
 
   // accent override
   useEffect(()=>{ document.documentElement.style.setProperty('--gold-500', t.accent);
@@ -78,16 +80,16 @@ export function App() {
 
   if(!role) return <><Login onLogin={r=>{ setRole(r); setPage(DEFAULT_PAGE[r]); }} /><TweaksUI t={t} setTweak={setTweak} /></>;
 
-  const nav = NAV[role];
+  const nav = role==='student' ? navStudent(lang) : NAV[role];
   const go = (p, step=0)=>{ setPage(p); setFormStep(step); window.scrollTo(0,0); };
   const switchRole = (r)=>{ if(r==='logout'){ setRole(null); return; } setRole(r); setPage(DEFAULT_PAGE[r]); setSel(null); };
 
   const render = ()=>{
     if(role==='student'){
-      if(page==='news') return <StudentNews go={go} />;
-      if(page==='form') return <ExamForm go={go} toast={showToast} tweaks={t} initialStep={formStep} />;
-      if(page==='status') return <StudentStatus go={go} />;
-      if(page==='history') return <StudentHistory go={go} />;
+      if(page==='news') return <StudentNews go={go} lang={lang} />;
+      if(page==='form') return <ExamForm go={go} toast={showToast} tweaks={t} initialStep={formStep} lang={lang} />;
+      if(page==='status') return <StudentStatus go={go} lang={lang} />;
+      if(page==='history') return <StudentHistory go={go} lang={lang} />;
     }
     if(role==='officer'){
       if(page==='dashboard') return <OfficerDashboard go={go} tweaks={t} />;
@@ -119,14 +121,14 @@ export function App() {
 
   return (
     <div data-density={t.density}>
-      <TopBar role={role} roleLabel={ROLE_LABEL[role]} user={ROLE_USER[role]} onMenu={()=>setSbOpen(true)} onSwitchRole={switchRole}
+      <TopBar role={role} roleLabel={translate(lang,'role.'+role)} user={ROLE_USER[role]} onMenu={()=>setSbOpen(true)} onSwitchRole={switchRole}
         lang={lang} setLang={setLang} />
       <div className="app-shell">
         <Sidebar items={nav} active={activeNav} onNav={go} open={sbOpen} onClose={()=>setSbOpen(false)}
           footer={<div className="card" style={{ padding:'12px 13px', background:'var(--ink-50)', border:'1px solid var(--ink-200)', boxShadow:'none' }}>
             <div style={{ display:'flex', alignItems:'center', gap:9 }}>
               <div style={{ width:32, height:32, borderRadius:9, background:'var(--navy-700)', color:'var(--gold-500)', display:'flex', alignItems:'center', justifyContent:'center', flex:'none' }}><Icon name="shield" size={17}/></div>
-              <div style={{ fontSize:11.5, color:'var(--ink-500)', lineHeight:1.35 }}>เข้าใช้งานในบทบาท<br/><b style={{ color:'var(--ink-800)', fontSize:12.5 }}>{ROLE_LABEL[role]}</b></div>
+              <div style={{ fontSize:11.5, color:'var(--ink-500)', lineHeight:1.35 }}>{translate(lang,'sidebar.footerPrefix')}<br/><b style={{ color:'var(--ink-800)', fontSize:12.5 }}>{translate(lang,'role.'+role)}</b></div>
             </div>
           </div>} />
         <main className="app-main">

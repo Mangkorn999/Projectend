@@ -62,14 +62,14 @@ export function Icon({ name, size = 20, stroke = 2, style, className }) {
 
 /* ---- Domain data ---- */
 export const SUBJECTS = [
-  { id:1, code:'NLE1', name:'การพยาบาลมารดาและทารก' },
-  { id:2, code:'NLE2', name:'การพยาบาลเด็กและวัยรุ่น' },
-  { id:3, code:'NLE3', name:'การพยาบาลผู้ใหญ่' },
-  { id:4, code:'NLE4', name:'การพยาบาลผู้สูงอายุ' },
-  { id:5, code:'NLE5', name:'การพยาบาลสุขภาพจิตและจิตเวช' },
-  { id:6, code:'NLE6', name:'การผดุงครรภ์' },
-  { id:7, code:'NLE7', name:'การพยาบาลอนามัยชุมชน' },
-  { id:8, code:'NLE8', name:'กฎหมายและจรรยาบรรณวิชาชีพ' },
+  { id:1, code:'NLE1', name:'การพยาบาลมารดาและทารก', name_en:'Maternal & Newborn Nursing' },
+  { id:2, code:'NLE2', name:'การพยาบาลเด็กและวัยรุ่น', name_en:'Child & Adolescent Nursing' },
+  { id:3, code:'NLE3', name:'การพยาบาลผู้ใหญ่', name_en:'Adult Nursing' },
+  { id:4, code:'NLE4', name:'การพยาบาลผู้สูงอายุ', name_en:'Gerontological Nursing' },
+  { id:5, code:'NLE5', name:'การพยาบาลสุขภาพจิตและจิตเวช', name_en:'Mental Health & Psychiatric Nursing' },
+  { id:6, code:'NLE6', name:'การผดุงครรภ์', name_en:'Midwifery' },
+  { id:7, code:'NLE7', name:'การพยาบาลอนามัยชุมชน', name_en:'Community Health Nursing' },
+  { id:8, code:'NLE8', name:'กฎหมายและจรรยาบรรณวิชาชีพ', name_en:'Nursing Law & Professional Ethics' },
 ];
 
 /* user roles — keys match backend `roles` table naming (roles.name), so backend/frontend stay in sync
@@ -90,9 +90,9 @@ export const STATUS = {
 };
 
 export const ROUNDS = [
-  { id:3, year:2569, attempt:1, open:'1 มิ.ย. 2569', close:'15 มิ.ย. 2569', status:'OPEN' },
-  { id:2, year:2568, attempt:2, open:'5 ม.ค. 2569', close:'20 ม.ค. 2569', status:'CLOSED' },
-  { id:1, year:2568, attempt:1, open:'1 มิ.ย. 2568', close:'15 มิ.ย. 2568', status:'CLOSED' },
+  { id:3, year:2569, attempt:1, open:'1 มิ.ย. 2569', close:'15 มิ.ย. 2569', open_en:'Jun 1, 2026', close_en:'Jun 15, 2026', status:'OPEN' },
+  { id:2, year:2568, attempt:2, open:'5 ม.ค. 2569', close:'20 ม.ค. 2569', open_en:'Jan 5, 2026', close_en:'Jan 20, 2026', status:'CLOSED' },
+  { id:1, year:2568, attempt:1, open:'1 มิ.ย. 2568', close:'15 มิ.ย. 2568', open_en:'Jun 1, 2025', close_en:'Jun 15, 2025', status:'CLOSED' },
 ];
 
 const THAI_FIRST = ['ฉันท์ชนก','ธัญเทพ','ปาริชาต','กฤตยา','ศุภวิชญ์','นภัสสร','ธีรภัทร','อรพรรณ','พิมพ์มาดา','กิตติพงศ์','ชนัญชิดา','วรินทร','ภาคิน','สุพิชญา','ณัฐวุฒิ','เบญจวรรณ','อนุชา','ปุณยนุช','ธนกฤต','มนัสนันท์','รัตนาภรณ์','จิรายุ','พรนภา','สิทธิชัย'];
@@ -148,14 +148,20 @@ export const ME = {
 
 export const NEWS = [
   { id:3, title:'เปิดรับกรอกผลสอบใบประกอบวิชาชีพ รอบที่ 1 ปีการศึกษา 2569', round:'รอบ 1/2569',
-    date:'1 มิ.ย. 2569', author:'งานบริการการศึกษา', pinned:true,
-    body:'ขอให้นักศึกษาที่เข้าสอบความรู้ขอขึ้นทะเบียนฯ ครั้งที่ 1/2569 กรอกผลสอบรายวิชาทั้ง 8 วิชา พร้อมแนบไฟล์ใบรายงานผลสอบ (PDF) ภายในวันที่ 15 มิถุนายน 2569 เวลา 16.00 น.' },
+    title_en:'Exam Result Submission Open — Round 1, Academic Year 2569', round_en:'Round 1/2569',
+    date:'1 มิ.ย. 2569', date_en:'Jun 1, 2026', author:'งานบริการการศึกษา', author_en:'Educational Services Office', pinned:true,
+    body:'ขอให้นักศึกษาที่เข้าสอบความรู้ขอขึ้นทะเบียนฯ ครั้งที่ 1/2569 กรอกผลสอบรายวิชาทั้ง 8 วิชา พร้อมแนบไฟล์ใบรายงานผลสอบ (PDF) ภายในวันที่ 15 มิถุนายน 2569 เวลา 16.00 น.',
+    body_en:'Students who sat the licensing exam for Round 1/2569 must submit results for all 8 subjects and attach the exam result slip (PDF) by June 15, 2026, 4:00 PM.' },
   { id:2, title:'แนวปฏิบัติการอัปโหลดเอกสารหลักฐานผลสอบ', round:'รอบ 1/2569',
-    date:'28 พ.ค. 2569', author:'งานบริการการศึกษา', pinned:false,
-    body:'ไฟล์เอกสารต้องเป็น PDF ขนาดไม่เกิน 10 MB ตั้งชื่อไฟล์เป็นรหัสนักศึกษา และต้องเห็นผลสอบรายวิชาชัดเจน' },
+    title_en:'Guidelines for Uploading Exam Evidence Documents', round_en:'Round 1/2569',
+    date:'28 พ.ค. 2569', date_en:'May 28, 2026', author:'งานบริการการศึกษา', author_en:'Educational Services Office', pinned:false,
+    body:'ไฟล์เอกสารต้องเป็น PDF ขนาดไม่เกิน 10 MB ตั้งชื่อไฟล์เป็นรหัสนักศึกษา และต้องเห็นผลสอบรายวิชาชัดเจน',
+    body_en:'Document files must be PDF, no larger than 10 MB, named with the student ID, and clearly show subject results.' },
   { id:1, title:'ประกาศผลการขึ้นทะเบียนผู้ประกอบวิชาชีพการพยาบาล', round:'รอบ 2/2568',
-    date:'22 ม.ค. 2569', author:'ฝ่ายวิชาการ', pinned:false,
-    body:'สภาการพยาบาลได้ประกาศผลการสอบความรู้ฯ ครั้งที่ 2/2568 แล้ว นักศึกษาสามารถตรวจสอบผลได้ที่เว็บไซต์สภาการพยาบาล' },
+    title_en:'Nursing License Registration Results Announced', round_en:'Round 2/2568',
+    date:'22 ม.ค. 2569', date_en:'Jan 22, 2026', author:'ฝ่ายวิชาการ', author_en:'Academic Affairs Division', pinned:false,
+    body:'สภาการพยาบาลได้ประกาศผลการสอบความรู้ฯ ครั้งที่ 2/2568 แล้ว นักศึกษาสามารถตรวจสอบผลได้ที่เว็บไซต์สภาการพยาบาล',
+    body_en:'The Nursing Council has announced the licensing exam results for Round 2/2568. Students can check their results on the Nursing Council website.' },
 ];
 
 /* aggregate stats for dashboards */
