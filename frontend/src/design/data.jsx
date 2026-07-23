@@ -123,12 +123,16 @@ function genStudents(n){
     });
     const passedCount = subs.filter(s=>s.passed===true).length;
     const allPass = status!=='DRAFT' && subs.every(s=>s.passed===true);
+    const remarkIdx = Math.floor(r()*3);
     arr.push({
       sid, prefix: i%3===0?'นาย':'นางสาว', firstName:fn, lastName:ln,
       room, year:2569, status, subjects:subs, passedCount, allPass,
       submittedAt: status==='DRAFT'?null:'5 มิ.ย. 2569 10:30',
+      submittedAt_en: status==='DRAFT'?null:'5 Jun 2026 10:30',
       confirmedAt: status==='CONFIRMED'?'10 มิ.ย. 2569 14:00':null,
-      remark: status==='REJECTED' ? ['เอกสารหลักฐานไม่ชัดเจน กรุณาอัปโหลดใหม่','ผลสอบรายวิชาไม่ตรงกับไฟล์แนบ','ไฟล์ใบประกอบวิชาชีพไม่สมบูรณ์'][Math.floor(r()*3)] : null,
+      confirmedAt_en: status==='CONFIRMED'?'10 Jun 2026 14:00':null,
+      remark: status==='REJECTED' ? ['เอกสารหลักฐานไม่ชัดเจน กรุณาอัปโหลดใหม่','ผลสอบรายวิชาไม่ตรงกับไฟล์แนบ','ไฟล์ใบประกอบวิชาชีพไม่สมบูรณ์'][remarkIdx] : null,
+      remark_en: status==='REJECTED' ? ['Evidence documents are unclear, please re-upload','Subject results do not match the attached file','License file is incomplete'][remarkIdx] : null,
       files: status==='DRAFT'?[]:[
         { name:'ผลสอบ_NLE_'+sid+'.pdf', type:'LICENSE', size:'1.2 MB' },
       ],

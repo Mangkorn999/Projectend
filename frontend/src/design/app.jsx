@@ -28,34 +28,34 @@ const navStudent = (lang)=>[
   { k:'history', label:translate(lang,'nav.student.history'), icon:'history' },
 ];
 
-const NAV = {
+const NAV = (lang)=>({
   student: [],
   officer: [
-    { section:'ภาพรวม' },
-    { k:'dashboard', label:'Dashboard', icon:'grid' },
-    { k:'review', label:'ตรวจสอบ/ยืนยันผล', icon:'checkCircle', badge:'29' },
-    { k:'students', label:'ข้อมูลนักศึกษา', icon:'users' },
-    { section:'จัดการระบบ' },
-    { k:'rounds', label:'รอบการกรอก & รายวิชา', icon:'calendar' },
-    { k:'usermgmt', label:'ผู้ใช้งานผู้บริหาร', icon:'shield' },
-    { k:'newsmgmt', label:'ข่าวสาร / ประกาศ', icon:'news' },
-    { section:'รายงาน' },
-    { k:'reports', label:'รายงานสรุป', icon:'report' },
+    { section:translate(lang,'nav.section.overview') },
+    { k:'dashboard', label:translate(lang,'nav.officer.dashboard'), icon:'grid' },
+    { k:'review', label:translate(lang,'nav.officer.review'), icon:'checkCircle', badge:'29' },
+    { k:'students', label:translate(lang,'nav.officer.students'), icon:'users' },
+    { section:translate(lang,'nav.section.manage') },
+    { k:'rounds', label:translate(lang,'nav.officer.rounds'), icon:'calendar' },
+    { k:'usermgmt', label:translate(lang,'nav.officer.usermgmt'), icon:'shield' },
+    { k:'newsmgmt', label:translate(lang,'nav.officer.newsmgmt'), icon:'news' },
+    { section:translate(lang,'nav.section.reports') },
+    { k:'reports', label:translate(lang,'nav.officer.reports'), icon:'report' },
   ],
   executive: [
-    { k:'dashboard', label:'Dashboard', icon:'grid' },
-    { k:'students', label:'ข้อมูลนักศึกษา', icon:'users' },
-    { k:'reports', label:'รายงานสรุป', icon:'report' },
+    { k:'dashboard', label:translate(lang,'nav.executive.dashboard'), icon:'grid' },
+    { k:'students', label:translate(lang,'nav.executive.students'), icon:'users' },
+    { k:'reports', label:translate(lang,'nav.executive.reports'), icon:'report' },
   ],
   admin: [
-    { k:'dashboard', label:'ศูนย์ควบคุมระบบ', icon:'grid' },
-    { k:'users', label:'จัดการผู้ใช้งาน', icon:'users' },
-    { k:'audit', label:'บันทึกการใช้งาน', icon:'history' },
-    { section:'ข้อมูล & ระบบ' },
-    { k:'archive', label:'ข้อมูลย้อนหลังรายปี', icon:'calendar' },
-    { k:'settings', label:'ตั้งค่าระบบ', icon:'settings' },
+    { k:'dashboard', label:translate(lang,'nav.admin.dashboard'), icon:'grid' },
+    { k:'users', label:translate(lang,'nav.admin.users'), icon:'users' },
+    { k:'audit', label:translate(lang,'nav.admin.audit'), icon:'history' },
+    { section:translate(lang,'nav.section.dataSystem') },
+    { k:'archive', label:translate(lang,'nav.admin.archive'), icon:'calendar' },
+    { k:'settings', label:translate(lang,'nav.admin.settings'), icon:'settings' },
   ],
-};
+});
 const ROLE_USER = {
   student:{ firstName:'ธัญเทพ', lastName:'จิ้วตั้น' },
   officer:{ firstName:'สมหญิง', lastName:'ใจดี' },
@@ -80,7 +80,7 @@ export function App() {
 
   if(!role) return <><Login onLogin={r=>{ setRole(r); setPage(DEFAULT_PAGE[r]); }} /><TweaksUI t={t} setTweak={setTweak} /></>;
 
-  const nav = role==='student' ? navStudent(lang) : NAV[role];
+  const nav = role==='student' ? navStudent(lang) : NAV(lang)[role];
   const go = (p, step=0)=>{ setPage(p); setFormStep(step); window.scrollTo(0,0); };
   const switchRole = (r)=>{ if(r==='logout'){ setRole(null); return; } setRole(r); setPage(DEFAULT_PAGE[r]); setSel(null); };
 
@@ -92,27 +92,27 @@ export function App() {
       if(page==='history') return <StudentHistory go={go} lang={lang} />;
     }
     if(role==='officer'){
-      if(page==='dashboard') return <OfficerDashboard go={go} tweaks={t} />;
-      if(page==='review') return <OfficerReview go={go} setSel={setSel} toast={showToast} />;
-      if(page==='students') return <OfficerStudents go={go} setSel={setSel} />;
-      if(page==='detail') return <StudentDetail student={sel} go={go} toast={showToast} />;
+      if(page==='dashboard') return <OfficerDashboard go={go} tweaks={t} lang={lang} />;
+      if(page==='review') return <OfficerReview go={go} setSel={setSel} toast={showToast} lang={lang} />;
+      if(page==='students') return <OfficerStudents go={go} setSel={setSel} lang={lang} />;
+      if(page==='detail') return <StudentDetail student={sel} go={go} toast={showToast} lang={lang} />;
       if(page==='rounds') return <ManageRoundsSubjects toast={showToast} />;
       if(page==='usermgmt') return <ManageUsers toast={showToast} />;
       if(page==='newsmgmt') return <ManageNews toast={showToast} />;
-      if(page==='reports') return <Reports toast={showToast} />;
+      if(page==='reports') return <Reports toast={showToast} lang={lang} />;
     }
     if(role==='executive'){
-      if(page==='dashboard') return <ExecutiveDashboard go={go} tweaks={t} />;
-      if(page==='students') return <OfficerStudents go={go} setSel={setSel} />;
-      if(page==='detail') return <StudentDetail student={sel} go={go} toast={showToast} readonly />;
-      if(page==='reports') return <Reports toast={showToast} />;
+      if(page==='dashboard') return <ExecutiveDashboard go={go} tweaks={t} lang={lang} />;
+      if(page==='students') return <OfficerStudents go={go} setSel={setSel} lang={lang} />;
+      if(page==='detail') return <StudentDetail student={sel} go={go} toast={showToast} readonly lang={lang} />;
+      if(page==='reports') return <Reports toast={showToast} lang={lang} />;
     }
     if(role==='admin'){
-      if(page==='dashboard') return <AdminDashboard go={go} />;
-      if(page==='users') return <AdminUsers toast={showToast} />;
-      if(page==='audit') return <AdminAudit />;
-      if(page==='archive') return <AdminArchive toast={showToast} />;
-      if(page==='settings') return <AdminSettings toast={showToast} />;
+      if(page==='dashboard') return <AdminDashboard go={go} lang={lang} />;
+      if(page==='users') return <AdminUsers toast={showToast} lang={lang} />;
+      if(page==='audit') return <AdminAudit lang={lang} />;
+      if(page==='archive') return <AdminArchive toast={showToast} lang={lang} />;
+      if(page==='settings') return <AdminSettings toast={showToast} lang={lang} />;
     }
     return <Empty title="ไม่พบหน้าที่ต้องการ" />;
   };

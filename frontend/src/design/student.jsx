@@ -382,12 +382,13 @@ export function UploadSlots({ slots, files, setFiles, toast, lang='TH' }) {
 /* ---------- Submission status ---------- */
 export function StudentStatus({ go, lang='TH' }) {
   // demo: a submitted-then-rejected scenario to show the richest state
-  const data = { status:'SUBMITTED', submittedAt:'5 มิ.ย. 2569 10:30',
+  const data = { status:'SUBMITTED', submittedAt:'5 มิ.ย. 2569 10:30', submittedAt_en:'5 Jun 2026 10:30',
     subjects: SUBJECTS.map((s,i)=>({ ...s, passed: i!==4 })),
     files:[{ name:'ผลสอบ_NLE_6610210631.pdf', size:'1.4 MB' }] };
   const passed = data.subjects.filter(s=>s.passed).length;
+  const submittedAt = pick(lang,data,'submittedAt');
   const timeline = [
-    { label:t(lang,'statuspage.timeline.0'), date:data.submittedAt, done:true },
+    { label:t(lang,'statuspage.timeline.0'), date:submittedAt, done:true },
     { label:t(lang,'statuspage.timeline.1'), date:t(lang,'statuspage.inProgress'), active:true },
     { label:t(lang,'statuspage.timeline.2'), date:t(lang,'statuspage.waitConfirm'), done:false },
   ];
@@ -403,7 +404,7 @@ export function StudentStatus({ go, lang='TH' }) {
               <div>
                 <div style={{ fontSize:13.5, color:'var(--ink-500)', fontWeight:600, marginBottom:8 }}>{t(lang,'statuspage.currentStatus')}</div>
                 <StatusBadge status={data.status} size="lg" lang={lang} />
-                <div style={{ fontSize:13, color:'var(--ink-500)', marginTop:10 }}>{t(lang,'statuspage.submittedNote',{date:data.submittedAt})}</div>
+                <div style={{ fontSize:13, color:'var(--ink-500)', marginTop:10 }}>{t(lang,'statuspage.submittedNote',{date:submittedAt})}</div>
               </div>
               <Donut size={104} thickness={13} segments={[
                 { value:passed, color:'var(--pass)' }, { value:8-passed, color:'var(--fail)' }]}
@@ -457,9 +458,9 @@ export function StudentStatus({ go, lang='TH' }) {
 /* ---------- History ---------- */
 export function StudentHistory({ go, lang='TH' }) {
   const rows = [
-    { round:'1/2569', date:'5 มิ.ย. 2569', status:'SUBMITTED', passed:7 },
-    { round:'2/2568', date:'8 ม.ค. 2569', status:'CONFIRMED', passed:8 },
-    { round:'1/2568', date:'6 มิ.ย. 2568', status:'REJECTED', passed:5 },
+    { round:'1/2569', date:'5 มิ.ย. 2569', date_en:'5 Jun 2026', status:'SUBMITTED', passed:7 },
+    { round:'2/2568', date:'8 ม.ค. 2569', date_en:'8 Jan 2026', status:'CONFIRMED', passed:8 },
+    { round:'1/2568', date:'6 มิ.ย. 2568', date_en:'6 Jun 2025', status:'REJECTED', passed:5 },
   ];
   return (
     <div className="fade-up">
@@ -472,7 +473,7 @@ export function StudentHistory({ go, lang='TH' }) {
               {rows.map((r,i)=>(
                 <tr key={i} className="clickable">
                   <td style={{ fontWeight:700 }}>{t(lang,'historypage.roundPrefix',{round:r.round})}</td>
-                  <td style={{ color:'var(--ink-600)' }}>{r.date}</td>
+                  <td style={{ color:'var(--ink-600)' }}>{pick(lang,r,'date')}</td>
                   <td><span className="tnum" style={{ fontWeight:700, color: r.passed===8?'var(--pass)':'var(--ink-800)' }}>{r.passed}/8</span> <span style={{ color:'var(--ink-400)', fontSize:13 }}>{t(lang,'pass.true')}</span></td>
                   <td><StatusBadge status={r.status} lang={lang} /></td>
                   <td style={{ textAlign:'right' }}>

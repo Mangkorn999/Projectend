@@ -2,6 +2,7 @@
    Shared UI components
    ============================================================ */
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { STATUS, Icon } from './data.jsx';
 import { Logo } from './logos.jsx';
 import { t } from './i18n.js';
@@ -346,7 +347,7 @@ export function useToast(){
 /* ---- Modal ---- */
 export function Modal({ open, onClose, title, children, footer, width=480, tone }) {
   if(!open) return null;
-  return (
+  return createPortal(
     <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(12,31,61,.45)', zIndex:150,
       display:'flex', alignItems:'center', justifyContent:'center', padding:16, backdropFilter:'blur(2px)' }}>
       <div className="card fade-up" onClick={e=>e.stopPropagation()} style={{ width, maxWidth:'100%', maxHeight:'90vh',
@@ -360,7 +361,8 @@ export function Modal({ open, onClose, title, children, footer, width=480, tone 
         {footer && <div style={{ padding:'14px 22px', borderTop:'1px solid var(--ink-100)', display:'flex',
           justifyContent:'flex-end', gap:10, background:'var(--ink-50)', borderRadius:'0 0 16px 16px' }}>{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
