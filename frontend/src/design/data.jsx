@@ -221,5 +221,14 @@ export const YEAR_COMPARE = YEARS.slice().reverse().map(y=>({
   first:YEARLY[y].firstAttempt, cumulative:YEARLY[y].cumulative, students:YEARLY[y].students,
 }));
 
+/* per-subject first-attempt pass rate, historical (3 years, oldest→newest) — mock */
+const rtrend = seededRand(77);
+export const SUBJECT_TREND = SUBJECTS.map(s=>{
+  const latest = 62 + Math.floor(rtrend()*28);
+  const mid = latest - 3 - Math.floor(rtrend()*6);
+  const oldest = mid - 3 - Math.floor(rtrend()*6);
+  return { id:s.id, code:s.code, name:s.name, name_en:s.name_en, values:[oldest,mid,latest] };
+});
+
 /* fmt helper */
 export function plural(n){ return n.toLocaleString('th-TH'); }

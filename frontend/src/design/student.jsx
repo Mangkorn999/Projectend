@@ -4,7 +4,6 @@
 import { useState, useEffect } from 'react';
 import { Icon, ROUNDS, NEWS, SUBJECTS, ME } from './data.jsx';
 import { PageHead, Modal, StatusBadge, PassBadge, Donut, Stepper } from './components.jsx';
-import { Logo } from './logos.jsx';
 import { t, pick } from './i18n.js';
 
 /* ---------- News / Announcements ---------- */
@@ -30,7 +29,7 @@ export function StudentNews({ go, lang='TH' }) {
               <div style={{ fontSize:13.5, color:'var(--ink-500)', fontWeight:600 }}>{t(lang,'news.yourStatus')}</div>
               <div style={{ marginTop:7 }}><StatusBadge status="DRAFT" size="lg" lang={lang} /></div>
             </div>
-            <button className="btn btn-gold btn-lg" onClick={()=>go('form')}><Icon name="edit" size={18} /> {t(lang,'news.startBtn')}</button>
+            <button className="btn btn-gold btn-lg" onClick={()=>go('formIntro')}><Icon name="edit" size={18} /> {t(lang,'news.startBtn')}</button>
           </div>
         </div>
       </div>
@@ -81,13 +80,42 @@ export function StudentNews({ go, lang='TH' }) {
   );
 }
 
+/* ---------- Exam form intro (landing before the wizard) ---------- */
+export function FormIntro({ go, lang='TH' }) {
+  const round = ROUNDS[0];
+  return (
+    <div className="fade-up">
+      <PageHead title={t(lang,'formintro.title')} sub={t(lang,'formintro.sub',{attempt:round.attempt,year:round.year,close:pick(lang,round,'close')})}
+        crumb={<><a onClick={()=>go('news')} style={{cursor:'pointer'}}>{t(lang,'examform.crumbHome')}</a> <Icon name="chevR" size={13}/> {t(lang,'examform.crumbForm')}</>} />
+      <div className="card card-pad" style={{ maxWidth:640, textAlign:'center', padding:'40px 32px' }}>
+        <div style={{ width:64, height:64, borderRadius:16, background:'var(--blue-50)', color:'var(--navy-700)',
+          display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 18px' }}>
+          <Icon name="edit" size={30} />
+        </div>
+        <h3 style={{ margin:'0 0 8px', fontSize:18, fontWeight:800 }}>{t(lang,'formintro.cardTitle')}</h3>
+        <p style={{ margin:'0 0 24px', color:'var(--ink-500)', fontSize:14, lineHeight:1.6 }}>{t(lang,'formintro.cardSub')}</p>
+        <div style={{ display:'flex', flexDirection:'column', gap:10, textAlign:'left', marginBottom:26 }}>
+          {[1,2,3].map(i=>(
+            <div key={i} style={{ display:'flex', alignItems:'center', gap:11, fontSize:13.5, color:'var(--ink-700)' }}>
+              <span style={{ width:24, height:24, borderRadius:'50%', background:'var(--ink-100)', color:'var(--ink-600)',
+                display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:700, flex:'none' }}>{i}</span>
+              {t(lang,'examform.steps.'+i)}
+            </div>
+          ))}
+        </div>
+        <button className="btn btn-primary btn-lg" style={{ width:'100%', justifyContent:'center' }} onClick={()=>go('form')}>
+          {t(lang,'news.startBtn')} <Icon name="arrowR" size={17}/></button>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- Exam form (with variation styles) ---------- */
 export function ExamForm({ go, toast, tweaks, initialStep=0, lang='TH' }) {
   const variant = tweaks?.examFormStyle || 'toggle';
   const autosave = tweaks?.autosave !== false;
-  const [council, setCouncil] = useState(ME.councilSet);
   const [results, setResults] = useState(()=>SUBJECTS.map(s=>({ id:s.id, passed:null })));
-  const [step, setStep] = useState(initialStep); // 0 creds, 1 results, 2 upload, 3 review
+  const [step, setStep] = useState(initialStep); // 0 results, 1 upload, 2 review
   const [files, setFiles] = useState({}); // keyed by slot: { EXAM:{...}, LICENSE:{...} }
   const [saved, setSaved] = useState(false);
   const filled = results.filter(r=>r.passed!==null).length;
@@ -98,7 +126,7 @@ export function ExamForm({ go, toast, tweaks, initialStep=0, lang='TH' }) {
 
   const setRes = (id,val)=> setResults(rs=>rs.map(r=>r.id===id?{...r,passed:val}:r));
 
-  const steps = [0,1,2,3].map(i=>t(lang,'examform.steps.'+i));
+  const steps = [1,2,3].map(i=>t(lang,'examform.steps.'+i));
 
   return (
     <div className="fade-up">
@@ -109,33 +137,8 @@ export function ExamForm({ go, toast, tweaks, initialStep=0, lang='TH' }) {
         <Stepper steps={steps} current={step} />
       </div>
 
-      {/* STEP 0: council credentials */}
+      {/* STEP 0: results — VARIANT-DRIVEN */}
       {step===0 && (
-        <div className="card card-pad fade-up">
-          <div style={{ display:'flex', gap:12, alignItems:'flex-start', marginBottom:18 }}>
-            <div style={{ width:42, height:42, borderRadius:11, background:'var(--blue-50)', display:'flex', alignItems:'center', justifyContent:'center', flex:'none' }}><Logo size={24}/></div>
-            <div>
-              <h3 style={{ margin:0, fontSize:17, fontWeight:800 }}>{t(lang,'examform.council.title')}</h3>
-              <p style={{ margin:'4px 0 0', color:'var(--ink-500)', fontSize:13.5 }}>{t(lang,'examform.council.sub')}</p>
-            </div>
-          </div>
-          <div className="grid g-2" style={{ gap:16 }}>
-            <div className="field"><label>{t(lang,'examform.council.emailLabel')}</label>
-              <input className="input" defaultValue={ME.councilEmail} placeholder="xxxx@nurse.or.th" /></div>
-            <div className="field"><label>{t(lang,'examform.council.passwordLabel')}</label>
-              <input className="input" type="password" defaultValue="••••••••••" /></div>
-          </div>
-          <div style={{ display:'flex', alignItems:'center', gap:9, marginTop:14, padding:'11px 13px', background:'var(--status-ok-bg)', borderRadius:10, color:'var(--status-ok-fg)', fontSize:13, fontWeight:500 }}>
-            <Icon name="checkCircle" size={17}/> {t(lang,'examform.council.savedNote')}
-          </div>
-          <div style={{ display:'flex', justifyContent:'flex-end', marginTop:22 }}>
-            <button className="btn btn-primary btn-lg" onClick={()=>setStep(1)}>{t(lang,'common.next')} <Icon name="arrowR" size={17}/></button>
-          </div>
-        </div>
-      )}
-
-      {/* STEP 1: results — VARIANT-DRIVEN */}
-      {step===1 && (
         <div className="fade-up">
           <div className="row wrap-m" style={{ alignItems:'flex-start' }}>
             <div style={{ flex:1, minWidth:0 }}>
@@ -165,16 +168,15 @@ export function ExamForm({ go, toast, tweaks, initialStep=0, lang='TH' }) {
               </div>
             </div>
           </div>
-          <div style={{ display:'flex', justifyContent:'space-between', marginTop:22, gap:12 }}>
-            <button className="btn btn-ghost btn-lg" onClick={()=>setStep(0)}><Icon name="chevL" size={17}/> {t(lang,'common.back')}</button>
-            <button className="btn btn-primary btn-lg" disabled={filled<8} onClick={()=>setStep(2)}>
+          <div style={{ display:'flex', justifyContent:'flex-end', marginTop:22, gap:12 }}>
+            <button className="btn btn-primary btn-lg" disabled={filled<8} onClick={()=>setStep(1)}>
               {t(lang,'examform.nextUpload')} <Icon name="arrowR" size={17}/></button>
           </div>
         </div>
       )}
 
-      {/* STEP 2: upload — conditional slots */}
-      {step===2 && (
+      {/* STEP 1: upload — conditional slots */}
+      {step===1 && (
         <div className="fade-up">
           {(()=>{ const allPass = results.every(r=>r.passed===true);
             return <>
@@ -191,18 +193,18 @@ export function ExamForm({ go, toast, tweaks, initialStep=0, lang='TH' }) {
                       { key:'LICENSE', label:t(lang,'upload.licenseLabel'), hint:t(lang,'upload.licenseHint'), required:true } ]
                   : [ { key:'EXAM', label:t(lang,'upload.examLabel'), hint:t(lang,'upload.examHint'), required:true } ]} />
               <div style={{ display:'flex', justifyContent:'space-between', marginTop:22, gap:12 }}>
-                <button className="btn btn-ghost btn-lg" onClick={()=>setStep(1)}><Icon name="chevL" size={17}/> {t(lang,'common.back')}</button>
+                <button className="btn btn-ghost btn-lg" onClick={()=>setStep(0)}><Icon name="chevL" size={17}/> {t(lang,'common.back')}</button>
                 <button className="btn btn-primary btn-lg"
                   disabled={(allPass?2:1) > Object.keys(files).length}
-                  onClick={()=>setStep(3)}>{t(lang,'examform.nextReview')} <Icon name="arrowR" size={17}/></button>
+                  onClick={()=>setStep(2)}>{t(lang,'examform.nextReview')} <Icon name="arrowR" size={17}/></button>
               </div>
             </>;
           })()}
         </div>
       )}
 
-      {/* STEP 3: review & submit */}
-      {step===3 && (
+      {/* STEP 2: review & submit */}
+      {step===2 && (
         <div className="fade-up" style={{ maxWidth:900 }}>
           <div className="card card-pad">
             <h3 style={{ margin:'0 0 4px', fontSize:17, fontWeight:800 }}>{t(lang,'review.title')}</h3>
@@ -229,7 +231,7 @@ export function ExamForm({ go, toast, tweaks, initialStep=0, lang='TH' }) {
             </div>
           </div>
           <div style={{ display:'flex', justifyContent:'space-between', marginTop:22, gap:12 }}>
-            <button className="btn btn-ghost btn-lg" onClick={()=>setStep(2)}><Icon name="chevL" size={17}/> {t(lang,'common.back')}</button>
+            <button className="btn btn-ghost btn-lg" onClick={()=>setStep(1)}><Icon name="chevL" size={17}/> {t(lang,'common.back')}</button>
             <button className="btn btn-success btn-lg" onClick={()=>{ toast(t(lang,'review.submitToast')); go('status'); }}>
               <Icon name="send" size={17}/> {t(lang,'review.submitBtn')}</button>
           </div>

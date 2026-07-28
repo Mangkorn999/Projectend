@@ -7,7 +7,7 @@ import { TopBar, Sidebar, Toast, useToast, Empty } from './components.jsx';
 import { t as translate } from './i18n.js';
 import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakToggle, TweakColor } from './tweaks-panel.jsx';
 import { Login } from './login.jsx';
-import { StudentNews, ExamForm, StudentStatus, StudentHistory } from './student.jsx';
+import { StudentNews, FormIntro, ExamForm, StudentStatus, StudentHistory } from './student.jsx';
 import { OfficerDashboard, OfficerReview, OfficerStudents, StudentDetail } from './officer.jsx';
 import { ManageRoundsSubjects, ManageUsers, ManageNews } from './officer-manage.jsx';
 import { ExecutiveDashboard, Reports } from './executive.jsx';
@@ -23,7 +23,7 @@ const TWEAK_DEFAULTS = {
 
 const navStudent = (lang)=>[
   { k:'news', label:translate(lang,'nav.student.news'), icon:'news' },
-  { k:'form', label:translate(lang,'nav.student.form'), icon:'edit', badge:'!' },
+  { k:'formIntro', label:translate(lang,'nav.student.form'), icon:'edit', badge:'!' },
   { k:'status', label:translate(lang,'nav.student.status'), icon:'clock' },
   { k:'history', label:translate(lang,'nav.student.history'), icon:'history' },
 ];
@@ -87,6 +87,7 @@ export function App() {
   const render = ()=>{
     if(role==='student'){
       if(page==='news') return <StudentNews go={go} lang={lang} />;
+      if(page==='formIntro') return <FormIntro go={go} lang={lang} />;
       if(page==='form') return <ExamForm go={go} toast={showToast} tweaks={t} initialStep={formStep} lang={lang} />;
       if(page==='status') return <StudentStatus go={go} lang={lang} />;
       if(page==='history') return <StudentHistory go={go} lang={lang} />;

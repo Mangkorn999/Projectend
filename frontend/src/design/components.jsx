@@ -281,28 +281,28 @@ export function LineChart({ points, height=150, color='var(--navy-600)', suffix=
 }
 
 /* ---- Multi-series line chart (compare series over categories) ---- */
-export function MultiLineChart({ series, categories, height=180, suffix='%', yMin=0, yMax=100 }) {
-  const w=340, padL=10, padR=10, padT=24, padB=26;
+export function MultiLineChart({ series, categories, height=180, suffix='%', yMin=0, yMax=100, width=340 }) {
+  const w=width, padL=26, padR=10, padT=14, padB=26;
   const n = categories.length;
   const xs = i => padL + (n===1?0:i*(w-padL-padR)/(n-1));
   const ys = v => padT + (1-(v-yMin)/(yMax-yMin))*(height-padT-padB);
   return (
     <div>
       <svg width="100%" viewBox={`0 0 ${w} ${height}`} preserveAspectRatio="none" style={{ overflow:'visible' }}>
-        {[0,25,50,75,100].map(g=>(<line key={g} x1={padL} x2={w-padR} y1={ys(g)} y2={ys(g)} stroke="var(--ink-100)" strokeWidth="1" />))}
+        {[0,25,50,75,100].map(g=>(<g key={g}>
+          <line x1={padL} x2={w-padR} y1={ys(g)} y2={ys(g)} stroke="var(--ink-100)" strokeWidth="1" />
+          <text x={padL-5} y={ys(g)+3} textAnchor="end" fontSize="7.5" fill="var(--ink-400)" fontFamily="'LINE Seed Sans TH', sans-serif">{g}{suffix}</text>
+        </g>))}
         {series.map((s,si)=>{
           const path = s.values.map((v,i)=>`${i?'L':'M'}${xs(i)},${ys(v)}`).join(' ');
           return <g key={si}>
             <path d={path} fill="none" stroke={s.color} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
-            {s.values.map((v,i)=>(<g key={i}>
-              <circle cx={xs(i)} cy={ys(v)} r="4.5" fill="#fff" stroke={s.color} strokeWidth="2.6" />
-              <text x={xs(i)} y={ys(v)-11} textAnchor="middle" fontSize="6" fontWeight="700" fill={s.color} fontFamily="'LINE Seed Sans TH', sans-serif">{v}{suffix}</text>
-            </g>))}
+            {s.values.map((v,i)=>(<circle key={i} cx={xs(i)} cy={ys(v)} r="4.5" fill="#fff" stroke={s.color} strokeWidth="2.6" />))}
           </g>;
         })}
         {categories.map((c,i)=>(<text key={i} x={xs(i)} y={height-7} textAnchor="middle" fontSize="9" fill="var(--ink-500)" fontFamily="'LINE Seed Sans TH', sans-serif">{c}</text>))}
       </svg>
-      <div style={{ display:'flex', gap:18, justifyContent:'center', marginTop:8 }}>
+      <div style={{ display:'flex', flexWrap:'wrap', gap:'6px 18px', justifyContent:'center', marginTop:8 }}>
         {series.map((s,i)=>(<div key={i} style={{ display:'flex', alignItems:'center', gap:7, fontSize:12.5, color:'var(--ink-600)' }}>
           <span style={{ width:14, height:3, borderRadius:2, background:s.color }}></span>{s.label}</div>))}
       </div>

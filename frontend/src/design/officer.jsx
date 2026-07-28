@@ -2,8 +2,8 @@
    Officer screens — dashboard, review, management
    ============================================================ */
 import { useState, useEffect, useMemo } from 'react';
-import { Icon, ROUNDS, STUDENTS, SUBJECTS, computeStats, TREND, plural, ROOMS } from './data.jsx';
-import { PageHead, StatCard, Donut, BarRow, ColumnChart, LineChart, Avatar, Modal, Empty, StatusBadge, PassBadge } from './components.jsx';
+import { Icon, ROUNDS, STUDENTS, SUBJECTS, computeStats, TREND, plural, ROOMS, YEAR_COMPARE } from './data.jsx';
+import { PageHead, StatCard, Donut, BarRow, ColumnChart, LineChart, MultiLineChart, Avatar, Modal, Empty, StatusBadge, PassBadge } from './components.jsx';
 import { t, pick } from './i18n.js';
 
 /* ---------- Officer Dashboard (variation-driven) ---------- */
@@ -56,6 +56,17 @@ function DashKPI({ st, segs, lang='TH' }) {
   return (
     <div className="row wrap-m" style={{ alignItems:'stretch' }}>
       <div className="card card-pad" style={{ flex:'0 0 340px' }}>
+        <h3 style={{ margin:'0 0 4px', fontSize:16, fontWeight:800 }}>{t(lang,'executive.compareTitle')}</h3>
+        <p style={{ margin:'0 0 14px', color:'var(--ink-500)', fontSize:13 }}>{t(lang,'executive.compareSub')}</p>
+        <MultiLineChart height={130} width={340}
+          categories={YEAR_COMPARE.map(d=>String(d.year))}
+          series={[
+            { label:t(lang,'executive.seriesFirst'), color:'var(--navy-600)', values:YEAR_COMPARE.map(d=>d.first) },
+            { label:t(lang,'executive.seriesCumulative'), color:'var(--pass)', values:YEAR_COMPARE.map(d=>d.cumulative) },
+          ]} />
+
+        <div className="hr" style={{ margin:'20px 0' }}></div>
+
         <h3 style={{ margin:'0 0 4px', fontSize:16, fontWeight:800 }}>{t(lang,'officer.dash.fillTitle')}</h3>
         <p style={{ margin:'0 0 14px', color:'var(--ink-500)', fontSize:13 }}>{t(lang,'officer.dash.fillSub',{total:st.total})}</p>
         <div style={{ display:'flex', justifyContent:'center', marginBottom:16 }}>
@@ -91,6 +102,7 @@ function DashKPI({ st, segs, lang='TH' }) {
             </div>
           ))}
         </div>
+
       </div>
       <div className="card card-pad" style={{ flex:1, minWidth:0 }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16, flexWrap:'wrap', gap:10 }}>

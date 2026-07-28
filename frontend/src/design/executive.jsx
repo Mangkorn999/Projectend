@@ -2,10 +2,12 @@
    Executive screens — dashboard + reports
    ============================================================ */
 import { useState, useMemo } from 'react';
-import { Icon, ROUNDS, STUDENTS, computeStats, plural, YEARS, YEARLY, YEAR_COMPARE } from './data.jsx';
+import { Icon, ROUNDS, STUDENTS, computeStats, plural, YEARS, YEARLY, YEAR_COMPARE, SUBJECT_TREND } from './data.jsx';
 import { PageHead, StatCard, BarRow, ColumnChart, MultiLineChart, StatusBadge } from './components.jsx';
 import { Logo } from './logos.jsx';
 import { t, pick } from './i18n.js';
+
+const SUBJECT_COLORS = ['#e8720f','#0d6e6a','#2563eb','#c9971f','#9d4edd','#1f9d57','#e0493b','#64748b'];
 
 function YearSelect({ year, setYear, lang='TH' }) {
   const [open, setOpen] = useState(false);
@@ -103,6 +105,23 @@ export function ExecutiveDashboard({ go, lang='TH' }) {
         </div>
       </div>
 
+      {/* per-subject first-attempt pass rate, historical */}
+      <div className="card card-pad" style={{ marginBottom:20 }}>
+        <h3 style={{ margin:'0 0 4px', fontSize:16, fontWeight:800 }}>{t(lang,'executive.subjectTrendTitle')}</h3>
+        <p style={{ margin:'0 0 14px', color:'var(--ink-500)', fontSize:13 }}>{t(lang,'executive.subjectTrendSub')}</p>
+        <MultiLineChart height={230} width={900}
+          categories={SUBJECT_TREND.map(s=>s.code)}
+          series={YEAR_COMPARE.map((d,yi)=>({ label:String(d.year), color:SUBJECT_COLORS[yi%SUBJECT_COLORS.length], values:SUBJECT_TREND.map(s=>s.values[yi]) }))} />
+        <div className="grid g-2" style={{ gap:'6px 24px', marginTop:16, paddingTop:14, borderTop:'1px solid var(--ink-100)' }}>
+          {SUBJECT_TREND.map(s=>(
+            <div key={s.id} style={{ display:'flex', gap:8, fontSize:12.5, color:'var(--ink-600)' }}>
+              <span style={{ fontWeight:700, color:'var(--ink-800)', flex:'none' }}>{s.code}</span>
+              <span>{pick(lang,s,'name')}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* status KPIs — current open round only */}
       {isCurrent && <>
         <div style={{ display:'flex', alignItems:'center', gap:9, margin:'4px 2px 12px' }}>
@@ -127,7 +146,7 @@ export function ExecutiveDashboard({ go, lang='TH' }) {
           </div>
         </div>
         <div className="grid g-2" style={{ gap:'14px 30px' }}>
-          {st.perSubject.map(s=>(
+          {[...st.perSubject].sort((a,b)=>b.rate-a.rate).map(s=>(
             <BarRow key={s.id} label={pick(lang,s,'name')} value={s.rate} right={s.rate+'%'}
               color={s.rate>=80?'var(--pass)':s.rate>=60?'#c9971f':'var(--fail)'}
               sub={t(lang,'executive.passFailSub',{pass:s.pass,fail:s.fail,total:s.pass+s.fail})} />
