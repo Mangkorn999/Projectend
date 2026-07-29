@@ -119,7 +119,7 @@ export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=3, l
                   <button key={r.k} onClick={()=>{ onSwitchRole(r.k); setOpen(false); }}
                     style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 9px', borderRadius:8, border:'none',
                       background: r.k===role?'var(--blue-50)':'transparent', textAlign:'left', width:'100%',
-                      color: r.k===role?'var(--navy-700)':'var(--ink-700)', fontWeight: r.k===role?700:500, fontSize:13.5 }}>
+                      color: r.k===role?'var(--navy-700)':'var(--ink-900)', fontWeight: r.k===role?700:500, fontSize:13.5 }}>
                     <Icon name={r.icon} size={17} /> {r.label}
                     {r.k===role && <Icon name="check" size={15} style={{ marginLeft:'auto', color:'var(--blue-600)' }} />}
                   </button>
@@ -225,7 +225,7 @@ export function BarRow({ label, value, max=100, color='var(--navy-600)', right, 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:10 }}>
-        <span style={{ fontSize:13.5, color:'var(--ink-700)', fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{label}</span>
+        <span style={{ fontSize:13.5, color:'var(--ink-900)', fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{label}</span>
         <span className="tnum" style={{ fontSize:13.5, fontWeight:700, color:'var(--ink-900)', flex:'none' }}>{right}</span>
       </div>
       <div className="pbar" style={{ height:9 }}>
@@ -291,7 +291,7 @@ export function MultiLineChart({ series, categories, height=180, suffix='%', yMi
       <svg width="100%" viewBox={`0 0 ${w} ${height}`} preserveAspectRatio="none" style={{ overflow:'visible' }}>
         {[0,25,50,75,100].map(g=>(<g key={g}>
           <line x1={padL} x2={w-padR} y1={ys(g)} y2={ys(g)} stroke="var(--ink-100)" strokeWidth="1" />
-          <text x={padL-5} y={ys(g)+3} textAnchor="end" fontSize="7.5" fill="var(--ink-400)" fontFamily="'LINE Seed Sans TH', sans-serif">{g}{suffix}</text>
+          <text x={0} y={ys(g)+3} textAnchor="start" fontSize="7.5" fill="var(--ink-400)" fontFamily="'LINE Seed Sans TH', sans-serif">{g}{suffix}</text>
         </g>))}
         {series.map((s,si)=>{
           const path = s.values.map((v,i)=>`${i?'L':'M'}${xs(i)},${ys(v)}`).join(' ');
@@ -370,7 +370,7 @@ export function Modal({ open, onClose, title, children, footer, width=480, tone 
 export function Empty({ icon='doc', title, sub, action }) {
   return <div className="empty">
     <div className="ico"><Icon name={icon} size={26} /></div>
-    <div style={{ fontWeight:700, color:'var(--ink-700)', fontSize:15.5 }}>{title}</div>
+    <div style={{ fontWeight:700, color:'var(--ink-900)', fontSize:15.5 }}>{title}</div>
     {sub && <div style={{ marginTop:5, fontSize:13.5 }}>{sub}</div>}
     {action && <div style={{ marginTop:16 }}>{action}</div>}
   </div>;
@@ -392,7 +392,7 @@ export function Stepper({ steps, current }) {
                 border: (done||on)?'none':'2px solid var(--ink-200)' }}>
                 {done? <Icon name="check" size={17}/> : i+1}
               </div>
-              <span style={{ fontSize:12, fontWeight: on?700:500, color: on?'var(--navy-700)':done?'var(--ink-700)':'var(--ink-400)',
+              <span style={{ fontSize:12, fontWeight: on?700:500, color: on?'var(--navy-700)':done?'var(--ink-900)':'var(--ink-400)',
                 whiteSpace:'nowrap' }}>{s}</span>
             </div>
             {i<steps.length-1 && <div style={{ flex:1, height:2, margin:'0 6px', marginBottom:24,

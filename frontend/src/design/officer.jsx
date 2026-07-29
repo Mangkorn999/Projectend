@@ -77,7 +77,7 @@ function DashKPI({ st, segs, lang='TH' }) {
           {segs.map(s=>(
             <div key={s.key} style={{ display:'flex', alignItems:'center', gap:9, fontSize:13.5 }}>
               <span style={{ width:11, height:11, borderRadius:3, background:s.color, flex:'none' }}></span>
-              <span style={{ color:'var(--ink-700)' }}>{s.label}</span>
+              <span style={{ color:'var(--ink-900)' }}>{s.label}</span>
               <span className="tnum" style={{ marginLeft:'auto', fontWeight:700 }}>{s.value}</span>
               <span className="tnum" style={{ color:'var(--ink-400)', width:42, textAlign:'right', fontSize:12.5 }}>{Math.round(s.value/st.total*100)}%</span>
             </div>
@@ -96,7 +96,7 @@ function DashKPI({ st, segs, lang='TH' }) {
           {passSegs.map(s=>(
             <div key={s.key} style={{ display:'flex', alignItems:'center', gap:9, fontSize:13.5 }}>
               <span style={{ width:11, height:11, borderRadius:3, background:s.color, flex:'none' }}></span>
-              <span style={{ color:'var(--ink-700)' }}>{s.label}</span>
+              <span style={{ color:'var(--ink-900)' }}>{s.label}</span>
               <span className="tnum" style={{ marginLeft:'auto', fontWeight:700 }}>{s.value}</span>
               <span className="tnum" style={{ color:'var(--ink-400)', width:42, textAlign:'right', fontSize:12.5 }}>{evaluated.length?Math.round(s.value/evaluated.length*100):0}%</span>
             </div>
@@ -148,7 +148,7 @@ function DashCharts({ st, segs, lang='TH' }) {
           color:s.rate>=80?'var(--pass)':s.rate>=60?'#c9971f':'var(--fail)' }))} />
         <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginTop:16 }} className="subj-legend">
           {st.perSubject.map(s=>(
-            <div key={s.id} style={{ fontSize:11.5, color:'var(--ink-500)' }}><b className="mono" style={{ color:'var(--ink-700)' }}>{s.code}</b> {pick(lang,s,'name')}</div>
+            <div key={s.id} style={{ fontSize:11.5, color:'var(--ink-500)' }}><b className="mono" style={{ color:'var(--ink-900)' }}>{s.code}</b> {pick(lang,s,'name')}</div>
           ))}
         </div>
         <style>{`@media(max-width:680px){.subj-legend{grid-template-columns:repeat(2,1fr)!important;}}`}</style>
@@ -179,7 +179,7 @@ function DashOps({ st, segs, go, lang='TH' }) {
                 <td><span className="chip" style={{ fontSize:12 }}>{t(lang,'officer.ops.roomChip',{room:s.room})}</span></td>
                 <td className="tnum" style={{ fontWeight:700 }}>{s.passedCount}/8</td>
                 <td style={{ color:'var(--ink-500)', fontSize:13 }}>{pick(lang,s,'submittedAt')}</td>
-                <td style={{ textAlign:'right' }}><button className="btn btn-subtle btn-sm">{t(lang,'officer.ops.reviewBtn')}</button></td>
+                <td style={{ textAlign:'right' }}><button className="btn btn-subtle btn-sm" style={{ background:'var(--navy-700)', color:'#fff' }}>{t(lang,'officer.ops.reviewBtn')}</button></td>
               </tr>
             ))}</tbody>
           </table>
@@ -242,19 +242,20 @@ export function OfficerStudents({ go, setSel, lang='TH' }) {
       </div>
       <div className="card" style={{ overflow:'hidden' }}>
         <div style={{ overflowX:'auto' }}>
-          <table className="tbl">
-            <thead><tr><th>{t(lang,'officer.students.colStudent')}</th><th>{t(lang,'officer.students.colRoom')}</th><th>{t(lang,'officer.students.colResult')}</th><th>{t(lang,'officer.students.colStatus')}</th><th>{t(lang,'officer.students.colSubmitted')}</th><th></th></tr></thead>
+          <table className="tbl" style={{ tableLayout:'fixed', width:'100%' }}>
+            <colgroup><col style={{ width:'32%' }}/><col style={{ width:'14%' }}/><col style={{ width:'14%' }}/><col style={{ width:'16%' }}/><col style={{ width:'16%' }}/><col style={{ width:'8%' }}/></colgroup>
+            <thead><tr><th>{t(lang,'officer.students.colStudent')}</th><th style={{ textAlign:'center' }}>{t(lang,'officer.students.colRoom')}</th><th style={{ textAlign:'center' }}>{t(lang,'officer.students.colResult')}</th><th style={{ textAlign:'center' }}>{t(lang,'officer.students.colStatus')}</th><th style={{ textAlign:'center' }}>{t(lang,'officer.students.colSubmitted')}</th><th></th></tr></thead>
             <tbody>
               {pageRows.map(s=>(
                 <tr key={s.sid} className="clickable" onClick={()=>{ setSel(s); go('detail'); }}>
                   <td><div style={{ display:'flex', alignItems:'center', gap:11 }}><Avatar name={s.firstName} size={34}/>
                     <div><div style={{ fontWeight:600, fontSize:14 }}>{s.prefix} {s.firstName} {s.lastName}</div>
-                    <div className="mono" style={{ fontSize:12, color:'var(--ink-400)' }}>{s.sid}</div></div></div></td>
-                  <td><span className="chip" style={{ fontSize:12 }}>{t(lang,'officer.ops.roomChip',{room:s.room})}</span></td>
-                  <td>{s.status==='DRAFT'? <span style={{ color:'var(--ink-400)' }}>—</span> :
+                    <div className="mono" style={{ fontSize:12, color:'var(--ink-600)' }}>{s.sid}</div></div></div></td>
+                  <td style={{ textAlign:'center' }}><span className="chip" style={{ fontSize:12, color:'var(--ink-800)' }}>{t(lang,'officer.ops.roomChip',{room:s.room})}</span></td>
+                  <td style={{ textAlign:'center' }}>{s.status==='DRAFT'? <span style={{ color:'var(--ink-400)' }}>—</span> :
                     <span className="tnum" style={{ fontWeight:700, color: s.allPass?'var(--pass)':'var(--ink-800)' }}>{s.passedCount}/8</span>}</td>
-                  <td><StatusBadge status={s.status} lang={lang} /></td>
-                  <td style={{ color:'var(--ink-500)', fontSize:13 }}>{pick(lang,s,'submittedAt')||'—'}</td>
+                  <td style={{ textAlign:'center' }}><StatusBadge status={s.status} lang={lang} /></td>
+                  <td style={{ color:'var(--ink-700)', fontSize:13, textAlign:'center' }}>{pick(lang,s,'submittedAt')||'—'}</td>
                   <td style={{ textAlign:'right' }}><Icon name="chevR" size={18} style={{ color:'var(--ink-300)' }} /></td>
                 </tr>
               ))}
@@ -294,7 +295,7 @@ export function StudentDetail({ student, go, toast, readonly, lang='TH' }) {
           <div className="card" style={{ overflow:'hidden' }}>
             <div style={{ padding:'16px 20px', borderBottom:'1px solid var(--ink-100)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
               <h3 style={{ margin:0, fontSize:16, fontWeight:800 }}>{t(lang,'officer.detail.resultsTitle')}</h3>
-              <span className="tnum chip" style={{ background: s.allPass?'var(--status-ok-bg)':'var(--ink-100)', color: s.allPass?'var(--status-ok-fg)':'var(--ink-700)', fontWeight:700 }}>{t(lang,'officer.detail.passChip',{passed})}</span>
+              <span className="tnum chip" style={{ background: s.allPass?'var(--status-ok-bg)':'var(--ink-100)', color: s.allPass?'var(--status-ok-fg)':'var(--ink-900)', fontWeight:700 }}>{t(lang,'officer.detail.passChip',{passed})}</span>
             </div>
             <table className="tbl">
               <thead><tr><th style={{ width:60 }}>{t(lang,'officer.detail.colCode')}</th><th>{t(lang,'officer.detail.colSubject')}</th><th style={{ textAlign:'right' }}>{t(lang,'officer.detail.colResult')}</th></tr></thead>
@@ -381,7 +382,7 @@ export function OfficerReview({ go, setSel, lang='TH' }) {
       <div style={{ display:'flex', gap:8, marginBottom:18, flexWrap:'wrap' }}>
         {['SUBMITTED','REJECTED','CONFIRMED'].map(k=>(
           <button key={k} onClick={()=>setTab(k)} className="btn" style={{
-            background: tab===k?'var(--navy-700)':'#fff', color: tab===k?'#fff':'var(--ink-700)',
+            background: tab===k?'var(--navy-700)':'#fff', color: tab===k?'#fff':'var(--ink-900)',
             border:'1px solid '+(tab===k?'var(--navy-700)':'var(--ink-200)') }}>
             {t(lang,'status.'+k)} <span className="tnum" style={{ background: tab===k?'rgba(255,255,255,.2)':'var(--ink-100)', padding:'1px 8px', borderRadius:999, fontSize:12.5, marginLeft:2 }}>{counts[k]}</span>
           </button>
@@ -399,7 +400,7 @@ export function OfficerReview({ go, setSel, lang='TH' }) {
               <td className="tnum" style={{ fontWeight:700, color: s.allPass?'var(--pass)':'var(--ink-800)' }}>{s.passedCount}/8</td>
               <td>{s.files.length? <span style={{ display:'inline-flex', alignItems:'center', gap:5, color:'var(--status-reject-fg)', fontSize:13 }}><Icon name="pdf" size={15}/> {t(lang,'officer.review.filesCount',{n:s.files.length})}</span> : <span style={{ color:'var(--ink-400)' }}>—</span>}</td>
               <td style={{ color:'var(--ink-500)', fontSize:13 }}>{pick(lang,s,'submittedAt')}</td>
-              <td style={{ textAlign:'right' }}><button className="btn btn-subtle btn-sm">{t(lang,'officer.review.reviewBtn')} <Icon name="chevR" size={14}/></button></td>
+              <td style={{ textAlign:'right' }}><button className="btn btn-subtle btn-sm" style={{ background:'var(--navy-700)', color:'#fff' }}>{t(lang,'officer.review.reviewBtn')} <Icon name="chevR" size={14}/></button></td>
             </tr>
           ))}</tbody>
         </table></div> : <Empty icon="checkCircle" title={t(lang,'officer.review.emptyTitle')} sub={t(lang,'officer.review.emptySub')} />}

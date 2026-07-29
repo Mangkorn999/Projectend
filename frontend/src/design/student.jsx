@@ -51,8 +51,8 @@ export function StudentNews({ go, lang='TH' }) {
                   <span className="chip" style={{ fontSize:11.5, padding:'3px 9px' }}>{pick(lang,n,'round')}</span>
                 </div>
                 <div style={{ fontSize:16, fontWeight:700, color:'var(--ink-900)', lineHeight:1.35 }}>{pick(lang,n,'title')}</div>
-                <div style={{ fontSize:13.5, color:'var(--ink-500)', marginTop:6, overflow:'hidden', textOverflow:'ellipsis', display:'-webkit-box', WebkitLineClamp:1, WebkitBoxOrient:'vertical' }}>{pick(lang,n,'body')}</div>
-                <div style={{ fontSize:12.5, color:'var(--ink-400)', marginTop:9, display:'flex', gap:14 }}>
+                <div style={{ fontSize:13.5, color:'var(--ink-700)', marginTop:6, overflow:'hidden', textOverflow:'ellipsis', display:'-webkit-box', WebkitLineClamp:1, WebkitBoxOrient:'vertical' }}>{pick(lang,n,'body')}</div>
+                <div style={{ fontSize:12.5, color:'var(--ink-600)', marginTop:9, display:'flex', gap:14 }}>
                   <span><Icon name="calendar" size={13} style={{ verticalAlign:-2, marginRight:4 }} />{pick(lang,n,'date')}</span>
                   <span>{pick(lang,n,'author')}</span>
                 </div>
@@ -70,7 +70,7 @@ export function StudentNews({ go, lang='TH' }) {
             <span className="chip">{pick(lang,open,'round')}</span>
             <span className="chip" style={{ background:'transparent', color:'var(--ink-500)' }}><Icon name="calendar" size={13}/> {pick(lang,open,'date')}</span>
           </div>
-          <p style={{ margin:0, fontSize:15, lineHeight:1.7, color:'var(--ink-700)' }}>{pick(lang,open,'body')}</p>
+          <p style={{ margin:0, fontSize:15, lineHeight:1.7, color:'var(--ink-900)' }}>{pick(lang,open,'body')}</p>
           <div style={{ marginTop:18, paddingTop:14, borderTop:'1px solid var(--ink-100)', fontSize:13, color:'var(--ink-500)' }}>
             {t(lang,'news.postedBy',{author:pick(lang,open,'author')})}
           </div>
@@ -96,7 +96,7 @@ export function FormIntro({ go, lang='TH' }) {
         <p style={{ margin:'0 0 24px', color:'var(--ink-500)', fontSize:14, lineHeight:1.6 }}>{t(lang,'formintro.cardSub')}</p>
         <div style={{ display:'flex', flexDirection:'column', gap:10, textAlign:'left', marginBottom:26 }}>
           {[1,2,3].map(i=>(
-            <div key={i} style={{ display:'flex', alignItems:'center', gap:11, fontSize:13.5, color:'var(--ink-700)' }}>
+            <div key={i} style={{ display:'flex', alignItems:'center', gap:11, fontSize:13.5, color:'var(--ink-900)' }}>
               <span style={{ width:24, height:24, borderRadius:'50%', background:'var(--ink-100)', color:'var(--ink-600)',
                 display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:700, flex:'none' }}>{i}</span>
               {t(lang,'examform.steps.'+i)}
@@ -212,7 +212,7 @@ export function ExamForm({ go, toast, tweaks, initialStep=0, lang='TH' }) {
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:18 }}>
               {SUBJECTS.map(s=>{ const r=results.find(x=>x.id===s.id);
                 return <div key={s.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, padding:'10px 13px', background:'var(--ink-50)', borderRadius:10 }}>
-                  <span style={{ fontSize:13.5, color:'var(--ink-700)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{pick(lang,s,'name')}</span>
+                  <span style={{ fontSize:13.5, color:'var(--ink-900)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{pick(lang,s,'name')}</span>
                   <PassBadge passed={r.passed} lang={lang} />
                 </div>;
               })}
@@ -418,8 +418,8 @@ export function StudentStatus({ go, lang='TH' }) {
             <h3 style={{ margin:'0 0 14px', fontSize:16, fontWeight:800 }}>{t(lang,'statuspage.subjectSummaryTitle')}</h3>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:9 }}>
               {data.subjects.map(s=>(
-                <div key={s.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, padding:'9px 13px', background:'var(--ink-50)', borderRadius:9 }}>
-                  <span style={{ fontSize:13, color:'var(--ink-700)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{pick(lang,s,'name')}</span>
+                <div key={s.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, padding:'9px 13px', background:'#fff', border:'1px solid var(--ink-200)', borderRadius:9, boxShadow:'var(--sh-sm)' }}>
+                  <span style={{ fontSize:13, color:'var(--ink-900)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{pick(lang,s,'name')}</span>
                   <PassBadge passed={s.passed} lang={lang} />
                 </div>
               ))}
@@ -469,14 +469,15 @@ export function StudentHistory({ go, lang='TH' }) {
       <PageHead title={t(lang,'historypage.title')} sub={t(lang,'historypage.sub')} />
       <div className="card" style={{ overflow:'hidden' }}>
         <div style={{ overflowX:'auto' }}>
-          <table className="tbl">
+          <table className="tbl" style={{ tableLayout:'fixed', width:'100%' }}>
+            <colgroup><col style={{ width:'16%' }}/><col style={{ width:'18%' }}/><col style={{ width:'20%' }}/><col style={{ width:'20%' }}/><col style={{ width:'26%' }}/></colgroup>
             <thead><tr><th>{t(lang,'historypage.colRound')}</th><th>{t(lang,'historypage.colDate')}</th><th>{t(lang,'historypage.colResult')}</th><th>{t(lang,'historypage.colStatus')}</th><th></th></tr></thead>
             <tbody>
               {rows.map((r,i)=>(
                 <tr key={i} className="clickable">
                   <td style={{ fontWeight:700 }}>{t(lang,'historypage.roundPrefix',{round:r.round})}</td>
                   <td style={{ color:'var(--ink-600)' }}>{pick(lang,r,'date')}</td>
-                  <td><span className="tnum" style={{ fontWeight:700, color: r.passed===8?'var(--pass)':'var(--ink-800)' }}>{r.passed}/8</span> <span style={{ color:'var(--ink-400)', fontSize:13 }}>{t(lang,'pass.true')}</span></td>
+                  <td><span className="tnum" style={{ fontWeight:700, color: r.passed===8?'var(--pass)':'var(--ink-800)' }}>{r.passed}/8</span> <span style={{ color:'var(--ink-600)', fontSize:13 }}>{t(lang,'pass.true')}</span></td>
                   <td><StatusBadge status={r.status} lang={lang} /></td>
                   <td style={{ textAlign:'right' }}>
                     <button className="btn btn-ghost btn-sm" disabled={r.status==='CONFIRMED'||r.status==='REJECTED'}

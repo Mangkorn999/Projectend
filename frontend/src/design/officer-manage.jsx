@@ -197,7 +197,7 @@ export function ManageNews({ toast }) {
         {items.map(n=>(
           <div key={n.id} className="card" style={{ padding:'16px 20px', display:'flex', alignItems:'center', gap:15 }}>
             <div style={{ width:42, height:42, borderRadius:11, flex:'none', display:'flex', alignItems:'center', justifyContent:'center',
-              background: n.pinned?'var(--gold-50)':'var(--blue-50)', color: n.pinned?'var(--gold-600)':'var(--blue-600)' }}><Icon name={n.pinned?'star':'news'} size={20}/></div>
+              background: n.pinned?'var(--gold-50)':'var(--blue-50)', color: n.pinned?'#fff':'var(--blue-600)' }}><Icon name={n.pinned?'star':'news'} size={20}/></div>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:15, fontWeight:700, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{n.title}</div>
               <div style={{ fontSize:12.5, color:'var(--ink-500)', marginTop:3 }}>{n.round} · {n.date} · {n.author}</div>

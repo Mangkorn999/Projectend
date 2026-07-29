@@ -94,7 +94,7 @@ export function AdminDashboard({ go, lang='TH' }) {
             <h3 style={{ margin:'0 0 14px', fontSize:15, fontWeight:800 }}>{t(lang,'admin.systemStatusTitle')}</h3>
             {statusRows.map(([lk,vk,tone],i)=>(
               <div key={i} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'9px 0', borderBottom: i<3?'1px solid var(--ink-100)':'none' }}>
-                <span style={{ fontSize:13.5, color:'var(--ink-700)' }}>{t(lang,lk)}</span>
+                <span style={{ fontSize:13.5, color:'var(--ink-900)' }}>{t(lang,lk)}</span>
                 <span className={'badge '+(tone==='ok'?'ok':tone==='wait'?'wait':'draft')} style={{ fontSize:12 }}><span className="dot"></span>{t(lang,vk)}</span>
               </div>
             ))}
@@ -133,7 +133,7 @@ export function AdminUsers({ toast, lang='TH' }) {
         <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
           {['ALL','student','officer','executive','admin'].map(k=>(
             <button key={k} onClick={()=>setRole(k)} className="btn btn-sm" style={{
-              background: role===k?'var(--navy-700)':'#fff', color: role===k?'#fff':'var(--ink-700)',
+              background: role===k?'var(--navy-700)':'#fff', color: role===k?'#fff':'var(--ink-900)',
               border:'1px solid '+(role===k?'var(--navy-700)':'var(--ink-200)') }}>{k==='ALL'?t(lang,'admin.users.filterAll'):t(lang,'role.'+k)}</button>
           ))}
         </div>
@@ -187,7 +187,7 @@ export function AdminAudit({ lang='TH' }) {
       <div style={{ display:'flex', gap:6, marginBottom:16, flexWrap:'wrap' }}>
         {['ALL','student','officer','admin'].map(k=>(
           <button key={k} onClick={()=>setRole(k)} className="btn btn-sm" style={{
-            background: role===k?'var(--navy-700)':'#fff', color: role===k?'#fff':'var(--ink-700)',
+            background: role===k?'var(--navy-700)':'#fff', color: role===k?'#fff':'var(--ink-900)',
             border:'1px solid '+(role===k?'var(--navy-700)':'var(--ink-200)') }}>{k==='ALL'?t(lang,'admin.users.filterAll'):t(lang,'role.'+k)}</button>
         ))}
       </div>
@@ -243,7 +243,7 @@ export function AdminArchive({ toast, lang='TH' }) {
       <div className="card card-pad">
         <h3 style={{ margin:'0 0 4px', fontSize:16, fontWeight:800 }}>{t(lang,'admin.archive.trendTitle')}</h3>
         <p style={{ margin:'0 0 16px', color:'var(--ink-500)', fontSize:13 }}>{t(lang,'admin.archive.trendSub')}</p>
-        <MultiLineChart height={200}
+        <MultiLineChart height={200} width={900}
           categories={YEAR_COMPARE.map(d=>String(d.year))}
           series={[
             { label:t(lang,'executive.seriesFirst'), color:'var(--navy-600)', values:YEAR_COMPARE.map(d=>d.first) },

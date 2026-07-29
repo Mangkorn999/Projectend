@@ -21,7 +21,7 @@ function YearSelect({ year, setYear, lang='TH' }) {
           {YEARS.map(y=>(
             <button key={y} onClick={()=>{ setYear(y); setOpen(false); }} style={{ display:'flex', alignItems:'center', gap:10, width:'100%',
               padding:'9px 11px', borderRadius:8, border:'none', textAlign:'left', fontSize:14, fontWeight: y===year?700:500,
-              background: y===year?'var(--blue-50)':'transparent', color: y===year?'var(--navy-700)':'var(--ink-700)' }}>
+              background: y===year?'var(--blue-50)':'transparent', color: y===year?'var(--navy-700)':'var(--ink-900)' }}>
               {t(lang,'executive.yearSelect.label',{year:y})} {y===YEARS[0] && <span className="chip" style={{ fontSize:10.5, padding:'1px 7px', marginLeft:'auto', background:'var(--status-ok-bg)', color:'var(--status-ok-fg)' }}>{t(lang,'executive.yearSelect.current')}</span>}
               {y===year && y!==YEARS[0] && <Icon name="check" size={15} style={{ marginLeft:'auto', color:'var(--blue-600)' }}/>}
             </button>
@@ -187,11 +187,11 @@ export function Reports({ toast, lang='TH' }) {
         </div>
 
         {/* summary numbers */}
-        <div className="sec-title" style={{ margin:'24px 0 12px' }}>{t(lang,'reports.section1')}</div>
+        <div className="sec-title" style={{ margin:'24px 0 12px', color:'var(--ink-900)' }}>{t(lang,'reports.section1')}</div>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
           {summaryCards.map(([lk,v,tone])=>(
-            <div key={lk} style={{ padding:'14px 16px', background:'var(--ink-50)', borderRadius:11, borderLeft:'3px solid '+
-              ({navy:'var(--navy-700)',blue:'var(--blue-600)',ok:'var(--pass)',gold:'var(--gold-500)'}[tone]) }}>
+            <div key={lk} style={{ padding:'14px 16px 14px 22px', background:'#fff', borderRadius:11, border:'1px solid var(--ink-200)', boxShadow:'var(--sh-sm)', borderLeft:'6px solid '+
+              ({navy:'var(--navy-700)',blue:'var(--blue-600)',ok:'var(--pass)',gold:'var(--accent-teal)'}[tone]) }}>
               <div style={{ fontSize:12.5, color:'var(--ink-500)', fontWeight:600 }}>{t(lang,lk)}</div>
               <div className="tnum" style={{ fontSize:26, fontWeight:800, marginTop:4 }}>{v}</div>
             </div>
@@ -199,7 +199,7 @@ export function Reports({ toast, lang='TH' }) {
         </div>
 
         {/* by status */}
-        <div className="sec-title" style={{ margin:'26px 0 12px' }}>{t(lang,'reports.section2')}</div>
+        <div className="sec-title" style={{ margin:'26px 0 12px', color:'var(--ink-900)' }}>{t(lang,'reports.section2')}</div>
         <table className="tbl" style={{ border:'1px solid var(--ink-200)', borderRadius:10, overflow:'hidden' }}>
           <thead><tr><th>{t(lang,'reports.colStatus')}</th><th style={{ textAlign:'right' }}>{t(lang,'reports.colCount')}</th><th style={{ textAlign:'right' }}>{t(lang,'reports.colPercent')}</th></tr></thead>
           <tbody>{['CONFIRMED','SUBMITTED','REJECTED','DRAFT'].map(k=>(
@@ -210,12 +210,12 @@ export function Reports({ toast, lang='TH' }) {
         </table>
 
         {/* by subject */}
-        <div className="sec-title" style={{ margin:'26px 0 12px' }}>{t(lang,'reports.section3')}</div>
+        <div className="sec-title" style={{ margin:'26px 0 12px', color:'var(--ink-900)' }}>{t(lang,'reports.section3')}</div>
         <table className="tbl" style={{ border:'1px solid var(--ink-200)', borderRadius:10, overflow:'hidden' }}>
           <thead><tr><th>{t(lang,'reports.colCode')}</th><th>{t(lang,'reports.colSubject')}</th><th style={{ textAlign:'right' }}>{t(lang,'reports.colPass')}</th><th style={{ textAlign:'right' }}>{t(lang,'reports.colFail')}</th><th style={{ textAlign:'right' }}>{t(lang,'reports.colPassRate')}</th></tr></thead>
           <tbody>{st.perSubject.map(s=>(
-            <tr key={s.id}><td className="mono" style={{ color:'var(--ink-400)' }}>{s.code}</td>
-              <td style={{ fontWeight:500 }}>{pick(lang,s,'name')}</td>
+            <tr key={s.id}><td className="mono" style={{ color:'var(--ink-900)' }}>{s.code}</td>
+              <td style={{ fontWeight:500, color:'var(--ink-900)' }}>{pick(lang,s,'name')}</td>
               <td className="tnum" style={{ textAlign:'right', color:'var(--pass)', fontWeight:700 }}>{s.pass}</td>
               <td className="tnum" style={{ textAlign:'right', color:'var(--fail)', fontWeight:700 }}>{s.fail}</td>
               <td style={{ textAlign:'right' }}><span className="badge" style={{ background: s.rate>=80?'var(--status-ok-bg)':s.rate>=60?'var(--gold-50)':'var(--status-reject-bg)', color: s.rate>=80?'var(--status-ok-fg)':s.rate>=60?'#fff':'var(--status-reject-fg)' }}>{s.rate}%</span></td></tr>
