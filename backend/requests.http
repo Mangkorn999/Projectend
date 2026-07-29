@@ -1,0 +1,175 @@
+### ใช้กับ VS Code extension "REST Client" (humao.rest-client)
+### กด "Send Request" เหนือแต่ละ block ได้เลย ไม่ต้องพึ่ง Postman
+### รันก่อน: cd backend && npm start   (server ที่ http://localhost:3000)
+
+@baseUrl = http://localhost:3000/api
+@token = PASTE_TOKEN_FROM_LOGIN_HERE
+# แปะ token จาก block 1 (student) และ block 1b (officer) ที่นี่ที่เดียว
+@studentToken = PASTE_STUDENT_TOKEN_HERE
+@officerToken = PASTE_OFFICER_TOKEN_HERE
+
+### 1. Login (student ตัวอย่างจาก seed) — copy "token" จาก response ไปแปะที่ @token ด้านบน
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "psu_passport_id": "6610210631",
+  "first_name": "Thanyatep",
+  "last_name": "Jiwtan",
+  "email": "6610210631@email.psu.ac.th",
+  "faculty_id": "6"
+}
+
+### 1a. Login — ไม่ส่ง faculty_id (ต้องได้ 403)
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "psu_passport_id": "6610210631",
+  "first_name": "Thanyatep",
+  "last_name": "Jiwtan",
+  "email": "6610210631@email.psu.ac.th"
+}
+
+### 1b. Login (officer ตัวอย่างจาก seed)
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "psu_passport_id": "456",
+  "faculty_id": "6"
+}
+
+### 1c. Login (user ใหม่ที่ยังไม่มีใน DB) — auto-create ให้ role "student"
+### หมายเหตุ: สร้างแค่แถวใน users ไม่มีแถวใน students → studentId ใน JWT = null
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "psu_passport_id": "6610210999",
+  "first_name": "Test",
+  "last_name": "NewUser",
+  "email": "6610210999@email.psu.ac.th",
+  "faculty_id": "6"
+}
+
+### 2. Me — ดูข้อมูล user ปัจจุบันจาก token
+GET {{baseUrl}}/auth/me
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInJvbGUiOiJzdHVkZW50Iiwic3R1ZGVudElkIjoiNjYxMDIxMDYzMSIsImlhdCI6MTc4NDYwNzg2NSwiZXhwIjoxNzg0Njk0MjY1fQ.v7YHGZ9-b0B4STqpNmWVNkTRIlDM7VBqAJmHiWQkb64
+
+### 3. Subjects — GET ทุก role
+GET {{baseUrl}}/subjects
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInJvbGUiOiJvZmZpY2VyIiwic3R1ZGVudElkIjpudWxsLCJpYXQiOjE3ODQ2MDgxMjAsImV4cCI6MTc4NDY5NDUyMH0.EiPRN0r3Skv0iQzCvxoLCO3b7KaNR7m99PnSDBEcEiM
+
+### 3b. Subjects — POST (officer เท่านั้น)
+POST {{baseUrl}}/subjects
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInJvbGUiOiJvZmZpY2VyIiwic3R1ZGVudElkIjpudWxsLCJpYXQiOjE3ODQ2MDgxMjAsImV4cCI6MTc4NDY5NDUyMH0.EiPRN0r3Skv0iQzCvxoLCO3b7KaNR7m99PnSDBEcEiM
+Content-Type: application/json
+
+{
+  "subject_name": "การพยาบาลพื้นฐาน",
+  "subject_code": "NUR101"
+}
+
+### 3c. Subjects — PUT (officer เท่านั้น)
+PUT {{baseUrl}}/subjects/1
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInJvbGUiOiJvZmZpY2VyIiwic3R1ZGVudElkIjpudWxsLCJpYXQiOjE3ODQ2MDgxMjAsImV4cCI6MTc4NDY5NDUyMH0.EiPRN0r3Skv0iQzCvxoLCO3b7KaNR7m99PnSDBEcEiM
+Content-Type: application/json
+
+{
+  "subject_name": "การพยาบาลพื้นฐาน (แก้ไข)"
+}
+
+### 3d. Subjects — DELETE (officer เท่านั้น)
+DELETE {{baseUrl}}/subjects/1
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInJvbGUiOiJvZmZpY2VyIiwic3R1ZGVudElkIjpudWxsLCJpYXQiOjE3ODQ2MDgxMjAsImV4cCI6MTc4NDY5NDUyMH0.EiPRN0r3Skv0iQzCvxoLCO3b7KaNR7m99PnSDBEcEiM
+
+### 4. Users — GET ทั้งหมด (officer เท่านั้น)
+GET {{baseUrl}}/users
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInJvbGUiOiJvZmZpY2VyIiwic3R1ZGVudElkIjpudWxsLCJpYXQiOjE3ODQ2MDgxMjAsImV4cCI6MTc4NDY5NDUyMH0.EiPRN0r3Skv0iQzCvxoLCO3b7KaNR7m99PnSDBEcEiM
+
+### 4b. Users — เปลี่ยน role เป็น executive (สำเร็จ → 200)
+POST {{baseUrl}}/users/1/role
+Authorization: Bearer {{officerToken}}
+Content-Type: application/json
+
+{
+  "role_name": "executive"
+}
+
+### 4c. Users — เปลี่ยนกลับเป็น student (สำเร็จ → 200)
+POST {{baseUrl}}/users/1/role
+Authorization: Bearer {{officerToken}}
+Content-Type: application/json
+
+{
+  "role_name": "student"
+}
+
+### 4d. Users — role_name ไม่มีในระบบ (→ 400 "role_name ต้องเป็นหนึ่งใน: ...")
+POST {{baseUrl}}/users/1/role
+Authorization: Bearer {{officerToken}}
+Content-Type: application/json
+
+{
+  "role_name": "admin"
+}
+
+### 4e. Users — ไม่ส่ง role_name (→ 400 "ต้องระบุ role_name")
+POST {{baseUrl}}/users/1/role
+Authorization: Bearer {{officerToken}}
+Content-Type: application/json
+
+{}
+
+### 4f. Users — เปลี่ยน role ตัวเอง (→ 400 "ไม่สามารถเปลี่ยน role ของตัวเองได้")
+POST {{baseUrl}}/users/2/role
+Authorization: Bearer {{officerToken}}
+Content-Type: application/json
+
+{
+  "role_name": "student"
+}
+
+### 4g. Users — user ไม่มีอยู่จริง (→ 404 "ไม่พบผู้ใช้")
+POST {{baseUrl}}/users/99999/role
+Authorization: Bearer {{officerToken}}
+Content-Type: application/json
+
+{
+  "role_name": "student"
+}
+
+### 4h. Users — student ยิงเอง (→ 403 จาก requireRole)
+POST {{baseUrl}}/users/1/role
+Authorization: Bearer  {{studentToken}}
+Content-Type: application/json
+
+{
+  "role_name": "officer"
+}
+
+### 5. Students — GET ทั้งหมด (officer เท่านั้น)
+GET {{baseUrl}}/students
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInJvbGUiOiJvZmZpY2VyIiwic3R1ZGVudElkIjpudWxsLCJpYXQiOjE3ODQ2MDgxMjAsImV4cCI6MTc4NDY5NDUyMH0.EiPRN0r3Skv0iQzCvxoLCO3b7KaNR7m99PnSDBEcEiM
+
+### 5b. Students — GET by id
+GET {{baseUrl}}/students/6610210631
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInJvbGUiOiJvZmZpY2VyIiwic3R1ZGVudElkIjpudWxsLCJpYXQiOjE3ODQ2MDgxMjAsImV4cCI6MTc4NDY5NDUyMH0.EiPRN0r3Skv0iQzCvxoLCO3b7KaNR7m99PnSDBEcEiM
+
+### 5c. Students — บันทึกรหัสสภา (student เท่านั้น, ใช้ token ของนักศึกษาเจ้าของบัญชี)
+PATCH {{baseUrl}}/students/me/credentials
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInJvbGUiOiJzdHVkZW50Iiwic3R1ZGVudElkIjoiNjYxMDIxMDYzMSIsImlhdCI6MTc4NDYwNzg2NSwiZXhwIjoxNzg0Njk0MjY1fQ.v7YHGZ9-b0B4STqpNmWVNkTRIlDM7VBqAJmHiWQkb64
+Content-Type: application/json
+
+{
+  "nursing_council_email": "student@nurse.or.th",
+  "nursing_council_password": "SomePassword123"
+}
+
+### 6. ทดสอบ 401 — ไม่ใส่ token
+GET {{baseUrl}}/subjects
+
+### 7. ทดสอบ 403 — ใส่ token role ผิด (เช่น student ยิง /users)
+GET {{baseUrl}}/users
+Authorization: Bearer PASTE_STUDENT_TOKEN_HERE

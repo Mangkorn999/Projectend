@@ -1,6 +1,31 @@
-// TODO Phase 5: exam results routes
 import express from "express";
+import { authenticate } from "../../middlewares/auth.js";
+import { requireRole } from "../../middlewares/requireRole.js";
+import { uploadPdf } from "../../middlewares/upload.js";
+import {
+  create,
+  getMine,
+  getAll,
+  approve,
+  reject,
+} from "./examResults.controller.js";
+import { upload as uploadCertificate } from "../certificates/certificates.controller.js";
 
 const router = express.Router();
+
+router.post("/", authenticate, requireRole("student"), create);
+router.get("/me", authenticate, requireRole("student"), getMine);
+router.post(
+  "/:id/certificates",
+  authenticate,
+  requireRole("student"),
+  uploadPdf.single("file"),
+  uploadCertificate,
+);
+// ─── เจ้าหน้าที่ / ผู้บริหาร ───
+// executive ดูได้อย่างเดียว (read-only) แก้ไขไม่ได้
+router.get("/", authenticate, requireRole("officer", "executive"), getAll);
+router.patch("/:id/approve", authenticate, requireRole("officer"), approve);
+router.patch("/:id/reject", authenticate, requireRole("officer"), reject);
 
 export default router;

@@ -19,7 +19,11 @@ model Role {
 model User {
   user_id         Int               @id @default(autoincrement())
   role_id         Int
-  psu_passport_id String            @db.VarChar(100)
+  psu_passport_id String            @unique @db.VarChar(100)
+  // login ในระบบเอง (PSU SSO ขอใช้ไม่ได้) — เก็บเฉพาะ bcrypt hash ห้ามเก็บรหัสจริง
+  // must_change_password = ยังใช้รหัสเริ่มต้นอยู่ ต้องบังคับตั้งใหม่ก่อนใช้งาน
+  password_hash        String?      @db.VarChar(255)
+  must_change_password Boolean      @default(true)
   first_name      String            @db.VarChar(100)
   last_name       String            @db.VarChar(100)
   email           String            @db.VarChar(100)
@@ -57,9 +61,8 @@ model Student {
   faculty_id               Int
   academic_year            Int
   room_id                  Int
-  nursing_council_email    String       @db.VarChar(100)
-  nursing_council_password String       @db.VarChar(255)
   exam_results             ExamResult[]
+  exam_eligible Boolean @default(false)
   faculty                  Faculty      @relation(fields: [faculty_id], references: [faculty_id])
   room                     Room         @relation(fields: [room_id], references: [room_id])
   user                     User         @relation(fields: [user_id], references: [user_id])

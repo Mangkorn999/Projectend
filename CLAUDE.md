@@ -28,7 +28,6 @@ Path จริง: `frontend/` = React+Vite (`nurse-login-new`), `backend/` = Ex
 
 ### 1. นักศึกษา (Student)
 - Login ผ่าน PSU One Passport
-- กรอกรหัสเว็บสภาการพยาบาล (email+password) → เก็บแบบเข้ารหัส
 - กรอกผลสอบรายวิชา 8 วิชา (ผ่าน/ไม่ผ่านแต่ละวิชา)
 - อัปโหลดเอกสารหลักฐาน (PDF) — ใบผลสอบ, ใบประกอบวิชาชีพ
 - ดูสถานะการกรอก (รอยืนยัน / ยืนยันแล้ว / ตีกลับ)
@@ -44,7 +43,6 @@ Path จริง: `frontend/` = React+Vite (`nurse-login-new`), `backend/` = Ex
 - จัดการผู้ใช้งาน (เพิ่ม/ลบ ผู้บริหารคณะ, จัดการสิทธิ์)
 - โพสต์/แก้ไข/ลบ ข่าวสารและประกาศ
 - ออกรายงานผลสอบ (PDF)
-- ดูรหัสสภาของนักศึกษา (decrypt ชั่วคราว) — endpoint แยกเฉพาะเท่านั้น
 
 ### 3. ผู้บริหารคณะ (Faculty Executive)
 - Login ผ่าน PSU One Passport
@@ -62,7 +60,7 @@ Path จริง: `frontend/` = React+Vite (`nurse-login-new`), `backend/` = Ex
 - `users` — ทุก role, ผูก PSU Passport ID
 - `faculties` — คณะ (ปัจจุบันใช้แค่คณะพยาบาล)
 - `rooms` — ห้องเรียน
-- `students` — ข้อมูลนักศึกษา, มี `nursing_council_email` / `nursing_council_password` (ต้อง**เข้ารหัสเสมอ**)
+- `students` — ข้อมูลนักศึกษา, มี `exam_eligible` (เจ้าหน้าที่เปิดสิทธิ์กรอกผลสอบให้ทีละคน/ทีละรุ่น)
 - `subjects` — รายวิชาที่ใช้สอบ (8 วิชา)
 - `submission_rounds` — รอบการกรอกผลสอบ
 - `exam_results` — ผลสอบต่อรอบ, มี `student_status` + `staff_status` แยกกัน
@@ -83,10 +81,8 @@ Path จริง: `frontend/` = React+Vite (`nurse-login-new`), `backend/` = Ex
 Pattern ทุก module: `routes.js → controller.js → service.js → repository.js` (repository คุย Prisma เท่านั้น).
 
 ### Security Checklist (ต้องทำก่อนขึ้น production)
-- [ ] `nursing_council_password` เข้ารหัส AES-256-GCM ทุกครั้งก่อน save (`backend/src/utils/crypto.js`)
-- [ ] Endpoint ฝั่งนักศึกษา **ห้าม** return รหัสสภา แม้แบบ encrypted
 - [ ] อ่าน role จาก JWT payload เท่านั้น — ห้ามเชื่อ role ที่ client ส่งมาใน body
-- [ ] `JWT_SECRET`, `DATABASE_URL`, `AES_KEY` อยู่ใน `.env` เท่านั้น ห้าม commit
+- [ ] `JWT_SECRET`, `DATABASE_URL` อยู่ใน `.env` เท่านั้น ห้าม commit
 - [ ] ทุก endpoint ที่ไม่ public ต้องผ่าน `authenticate` middleware ก่อน `requireRole`
 
 ---
@@ -95,7 +91,7 @@ Pattern ทุก module: `routes.js → controller.js → service.js → reposi
 
 ต้องทำหน้าจอตามรายงานบทที่ 4 (4.1–4.3), แบ่งตาม 3 กลุ่มผู้ใช้:
 
-**นักศึกษา:** Login (PSU One Passport) → ประกาศ/ข่าวสาร → ประวัติการกรอก → กรอกรหัสเว็บสภา → กรอกผลสอบ (8 วิชา) → อัปโหลดเอกสาร (PDF) → ดูสถานะการกรอก
+**นักศึกษา:** Login (PSU One Passport) → ประกาศ/ข่าวสาร → ประวัติการกรอก → กรอกผลสอบ (8 วิชา) → อัปโหลดเอกสาร (PDF) → ดูสถานะการกรอก
 
 **เจ้าหน้าที่คณะ:** Login → Dashboard → รายละเอียดนักศึกษา → รายละเอียดการกรอกของนักศึกษา (ตรวจสอบ/ยืนยัน/ตีกลับ) → จัดการรายวิชา → จัดการรอบสอบ → จัดการผู้ใช้งาน (ผู้บริหาร)
 

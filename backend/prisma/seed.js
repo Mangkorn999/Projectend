@@ -1,5 +1,14 @@
-const { PrismaClient } = require("@prisma/client");
+import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
+
+// รหัสผ่านเริ่มต้นของ user ตัวอย่าง = psu_passport_id ของตัวเอง
+// must_change_password: true → ต้องตั้งรหัสใหม่ก่อนใช้งานจริง
+const initialPassword = (psuPassportId) => bcrypt.hashSync(psuPassportId, 10);
+
+// บัญชีใน seed เป็นบัญชีทดสอบ — ข้ามการบังคับเปลี่ยนรหัสเพื่อให้ยิงเทสได้ทันที
+// นักศึกษาจริงที่เจ้าหน้าที่เพิ่มเข้าระบบจะได้ค่า default = true
+const SEED_ACCOUNT = { must_change_password: false };
 
 async function main() {
   //ลบข้อมูลเก่า หากเพิ่มเติม
@@ -81,6 +90,9 @@ async function main() {
   const staffRole = await prisma.role.findFirst({
     where: { role_name: "officer" },
   }); // เปลี่ยน staff เป็น officer
+  const executiveRole = await prisma.role.findFirst({
+    where: { role_name: "executive" },
+  });
 
   if (!studentRole || !staffRole) throw new Error("Roles not found!");
 
@@ -89,6 +101,8 @@ async function main() {
     data: {
       role_id: studentRole.role_id,
       psu_passport_id: "6610210631",
+      password_hash: initialPassword("6610210631"),
+      ...SEED_ACCOUNT,
       first_name: "Thanyatep",
       last_name: "Jiwtan",
       email: "student@psu.ac.th",
@@ -100,10 +114,24 @@ async function main() {
     data: {
       role_id: staffRole.role_id,
       psu_passport_id: "456",
+      password_hash: initialPassword("456"),
+      ...SEED_ACCOUNT,
       first_name: "Thep",
       last_name: "Ji",
       email: "staff@psu.ac.th",
       phone: "0899999999",
+    },
+  });
+  const executiveUser = await prisma.user.create({
+    data: {
+      role_id: executiveRole.role_id,
+      psu_passport_id: "789",
+      password_hash: initialPassword("789"),
+      ...SEED_ACCOUNT,
+      first_name: "Kitsiri",
+      last_name: "Exec",
+      email: "executive@psu.ac.th",
+      phone: "0877777777",
     },
   });
   console.log("Users created.");
@@ -116,11 +144,24 @@ async function main() {
       faculty_id: faculty.faculty_id,
       room_id: room.room_id,
       academic_year: 2568,
-      nursing_council_email: "student@nurse.or.th",
-      nursing_council_password: "password123",
     },
   });
   console.log("Student profile created.");
+
+  // 6. สร้างรายวิชาที่ใช้สอบ 8 วิชา
+  await prisma.subject.createMany({
+    data: [
+      { subject_code: "NUR01", subject_name: "การพยาบาลมารดาและทารก" },
+      { subject_code: "NUR02", subject_name: "การพยาบาลเด็กและวัยรุ่น" },
+      { subject_code: "NUR03", subject_name: "การพยาบาลผู้ใหญ่" },
+      { subject_code: "NUR04", subject_name: "การพยาบาลผู้สูงอายุ" },
+      { subject_code: "NUR05", subject_name: "การพยาบาลสุขภาพจิตและจิตเวช" },
+      { subject_code: "NUR06", subject_name: "การพยาบาลอนามัยชุมชน" },
+      { subject_code: "NUR07", subject_name: "การผดุงครรภ์" },
+      { subject_code: "NUR08", subject_name: "กฎหมายและจรรยาบรรณวิชาชีพ" },
+    ],
+  });
+  console.log("Subjects created.");
 
   console.log("Seeding successfully!");
 }

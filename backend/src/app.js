@@ -6,12 +6,12 @@ import { errorHandler } from "./middlewares/errorHandler.js";
 // Routes
 import authRouter from "./modules/auth/auth.routes.js";
 import subjectsRouter from "./modules/subjects/subjects.routes.js";
-// TODO: import route modules ทีละ Phase ตามแผน
-// import studentsRouter from "./modules/students/students.routes.js";
-// import roundsRouter from "./modules/rounds/rounds.routes.js";
-// import examResultsRouter from "./modules/examResults/examResults.routes.js";
-// import newsRouter from "./modules/news/news.routes.js";
-// import dashboardRouter from "./modules/dashboard/dashboard.routes.js";
+import usersRouter from "./modules/users/users.routes.js";
+import studentsRouter from "./modules/students/students.routes.js";
+import roundsRouter from "./modules/rounds/rounds.routes.js";
+import examResultsRouter from "./modules/examResults/examResults.routes.js";
+import newsRouter from "./modules/news/news.routes.js";
+import dashboardRouter from "./modules/dashboard/dashboard.routes.js";
 
 import cors from "cors";
 
@@ -32,13 +32,12 @@ app.use(express.json());
 // ─── Routes ──────────────────────────────────────────
 app.use("/api/auth", authRouter);
 app.use("/api/subjects", subjectsRouter);
-app.use("/api/subject", subjectsRouter);
-// TODO: เพิ่ม route ทีละ Phase
-// app.use("/api/students", studentsRouter);
-// app.use("/api/rounds", roundsRouter);
-// app.use("/api/exam-results", examResultsRouter);
-// app.use("/api/news", newsRouter);
-// app.use("/api/dashboard", dashboardRouter);
+app.use("/api/users", usersRouter);
+app.use("/api/students", studentsRouter);
+app.use("/api/rounds", roundsRouter);
+app.use("/api/exam-results", examResultsRouter);
+app.use("/api/news", newsRouter);
+app.use("/api/dashboard", dashboardRouter);
 
 // ─── Error Handler (ต้องอยู่ท้ายสุดเสมอ) ──────────
 app.use(errorHandler);

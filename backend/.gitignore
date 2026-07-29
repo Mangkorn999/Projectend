@@ -3,3 +3,6 @@ node_modules
 .env
 
 /generated/prisma
+
+# ไฟล์เอกสารที่นักศึกษาอัปโหลด — เก็บที่ disk ไม่ commit
+uploads/
