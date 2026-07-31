@@ -12,6 +12,8 @@ import roundsRouter from "./modules/rounds/rounds.routes.js";
 import examResultsRouter from "./modules/examResults/examResults.routes.js";
 import newsRouter from "./modules/news/news.routes.js";
 import dashboardRouter from "./modules/dashboard/dashboard.routes.js";
+import roomsRouter from "./modules/rooms/rooms.routes.js";
+import certificatesRouter from "./modules/certificates/certificates.routes.js";
 
 import cors from "cors";
 
@@ -23,7 +25,8 @@ const app = express();
 // Middleware พื้นฐาน
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    // vite.config.js ตั้ง dev server ไว้ที่ 5174 (ไม่ใช่ default 5173)
+    origin: "http://localhost:5174",
     credentials: true,
   }),
 );
@@ -38,6 +41,8 @@ app.use("/api/rounds", roundsRouter);
 app.use("/api/exam-results", examResultsRouter);
 app.use("/api/news", newsRouter);
 app.use("/api/dashboard", dashboardRouter);
+app.use("/api/rooms", roomsRouter);
+app.use("/api/certificates", certificatesRouter);
 
 // ─── Error Handler (ต้องอยู่ท้ายสุดเสมอ) ──────────
 app.use(errorHandler);

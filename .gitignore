@@ -14,6 +14,7 @@ dist/
 .vscode/
 .idea/
 .gemini/
+.claude/
 
 # OS
 .DS_Store

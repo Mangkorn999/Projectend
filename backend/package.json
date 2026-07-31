@@ -4,7 +4,7 @@
   "type": "module",
   "main": "app.js",
   "scripts": {
-    "test": "node tests/smoke-phase1-3.mjs && node tests/smoke-phase4-6.mjs",
+    "test": "node tests/smoke-phase1-3.mjs && node tests/smoke-phase4-6.mjs && node tests/smoke-phase9-import.mjs",
     "start": "node src/server.js"
   },
   "author": "",
@@ -14,8 +14,10 @@
     "@prisma/client": "^5.22.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
+    "csv-parse": "^7.0.1",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "iconv-lite": "^0.7.3",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.2.0",
     "pdfkit": "^0.19.1"

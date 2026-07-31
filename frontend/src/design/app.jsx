@@ -8,11 +8,20 @@ import { TopBar, Sidebar, Toast, useToast, Empty } from './components.jsx';
 import { t as translate } from './i18n.js';
 import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakToggle, TweakColor } from './tweaks-panel.jsx';
 import { Login } from './login.jsx';
-import { StudentNews, FormIntro, ExamForm, StudentStatus, StudentHistory } from './student.jsx';
-import { OfficerDashboard, OfficerReview, OfficerStudents, StudentDetail } from './officer.jsx';
-import { ManageRoundsSubjects, ManageUsers, ManageNews } from './officer-manage.jsx';
-import { ExecutiveDashboard, Reports } from './executive.jsx';
-import { AdminDashboard, AdminUsers, AdminAudit, AdminArchive, AdminSettings } from './admin.jsx';
+import { ForceChangePassword } from './forceChangePassword.jsx';
+import { getToken, getStoredUser, clearSession } from './api.js';
+import { FormIntro } from './student.jsx';
+import { StudentImport } from './studentImport.jsx';
+import { OfficerStudentsReal } from './officerStudentsReal.jsx';
+import { StudentDetailReal } from './studentDetailReal.jsx';
+import { DashboardReal } from './dashboardReal.jsx';
+import { ExamFormReal } from './examFormReal.jsx';
+import { StudentStatusReal, StudentHistoryReal } from './studentStatusReal.jsx';
+import { OfficerReviewReal } from './officerReviewReal.jsx';
+import { ManageRoundsSubjectsReal } from './manageRoundsSubjectsReal.jsx';
+import { ManageUsersReal } from './manageUsersReal.jsx';
+import { StudentNewsReal, ManageNewsReal } from './newsReal.jsx';
+import { ReportsReal } from './reportsReal.jsx';
 
 const TWEAK_DEFAULTS = {
   examFormStyle: 'toggle',
@@ -36,6 +45,7 @@ const NAV = (lang)=>({
     { k:'dashboard', label:translate(lang,'nav.officer.dashboard'), icon:'grid' },
     { k:'review', label:translate(lang,'nav.officer.review'), icon:'checkCircle', badge:'29' },
     { k:'students', label:translate(lang,'nav.officer.students'), icon:'users' },
+    { k:'import', label:'นำเข้ารายชื่อนักศึกษา', icon:'upload' },
     { section:translate(lang,'nav.section.manage') },
     { k:'rounds', label:translate(lang,'nav.officer.rounds'), icon:'calendar' },
     { k:'usermgmt', label:translate(lang,'nav.officer.usermgmt'), icon:'shield' },
@@ -48,26 +58,16 @@ const NAV = (lang)=>({
     { k:'students', label:translate(lang,'nav.executive.students'), icon:'users' },
     { k:'reports', label:translate(lang,'nav.executive.reports'), icon:'report' },
   ],
-  admin: [
-    { k:'dashboard', label:translate(lang,'nav.admin.dashboard'), icon:'grid' },
-    { k:'users', label:translate(lang,'nav.admin.users'), icon:'users' },
-    { k:'audit', label:translate(lang,'nav.admin.audit'), icon:'history' },
-    { section:translate(lang,'nav.section.dataSystem') },
-    { k:'archive', label:translate(lang,'nav.admin.archive'), icon:'calendar' },
-    { k:'settings', label:translate(lang,'nav.admin.settings'), icon:'settings' },
-  ],
 });
-const ROLE_USER = {
-  student:{ firstName:'ธัญเทพ', lastName:'จิ้วตั้น' },
-  officer:{ firstName:'สมหญิง', lastName:'ใจดี' },
-  executive:{ firstName:'สุนิสา', lastName:'ฉัตรมงคล' },
-  admin:{ firstName:'ผู้ดูแล', lastName:'ระบบ' },
-};
-const DEFAULT_PAGE = { student:'news', officer:'dashboard', executive:'dashboard', admin:'dashboard' };
+const DEFAULT_PAGE = { student:'news', officer:'dashboard', executive:'dashboard' };
 
 export function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const [role, setRole] = useState(null);
+  // currentUser มาจาก JWT login จริง — ไม่ใช่ mock data แบบ ROLE_USER เดิมอีกแล้ว
+  const [currentUser, setCurrentUser] = useState(null);
+  // บัญชีที่เจ้าหน้าที่สร้างให้ยังใช้รหัสชั่วคราวอยู่ — บล็อกทั้งแอปจนกว่าจะเปลี่ยนรหัสสำเร็จ
+  const [mustChangePassword, setMustChangePassword] = useState(false);
   const [page, setPage] = useState('news');
   const [sel, setSel] = useState(null);
   const [sbOpen, setSbOpen] = useState(false);
@@ -79,42 +79,57 @@ export function App() {
   useEffect(()=>{ document.documentElement.style.setProperty('--gold-500', t.accent);
     document.documentElement.style.setProperty('--gold-600', shade(t.accent,-18)); }, [t.accent]);
 
-  if(!role) return <><Login onLogin={r=>{ setRole(r); setPage(DEFAULT_PAGE[r]); }} /><TweaksUI t={t} setTweak={setTweak} /></>;
+  // เข้าเว็บซ้ำ (refresh) — ถ้ามี token+user เก็บไว้ใน localStorage อยู่แล้ว ให้ login ต่อเลยไม่ต้องกรอกใหม่
+  useEffect(()=>{
+    const stored = getStoredUser();
+    if (getToken() && stored) {
+      if (stored.mustChangePassword) { setMustChangePassword(true); return; }
+      setCurrentUser(stored); setRole(stored.role); setPage(DEFAULT_PAGE[stored.role]);
+    }
+  }, []);
+
+  const handleLogin = (user, mustChange)=>{
+    if (mustChange) { setMustChangePassword(true); return; }
+    setCurrentUser(user);
+    setRole(user.role);
+    setPage(DEFAULT_PAGE[user.role]);
+  };
+
+  // เปลี่ยนรหัสสำเร็จแล้ว — token เดิมใช้ต่อไม่ได้ (mustChangePassword ฝังใน JWT) ต้อง login ใหม่
+  const handlePasswordChanged = ()=>{ setMustChangePassword(false); setRole(null); setCurrentUser(null); };
+
+  if (mustChangePassword) return <ForceChangePassword onDone={handlePasswordChanged} />;
+  if(!role) return <><Login onLogin={handleLogin} /><TweaksUI t={t} setTweak={setTweak} /></>;
 
   const nav = role==='student' ? navStudent(lang) : NAV(lang)[role];
   const go = (p, step=0)=>{ setPage(p); setFormStep(step); window.scrollTo(0,0); };
-  const switchRole = (r)=>{ if(r==='logout'){ setRole(null); return; } setRole(r); setPage(DEFAULT_PAGE[r]); setSel(null); };
+  // ไม่มีสลับ role ปลอมอีกแล้ว — 'logout' คือทางเดียวที่เหลือ เคลียร์ token จริงด้วย
+  const switchRole = (r)=>{ if(r==='logout'){ clearSession(); setRole(null); setCurrentUser(null); return; } };
 
   const render = ()=>{
     if(role==='student'){
-      if(page==='news') return <StudentNews go={go} lang={lang} />;
+      if(page==='news') return <StudentNewsReal go={go} />;
       if(page==='formIntro') return <FormIntro go={go} lang={lang} />;
-      if(page==='form') return <ExamForm go={go} toast={showToast} tweaks={t} initialStep={formStep} lang={lang} />;
-      if(page==='status') return <StudentStatus go={go} lang={lang} />;
-      if(page==='history') return <StudentHistory go={go} lang={lang} />;
+      if(page==='form') return <ExamFormReal go={go} toast={showToast} />;
+      if(page==='status') return <StudentStatusReal go={go} />;
+      if(page==='history') return <StudentHistoryReal go={go} />;
     }
     if(role==='officer'){
-      if(page==='dashboard') return <OfficerDashboard go={go} tweaks={t} lang={lang} />;
-      if(page==='review') return <OfficerReview go={go} setSel={setSel} toast={showToast} lang={lang} />;
-      if(page==='students') return <OfficerStudents go={go} setSel={setSel} lang={lang} />;
-      if(page==='detail') return <StudentDetail student={sel} go={go} toast={showToast} lang={lang} />;
-      if(page==='rounds') return <ManageRoundsSubjects toast={showToast} />;
-      if(page==='usermgmt') return <ManageUsers toast={showToast} />;
-      if(page==='newsmgmt') return <ManageNews toast={showToast} />;
-      if(page==='reports') return <Reports toast={showToast} lang={lang} />;
+      if(page==='dashboard') return <DashboardReal go={go} />;
+      if(page==='review') return <OfficerReviewReal go={go} setSel={setSel} />;
+      if(page==='students') return <OfficerStudentsReal go={go} setSel={setSel} />;
+      if(page==='import') return <StudentImport toast={showToast} />;
+      if(page==='detail') return <StudentDetailReal student={sel} go={go} toast={showToast} />;
+      if(page==='rounds') return <ManageRoundsSubjectsReal toast={showToast} />;
+      if(page==='usermgmt') return <ManageUsersReal toast={showToast} currentUserId={currentUser?.id} />;
+      if(page==='newsmgmt') return <ManageNewsReal toast={showToast} />;
+      if(page==='reports') return <ReportsReal toast={showToast} />;
     }
     if(role==='executive'){
-      if(page==='dashboard') return <ExecutiveDashboard go={go} tweaks={t} lang={lang} />;
-      if(page==='students') return <OfficerStudents go={go} setSel={setSel} lang={lang} />;
-      if(page==='detail') return <StudentDetail student={sel} go={go} toast={showToast} readonly lang={lang} />;
-      if(page==='reports') return <Reports toast={showToast} lang={lang} />;
-    }
-    if(role==='admin'){
-      if(page==='dashboard') return <AdminDashboard go={go} lang={lang} />;
-      if(page==='users') return <AdminUsers toast={showToast} lang={lang} />;
-      if(page==='audit') return <AdminAudit lang={lang} />;
-      if(page==='archive') return <AdminArchive toast={showToast} lang={lang} />;
-      if(page==='settings') return <AdminSettings toast={showToast} lang={lang} />;
+      if(page==='dashboard') return <DashboardReal go={go} readonly />;
+      if(page==='students') return <OfficerStudentsReal go={go} setSel={setSel} />;
+      if(page==='detail') return <StudentDetailReal student={sel} go={go} toast={showToast} readonly />;
+      if(page==='reports') return <ReportsReal toast={showToast} readonly />;
     }
     return <Empty title="ไม่พบหน้าที่ต้องการ" />;
   };
@@ -123,7 +138,9 @@ export function App() {
 
   return (
     <div data-density={t.density}>
-      <TopBar role={role} roleLabel={translate(lang,'role.'+role)} user={ROLE_USER[role]} onMenu={()=>setSbOpen(true)} onSwitchRole={switchRole}
+      <TopBar role={role} roleLabel={translate(lang,'role.'+role)}
+        user={{ firstName: currentUser?.name || '', lastName: '' }}
+        onMenu={()=>setSbOpen(true)} onSwitchRole={switchRole}
         lang={lang} setLang={setLang} />
       <div className="app-shell">
         <Sidebar items={nav} active={activeNav} onNav={go} open={sbOpen} onClose={()=>setSbOpen(false)}

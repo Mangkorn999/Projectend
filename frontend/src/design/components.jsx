@@ -45,12 +45,6 @@ const NOTIFS = {
 export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=3, lang='TH', setLang }) {
   const [open, setOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const roles = [
-    { k:'student', label:t(lang,'role.student'), icon:'graduation' },
-    { k:'officer', label:t(lang,'role.officer'), icon:'shield' },
-    { k:'executive', label:t(lang,'role.executive'), icon:'chart' },
-    { k:'admin', label:t(lang,'role.admin'), icon:'settings' },
-  ];
   return (
     <header style={{ height:'var(--header-h)', background:'#fff', borderBottom:'1px solid var(--ink-200)',
       display:'flex', alignItems:'center', gap:16, padding:'0 18px 0 16px', position:'sticky', top:0, zIndex:40 }}>
@@ -112,20 +106,7 @@ export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=3, l
           <div style={{ position:'fixed', inset:0, zIndex:50 }} onClick={()=>setOpen(false)}></div>
           <div className="card fade-up" style={{ position:'absolute', right:0, top:'calc(100% + 8px)', width:248,
             zIndex:51, boxShadow:'var(--sh-lg)', padding:8 }}>
-            <div style={{ padding:'8px 10px 10px', borderBottom:'1px solid var(--ink-100)', marginBottom:6 }}>
-              <div style={{ fontSize:11, color:'var(--ink-500)', fontWeight:600, marginBottom:7 }}>{t(lang,'topbar.switchRole')}</div>
-              <div style={{ display:'flex', flexDirection:'column', gap:3 }}>
-                {roles.map(r=>(
-                  <button key={r.k} onClick={()=>{ onSwitchRole(r.k); setOpen(false); }}
-                    style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 9px', borderRadius:8, border:'none',
-                      background: r.k===role?'var(--blue-50)':'transparent', textAlign:'left', width:'100%',
-                      color: r.k===role?'var(--navy-700)':'var(--ink-900)', fontWeight: r.k===role?700:500, fontSize:13.5 }}>
-                    <Icon name={r.icon} size={17} /> {r.label}
-                    {r.k===role && <Icon name="check" size={15} style={{ marginLeft:'auto', color:'var(--blue-600)' }} />}
-                  </button>
-                ))}
-              </div>
-            </div>
+            {/* role มาจาก JWT จริง ไม่มี dropdown ปลอมสลับ role อีกแล้ว — ออกจากระบบได้ทางเดียว */}
             <button onClick={()=>onSwitchRole('logout')} style={{ display:'flex', alignItems:'center', gap:10,
               padding:'8px 9px', borderRadius:8, border:'none', background:'transparent', width:'100%', textAlign:'left',
               color:'var(--ink-600)', fontSize:13.5, fontWeight:500 }}>

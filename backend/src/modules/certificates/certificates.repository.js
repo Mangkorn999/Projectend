@@ -14,3 +14,6 @@ export const findByResult = (result_id) =>
     where: { result_id: Number(result_id) },
     orderBy: { uploaded_at: "desc" },
   });
+
+export const findById = (id) =>
+  prisma.certificate.findUnique({ where: { certificate_id: Number(id) } });

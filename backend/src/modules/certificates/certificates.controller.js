@@ -55,3 +55,34 @@ export const upload = async (req, res, next) => {
     next(err);
   }
 };
+
+// GET /api/certificates/:id/file — เปิด/โหลดไฟล์จริง
+// เจ้าของผลสอบ (นักศึกษาคนนั้น) หรือ officer/executive เท่านั้นที่เข้าถึงได้ — กันคนอื่นเดา id แล้วดูไฟล์คนอื่น
+export const serveFile = async (req, res, next) => {
+  try {
+    const certificate = await certRepo.findById(req.params.id);
+    if (!certificate) throw httpError("ไม่พบไฟล์ที่ระบุ", 404);
+
+    const examResult = await examRepo.findById(certificate.result_id);
+    if (!examResult) throw httpError("ไม่พบผลสอบที่เกี่ยวข้อง", 404);
+
+    const isOwner = req.user.studentId === examResult.student_id;
+    const isStaff = req.user.role === "officer" || req.user.role === "executive";
+    if (!isOwner && !isStaff) {
+      throw httpError("ไม่มีสิทธิ์เข้าถึงไฟล์นี้", 403);
+    }
+
+    const absolutePath = path.resolve(certificate.file_path);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="${encodeURIComponent(certificate.file_name)}"`,
+    );
+    res.sendFile(absolutePath, (err) => {
+      // ไฟล์หายจาก disk (ลบทิ้งนอกระบบ) — ตอบ 404 แทนปล่อยให้ Express โยน error ดิบ
+      if (err && !res.headersSent) next(httpError("ไม่พบไฟล์บน server", 404));
+    });
+  } catch (err) {
+    next(err);
+  }
+};

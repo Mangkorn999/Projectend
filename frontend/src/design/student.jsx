@@ -82,10 +82,9 @@ export function StudentNews({ go, lang='TH' }) {
 
 /* ---------- Exam form intro (landing before the wizard) ---------- */
 export function FormIntro({ go, lang='TH' }) {
-  const round = ROUNDS[0];
   return (
     <div className="fade-up">
-      <PageHead title={t(lang,'formintro.title')} sub={t(lang,'formintro.sub',{attempt:round.attempt,year:round.year,close:pick(lang,round,'close')})}
+      <PageHead title={t(lang,'formintro.title')}
         crumb={<><a onClick={()=>go('news')} style={{cursor:'pointer'}}>{t(lang,'examform.crumbHome')}</a> <Icon name="chevR" size={13}/> {t(lang,'examform.crumbForm')}</>} />
       <div className="card card-pad" style={{ maxWidth:640, textAlign:'center', padding:'40px 32px' }}>
         <div style={{ width:64, height:64, borderRadius:16, background:'var(--blue-50)', color:'var(--navy-700)',

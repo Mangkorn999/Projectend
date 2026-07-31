@@ -4,8 +4,10 @@
     role keys stay on ROLES from data.jsx so a future SSO swap stays easy)
    ============================================================ */
 import { useState } from 'react';
-import { Icon, ROLES } from './data.jsx';
+import { Icon } from './data.jsx';
 import { Logo } from './logos.jsx';
+import { apiFetch, setSession, ApiError } from './api.js';
+import { FirstSetup } from './firstSetup.jsx';
 
 /* English strings suffixed with _EN for easy grep/review; Thai stays inline as the default */
 const facultyName_EN = 'Faculty of Nursing';
@@ -15,28 +17,45 @@ const heroTitle_EN = ['Nursing License', 'Record System'];
 const heroDesc_EN = 'Central hub to record, track, verify, and summarize the nursing license examination — for students, faculty officers, and executives.';
 const heroStats_EN = [['8','Exam subjects'],['4','User roles'],['100%','Fully auditable']];
 const footerNote_EN = '© 2026 Faculty of Nursing, PSU · Prototype demo';
-const staffTitle_EN = 'Staff Only';
-const backToStudent_EN = '← Back to student login';
 const signinTitle_EN = 'Sign In';
-const signinSub_EN = 'Enter your email and password to sign in';
-const staffSub_EN = 'For faculty officers / executives / admins';
-const emailLabel_EN = 'Email';
-const usernameLabel_EN = 'Username / Email';
+const signinSub_EN = 'Enter your username and password to sign in';
+const usernameLabel_EN = 'Username / Student ID';
 const passwordLabel_EN = 'Password';
-const forgotPassword_EN = 'Forgot password?';
 const loggingIn_EN = 'Signing in…';
 const signInBtn_EN = 'Sign In';
-const staffOnlyLink_EN = 'Staff Only';
 
+// เข้าใช้งานเว็บเดียวกันสำหรับทุก role — role มาจาก JWT/DB เสมอ ไม่มี login mode แยกอีกแล้ว
 export function Login({ onLogin }) {
-  const [staffMode, setStaffMode] = useState(false);
+  const [showFirstSetup, setShowFirstSetup] = useState(false);
   const [loading, setLoading] = useState(false);
   const [lang, setLang] = useState('TH'); // 'TH' | 'EN'
   const isEN = lang==='EN';
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
 
-  // role will come from the backend once real auth is wired up; defaults to
-  // student for now — use the post-login "สลับมุมมองบทบาท (เดโม)" switcher to preview other roles
-  const submit = () => { setLoading(true); setTimeout(()=>onLogin(ROLES.STUDENT), 850); };
+  // login จริง ไปหา backend — psu_passport_id คือ student_id (นักศึกษา) หรือรหัสที่เจ้าหน้าที่ตั้งให้ (staff)
+  const submit = async () => {
+    setError('');
+    if (!username || !password) { setError(isEN?'Please fill in all fields':'กรุณากรอกข้อมูลให้ครบ'); return; }
+    setLoading(true);
+    try {
+      const data = await apiFetch('/auth/login', {
+        method: 'POST',
+        auth: false,
+        body: { psu_passport_id: username, password },
+      });
+      setSession(data.token, data.user, data.must_change_password);
+      // ส่ง user (มี role จริงจาก JWT) ขึ้นไปให้ App.jsx ใช้ตั้ง state แทน role ปลอมแบบเดิม
+      onLogin(data.user, data.must_change_password);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : (isEN?'Login failed':'เข้าสู่ระบบไม่สำเร็จ'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (showFirstSetup) return <FirstSetup onBack={()=>setShowFirstSetup(false)} lang={lang} />;
 
   return (
     <div style={{ minHeight:'100vh', display:'flex', position:'relative' }} className="login-wrap">
@@ -95,36 +114,31 @@ export function Login({ onLogin }) {
         <div style={{ width:'100%', maxWidth:404 }}>
           <div className="only-mobile" style={{ marginBottom:24, justifyContent:'center' }}><Logo size={44} /></div>
 
-          {staffMode ? (
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
-              <h2 style={{ margin:0, fontSize:24, fontWeight:800, color:'var(--ink-900)' }}>{isEN?staffTitle_EN:'สำหรับเจ้าหน้าที่'}</h2>
-              <a onClick={()=>setStaffMode(false)} style={{ fontSize:13, cursor:'pointer' }}>{isEN?backToStudent_EN:'← กลับหน้านักศึกษา'}</a>
-            </div>
-          ) : (
-            <h2 style={{ margin:'0 0 6px', fontSize:24, fontWeight:800, color:'var(--ink-900)' }}>{isEN?signinTitle_EN:'เข้าสู่ระบบ'}</h2>
-          )}
+          <h2 style={{ margin:'0 0 6px', fontSize:24, fontWeight:800, color:'var(--ink-900)' }}>{isEN?signinTitle_EN:'เข้าสู่ระบบ'}</h2>
           <p style={{ margin:'0 0 20px', color:'var(--ink-500)', fontSize:14.5 }}>
-            {staffMode ? (isEN?staffSub_EN:'สำหรับเจ้าหน้าที่คณะ / ผู้บริหารคณะ / ผู้ดูแลระบบ') : (isEN?signinSub_EN:'กรอกอีเมลและรหัสผ่านเพื่อเข้าสู่ระบบ')}
+            {isEN?signinSub_EN:'กรอกรหัสผู้ใช้และรหัสผ่านเพื่อเข้าสู่ระบบ'}
           </p>
 
           <div className="field" style={{ marginBottom:12 }}>
-            <label>{staffMode ? (isEN?usernameLabel_EN:'ชื่อผู้ใช้ / อีเมล') : (isEN?emailLabel_EN:'อีเมล')}</label>
-            <input className="input" type={staffMode?'text':'email'} placeholder="you@psu.ac.th"/>
+            <label>{isEN?usernameLabel_EN:'รหัสผู้ใช้ (รหัสนักศึกษา / Username)'}</label>
+            <input className="input" type="text" placeholder="6xxxxxxxxx"
+              value={username} onChange={e=>setUsername(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()} />
           </div>
           <div className="field" style={{ marginBottom:8 }}>
-            <label>{isEN?passwordLabel_EN:'รหัสผ่าน'}</label><input className="input" type="password" placeholder="••••••••"/>
+            <label>{isEN?passwordLabel_EN:'รหัสผ่าน'}</label>
+            <input className="input" type="password" placeholder="••••••••"
+              value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()} />
           </div>
+          {error && <div style={{ color:'var(--reject,#dc2626)', fontSize:13, marginBottom:12 }}>{error}</div>}
           <div style={{ textAlign:'right', marginBottom:18 }}>
-            <a style={{ fontSize:13, cursor:'pointer' }}>{isEN?forgotPassword_EN:'ลืมรหัสผ่าน?'}</a>
+            <a onClick={()=>setShowFirstSetup(true)} style={{ fontSize:13, cursor:'pointer' }}>
+              {isEN?'First time? Set your password':'เข้าใช้งานครั้งแรก / ตั้งรหัสผ่าน'}
+            </a>
           </div>
 
           <button className="btn btn-primary btn-lg btn-block" onClick={submit} disabled={loading}>
             {loading ? (isEN?loggingIn_EN:'กำลังเข้าสู่ระบบ…') : (isEN?signInBtn_EN:'เข้าสู่ระบบ')}
           </button>
-
-          {!staffMode && <div style={{ textAlign:'center', marginTop:16 }}>
-            <a onClick={()=>setStaffMode(true)} style={{ fontSize:13, fontWeight:600, cursor:'pointer' }}>{isEN?staffOnlyLink_EN:'สำหรับเจ้าหน้าที่'}</a>
-          </div>}
         </div>
       </div>
       <style>{`@media(max-width:860px){.login-brand{display:none!important;}}`}</style>
