@@ -17,7 +17,12 @@ router.post(
   rateLimit({ windowMs: 15 * 60 * 1000, max: 5, keyField: "student_id" }),
   firstSetup,
 );
-router.post("/login", login);
+// rate-limit แยกตาม psu_passport_id — กัน brute-force เดารหัสผ่านของ id เดียวกัน
+router.post(
+  "/login",
+  rateLimit({ windowMs: 15 * 60 * 1000, max: 10, keyField: "psu_passport_id" }),
+  login,
+);
 router.get("/me", authenticate, getme);
 router.patch("/password", authenticate, changePassword);
 

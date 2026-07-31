@@ -3,6 +3,18 @@
 // buckets เก็บใน memory ของ process เดียว — ถ้า scale หลาย instance ในอนาคตต้องย้ายไป Redis
 const buckets = new Map();
 
+// เก็บ bucket ทิ้งไม่หมดอายุจะทำให้ memory โตขึ้นเรื่อยๆ ถ้า server รันนานๆ
+// เลยเช็คทุก 10 นาที แล้วลบ bucket ที่หมดเวลาไปแล้วทิ้ง
+setInterval(
+  () => {
+    const now = Date.now();
+    for (const [key, bucket] of buckets) {
+      if (now > bucket.resetAt) buckets.delete(key);
+    }
+  },
+  10 * 60 * 1000,
+).unref(); // unref กัน setInterval นี้ค้าง process ตอนปิด server
+
 // windowMs = ช่วงเวลานับรอบ (ms), max = จำนวนครั้งสูงสุดในช่วงนั้น
 // keyField = ชื่อฟิลด์ใน req.body ที่ใช้แยก bucket ต่อคน (เช่น "student_id")
 //            ถ้าไม่ระบุ จะ fallback ไปนับตาม IP แทน (กันกรณี field ไม่มีในบาง endpoint)
