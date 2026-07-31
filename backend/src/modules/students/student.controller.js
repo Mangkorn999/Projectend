@@ -130,16 +130,19 @@ export const bulkImport = async (req, res, next) => {
       throw err;
     }
 
-    // ไฟล์ CSV ที่ officer เตรียมด้วย Excel บน Windows ไทย ส่วนใหญ่ save เป็น ANSI (Windows-874)
-    // ไม่ใช่ UTF-8 — ถ้าไม่มี UTF-8 BOM (EF BB BF) ให้ถือว่าเป็น win874 แล้ว decode ก่อน ไม่งั้นภาษาไทยจะเพี้ยน (mojibake)
-    const hasUtf8Bom =
-      req.file.buffer.length >= 3 &&
-      req.file.buffer[0] === 0xef &&
-      req.file.buffer[1] === 0xbb &&
-      req.file.buffer[2] === 0xbf;
-    const csvText = hasUtf8Bom
-      ? req.file.buffer.toString("utf8")
-      : iconv.decode(req.file.buffer, "win874");
+    // ไฟล์ CSV ภาษาไทยมาได้หลาย encoding แล้วแต่โปรแกรมที่ officer ใช้ save:
+    // - Excel "CSV UTF-8"        → UTF-8 มี BOM
+    // - Excel "CSV" ธรรมดา (ไทย) → ANSI/Windows-874 (ไม่มี BOM)
+    // - Google Sheets/Notepad     → UTF-8 ไม่มี BOM
+    // เดาจาก "มี BOM ไหม" อย่างเดียวไม่พอ (เคสสุดท้ายไม่มี BOM แต่ก็เป็น UTF-8) —
+    // เลยต้อง "ลองถอดเป็น UTF-8 จริงๆ" ก่อน ถ้า byte ไม่ตรงกฎ UTF-8 (fatal: true จะ throw)
+    // ค่อยถือว่าเป็น win874 แล้ว decode แบบนั้นแทน
+    let csvText;
+    try {
+      csvText = new TextDecoder("utf-8", { fatal: true }).decode(req.file.buffer);
+    } catch {
+      csvText = iconv.decode(req.file.buffer, "win874");
+    }
 
     // csv-parse แปลง text → array of object โดยใช้แถวแรกเป็นชื่อ column (columns:true)
     let rows;

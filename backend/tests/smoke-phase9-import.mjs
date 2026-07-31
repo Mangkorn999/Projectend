@@ -96,11 +96,30 @@ const main = async () => {
   );
   check("import CSV Thai ANSI → skipped_count 0", ansiImport.json?.data?.skipped_count, 0);
 
+  // ── bulk import: UTF-8 CSV ไม่มี BOM (เช่น Google Sheets/Notepad export) ─
+  // เคสนี้เคยพังเพราะ heuristic เดิม "ไม่มี BOM = win874" เดาผิด ต้องลอง decode UTF-8 จริงก่อน
+  const utf8NoBomForm = new FormData();
+  utf8NoBomForm.append(
+    "file",
+    new Blob([Buffer.from(csvBody("ห้องเรียนอังกฤษ", "6699990003"), "utf8")], { type: "text/csv" }),
+    "students-utf8-no-bom.csv",
+  );
+  const utf8NoBomImport = await call("POST", "/api/students/import", {
+    token: officerToken,
+    form: utf8NoBomForm,
+  });
+  check("import CSV UTF-8 ไม่มี BOM → 201", utf8NoBomImport.status, 201);
+  check(
+    "import CSV UTF-8 ไม่มี BOM → imported_count 1 (ไม่ถูกเดาเป็น win874 ผิด)",
+    utf8NoBomImport.json?.data?.imported_count,
+    1,
+  );
+
   // ── bulk import: ห้องไม่มีจริง → skip พร้อมเหตุผล ─
   const badRoomForm = new FormData();
   badRoomForm.append(
     "file",
-    new Blob([Buffer.from(csvBody("ห้องไม่มีจริง", "6699990003"), "utf8")], { type: "text/csv" }),
+    new Blob([Buffer.from(csvBody("ห้องไม่มีจริง", "6699990004"), "utf8")], { type: "text/csv" }),
     "students-badroom.csv",
   );
   const badRoomImport = await call("POST", "/api/students/import", {
