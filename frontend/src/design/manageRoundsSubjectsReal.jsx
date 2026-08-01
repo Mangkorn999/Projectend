@@ -138,23 +138,28 @@ function RoundModal({ round, onClose, onSave }) {
     setStatus(r.status ?? 'open');
   }, [round]);
 
+  // ต้องกรอกให้ครบก่อนกด "บันทึก" ได้ — กันส่งวันที่ว่างไป backend แล้วพัง
+  const isValid = academicYear && attemptNumber && openDate && closeDate;
+
   return (
     <Modal open={!!round} onClose={onClose} title={isNew ? 'เปิดรอบการกรอกใหม่' : `แก้ไขรอบที่ ${r.attempt_number}/${r.academic_year}`}
       footer={<><button className="btn btn-ghost" onClick={onClose}>ยกเลิก</button>
-        <button className="btn btn-primary" onClick={() => onSave({ academic_year: academicYear, attempt_number: attemptNumber, open_date: openDate, close_date: closeDate, status })}>
+        <button className="btn btn-primary" disabled={!isValid}
+          onClick={() => onSave({ academic_year: academicYear, attempt_number: attemptNumber, open_date: openDate, close_date: closeDate, status })}>
           <Icon name="check" size={16} /> บันทึก</button></>}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div className="grid g-2" style={{ gap: 14 }}>
-          <div className="field"><label>ปีการศึกษา</label><input className="input" value={academicYear} onChange={e => setAcademicYear(e.target.value)} /></div>
-          <div className="field"><label>ครั้งที่สอบ</label><input className="input" value={attemptNumber} onChange={e => setAttemptNumber(e.target.value)} /></div>
+          <div className="field"><label>ปีการศึกษา *</label><input className="input" value={academicYear} onChange={e => setAcademicYear(e.target.value)} /></div>
+          <div className="field"><label>ครั้งที่สอบ *</label><input className="input" value={attemptNumber} onChange={e => setAttemptNumber(e.target.value)} /></div>
         </div>
         <div className="grid g-2" style={{ gap: 14 }}>
-          <div className="field"><label>วันที่เปิดรับ</label><input className="input" type="date" value={openDate} onChange={e => setOpenDate(e.target.value)} /></div>
-          <div className="field"><label>วันที่ปิดรับ</label><input className="input" type="date" value={closeDate} onChange={e => setCloseDate(e.target.value)} /></div>
+          <div className="field"><label>วันที่เปิดรับ *</label><input className="input" type="date" value={openDate} onChange={e => setOpenDate(e.target.value)} /></div>
+          <div className="field"><label>วันที่ปิดรับ *</label><input className="input" type="date" value={closeDate} onChange={e => setCloseDate(e.target.value)} /></div>
         </div>
         {!isNew && <label style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
           <input type="checkbox" checked={status === 'open'} onChange={e => setStatus(e.target.checked ? 'open' : 'closed')} style={{ width: 17, height: 17 }} /> สถานะ: เปิดใช้งาน
         </label>}
+        {!isValid && <div style={{ fontSize: 12.5, color: 'var(--ink-500)' }}>* กรอกให้ครบทุกช่องก่อนบันทึก</div>}
       </div>
     </Modal>
   );

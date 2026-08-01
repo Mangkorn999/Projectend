@@ -33,15 +33,35 @@ export const getActive = async (req, res, next) => {
   }
 };
 
+// แปลงเป็น Date แล้วเช็คว่าถูกต้องจริง — new Date("") หรือ new Date("ไม่ใช่วันที่")
+// จะได้ "Invalid Date" ซึ่งดูเหมือน Date ปกติแต่ใช้ไม่ได้ ถ้าไม่เช็คแล้วส่งเข้า Prisma ตรงๆ
+// จะพังแบบบอกสาเหตุไม่ได้ (500 เฉยๆ) ต้องเช็คตรงนี้ก่อนแล้วบอก error ให้ชัดเจน (400)
+const parseDate = (value, fieldLabel) => {
+  const date = new Date(value);
+  if (isNaN(date.getTime())) {
+    const err = new Error(`${fieldLabel} ไม่ถูกต้อง`);
+    err.statusCode = 400;
+    throw err;
+  }
+  return date;
+};
+
 export const create = async (req, res, next) => {
   try {
     const { academic_year, attempt_number, open_date, close_date, status } =
       req.body;
+
+    if (!academic_year || !attempt_number || !open_date || !close_date) {
+      const err = new Error("กรุณากรอกข้อมูลให้ครบ (ปีการศึกษา, ครั้งที่สอบ, วันที่เปิด-ปิดรับ)");
+      err.statusCode = 400;
+      throw err;
+    }
+
     const round = await roundsRepo.create({
       academic_year: Number(academic_year),
       attempt_number: Number(attempt_number),
-      open_date: new Date(open_date),
-      close_date: new Date(close_date),
+      open_date: parseDate(open_date, "วันที่เปิดรับ"),
+      close_date: parseDate(close_date, "วันที่ปิดรับ"),
       status: status ?? "closed",
       created_by: req.user.userId, // อ่านจาก JWT เท่านั้น ไม่เชื่อ body
     });
@@ -59,8 +79,8 @@ export const update = async (req, res, next) => {
     if (academic_year !== undefined) data.academic_year = Number(academic_year);
     if (attempt_number !== undefined)
       data.attempt_number = Number(attempt_number);
-    if (open_date !== undefined) data.open_date = new Date(open_date);
-    if (close_date !== undefined) data.close_date = new Date(close_date);
+    if (open_date !== undefined) data.open_date = parseDate(open_date, "วันที่เปิดรับ");
+    if (close_date !== undefined) data.close_date = parseDate(close_date, "วันที่ปิดรับ");
     if (status !== undefined) data.status = status;
 
     const round = await roundsRepo.update(req.params.id, data);
