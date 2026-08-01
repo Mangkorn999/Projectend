@@ -87,6 +87,9 @@ model SubmissionRound {
   open_date      DateTime
   close_date     DateTime
   status         String       @db.VarChar(10)
+  // วิชาที่รอบนี้ทดสอบ — ไม่ใช่ทุกรอบต้องครบ 8 วิชา
+  // ว่าง [] = ใช้ทุกวิชา (รอบเก่าที่สร้างก่อนมี column นี้)
+  subject_ids    Int[]
   exam_results   ExamResult[]
   news           News[]
   creator        User         @relation("UserToRound", fields: [created_by], references: [user_id])

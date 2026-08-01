@@ -114,13 +114,13 @@ export function ManageRoundsSubjectsReal({ toast }) {
         </div>
       )}
 
-      <RoundModal round={roundModal} onClose={() => setRoundModal(null)} onSave={saveRound} />
+      <RoundModal round={roundModal} allSubjects={subs} onClose={() => setRoundModal(null)} onSave={saveRound} />
       <SubjectModal subject={subjectModal} onClose={() => setSubjectModal(null)} onSave={saveSubject} />
     </div>
   );
 }
 
-function RoundModal({ round, onClose, onSave }) {
+function RoundModal({ round, allSubjects, onClose, onSave }) {
   const isNew = round === 'new';
   const r = isNew ? {} : (round || {});
   const [academicYear, setAcademicYear] = useState('');
@@ -128,6 +128,7 @@ function RoundModal({ round, onClose, onSave }) {
   const [openDate, setOpenDate] = useState('');
   const [closeDate, setCloseDate] = useState('');
   const [status, setStatus] = useState('open');
+  const [subjectIds, setSubjectIds] = useState([]); // วิชาที่รอบนี้ทดสอบ
 
   useEffect(() => {
     if (!round) return;
@@ -136,16 +137,30 @@ function RoundModal({ round, onClose, onSave }) {
     setOpenDate(toDateInput(r.open_date));
     setCloseDate(toDateInput(r.close_date));
     setStatus(r.status ?? 'open');
+    // รอบเก่าที่ยังไม่เคยเลือกวิชา (subject_ids ว่าง) ให้ถือว่าเลือกครบทุกวิชา
+    const saved = r.subject_ids;
+    setSubjectIds(saved?.length ? saved : allSubjects.map(s => s.subject_id));
   }, [round]);
 
+  const toggleSubject = (id) =>
+    setSubjectIds(ids => ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]);
+
+  // รอบที่เปิดรับอยู่แล้ว backend ล็อกไม่ให้แก้วิชา — ปิด checkbox ให้ตรงกัน
+  const subjectsLocked = !isNew && r.status === 'open';
+
   // ต้องกรอกให้ครบก่อนกด "บันทึก" ได้ — กันส่งวันที่ว่างไป backend แล้วพัง
-  const isValid = academicYear && attemptNumber && openDate && closeDate;
+  const isValid = academicYear && attemptNumber && openDate && closeDate && subjectIds.length > 0;
 
   return (
     <Modal open={!!round} onClose={onClose} title={isNew ? 'เปิดรอบการกรอกใหม่' : `แก้ไขรอบที่ ${r.attempt_number}/${r.academic_year}`}
       footer={<><button className="btn btn-ghost" onClick={onClose}>ยกเลิก</button>
         <button className="btn btn-primary" disabled={!isValid}
-          onClick={() => onSave({ academic_year: academicYear, attempt_number: attemptNumber, open_date: openDate, close_date: closeDate, status })}>
+          onClick={() => onSave({
+            academic_year: academicYear, attempt_number: attemptNumber,
+            open_date: openDate, close_date: closeDate, status,
+            // รอบที่เปิดอยู่ห้ามส่ง subject_ids ไป ไม่งั้น backend ตอบ 400
+            ...(subjectsLocked ? {} : { subject_ids: subjectIds }),
+          })}>
           <Icon name="check" size={16} /> บันทึก</button></>}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div className="grid g-2" style={{ gap: 14 }}>
@@ -156,6 +171,27 @@ function RoundModal({ round, onClose, onSave }) {
           <div className="field"><label>วันที่เปิดรับ *</label><input className="input" type="date" value={openDate} onChange={e => setOpenDate(e.target.value)} /></div>
           <div className="field"><label>วันที่ปิดรับ *</label><input className="input" type="date" value={closeDate} onChange={e => setCloseDate(e.target.value)} /></div>
         </div>
+        <div className="field">
+          <label>วิชาที่สอบในรอบนี้ * <span style={{ fontWeight: 400, color: 'var(--ink-500)' }}>(เลือกแล้ว {subjectIds.length}/{allSubjects.length})</span></label>
+          {subjectsLocked && <div style={{ fontSize: 12.5, color: 'var(--ink-500)', marginBottom: 8 }}>
+            รอบนี้เปิดรับอยู่ แก้ไขรายวิชาไม่ได้ — ปิดรอบก่อนถึงจะแก้ได้
+          </div>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 200, overflowY: 'auto',
+            border: '1px solid var(--ink-200)', borderRadius: 9, padding: 8, opacity: subjectsLocked ? .55 : 1 }}>
+            {allSubjects.map(s => (
+              <label key={s.subject_id} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 6px',
+                fontSize: 13.5, cursor: subjectsLocked ? 'default' : 'pointer' }}>
+                <input type="checkbox" disabled={subjectsLocked}
+                  checked={subjectIds.includes(s.subject_id)}
+                  onChange={() => toggleSubject(s.subject_id)}
+                  style={{ width: 16, height: 16, flex: 'none' }} />
+                <span className="mono" style={{ fontSize: 12, color: 'var(--ink-400)', width: 52, flex: 'none' }}>{s.subject_code}</span>
+                <span>{s.subject_name}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
         {!isNew && <label style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
           <input type="checkbox" checked={status === 'open'} onChange={e => setStatus(e.target.checked ? 'open' : 'closed')} style={{ width: 17, height: 17 }} /> สถานะ: เปิดใช้งาน
         </label>}

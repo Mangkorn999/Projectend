@@ -1,5 +1,13 @@
 import * as roundsRepo from "./rounds.repository.js";
 import * as studentRepo from "../students/student.repository.js";
+import * as subjectsRepo from "../subjects/subjects.repository.js";
+
+// สร้าง Error พร้อม statusCode ให้ errorHandler จัดการต่อ
+const httpError = (message, statusCode) => {
+  const err = new Error(message);
+  err.statusCode = statusCode;
+  return err;
+};
 
 export const getAll = async (req, res, next) => {
   try {
@@ -39,25 +47,63 @@ export const getActive = async (req, res, next) => {
 const parseDate = (value, fieldLabel) => {
   const date = new Date(value);
   if (isNaN(date.getTime())) {
-    const err = new Error(`${fieldLabel} ไม่ถูกต้อง`);
-    err.statusCode = 400;
-    throw err;
+    throw httpError(`${fieldLabel} ไม่ถูกต้อง`, 400);
   }
   return date;
 };
 
+// เช็ค subject_ids ที่ officer ส่งมาว่าใช้ได้จริง แล้วคืนเป็น array ของตัวเลข
+// ต้องเช็คเองเพราะเก็บเป็น Int[] ไม่มี foreign key คอยกันให้
+const validateSubjectIds = async (rawIds) => {
+  if (!Array.isArray(rawIds) || rawIds.length === 0) {
+    throw httpError("กรุณาเลือกวิชาที่ใช้สอบในรอบนี้อย่างน้อย 1 วิชา", 400);
+  }
+
+  const ids = rawIds.map(Number);
+  if (ids.some((id) => !Number.isInteger(id) || id <= 0)) {
+    throw httpError("รหัสวิชาไม่ถูกต้อง", 400);
+  }
+
+  // เลือกวิชาซ้ำจะทำให้นับจำนวนวิชาของรอบผิด ต้องกันตั้งแต่ตอนบันทึก
+  const unique = [...new Set(ids)];
+  if (unique.length !== ids.length) {
+    throw httpError("เลือกวิชาซ้ำกัน", 400);
+  }
+
+  const found = await subjectsRepo.findByIds(unique);
+  if (found.length !== unique.length) {
+    throw httpError("มีรหัสวิชาที่ไม่มีอยู่ในระบบ", 400);
+  }
+
+  return unique;
+};
+
 export const create = async (req, res, next) => {
   try {
-    const { academic_year, attempt_number, open_date, close_date, status } =
-      req.body;
+    const {
+      academic_year,
+      attempt_number,
+      open_date,
+      close_date,
+      status,
+      subject_ids,
+    } = req.body;
 
     if (!academic_year || !attempt_number || !open_date || !close_date) {
-      const err = new Error("กรุณากรอกข้อมูลให้ครบ (ปีการศึกษา, ครั้งที่สอบ, วันที่เปิด-ปิดรับ)");
-      err.statusCode = 400;
-      throw err;
+      throw httpError(
+        "กรุณากรอกข้อมูลให้ครบ (ปีการศึกษา, ครั้งที่สอบ, วันที่เปิด-ปิดรับ)",
+        400,
+      );
     }
 
+    // ไม่ส่ง subject_ids มา = ใช้ทุกวิชาที่มีในระบบ (พฤติกรรมเดิมก่อนมี field นี้)
+    const subjectIds =
+      subject_ids === undefined
+        ? (await subjectsRepo.findAll()).map((s) => s.subject_id)
+        : await validateSubjectIds(subject_ids);
+
     const round = await roundsRepo.create({
+      subject_ids: subjectIds,
       academic_year: Number(academic_year),
       attempt_number: Number(attempt_number),
       open_date: parseDate(open_date, "วันที่เปิดรับ"),
@@ -73,9 +119,26 @@ export const create = async (req, res, next) => {
 
 export const update = async (req, res, next) => {
   try {
-    const { academic_year, attempt_number, open_date, close_date, status } =
-      req.body;
+    const {
+      academic_year,
+      attempt_number,
+      open_date,
+      close_date,
+      status,
+      subject_ids,
+    } = req.body;
     const data = {};
+
+    if (subject_ids !== undefined) {
+      const current = await roundsRepo.findById(req.params.id);
+      if (!current) throw httpError("ไม่พบรอบการกรอกนี้", 404);
+      // เปิดรอบไปแล้วห้ามเปลี่ยนวิชา — นักศึกษาอาจกรอกไปแล้วตามรายการเดิม
+      if (current.status === "open") {
+        throw httpError("รอบนี้เปิดให้กรอกแล้ว แก้ไขรายวิชาไม่ได้ ต้องปิดรอบก่อน", 400);
+      }
+      data.subject_ids = await validateSubjectIds(subject_ids);
+    }
+
     if (academic_year !== undefined) data.academic_year = Number(academic_year);
     if (attempt_number !== undefined)
       data.attempt_number = Number(attempt_number);
