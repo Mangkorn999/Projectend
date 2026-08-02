@@ -1,11 +1,34 @@
 import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
-// หารอบล่าสุด (ใช้ตอนไม่ได้ส่ง round_id มา)
-export const findLatestRound = () =>
-  prisma.submissionRound.findFirst({
-    orderBy: [{ academic_year: "desc" }, { attempt_number: "desc" }],
+const NEWEST_FIRST = [{ academic_year: "desc" }, { attempt_number: "desc" }];
+
+// รอบที่ควรโชว์เมื่อเจ้าหน้าที่เปิด dashboard โดยไม่ได้เลือกรอบเอง
+// เอารอบที่เปิดรับอยู่ก่อน — เจ้าหน้าที่เข้ามาดูเพราะอยากรู้ว่ารอบนี้กรอกกันถึงไหนแล้ว
+// ถ้าไม่มีรอบเปิด ค่อยถอยไปรอบล่าสุด
+export const findDefaultRound = async () =>
+  (await prisma.submissionRound.findFirst({
+    where: { status: "open" },
+    orderBy: NEWEST_FIRST,
+  })) ??
+  (await prisma.submissionRound.findFirst({ orderBy: NEWEST_FIRST }));
+
+// ทุกรอบของปีการศึกษาที่ระบุ — ใช้ทำหน้าเลือกรอบและสรุปทั้งปี
+export const findRoundsByYears = (years) =>
+  prisma.submissionRound.findMany({
+    where: { academic_year: { in: years } },
+    orderBy: NEWEST_FIRST,
   });
+
+// ปีการศึกษาที่มีรอบอยู่จริง เรียงใหม่ไปเก่า — ใช้เลือกว่าจะย้อนหลังกี่ปี
+export const findAcademicYears = async () => {
+  const rows = await prisma.submissionRound.findMany({
+    distinct: ["academic_year"],
+    select: { academic_year: true },
+    orderBy: { academic_year: "desc" },
+  });
+  return rows.map((r) => r.academic_year);
+};
 
 // หารอบตาม id
 export const findRoundById = (id) =>
@@ -14,6 +37,13 @@ export const findRoundById = (id) =>
 // นับนักศึกษาของรุ่นนั้น (กรองด้วย academic_year ของรอบ)
 export const countStudentsByYear = (academicYear) =>
   prisma.student.count({ where: { academic_year: academicYear } });
+
+// นับเฉพาะคนที่เจ้าหน้าที่เปิดสิทธิ์ให้กรอกแล้ว — คนที่ยังไม่เปิดสิทธิ์กรอกไม่ได้
+// เอาไปเป็นตัวหารของ fillRate ไม่งั้น % จะต่ำเพราะคนที่ระบบยังไม่ให้กรอก
+export const countEligibleByYear = (academicYear) =>
+  prisma.student.count({
+    where: { academic_year: academicYear, exam_eligible: true },
+  });
 
 // รายวิชาทั้งหมด — เรียงตามรหัสวิชา
 export const findAllSubjects = () =>

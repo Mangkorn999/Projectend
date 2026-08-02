@@ -135,11 +135,31 @@ src/modules/subjects/
 | Method | URL | Role | คำอธิบาย |
 |---|---|---|---|
 | `GET` | `/api/rounds` | ทุก role | ดูรอบทั้งหมด |
-| `GET` | `/api/rounds/active` | student | ดูรอบที่เปิดอยู่ตอนนี้ (ต้อง `exam_eligible`) |
+| `GET` | `/api/rounds/active` | student | ดูรอบที่เปิดอยู่ของ**รุ่นตัวเอง** (ต้อง `exam_eligible`) |
 | `POST` | `/api/rounds` | officer | สร้างรอบใหม่ (`created_by` มาจาก JWT) |
 | `PUT` | `/api/rounds/:id` | officer | แก้ไข/เปิด/ปิดรอบ |
 
-> `rounds/active` = `status: "open"` **และ** ตอนนี้อยู่ในช่วง `open_date..close_date`
+> `rounds/active` = `status: "open"` **และ** อยู่ในช่วง `open_date..close_date` **และ** `academic_year` ตรงกับรุ่นของนักศึกษา
+
+**รอบผูกกับรุ่น:** รอบหนึ่งเป็นของ `academic_year` เดียว — นักศึกษารุ่นอื่นเรียก `rounds/active` จะได้ `data: null`
+และ `POST /api/exam-results` ก็หารอบจาก `academic_year` ของนักศึกษาโดยตรง กรอกข้ามรุ่นจึงเป็นไปไม่ได้
+
+**เลือกวิชาต่อรอบ:** `subject_ids` (Int[]) — ไม่ส่งมา = ใช้ทุกวิชาในระบบ, รอบที่ `status: "open"` แล้วแก้ `subject_ids` ไม่ได้ (400)
+รอบเก่าที่ `subject_ids` ว่าง ถือว่าใช้ทุกวิชา (ดู `src/utils/roundSubjects.js`)
+
+**response ของ `rounds/active`** — แผ่ field ของ round ไว้ชั้นบน แล้วเติม 2 ตัว:
+
+```json
+{ "success": true, "data": {
+  "round_id": 29, "academic_year": 2568, "attempt_number": 2, "status": "open",
+  "subjects": [{ "subject_id": 1, "subject_code": "NUR01", "subject_name": "...",
+                 "already_passed": true }],
+  "all_passed": false
+}}
+```
+
+`already_passed` = นักศึกษาคนนี้เคยสอบผ่านวิชานั้นในรอบก่อนแล้ว → หน้ากรอกซ่อนปุ่มให้
+`all_passed` = ผ่านครบทุกวิชาของรอบนี้แล้ว ไม่ต้องกรอกอีก
 
 ---
 
@@ -151,9 +171,14 @@ src/modules/subjects/
 | `GET` | `/api/exam-results/me` | student | ดูผลสอบของตัวเอง |
 | `POST` | `/api/exam-results/:id/certificates` | student | อัปโหลดเอกสาร |
 
-**เงื่อนไข `POST /api/exam-results`:** ต้องมี `exam_eligible = true` → ต้องมีรอบเปิดอยู่ → กรอกซ้ำรอบเดิมไม่ได้ (409)
+**เงื่อนไข `POST /api/exam-results`:** ต้องมี `exam_eligible = true` → ต้องมีรอบเปิดของรุ่นตัวเอง → กรอกซ้ำรอบเดิมไม่ได้ (409)
 
 body: `{ "subject_results": [{ "subject_id": 1, "is_passed": true }, ... ] }`
+
+**ส่งเฉพาะวิชาที่ยังไม่ผ่าน** — วิชาที่ `already_passed` ไม่ต้องส่งมา backend เติมเป็น "ผ่าน" ให้เอง (copy-forward)
+ไม่เชื่อค่าที่ client ส่งมาสำหรับวิชาที่ผ่านไปแล้ว กันแก้ผลเก่าให้กลายเป็นไม่ผ่าน
+
+ตรวจก่อนบันทึกทุกครั้ง ผิดข้อไหนก็ 400: วิชาไม่อยู่ในรอบ / `is_passed` ไม่ใช่ boolean / ส่งวิชาซ้ำ / กรอกไม่ครบ
 
 **อัปโหลดเอกสาร:** `multipart/form-data`, field `file` (PDF เท่านั้น, ≤10MB) + `certificate_type` = `exam_result` \| `license`.
 เก็บไฟล์ที่ `backend/uploads/certificates/` (ตั้งชื่อใหม่กันซ้ำ/กัน path traversal), DB เก็บแค่ `file_path`. เช็ค ownership — อัปโหลดใส่ผลสอบคนอื่นไม่ได้ (403)
@@ -195,27 +220,45 @@ body ของ `POST`: `{ "title": "...", "content": "...", "round_id": 5 }` —
 
 | Method | URL | Role | คำอธิบาย |
 |---|---|---|---|
-| `GET` | `/api/dashboard/stats?round_id=` | officer, executive | สรุปสถิติของรอบ (ไม่ส่ง `round_id` = รอบล่าสุด) |
+| `GET` | `/api/dashboard/stats?round_id=` | officer, executive | สรุปสถิติของรอบ (ไม่ส่ง `round_id` = รอบที่เปิดรับอยู่) |
+| `GET` | `/api/dashboard/history?years=3` | officer, executive | สรุปรายปีย้อนหลังไว้เทียบรุ่นต่อรุ่น (1–10 ปี) |
 | `GET` | `/api/dashboard/export?round_id=` | officer | export รายงาน PDF (ตอบเป็นไฟล์ ไม่ใช่ JSON) |
 
-**shape ของ `/stats`** — ตรงกับ `computeStats()` ที่ frontend ใช้อยู่ (`frontend/src/design/data.jsx`):
+**shape ของ `/stats`**:
 
 ```json
 { "success": true, "data": {
   "round": { "round_id": 5, "academic_year": 2568, "attempt_number": 2, "status": "open" },
-  "total": 120, "by": { "draft": 0, "submitted": 40, "approved": 58, "rejected": 6 },
-  "not_started": 16, "submitted": 104, "fillRate": 87,
-  "fullyPassed": 83, "overallPassRate": 80,
+  "total": 120, "eligible": 104,
+  "by": { "draft": 0, "submitted": 40, "approved": 58, "rejected": 6 },
+  "not_started": 0, "submitted": 104, "fillRate": 100,
+  "fullyPassed": 83, "fullyPassedRate": 80, "subjectPassRate": 91,
+  "overallPassRate": 80,
   "perSubject": [{ "subject_id": 1, "subject_code": "NUR01", "subject_name": "...",
                    "pass": 90, "fail": 14, "rate": 87 }]
 }}
 ```
 
 กติกาการนับ:
-- `total` = นักศึกษาที่ `academic_year` ตรงกับรอบ (นักศึกษา import เข้าระบบก่อน)
+- ไม่ส่ง `round_id` → เอารอบที่ `status: "open"` ก่อน ถ้าไม่มีค่อยเป็นรอบล่าสุด
+- `total` = นักศึกษาทั้งรุ่นที่ `academic_year` ตรงกับรอบ
+- `eligible` = เฉพาะคนที่ `exam_eligible: true` — คนที่กรอกได้จริง **ใช้เป็นตัวหารของ `fillRate`**
+- `not_started` = `eligible` − จำนวน exam_result ในรอบ
 - `by.submitted` = ส่งแล้วแต่ยังไม่ตรวจ (`staff_status: pending`)
-- `not_started` = `total` − จำนวน exam_result ในรอบ (ยังไม่เริ่มกรอกเลย)
-- `perSubject` / `fullyPassed` / `overallPassRate` นับเฉพาะคนที่ `student_status !== "draft"`
+- `perSubject` / `fullyPassed` นับเฉพาะคนที่ `student_status !== "draft"` และ**เฉพาะวิชาของรอบนั้น**
+- `fullyPassedRate` = % คนที่ผ่านครบทุกวิชา (รายคน) — `subjectPassRate` = % ผลรายวิชาที่ผ่าน (รายวิชา) คนละตัวกัน
+- `overallPassRate` = ค่าเดียวกับ `fullyPassedRate` เก็บชื่อเดิมไว้ไม่ให้หน้าเก่าพัง
+
+**shape ของ `/history`** — รวมทุกรอบในปีเข้าด้วยกัน นับเป็น**รายคน** (กรอกหลายรอบในปีเดียวนับครั้งเดียว):
+
+```json
+{ "success": true, "data": { "years": [
+  { "academic_year": 2568, "total": 120, "eligible": 104,
+    "submitted": 100, "fullyPassed": 83, "fillRate": 96, "passRate": 83,
+    "rounds": [{ "round_id": 5, "attempt_number": 2, "status": "open",
+                 "subject_count": 8, "submitted": 60, "fullyPassed": 50 }] }
+]}}
+```
 
 **PDF:** ใช้ `pdfkit` + embed font Sarabun ที่ `backend/assets/fonts/` — ถ้าไม่ embed ภาษาไทยจะกลายเป็นสี่เหลี่ยม **ห้ามลบโฟลเดอร์นี้**
 
@@ -240,7 +283,15 @@ npm start               # เปิด server ที่ port 3000 (คนละ 
 npm test                # ยิงทุก endpoint จริง — Phase 1-6
 ```
 
-`tests/smoke-phase1-3.mjs` (17 เคส) + `tests/smoke-phase4-6.mjs` (46 เคส) — เช็คทั้ง happy path และ 401/403/404/409/400
+| ไฟล์เทส | ครอบอะไร |
+|---|---|
+| `smoke-phase1-3.mjs` (17 เคส) | auth, subjects, users/students |
+| `smoke-phase4-6.mjs` (46 เคส) | rounds, กรอกผลสอบ, ตรวจ/ยืนยัน |
+| `smoke-phase9-import.mjs` | import CSV รายชื่อนักศึกษา |
+| `smoke-phase10-round-subjects.mjs` | เลือกวิชาต่อรอบ (`subject_ids`) |
+| `smoke-phase11-carry-forward.mjs` (27 เคส) | วิชาที่ผ่านแล้วไม่ต้องกรอกซ้ำ, กันกรอกข้ามรุ่น, dashboard เลือกรอบที่เปิด |
+
+เช็คทั้ง happy path และ 401/403/404/409/400
 
 ⚠️ เทสเขียนข้อมูลจริงลง DB — รัน seed ใหม่ก่อนทุกครั้ง
 
