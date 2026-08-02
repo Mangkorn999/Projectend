@@ -1,6 +1,8 @@
 import * as roundsRepo from "./rounds.repository.js";
 import * as studentRepo from "../students/student.repository.js";
 import * as subjectsRepo from "../subjects/subjects.repository.js";
+import * as examRepo from "../examResults/examResults.repository.js";
+import { subjectsOfRound } from "../../utils/roundSubjects.js";
 
 // สร้าง Error พร้อม statusCode ให้ errorHandler จัดการต่อ
 const httpError = (message, statusCode) => {
@@ -34,8 +36,28 @@ export const getActive = async (req, res, next) => {
       throw err;
     }
 
-    const round = await roundsRepo.findActive();
-    res.json({ success: true, data: round });
+    // เฉพาะรอบของรุ่นตัวเอง — รุ่นอื่นเปิดรอบอยู่ก็ไม่เกี่ยวกับคนนี้
+    const round = await roundsRepo.findActive(student.academic_year);
+    if (!round) return res.json({ success: true, data: null });
+
+    // รอบนี้สอบวิชาไหนบ้าง + วิชาไหนที่นักศึกษาคนนี้ผ่านไปแล้วจากรอบก่อน
+    const allSubjects = await subjectsRepo.findAll();
+    const passedIds = await examRepo.findPassedSubjectIds(student.student_id);
+    const subjects = subjectsOfRound(round, allSubjects).map((s) => ({
+      ...s,
+      already_passed: passedIds.includes(s.subject_id),
+    }));
+
+    // แผ่ field ของ round ไว้ชั้นบนสุดเหมือนเดิม แล้วค่อยเติมของใหม่
+    // ถ้าย้ายไปซ้อนใน data.round หน้าเก่าที่อ่าน data.round_id จะพังหมด
+    res.json({
+      success: true,
+      data: {
+        ...round,
+        subjects,
+        all_passed: subjects.every((s) => s.already_passed),
+      },
+    });
   } catch (err) {
     next(err);
   }

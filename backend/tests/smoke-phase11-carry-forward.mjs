@@ -1,0 +1,226 @@
+// Carry-forward test: a subject already passed in an earlier round is not asked
+// again in the next round, and the backend stores it as passed anyway.
+// This test needs an OPEN round to exist, so it opens rounds one at a time and
+// closes them again at the end -- run it after the other smoke tests.
+const BASE = "http://localhost:3000";
+let failures = 0;
+
+const call = async (method, url, { token, body } = {}) => {
+  const headers = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  const res = await fetch(`${BASE}${url}`, {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const json = await res.json().catch(() => ({}));
+  return { status: res.status, json };
+};
+
+const check = (name, actual, expected) => {
+  const ok = JSON.stringify(actual) === JSON.stringify(expected);
+  if (!ok) failures++;
+  console.log(`${ok ? "PASS" : "FAIL"}  ${name}  -> ${JSON.stringify(actual)} (want ${JSON.stringify(expected)})`);
+};
+
+// A brand new student every run. Carry-forward looks at every round the student
+// has ever filled, so reusing the seeded account would inherit passes from the
+// previous run and the expected counts would drift.
+const STAMP = Date.now().toString().slice(-8);
+const STUDENT_ID = `991${STAMP}`;
+const OTHER_ID = `992${STAMP}`; // same run, different academic year
+const FIRST = "ทดสอบ";
+const LAST = "แครี่ฟอร์เวิร์ด";
+const PASSWORD = "carryfwd123";
+const YEAR = 2599; // far from seed data so it cannot collide with other tests
+const OTHER_YEAR = 2598;
+// window wide enough that the round counts as active while the test runs
+const NOW = { open_date: "2020-01-01", close_date: "2099-12-31" };
+
+const openRound = async (token, attempt, subjectIds) => {
+  const r = await call("POST", "/api/rounds", {
+    token,
+    body: { academic_year: YEAR, attempt_number: attempt, ...NOW, subject_ids: subjectIds },
+  });
+  if (r.status !== 200) throw new Error(`create round ${attempt} failed: ${JSON.stringify(r.json)}`);
+  const id = r.json.data.round_id;
+  await call("PUT", `/api/rounds/${id}`, { token, body: { status: "open" } });
+  return id;
+};
+
+// Add a student, give them a password, let them fill exam results, return their token.
+const addStudent = async (token, id, year, roomId) => {
+  const made = await call("POST", "/api/students", {
+    token,
+    body: {
+      student_id: id, first_name: FIRST, last_name: LAST,
+      email: `${id}@test.local`, phone: "0800000000",
+      room_id: roomId, academic_year: year,
+    },
+  });
+  check(`create student ${year} -> 201`, made.status, 201);
+
+  // imported accounts have no password yet, first-setup sets one
+  const setup = await call("POST", "/api/auth/first-setup", {
+    body: { student_id: id, first_name: FIRST, last_name: LAST, password: PASSWORD },
+  });
+  check(`first-setup ${year} -> 201`, setup.status, 201);
+
+  await call("PATCH", "/api/students/bulk-eligible", {
+    token, body: { student_ids: [id], exam_eligible: true },
+  });
+
+  const login = await call("POST", "/api/auth/login", {
+    body: { psu_passport_id: id, password: PASSWORD },
+  });
+  if (!login.json.token) { console.log(`student ${id} login failed:`, JSON.stringify(login.json)); process.exit(1); }
+  return login.json.token;
+};
+
+const main = async () => {
+  const officer = await call("POST", "/api/auth/login", {
+    body: { psu_passport_id: "456", password: "456" },
+  });
+  const oToken = officer.json.token;
+  if (!oToken) { console.log("officer login failed:", JSON.stringify(officer.json)); process.exit(1); }
+
+  const ids = (await call("GET", "/api/subjects", { token: oToken })).json.data.map((s) => s.subject_id);
+  if (ids.length < 8) { console.log("need >= 8 subjects, run seed first"); process.exit(1); }
+
+  const rooms = (await call("GET", "/api/rooms", { token: oToken })).json.data || [];
+  if (!rooms.length) { console.log("no rooms in db, run seed first"); process.exit(1); }
+
+  const sToken = await addStudent(oToken, STUDENT_ID, YEAR, rooms[0].room_id);
+  const otherToken = await addStudent(oToken, OTHER_ID, OTHER_YEAR, rooms[0].room_id);
+
+  // Only one round can be active at a time, and findActive() picks an arbitrary
+  // open one. Park any round that is already open so ours is the one found,
+  // then reopen them in the finally block.
+  const allRounds = (await call("GET", "/api/rounds", { token: oToken })).json.data || [];
+  const parked = allRounds.filter((r) => r.status === "open").map((r) => r.round_id);
+  for (const id of parked) {
+    await call("PUT", `/api/rounds/${id}`, { token: oToken, body: { status: "closed" } });
+  }
+
+  const created = [];
+  try {
+    // ---- round 1: tests 5 subjects, student passes the first 3 ----
+    const r1 = await openRound(oToken, 1, ids.slice(0, 5));
+    created.push(r1);
+
+    const active1 = await call("GET", "/api/rounds/active", { token: sToken });
+    check("round1 active -> 200", active1.status, 200);
+    check("  round1 offers 5 subjects", active1.json.data?.subjects?.length, 5);
+    check("  none passed yet", active1.json.data?.subjects?.filter((s) => s.already_passed).length, 0);
+    check("  all_passed false", active1.json.data?.all_passed, false);
+
+    // a round belongs to one intake -- other years must not see or fill it
+    const otherActive = await call("GET", "/api/rounds/active", { token: otherToken });
+    check("other-year student sees no round", otherActive.json.data, null);
+    const otherFill = await call("POST", "/api/exam-results", {
+      token: otherToken,
+      body: { subject_results: ids.slice(0, 5).map((id) => ({ subject_id: id, is_passed: true })) },
+    });
+    check("other-year student cannot fill -> 400", otherFill.status, 400);
+
+    // no round_id given -> dashboard must land on the round that is open,
+    // not merely the highest academic_year
+    const auto = await call("GET", "/api/dashboard/stats", { token: oToken });
+    check("dashboard default picks the open round", auto.json.data?.round?.round_id, r1);
+
+    // reject a subject that this round does not test
+    const outside = await call("POST", "/api/exam-results", {
+      token: sToken,
+      body: { subject_results: [{ subject_id: ids[7], is_passed: true }] },
+    });
+    check("subject outside round -> 400", outside.status, 400);
+
+    // reject a partial submission
+    const partial = await call("POST", "/api/exam-results", {
+      token: sToken,
+      body: { subject_results: ids.slice(0, 2).map((id) => ({ subject_id: id, is_passed: true })) },
+    });
+    check("incomplete submission -> 400", partial.status, 400);
+
+    // reject non-boolean is_passed ("false" would coerce to true)
+    const badType = await call("POST", "/api/exam-results", {
+      token: sToken,
+      body: { subject_results: ids.slice(0, 5).map((id) => ({ subject_id: id, is_passed: "false" })) },
+    });
+    check("is_passed not boolean -> 400", badType.status, 400);
+
+    const dup = await call("POST", "/api/exam-results", {
+      token: sToken,
+      body: {
+        subject_results: [
+          ...ids.slice(0, 5).map((id) => ({ subject_id: id, is_passed: true })),
+          { subject_id: ids[0], is_passed: false },
+        ],
+      },
+    });
+    check("duplicate subject -> 400", dup.status, 400);
+
+    const submit1 = await call("POST", "/api/exam-results", {
+      token: sToken,
+      body: {
+        subject_results: ids.slice(0, 5).map((id, i) => ({ subject_id: id, is_passed: i < 3 })),
+      },
+    });
+    check("round1 submit 5 subjects -> 200", submit1.status, 200);
+
+    const again = await call("POST", "/api/exam-results", {
+      token: sToken,
+      body: { subject_results: ids.slice(0, 5).map((id) => ({ subject_id: id, is_passed: true })) },
+    });
+    check("submit same round twice -> 409", again.status, 409);
+
+    await call("PUT", `/api/rounds/${r1}`, { token: oToken, body: { status: "closed" } });
+
+    // ---- round 2: tests 6 subjects, 3 of them already passed ----
+    const r2 = await openRound(oToken, 2, ids.slice(0, 6));
+    created.push(r2);
+
+    const active2 = await call("GET", "/api/rounds/active", { token: sToken });
+    check("round2 offers 6 subjects", active2.json.data?.subjects?.length, 6);
+    check("  3 marked already_passed", active2.json.data?.subjects?.filter((s) => s.already_passed).length, 3);
+    check("  all_passed false", active2.json.data?.all_passed, false);
+
+    // only the 3 unpassed subjects need answers now
+    const remaining = active2.json.data.subjects.filter((s) => !s.already_passed);
+    const submit2 = await call("POST", "/api/exam-results", {
+      token: sToken,
+      body: { subject_results: remaining.map((s) => ({ subject_id: s.subject_id, is_passed: true })) },
+    });
+    check("round2 submit only 3 subjects -> 200", submit2.status, 200);
+    check("  stored all 6 (carry-forward filled the rest)", submit2.json.data?.subject_results?.length, 6);
+    check("  every stored subject passed", submit2.json.data?.subject_results?.every((sr) => sr.is_passed), true);
+
+    // dashboard must score this round against its own 6 subjects, not all 8
+    const stats = await call("GET", `/api/dashboard/stats?round_id=${r2}`, { token: oToken });
+    check("dashboard stats -> 200", stats.status, 200);
+    check("  perSubject scoped to round", stats.json.data?.perSubject?.length, 6);
+    check("  fullyPassed counts the student", stats.json.data?.fullyPassed, 1);
+
+    await call("PUT", `/api/rounds/${r2}`, { token: oToken, body: { status: "closed" } });
+
+    // ---- round 3: every subject already passed -> nothing left to fill ----
+    const r3 = await openRound(oToken, 3, ids.slice(0, 4));
+    created.push(r3);
+    const active3 = await call("GET", "/api/rounds/active", { token: sToken });
+    check("round3 all_passed true", active3.json.data?.all_passed, true);
+  } finally {
+    // leave no open round behind, then put the DB back the way we found it
+    for (const id of created) {
+      await call("PUT", `/api/rounds/${id}`, { token: oToken, body: { status: "closed" } });
+    }
+    for (const id of parked) {
+      await call("PUT", `/api/rounds/${id}`, { token: oToken, body: { status: "open" } });
+    }
+  }
+
+  console.log(failures ? `\n${failures} FAILED` : "\nALL PASSED");
+  process.exit(failures ? 1 : 0);
+};
+
+main();

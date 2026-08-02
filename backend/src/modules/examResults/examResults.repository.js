@@ -34,6 +34,17 @@ export const findByStudentAndRound = (student_id, round_id) =>
     where: { student_id, round_id: Number(round_id) },
   });
 
+// วิชาที่นักศึกษาคนนี้เคยสอบผ่านมาแล้ว (จากทุกรอบที่เคยกรอก) — ไม่ต้องกรอกซ้ำอีก
+// ไม่ต้องกรองปี เพราะนักศึกษา 1 คนอยู่รุ่นเดียว รอบที่เคยกรอกคือรอบของรุ่นตัวเองอยู่แล้ว
+export const findPassedSubjectIds = async (student_id) => {
+  const rows = await prisma.subjectResult.findMany({
+    where: { is_passed: true, exam_result: { student_id } },
+    select: { subject_id: true },
+  });
+  // วิชาเดียวกันอาจผ่านซ้ำได้หลายรอบ (copy-forward) ตัดซ้ำออกก่อนคืน
+  return [...new Set(rows.map((r) => r.subject_id))];
+};
+
 // ฝั่งเจ้าหน้าที่ — ดูผลสอบทุกคน กรองได้ตามรอบ/สถานะ/นักศึกษา
 export const findAll = ({ round_id, staff_status, student_id } = {}) => {
   const where = {};

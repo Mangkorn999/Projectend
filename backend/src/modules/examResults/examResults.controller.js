@@ -2,6 +2,8 @@ import * as examRepo from "./examResults.repository.js";
 import { STUDENT_STATUS, STAFF_STATUS } from "./examResults.repository.js";
 import * as roundsRepo from "../rounds/rounds.repository.js";
 import * as studentRepo from "../students/student.repository.js";
+import * as subjectsRepo from "../subjects/subjects.repository.js";
+import { subjectsOfRound } from "../../utils/roundSubjects.js";
 
 const httpError = (message, statusCode) => {
   const err = new Error(message);
@@ -26,7 +28,9 @@ export const create = async (req, res, next) => {
       );
     }
 
-    const round = await roundsRepo.findActive();
+    // หารอบจากรุ่นของนักศึกษาเลย ไม่ใช่หารอบเปิดอันไหนก็ได้แล้วค่อยเช็คปีทีหลัง
+    // แบบนี้กรอกข้ามรุ่นไม่ได้ตั้งแต่ต้น ไม่ต้องมีเงื่อนไขกันเพิ่ม
+    const round = await roundsRepo.findActive(student.academic_year);
     if (!round) throw httpError("ขณะนี้ไม่มีรอบกรอกผลสอบที่เปิดอยู่", 400);
 
     const existing = await examRepo.findByStudentAndRound(
@@ -35,6 +39,41 @@ export const create = async (req, res, next) => {
     );
     if (existing) throw httpError("กรอกผลสอบรอบนี้ไปแล้ว", 409);
 
+    const allSubjects = await subjectsRepo.findAll();
+    const roundSubjectIds = subjectsOfRound(round, allSubjects).map(
+      (s) => s.subject_id,
+    );
+    const passedIds = await examRepo.findPassedSubjectIds(student.student_id);
+    // วิชาที่ยังต้องตอบจริงในรอบนี้ = วิชาของรอบ ลบวิชาที่เคยผ่านแล้ว
+    const mustAnswer = roundSubjectIds.filter((id) => !passedIds.includes(id));
+
+    // ตรวจของที่ส่งมาทีละรายการก่อน ไม่ปล่อยให้ค่าแปลกๆ ไหลลง DB
+    const answers = new Map();
+    for (const item of subject_results) {
+      const subjectId = Number(item?.subject_id);
+      if (!roundSubjectIds.includes(subjectId)) {
+        throw httpError("มีวิชาที่ไม่ได้อยู่ในรอบการกรอกนี้", 400);
+      }
+      // ต้องเป็น true/false จริงๆ ถ้าปล่อยผ่าน string "false" จะถูกแปลงเป็น true
+      if (typeof item.is_passed !== "boolean") {
+        throw httpError("ผลสอบแต่ละวิชาต้องเป็นผ่านหรือไม่ผ่านเท่านั้น", 400);
+      }
+      if (answers.has(subjectId)) throw httpError("ส่งวิชาซ้ำกัน", 400);
+      answers.set(subjectId, item.is_passed);
+    }
+
+    const missing = mustAnswer.filter((id) => !answers.has(id));
+    if (missing.length > 0) {
+      throw httpError(`กรอกผลไม่ครบ ยังขาดอีก ${missing.length} วิชา`, 400);
+    }
+
+    // เก็บให้ครบทุกวิชาของรอบเสมอ — วิชาที่เคยผ่านแล้วบันทึกต่อเป็นผ่านให้เลย (copy-forward)
+    // ไม่เชื่อค่าที่ client ส่งมาสำหรับวิชาพวกนี้ กันแก้ผลที่ผ่านไปแล้วให้กลายเป็นไม่ผ่าน
+    const finalResults = roundSubjectIds.map((id) => ({
+      subject_id: id,
+      is_passed: passedIds.includes(id) ? true : answers.get(id),
+    }));
+
     const result = await examRepo.createWithSubjects(
       {
         student_id: student.student_id,
@@ -42,7 +81,7 @@ export const create = async (req, res, next) => {
         student_status: STUDENT_STATUS.SUBMITTED,
         staff_status: STAFF_STATUS.PENDING,
       },
-      subject_results,
+      finalResults,
     );
 
     res.json({ success: true, data: result });

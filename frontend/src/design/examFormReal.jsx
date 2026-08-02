@@ -20,30 +20,40 @@ export function ExamFormReal({ go, toast }) {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    Promise.all([apiFetch('/subjects'), apiFetch('/rounds/active').catch(e => ({ __error: e }))])
-      .then(async ([subjectList, roundOrErr]) => {
-        setSubjects(subjectList);
-        if (roundOrErr && roundOrErr.__error) {
-          setBlocked(roundOrErr.__error.message); // 403 ยังไม่ได้รับสิทธิ์
-          return;
-        }
-        if (!roundOrErr) {
+    // /rounds/active คืนรอบพร้อมรายวิชาของรอบนั้นมาให้เลย (ไม่ใช่ทุกวิชาในระบบเสมอไป)
+    // แต่ละวิชามี already_passed บอกว่านักศึกษาคนนี้เคยสอบผ่านไปแล้วหรือยัง
+    apiFetch('/rounds/active')
+      .then(async (activeRound) => {
+        if (!activeRound) {
           setBlocked('ขณะนี้ไม่มีรอบกรอกผลสอบที่เปิดอยู่');
           return;
         }
-        setRound(roundOrErr);
+        setRound(activeRound);
+        setSubjects(activeRound.subjects || []);
+        if (activeRound.all_passed) {
+          setBlocked('ผ่านครบทุกวิชาที่รอบนี้สอบแล้ว ไม่ต้องกรอกอีก');
+          return;
+        }
         // เช็คว่ารอบนี้กรอกไปแล้วหรือยัง — กันเสีย submit ซ้ำ (backend ก็เช็คซ้ำอีกชั้นตอน POST อยู่แล้ว)
         const mine = await apiFetch('/exam-results/me');
-        if (mine.some(r => r.round_id === roundOrErr.round_id)) {
+        if (mine.some(r => r.round_id === activeRound.round_id)) {
           setBlocked('กรอกผลสอบรอบนี้ไปแล้ว ดูสถานะได้ที่หน้าสถานะการกรอก');
         }
       })
-      .catch(e => setError(e.message))
+      .catch(e => {
+        // 403 = ยังไม่ได้รับสิทธิ์ — เป็นเหตุผลที่กรอกไม่ได้ ไม่ใช่ระบบพัง
+        if (e instanceof ApiError) setBlocked(e.message);
+        else setError(e.message);
+      })
       .finally(() => setLoading(false));
   }, []);
 
-  const filled = Object.keys(results).length;
-  const allPass = subjects.length > 0 && subjects.every(s => results[s.subject_id] === true);
+  // วิชาที่เคยผ่านแล้วไม่ต้องกรอกซ้ำ backend เติมให้เป็น "ผ่าน" ตอนบันทึกเอง
+  const toAnswer = subjects.filter(s => !s.already_passed);
+  const passedBefore = subjects.filter(s => s.already_passed);
+
+  const filled = toAnswer.filter(s => results[s.subject_id] !== undefined).length;
+  const allPass = toAnswer.length > 0 && toAnswer.every(s => results[s.subject_id] === true);
 
   const submit = async () => {
     setSubmitting(true);
@@ -51,7 +61,7 @@ export function ExamFormReal({ go, toast }) {
     try {
       const data = await apiFetch('/exam-results', {
         method: 'POST',
-        body: { subject_results: subjects.map(s => ({ subject_id: s.subject_id, is_passed: results[s.subject_id] })) },
+        body: { subject_results: toAnswer.map(s => ({ subject_id: s.subject_id, is_passed: results[s.subject_id] })) },
       });
       const resultId = data.result_id;
       for (const [type, file] of Object.entries(files)) {
@@ -89,16 +99,25 @@ export function ExamFormReal({ go, toast }) {
           <div className="card" style={{ overflow: 'hidden' }}>
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--ink-100)' }}>
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>ผลสอบรายวิชา</h3>
-              <p style={{ margin: '3px 0 0', color: 'var(--ink-500)', fontSize: 13 }}>เลือกผ่าน/ไม่ผ่านให้ครบทุกวิชา</p>
+              <p style={{ margin: '3px 0 0', color: 'var(--ink-500)', fontSize: 13 }}>
+                เลือกผ่าน/ไม่ผ่านให้ครบทั้ง {toAnswer.length} วิชา
+                {passedBefore.length > 0 && ` (อีก ${passedBefore.length} วิชาผ่านไปแล้วจากรอบก่อน)`}
+              </p>
             </div>
             {subjects.map((s, i) => (
-              <div key={s.subject_id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px', borderBottom: i < subjects.length - 1 ? '1px solid var(--ink-100)' : 'none' }}>
+              <div key={s.subject_id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px',
+                borderBottom: i < subjects.length - 1 ? '1px solid var(--ink-100)' : 'none',
+                background: s.already_passed ? 'var(--ink-50, #fafafa)' : 'transparent' }}>
                 <span className="mono" style={{ fontSize: 12, color: 'var(--ink-400)', width: 60, flex: 'none' }}>{s.subject_code}</span>
-                <span style={{ flex: 1, fontSize: 14.5, fontWeight: 500, color: 'var(--ink-800)' }}>{s.subject_name}</span>
-                <div className="seg">
-                  <button className={results[s.subject_id] === true ? 'on pass' : ''} onClick={() => setResults(r => ({ ...r, [s.subject_id]: true }))}>ผ่าน</button>
-                  <button className={results[s.subject_id] === false ? 'on fail' : ''} onClick={() => setResults(r => ({ ...r, [s.subject_id]: false }))}>ไม่ผ่าน</button>
-                </div>
+                <span style={{ flex: 1, fontSize: 14.5, fontWeight: 500, color: s.already_passed ? 'var(--ink-500)' : 'var(--ink-800)' }}>{s.subject_name}</span>
+                {s.already_passed ? (
+                  <span className="badge ok" style={{ flex: 'none' }}><span className="dot" />ผ่านแล้วจากรอบก่อน</span>
+                ) : (
+                  <div className="seg">
+                    <button className={results[s.subject_id] === true ? 'on pass' : ''} onClick={() => setResults(r => ({ ...r, [s.subject_id]: true }))}>ผ่าน</button>
+                    <button className={results[s.subject_id] === false ? 'on fail' : ''} onClick={() => setResults(r => ({ ...r, [s.subject_id]: false }))}>ไม่ผ่าน</button>
+                  </div>
+                )}
               </div>
             ))}
             <style>{`.seg{display:inline-flex;background:var(--ink-100);border-radius:999px;padding:3px;gap:3px;flex:none;}
@@ -122,14 +141,14 @@ export function ExamFormReal({ go, toast }) {
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink-500)', marginBottom: 12 }}>ความคืบหน้า</div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
               <Donut size={130} thickness={16} segments={[
-                { value: Object.values(results).filter(v => v === true).length, color: 'var(--pass)' },
-                { value: Object.values(results).filter(v => v === false).length, color: 'var(--fail)' },
-                { value: subjects.length - filled, color: 'var(--ink-200)' },
-              ]} center={<><div className="tnum" style={{ fontSize: 26, fontWeight: 800 }}>{filled}/{subjects.length}</div><div style={{ fontSize: 11.5, color: 'var(--ink-500)' }}>กรอกแล้ว</div></>} />
+                { value: toAnswer.filter(s => results[s.subject_id] === true).length, color: 'var(--pass)' },
+                { value: toAnswer.filter(s => results[s.subject_id] === false).length, color: 'var(--fail)' },
+                { value: toAnswer.length - filled, color: 'var(--ink-200)' },
+              ]} center={<><div className="tnum" style={{ fontSize: 26, fontWeight: 800 }}>{filled}/{toAnswer.length}</div><div style={{ fontSize: 11.5, color: 'var(--ink-500)' }}>กรอกแล้ว</div></>} />
             </div>
             {error && <div style={{ color: 'var(--reject,#dc2626)', fontSize: 13, marginTop: 10 }}>{error}</div>}
             <button className="btn btn-primary btn-block btn-lg" style={{ marginTop: 14 }}
-              disabled={filled < subjects.length || submitting} onClick={submit}>
+              disabled={filled < toAnswer.length || submitting} onClick={submit}>
               {submitting ? 'กำลังส่ง…' : 'ส่งผลสอบ'} <Icon name="send" size={16} />
             </button>
           </div>
