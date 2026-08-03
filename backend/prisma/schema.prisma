@@ -146,6 +146,8 @@ model News {
   round_id   Int
   title      String          @db.VarChar(255)
   content    String
+  // รูปภาพประกอบ 1 รูป (ไม่บังคับ) — เก็บแค่ path ไฟล์จริงอยู่ที่ disk
+  image_path String?         @db.VarChar(255)
   posted_at  DateTime        @default(now())
   updated_at DateTime        @updatedAt
   poster     User            @relation("UserToNews", fields: [posted_by], references: [user_id])

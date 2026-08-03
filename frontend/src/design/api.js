@@ -60,6 +60,14 @@ export async function apiFetch(path, { method = 'GET', body, auth = true } = {})
   return json.data ?? json;
 }
 
+/** โหลดไฟล์ที่ต้อง auth header มาเป็น object URL — <img src> แนบ Authorization เองไม่ได้
+ *  ผู้เรียกต้อง URL.revokeObjectURL() เองตอนเลิกใช้ ไม่งั้น blob ค้างใน memory */
+export async function fetchAuthedObjectUrl(path) {
+  const res = await fetch(`${API_BASE}${path}`, { headers: { Authorization: `Bearer ${getToken()}` } });
+  if (!res.ok) throw new ApiError(`Request failed (${res.status})`, res.status);
+  return URL.createObjectURL(await res.blob());
+}
+
 /** เปิดไฟล์ (PDF) ที่ต้อง auth header ในแท็บใหม่ — ใช้กับ certificate/report ที่ดาวน์โหลดผ่าน <a href> ตรงๆ ไม่ได้ */
 export async function openAuthedFile(path, filename) {
   const res = await fetch(`${API_BASE}${path}`, { headers: { Authorization: `Bearer ${getToken()}` } });

@@ -37,3 +37,43 @@ export const uploadPdf = multer({
   fileFilter,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
 });
+
+// ─── รูปภาพประกอบข่าว/ประกาศ ────────────────────────────
+const NEWS_IMAGE_DIR = path.resolve("uploads/news");
+
+// รับได้ทุกขนาดภาพ (เจ้าหน้าที่แนบภาพจากมือถือ/สแกนมาขนาดไม่เท่ากัน) — จำกัดแค่ขนาดไฟล์
+const IMAGE_EXT = {
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+  "image/gif": ".gif",
+};
+
+const imageStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    try {
+      fs.mkdirSync(NEWS_IMAGE_DIR, { recursive: true });
+      cb(null, NEWS_IMAGE_DIR);
+    } catch (err) {
+      cb(err);
+    }
+  },
+  filename: (req, file, cb) => {
+    // ตั้งชื่อเองเหมือนฝั่ง PDF — กันชื่อซ้ำและ path traversal จากชื่อไฟล์เดิม
+    const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    cb(null, `${unique}${IMAGE_EXT[file.mimetype] ?? ".img"}`);
+  },
+});
+
+export const uploadImage = multer({
+  storage: imageStorage,
+  fileFilter: (req, file, cb) => {
+    if (!IMAGE_EXT[file.mimetype]) {
+      const err = new Error("รับเฉพาะไฟล์รูปภาพ (JPG, PNG, WebP, GIF)");
+      err.statusCode = 400;
+      return cb(err);
+    }
+    cb(null, true);
+  },
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+});

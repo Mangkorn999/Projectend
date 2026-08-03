@@ -1,4 +1,6 @@
 // เรียก repository.js
+import fs from "fs/promises";
+import path from "path";
 import * as newsRepo from "./news.repository.js";
 
 // helper สร้าง error ให้ errorHandler จัดการต่อ
@@ -65,7 +67,72 @@ export const deleteNews = async (req, res, next) => {
     if (!existing) throw httpError("ไม่พบประกาศ", 404);
 
     await newsRepo.remove(req.params.id);
+    // ลบไฟล์รูปตามไปด้วย ไม่งั้นเหลือไฟล์กำพร้าค้างที่ disk ไปเรื่อยๆ
+    await removeImageFile(existing.image_path);
     res.json({ success: true, data: null });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─── รูปภาพประกอบประกาศ ──────────────────────────────
+// เก็บเป็น / เสมอ ไม่ผูกกับ path separator ของ Windows
+const toStoredPath = (absolutePath) =>
+  path.relative(process.cwd(), absolutePath).split(path.sep).join("/");
+
+const removeImageFile = async (storedPath) => {
+  if (storedPath) await fs.rm(path.resolve(storedPath), { force: true });
+};
+
+// POST /api/news/:id/image — แนบ/เปลี่ยนรูปของประกาศ (1 ประกาศ = 1 รูป)
+export const uploadNewsImage = async (req, res, next) => {
+  try {
+    if (!req.file) throw httpError("ไม่พบไฟล์ที่อัปโหลด (field: image)", 400);
+
+    const existing = await newsRepo.findById(req.params.id);
+    if (!existing) {
+      await fs.rm(req.file.path, { force: true });
+      throw httpError("ไม่พบประกาศ", 404);
+    }
+
+    const news = await newsRepo.update(existing.news_id, {
+      image_path: toStoredPath(req.file.path),
+    });
+    // เปลี่ยนรูปใหม่แล้ว รูปเก่าไม่มีใครอ้างถึงอีก ลบทิ้ง
+    await removeImageFile(existing.image_path);
+
+    res.json({ success: true, data: news });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// DELETE /api/news/:id/image — เอารูปออกจากประกาศ
+export const deleteNewsImage = async (req, res, next) => {
+  try {
+    const existing = await newsRepo.findById(req.params.id);
+    if (!existing) throw httpError("ไม่พบประกาศ", 404);
+    if (!existing.image_path) throw httpError("ประกาศนี้ไม่มีรูปภาพ", 400);
+
+    const news = await newsRepo.update(existing.news_id, { image_path: null });
+    await removeImageFile(existing.image_path);
+
+    res.json({ success: true, data: news });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// GET /api/news/:id/image — ส่งไฟล์รูปจริง (ทุก role ที่ login แล้วดูได้ เหมือนตัวประกาศ)
+export const serveNewsImage = async (req, res, next) => {
+  try {
+    const existing = await newsRepo.findById(req.params.id);
+    if (!existing?.image_path) throw httpError("ไม่พบรูปของประกาศนี้", 404);
+
+    res.sendFile(path.resolve(existing.image_path), (err) => {
+      // ไฟล์หายจาก disk (ลบทิ้งนอกระบบ) — ตอบ 404 แทน error ดิบของ Express
+      if (err && !res.headersSent) next(httpError("ไม่พบไฟล์บน server", 404));
+    });
   } catch (err) {
     next(err);
   }
