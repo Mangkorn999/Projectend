@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
 import { PageHead, Donut, PassBadge, StatusBadge, Empty } from './components.jsx';
 import { apiFetch } from './api.js';
+import { t, subjectName } from './i18n.js';
 
 const STAFF_STATUS_TO_BADGE = { pending: 'SUBMITTED', approved: 'CONFIRMED', rejected: 'REJECTED' };
 
@@ -19,16 +20,17 @@ function useMyResults() {
   return { results, error };
 }
 
-export function StudentStatusReal({ go }) {
+export function StudentStatusReal({ go, lang }) {
   const { results, error } = useMyResults();
+  const tt = (key, vars) => t(lang, key, vars);
 
-  if (error) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--reject,#dc2626)' }}>โหลดข้อมูลไม่สำเร็จ: {error}</div>;
-  if (!results) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>กำลังโหลดข้อมูล…</div>;
+  if (error) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--reject,#dc2626)' }}>{tt('statuspage.loadFailPrefix', { msg: error })}</div>;
+  if (!results) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
 
   if (results.length === 0) return (
     <div className="fade-up">
-      <PageHead title="สถานะการกรอก" actions={<button className="btn btn-ghost" onClick={() => go('history')}><Icon name="history" size={17} /> ดูประวัติ</button>} />
-      <Empty icon="edit" title="ยังไม่เคยกรอกผลสอบ" sub="ไปที่เมนู 'กรอกผลสอบ' เพื่อเริ่มกรอก" />
+      <PageHead title={tt('statuspage.title')} actions={<button className="btn btn-ghost" onClick={() => go('history')}><Icon name="history" size={17} /> {tt('statuspage.historyBtn')}</button>} />
+      <Empty icon="edit" title={tt('statuspage.emptyTitle')} sub={tt('statuspage.emptySub')} />
     </div>
   );
 
@@ -39,36 +41,36 @@ export function StudentStatusReal({ go }) {
   const submittedAt = new Date(latest.submitted_at).toLocaleString('th-TH');
 
   const timeline = [
-    { label: 'ส่งผลสอบ', date: submittedAt, done: true },
-    { label: 'เจ้าหน้าที่ตรวจสอบ', date: status === 'SUBMITTED' ? 'กำลังดำเนินการ' : (latest.confirmed_at ? new Date(latest.confirmed_at).toLocaleString('th-TH') : '—'), active: status === 'SUBMITTED', done: status !== 'SUBMITTED' },
-    { label: status === 'REJECTED' ? 'ถูกตีกลับ' : 'ยืนยันผล', date: status === 'CONFIRMED' ? 'เสร็จสมบูรณ์' : status === 'REJECTED' ? (latest.remark || '—') : 'รอผลตรวจสอบ', done: status === 'CONFIRMED' || status === 'REJECTED' },
+    { label: tt('statuspage.timeline.0'), date: submittedAt, done: true },
+    { label: tt('statuspage.timeline.1'), date: status === 'SUBMITTED' ? tt('statuspage.inProgress') : (latest.confirmed_at ? new Date(latest.confirmed_at).toLocaleString('th-TH') : '—'), active: status === 'SUBMITTED', done: status !== 'SUBMITTED' },
+    { label: status === 'REJECTED' ? tt('status.REJECTED') : tt('statuspage.confirmLabel'), date: status === 'CONFIRMED' ? tt('statuspage.completedLabel') : status === 'REJECTED' ? (latest.remark || '—') : tt('statuspage.waitResultLabel'), done: status === 'CONFIRMED' || status === 'REJECTED' },
   ];
 
   return (
     <div className="fade-up">
-      <PageHead title="สถานะการกรอก" sub={`รอบที่ ${latest.round.attempt_number}/${latest.round.academic_year}`}
-        actions={<button className="btn btn-ghost" onClick={() => go('history')}><Icon name="history" size={17} /> ดูประวัติ</button>} />
+      <PageHead title={tt('statuspage.title')} sub={tt('news.roundSlash', { attempt: latest.round.attempt_number, year: latest.round.academic_year })}
+        actions={<button className="btn btn-ghost" onClick={() => go('history')}><Icon name="history" size={17} /> {tt('statuspage.historyBtn')}</button>} />
       <div className="row wrap-m" style={{ alignItems: 'flex-start' }}>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div className="card" style={{ padding: '22px 24px', borderLeft: `4px solid ${status === 'REJECTED' ? 'var(--status-reject-dot)' : status === 'CONFIRMED' ? 'var(--status-ok-dot)' : 'var(--status-wait-dot)'}` }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
               <div>
-                <div style={{ fontSize: 13.5, color: 'var(--ink-500)', fontWeight: 600, marginBottom: 8 }}>สถานะปัจจุบัน</div>
-                <StatusBadge status={status} size="lg" />
-                <div style={{ fontSize: 13, color: 'var(--ink-500)', marginTop: 10 }}>ส่งเมื่อ {submittedAt}</div>
+                <div style={{ fontSize: 13.5, color: 'var(--ink-500)', fontWeight: 600, marginBottom: 8 }}>{tt('statuspage.currentStatus')}</div>
+                <StatusBadge status={status} size="lg" lang={lang} />
+                <div style={{ fontSize: 13, color: 'var(--ink-500)', marginTop: 10 }}>{tt('statuspage.submittedNote', { date: submittedAt })}</div>
                 {status === 'REJECTED' && latest.remark && <div style={{ marginTop: 10, padding: '10px 13px', background: 'var(--status-reject-bg)', borderRadius: 10, fontSize: 13, color: 'var(--status-reject-fg)' }}>{latest.remark}</div>}
               </div>
               <Donut size={104} thickness={13} segments={[{ value: passed, color: 'var(--pass)' }, { value: total - passed, color: 'var(--fail)' }]}
-                center={<><div className="tnum" style={{ fontSize: 21, fontWeight: 800 }}>{passed}/{total}</div><div style={{ fontSize: 10.5, color: 'var(--ink-500)' }}>ผ่าน</div></>} />
+                center={<><div className="tnum" style={{ fontSize: 21, fontWeight: 800 }}>{passed}/{total}</div><div style={{ fontSize: 10.5, color: 'var(--ink-500)' }}>{tt('progress.legendPass')}</div></>} />
             </div>
           </div>
           <div className="card card-pad">
-            <h3 style={{ margin: '0 0 14px', fontSize: 16, fontWeight: 800 }}>สรุปผลรายวิชา</h3>
+            <h3 style={{ margin: '0 0 14px', fontSize: 16, fontWeight: 800 }}>{tt('statuspage.subjectSummaryTitle')}</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
               {latest.subject_results.map(s => (
                 <div key={s.subject_result_id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '9px 13px', background: '#fff', border: '1px solid var(--ink-200)', borderRadius: 9 }}>
-                  <span style={{ fontSize: 13, color: 'var(--ink-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.subject.subject_name}</span>
-                  <PassBadge passed={s.is_passed} />
+                  <span style={{ fontSize: 13, color: 'var(--ink-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subjectName(lang, s.subject.subject_code, s.subject.subject_name)}</span>
+                  <PassBadge passed={s.is_passed} lang={lang} />
                 </div>
               ))}
             </div>
@@ -76,7 +78,7 @@ export function StudentStatusReal({ go }) {
         </div>
         <div style={{ width: 300, flex: 'none' }} className="exam-aside">
           <div className="card card-pad">
-            <h3 style={{ margin: '0 0 16px', fontSize: 15, fontWeight: 800 }}>ไทม์ไลน์</h3>
+            <h3 style={{ margin: '0 0 16px', fontSize: 15, fontWeight: 800 }}>{tt('statuspage.timelineTitle')}</h3>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               {timeline.map((tl, i) => (
                 <div key={i} style={{ display: 'flex', gap: 12 }}>
@@ -101,29 +103,30 @@ export function StudentStatusReal({ go }) {
   );
 }
 
-export function StudentHistoryReal({ go }) {
+export function StudentHistoryReal({ go, lang }) {
   const { results, error } = useMyResults();
+  const tt = (key, vars) => t(lang, key, vars);
 
-  if (error) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--reject,#dc2626)' }}>โหลดข้อมูลไม่สำเร็จ: {error}</div>;
-  if (!results) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>กำลังโหลดข้อมูล…</div>;
+  if (error) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--reject,#dc2626)' }}>{tt('statuspage.loadFailPrefix', { msg: error })}</div>;
+  if (!results) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
 
   return (
     <div className="fade-up">
-      <PageHead title="ประวัติการกรอกผลสอบ" sub={`ทั้งหมด ${results.length} รอบ`} />
+      <PageHead title={tt('historypage.title')} sub={tt('historypage.totalRounds', { n: results.length })} />
       <div className="card" style={{ overflow: 'hidden' }}>
-        {results.length === 0 ? <Empty icon="history" title="ยังไม่มีประวัติการกรอก" /> : (
+        {results.length === 0 ? <Empty icon="history" title={tt('historypage.emptyTitle')} /> : (
           <div style={{ overflowX: 'auto' }}>
             <table className="tbl">
-              <thead><tr><th>รอบ</th><th>วันที่ส่ง</th><th>ผลสอบ</th><th>สถานะ</th></tr></thead>
+              <thead><tr><th>{tt('historypage.colRound')}</th><th>{tt('historypage.colDate')}</th><th>{tt('historypage.colResult')}</th><th>{tt('historypage.colStatus')}</th></tr></thead>
               <tbody>
                 {results.map(r => {
                   const passed = r.subject_results.filter(s => s.is_passed).length;
                   return (
                     <tr key={r.result_id}>
-                      <td style={{ fontWeight: 700 }}>รอบที่ {r.round.attempt_number}/{r.round.academic_year}</td>
+                      <td style={{ fontWeight: 700 }}>{tt('historypage.roundSlash', { attempt: r.round.attempt_number, year: r.round.academic_year })}</td>
                       <td style={{ color: 'var(--ink-600)' }}>{new Date(r.submitted_at).toLocaleDateString('th-TH')}</td>
                       <td><span className="tnum" style={{ fontWeight: 700, color: passed === r.subject_results.length ? 'var(--pass)' : 'var(--ink-800)' }}>{passed}/{r.subject_results.length}</span></td>
-                      <td><StatusBadge status={STAFF_STATUS_TO_BADGE[r.staff_status]} /></td>
+                      <td><StatusBadge status={STAFF_STATUS_TO_BADGE[r.staff_status]} lang={lang} /></td>
                     </tr>
                   );
                 })}

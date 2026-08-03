@@ -26,23 +26,25 @@ export function Avatar({ name, size = 38, bg }) {
   return <span className="avatar" style={{ width:size, height:size, fontSize:size*0.42, background:bg }}>{init}</span>;
 }
 
-/* ---- Mock notifications per role ---- */
-const NOTIFS = {
-  officer: [
-    { icon:'checkCircle', tone:'wait', title:'มีนักศึกษาส่งผลสอบใหม่รอตรวจสอบ', sub:'6 รายการ · รอบ 1/2569', time:'10 นาทีที่แล้ว' },
-    { icon:'clock', tone:'reject', title:'รอบการกรอกใกล้ปิดรับสมัครแล้ว', sub:'รอบ 1/2569 · ปิดรับใน 4 วัน', time:'2 ชม. ที่แล้ว' },
-  ],
-  student: [
-    { icon:'xCircle', tone:'reject', title:'ผลสอบของคุณถูกตีกลับ', sub:'เอกสารหลักฐานไม่ชัดเจน กรุณาแก้ไขและส่งใหม่', time:'1 ชม. ที่แล้ว' },
-    { icon:'clock', tone:'wait', title:'รอบการกรอกใกล้ปิดรับสมัครแล้ว', sub:'รอบ 1/2569 · ปิดรับใน 4 วัน', time:'5 ชม. ที่แล้ว' },
-  ],
-  executive: [
-    { icon:'report', tone:'ok', title:'รายงานสรุปผลสอบรอบ 1/2569 พร้อมแล้ว', sub:'ยืนยันผลครบ 60 คน จาก 120 คน', time:'30 นาทีที่แล้ว' },
-  ],
-};
+/* ---- Notifications per role ---- */
+// mock data เดิม (ยังไม่มี backend endpoint จริง) — ปิดไว้ก่อน ให้ dropdown โชว์ empty state แทน
+// const NOTIFS = {
+//   officer: [
+//     { icon:'checkCircle', tone:'wait', title:'มีนักศึกษาส่งผลสอบใหม่รอตรวจสอบ', sub:'6 รายการ · รอบ 1/2569', time:'10 นาทีที่แล้ว' },
+//     { icon:'clock', tone:'reject', title:'รอบการกรอกใกล้ปิดรับสมัครแล้ว', sub:'รอบ 1/2569 · ปิดรับใน 4 วัน', time:'2 ชม. ที่แล้ว' },
+//   ],
+//   student: [
+//     { icon:'xCircle', tone:'reject', title:'ผลสอบของคุณถูกตีกลับ', sub:'เอกสารหลักฐานไม่ชัดเจน กรุณาแก้ไขและส่งใหม่', time:'1 ชม. ที่แล้ว' },
+//     { icon:'clock', tone:'wait', title:'รอบการกรอกใกล้ปิดรับสมัครแล้ว', sub:'รอบ 1/2569 · ปิดรับใน 4 วัน', time:'5 ชม. ที่แล้ว' },
+//   ],
+//   executive: [
+//     { icon:'report', tone:'ok', title:'รายงานสรุปผลสอบรอบ 1/2569 พร้อมแล้ว', sub:'ยืนยันผลครบ 60 คน จาก 120 คน', time:'30 นาทีที่แล้ว' },
+//   ],
+// };
+const NOTIFS = {};
 
 /* ---- App shell: TopBar ---- */
-export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=3, lang='TH', setLang }) {
+export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=0, lang='TH', setLang }) {
   const [open, setOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   return (

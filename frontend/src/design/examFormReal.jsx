@@ -8,8 +8,10 @@ import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
 import { PageHead, Donut, PassBadge } from './components.jsx';
 import { apiFetch, ApiError } from './api.js';
+import { t, subjectName } from './i18n.js';
 
-export function ExamFormReal({ go, toast }) {
+export function ExamFormReal({ go, toast, lang }) {
+  const tt = (key, vars) => t(lang, key, vars);
   const [subjects, setSubjects] = useState([]);
   const [round, setRound] = useState(null);
   const [blocked, setBlocked] = useState(''); // ข้อความเหตุผลที่กรอกไม่ได้ (ไม่มีสิทธิ์/ไม่มีรอบ/กรอกไปแล้ว)
@@ -26,13 +28,13 @@ export function ExamFormReal({ go, toast }) {
     apiFetch('/rounds/active')
       .then(async (activeRound) => {
         if (!activeRound) {
-          setBlocked('ขณะนี้ไม่มีรอบกรอกผลสอบที่เปิดอยู่');
+          setBlocked(tt('examform.noActiveRound'));
           return;
         }
         setRound(activeRound);
         setSubjects(activeRound.subjects || []);
         if (activeRound.all_passed) {
-          setBlocked('ผ่านครบทุกวิชาที่รอบนี้สอบแล้ว ไม่ต้องกรอกอีก');
+          setBlocked(tt('examform.allPassedRound'));
           return;
         }
         // เช็คว่ารอบนี้กรอกไปแล้วหรือยัง — กันเสีย submit ซ้ำ (backend ก็เช็คซ้ำอีกชั้นตอน POST อยู่แล้ว)
@@ -40,7 +42,7 @@ export function ExamFormReal({ go, toast }) {
         const mine = await apiFetch('/exam-results/me');
         const inRound = mine.find(r => r.round_id === activeRound.round_id);
         if (inRound && inRound.staff_status === 'rejected') setRejected(inRound);
-        else if (inRound) setBlocked('กรอกผลสอบรอบนี้ไปแล้ว ดูสถานะได้ที่หน้าสถานะการกรอก');
+        else if (inRound) setBlocked(tt('examform.alreadySubmittedRound'));
       })
       .catch(e => {
         // 403 = ยังไม่ได้รับสิทธิ์ — เป็นเหตุผลที่กรอกไม่ได้ ไม่ใช่ระบบพัง
@@ -72,20 +74,20 @@ export function ExamFormReal({ go, toast }) {
         form.append('certificate_type', type === 'EXAM' ? 'exam_result' : 'license');
         await apiFetch(`/exam-results/${resultId}/certificates`, { method: 'POST', body: form });
       }
-      toast('ส่งผลสอบสำเร็จ รอเจ้าหน้าที่ตรวจสอบ', 'success');
+      toast(tt('examform.submitSuccessToast'), 'success');
       go('status');
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'ส่งผลสอบไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : tt('examform.submitFailMsg'));
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (loading) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>กำลังโหลดข้อมูล…</div>;
-  if (error) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--reject,#dc2626)' }}>เกิดข้อผิดพลาด: {error}</div>;
+  if (loading) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
+  if (error) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--reject,#dc2626)' }}>{tt('examform.errorPrefix', { msg: error })}</div>;
   if (blocked) return (
     <div className="fade-up">
-      <PageHead title="กรอกผลสอบ" />
+      <PageHead title={tt('nav.student.form')} />
       <div className="card card-pad" style={{ maxWidth: 520, textAlign: 'center', padding: 40 }}>
         <Icon name="info" size={34} style={{ color: 'var(--navy-600)', marginBottom: 12 }} />
         <p style={{ color: 'var(--ink-700)', fontSize: 14.5 }}>{blocked}</p>
@@ -95,20 +97,20 @@ export function ExamFormReal({ go, toast }) {
 
   return (
     <div className="fade-up">
-      <PageHead title={rejected ? 'แก้ไขและส่งผลสอบใหม่' : 'กรอกผลสอบ'}
-        sub={round ? `รอบที่ ${round.attempt_number}/${round.academic_year}` : ''} />
+      <PageHead title={rejected ? tt('examform.editTitle') : tt('nav.student.form')}
+        sub={round ? tt('news.roundSlash', { attempt: round.attempt_number, year: round.academic_year }) : ''} />
 
       {rejected && (
         <div className="card card-pad" style={{ marginBottom: 18, borderLeft: '4px solid var(--status-reject-dot)' }}>
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
             <Icon name="xCircle" size={19} style={{ color: 'var(--status-reject-dot)', flex: 'none', marginTop: 1 }} />
             <div>
-              <div style={{ fontWeight: 700, fontSize: 14.5, marginBottom: 3 }}>ผลสอบที่ส่งไปถูกตีกลับ</div>
+              <div style={{ fontWeight: 700, fontSize: 14.5, marginBottom: 3 }}>{tt('examform.rejectedTitle')}</div>
               <p style={{ margin: 0, fontSize: 13.5, color: 'var(--ink-700)' }}>
-                {rejected.remark || 'เจ้าหน้าที่ไม่ได้ระบุเหตุผล กรุณาติดต่อเจ้าหน้าที่คณะ'}
+                {rejected.remark || tt('examform.rejectedDefaultReason')}
               </p>
               <p style={{ margin: '6px 0 0', fontSize: 12.5, color: 'var(--ink-500)' }}>
-                กรอกใหม่แล้วส่งอีกครั้ง ระบบจะแทนที่ผลเดิมและกลับไปรอเจ้าหน้าที่ตรวจ
+                {tt('examform.rejectedResubmitNote')}
               </p>
             </div>
           </div>
@@ -119,10 +121,10 @@ export function ExamFormReal({ go, toast }) {
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div className="card" style={{ overflow: 'hidden' }}>
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--ink-100)' }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>ผลสอบรายวิชา</h3>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>{tt('examform.subjectsTitle')}</h3>
               <p style={{ margin: '3px 0 0', color: 'var(--ink-500)', fontSize: 13 }}>
-                เลือกผ่าน/ไม่ผ่านให้ครบทั้ง {toAnswer.length} วิชา
-                {passedBefore.length > 0 && ` (อีก ${passedBefore.length} วิชาผ่านไปแล้วจากรอบก่อน)`}
+                {tt('examform.fillCountNote', { n: toAnswer.length })}
+                {passedBefore.length > 0 && tt('examform.passedBeforeNote', { n: passedBefore.length })}
               </p>
             </div>
             {subjects.map((s, i) => (
@@ -130,13 +132,13 @@ export function ExamFormReal({ go, toast }) {
                 borderBottom: i < subjects.length - 1 ? '1px solid var(--ink-100)' : 'none',
                 background: s.already_passed ? 'var(--ink-50, #fafafa)' : 'transparent' }}>
                 <span className="mono" style={{ fontSize: 12, color: 'var(--ink-400)', width: 60, flex: 'none' }}>{s.subject_code}</span>
-                <span style={{ flex: 1, fontSize: 14.5, fontWeight: 500, color: s.already_passed ? 'var(--ink-500)' : 'var(--ink-800)' }}>{s.subject_name}</span>
+                <span style={{ flex: 1, fontSize: 14.5, fontWeight: 500, color: s.already_passed ? 'var(--ink-500)' : 'var(--ink-800)' }}>{subjectName(lang, s.subject_code, s.subject_name)}</span>
                 {s.already_passed ? (
-                  <span className="badge ok" style={{ flex: 'none' }}><span className="dot" />ผ่านแล้วจากรอบก่อน</span>
+                  <span className="badge ok" style={{ flex: 'none' }}><span className="dot" />{tt('examform.alreadyPassedChip')}</span>
                 ) : (
                   <div className="seg">
-                    <button className={results[s.subject_id] === true ? 'on pass' : ''} onClick={() => setResults(r => ({ ...r, [s.subject_id]: true }))}>ผ่าน</button>
-                    <button className={results[s.subject_id] === false ? 'on fail' : ''} onClick={() => setResults(r => ({ ...r, [s.subject_id]: false }))}>ไม่ผ่าน</button>
+                    <button className={results[s.subject_id] === true ? 'on pass' : ''} onClick={() => setResults(r => ({ ...r, [s.subject_id]: true }))}>{tt('pass.true')}</button>
+                    <button className={results[s.subject_id] === false ? 'on fail' : ''} onClick={() => setResults(r => ({ ...r, [s.subject_id]: false }))}>{tt('pass.false')}</button>
                   </div>
                 )}
               </div>
@@ -148,29 +150,29 @@ export function ExamFormReal({ go, toast }) {
           </div>
 
           <div className="card card-pad">
-            <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800 }}>แนบเอกสารหลักฐาน (PDF)</h3>
-            <p style={{ margin: '0 0 16px', color: 'var(--ink-500)', fontSize: 13 }}>{allPass ? 'ผ่านครบทุกวิชา — แนบทั้งใบผลสอบและใบประกอบวิชาชีพ' : 'แนบใบผลสอบ (ใบประกอบวิชาชีพแนบได้เมื่อผ่านครบทุกวิชา)'}</p>
+            <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800 }}>{tt('examform.attachTitle')}</h3>
+            <p style={{ margin: '0 0 16px', color: 'var(--ink-500)', fontSize: 13 }}>{allPass ? tt('upload.allPassNote') : tt('upload.partialNote')}</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <FileSlot label="ใบผลสอบ" file={files.EXAM} onChange={f => setFiles(x => ({ ...x, EXAM: f }))} />
-              {allPass && <FileSlot label="ใบประกอบวิชาชีพ" file={files.LICENSE} onChange={f => setFiles(x => ({ ...x, LICENSE: f }))} />}
+              <FileSlot label={tt('upload.examLabel')} file={files.EXAM} onChange={f => setFiles(x => ({ ...x, EXAM: f }))} tt={tt} />
+              {allPass && <FileSlot label={tt('upload.licenseLabel')} file={files.LICENSE} onChange={f => setFiles(x => ({ ...x, LICENSE: f }))} tt={tt} />}
             </div>
           </div>
         </div>
 
         <div style={{ width: 260, flex: 'none' }}>
           <div className="card card-pad" style={{ position: 'sticky', top: 84 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink-500)', marginBottom: 12 }}>ความคืบหน้า</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink-500)', marginBottom: 12 }}>{tt('progress.title')}</div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
               <Donut size={130} thickness={16} segments={[
                 { value: toAnswer.filter(s => results[s.subject_id] === true).length, color: 'var(--pass)' },
                 { value: toAnswer.filter(s => results[s.subject_id] === false).length, color: 'var(--fail)' },
                 { value: toAnswer.length - filled, color: 'var(--ink-200)' },
-              ]} center={<><div className="tnum" style={{ fontSize: 26, fontWeight: 800 }}>{filled}/{toAnswer.length}</div><div style={{ fontSize: 11.5, color: 'var(--ink-500)' }}>กรอกแล้ว</div></>} />
+              ]} center={<><div className="tnum" style={{ fontSize: 26, fontWeight: 800 }}>{filled}/{toAnswer.length}</div><div style={{ fontSize: 11.5, color: 'var(--ink-500)' }}>{tt('progress.filled')}</div></>} />
             </div>
             {error && <div style={{ color: 'var(--reject,#dc2626)', fontSize: 13, marginTop: 10 }}>{error}</div>}
             <button className="btn btn-primary btn-block btn-lg" style={{ marginTop: 14 }}
               disabled={filled < toAnswer.length || submitting} onClick={submit}>
-              {submitting ? 'กำลังส่ง…' : rejected ? 'ส่งผลสอบใหม่' : 'ส่งผลสอบ'} <Icon name="send" size={16} />
+              {submitting ? tt('common.submitting') : rejected ? tt('examform.resubmitBtn') : tt('review.submitBtn')} <Icon name="send" size={16} />
             </button>
           </div>
         </div>
@@ -179,16 +181,16 @@ export function ExamFormReal({ go, toast }) {
   );
 }
 
-function FileSlot({ label, file, onChange }) {
+function FileSlot({ label, file, onChange, tt }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', border: '1px dashed var(--ink-300)', borderRadius: 11 }}>
       <Icon name="pdf" size={22} style={{ color: file ? 'var(--pass)' : 'var(--ink-400)', flex: 'none' }} />
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 13.5, fontWeight: 600 }}>{label}</div>
-        <div style={{ fontSize: 12, color: 'var(--ink-500)' }}>{file ? file.name : 'ยังไม่ได้แนบไฟล์'}</div>
+        <div style={{ fontSize: 12, color: 'var(--ink-500)' }}>{file ? file.name : tt('common.noFileYet')}</div>
       </div>
       <label className="btn btn-ghost btn-sm" style={{ cursor: 'pointer' }}>
-        เลือกไฟล์
+        {tt('common.selectFile')}
         <input type="file" accept="application/pdf" style={{ display: 'none' }} onChange={e => onChange(e.target.files?.[0] || null)} />
       </label>
     </div>
