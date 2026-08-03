@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
 import { PageHead, Avatar, StatusBadge } from './components.jsx';
 import { apiFetch } from './api.js';
+import { t } from './i18n.js';
 
 // แปลง staff_status จาก backend (pending/approved/rejected) → status key ที่ StatusBadge เข้าใจ
 const STAFF_STATUS_TO_BADGE = {
@@ -14,7 +15,8 @@ const STAFF_STATUS_TO_BADGE = {
   rejected: 'REJECTED',
 };
 
-export function OfficerStudentsReal({ go, setSel }) {
+export function OfficerStudentsReal({ go, setSel, lang }) {
+  const tt = (key, vars) => t(lang, key, vars);
   const [students, setStudents] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -70,31 +72,31 @@ export function OfficerStudentsReal({ go, setSel }) {
 
   useEffect(() => setPage(0), [q, status, room]);
 
-  if (loading) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>กำลังโหลดข้อมูล…</div>;
-  if (error) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--reject,#dc2626)' }}>โหลดข้อมูลไม่สำเร็จ: {error}</div>;
+  if (loading) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
+  if (error) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--reject,#dc2626)' }}>{tt('statuspage.loadFailPrefix', { msg: error })}</div>;
 
   return (
     <div className="fade-up">
-      <PageHead title="ข้อมูลนักศึกษา" sub={`พบ ${filtered.length} จาก ${students.length} คน`} />
+      <PageHead title={tt('officer.students.title')} sub={tt('officer.students.sub', { found: filtered.length, total: students.length })} />
 
       <div className="card" style={{ padding: 14, marginBottom: 18, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ position: 'relative', flex: '1 1 240px' }}>
           <Icon name="search" size={18} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--ink-400)' }} />
-          <input className="input" placeholder="ค้นหาชื่อ หรือ รหัสนักศึกษา…" value={q} onChange={e => setQ(e.target.value)} style={{ paddingLeft: 40 }} />
+          <input className="input" placeholder={tt('officer.students.searchPh')} value={q} onChange={e => setQ(e.target.value)} style={{ paddingLeft: 40 }} />
         </div>
         <select className="select" style={{ width: 'auto', minWidth: 150 }} value={status} onChange={e => setStatus(e.target.value)}>
-          <option value="ALL">ทุกสถานะ</option><option value="SUBMITTED">รอตรวจสอบ</option>
-          <option value="CONFIRMED">ยืนยันแล้ว</option><option value="REJECTED">ถูกตีกลับ</option><option value="DRAFT">ยังไม่กรอก</option>
+          <option value="ALL">{tt('officer.students.allStatus')}</option><option value="SUBMITTED">{tt('status.SUBMITTED')}</option>
+          <option value="CONFIRMED">{tt('status.CONFIRMED')}</option><option value="REJECTED">{tt('status.REJECTED')}</option><option value="DRAFT">{tt('status.DRAFT')}</option>
         </select>
         <select className="select" style={{ width: 'auto', minWidth: 120 }} value={room} onChange={e => setRoom(e.target.value)}>
-          <option value="ALL">ทุกห้อง</option>{rooms.map(r => <option key={r} value={r}>{r}</option>)}
+          <option value="ALL">{tt('officer.students.allRoom')}</option>{rooms.map(r => <option key={r} value={r}>{r}</option>)}
         </select>
       </div>
 
       <div className="card" style={{ overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
           <table className="tbl">
-            <thead><tr><th>นักศึกษา</th><th>ห้อง</th><th>ผลสอบ</th><th>สถานะ</th><th>ส่งเมื่อ</th><th></th></tr></thead>
+            <thead><tr><th>{tt('officer.students.colStudent')}</th><th>{tt('officer.students.colRoom')}</th><th>{tt('officer.students.colResult')}</th><th>{tt('officer.students.colStatus')}</th><th>{tt('officer.students.colSubmitted')}</th><th></th></tr></thead>
             <tbody>
               {pageRows.map(s => (
                 <tr key={s.sid} className="clickable" onClick={() => { setSel(s); go('detail'); }}>
@@ -104,7 +106,7 @@ export function OfficerStudentsReal({ go, setSel }) {
                   <td><span className="chip" style={{ fontSize: 12 }}>{s.room}</span></td>
                   <td>{s.status === 'DRAFT' ? <span style={{ color: 'var(--ink-400)' }}>—</span> :
                     <span className="tnum" style={{ fontWeight: 700, color: s.allPass ? 'var(--pass)' : 'var(--ink-800)' }}>{s.passedCount}/8</span>}</td>
-                  <td><StatusBadge status={s.status} /></td>
+                  <td><StatusBadge status={s.status} lang={lang} /></td>
                   <td style={{ color: 'var(--ink-500)', fontSize: 13 }}>{s.submittedAt || '—'}</td>
                   <td style={{ textAlign: 'right' }}><Icon name="chevR" size={18} style={{ color: 'var(--ink-300)' }} /></td>
                 </tr>
@@ -113,10 +115,10 @@ export function OfficerStudentsReal({ go, setSel }) {
           </table>
         </div>
         {pages > 1 && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', borderTop: '1px solid var(--ink-100)' }}>
-          <span style={{ fontSize: 13, color: 'var(--ink-500)' }}>หน้า {page + 1} จาก {pages}</span>
+          <span style={{ fontSize: 13, color: 'var(--ink-500)' }}>{tt('officer.students.pageInfo', { page: page + 1, pages })}</span>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-ghost btn-sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}><Icon name="chevL" size={15} /> ก่อนหน้า</button>
-            <button className="btn btn-ghost btn-sm" disabled={page >= pages - 1} onClick={() => setPage(p => p + 1)}>ถัดไป <Icon name="chevR" size={15} /></button>
+            <button className="btn btn-ghost btn-sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}><Icon name="chevL" size={15} /> {tt('officer.students.prevBtn')}</button>
+            <button className="btn btn-ghost btn-sm" disabled={page >= pages - 1} onClick={() => setPage(p => p + 1)}>{tt('officer.students.nextBtn')} <Icon name="chevR" size={15} /></button>
           </div>
         </div>}
       </div>

@@ -45,7 +45,7 @@ const NAV = (lang)=>({
     { k:'dashboard', label:translate(lang,'nav.officer.dashboard'), icon:'grid' },
     { k:'review', label:translate(lang,'nav.officer.review'), icon:'checkCircle', badge:'29' },
     { k:'students', label:translate(lang,'nav.officer.students'), icon:'users' },
-    { k:'import', label:'นำเข้ารายชื่อนักศึกษา', icon:'upload' },
+    { k:'import', label:translate(lang,'nav.officer.import'), icon:'upload' },
     { section:translate(lang,'nav.section.manage') },
     { k:'rounds', label:translate(lang,'nav.officer.rounds'), icon:'calendar' },
     { k:'usermgmt', label:translate(lang,'nav.officer.usermgmt'), icon:'shield' },
@@ -108,28 +108,28 @@ export function App() {
 
   const render = ()=>{
     if(role==='student'){
-      if(page==='news') return <StudentNewsReal go={go} />;
+      if(page==='news') return <StudentNewsReal go={go} lang={lang} />;
       if(page==='formIntro') return <FormIntro go={go} lang={lang} />;
-      if(page==='form') return <ExamFormReal go={go} toast={showToast} />;
-      if(page==='status') return <StudentStatusReal go={go} />;
-      if(page==='history') return <StudentHistoryReal go={go} />;
+      if(page==='form') return <ExamFormReal go={go} toast={showToast} lang={lang} />;
+      if(page==='status') return <StudentStatusReal go={go} lang={lang} />;
+      if(page==='history') return <StudentHistoryReal go={go} lang={lang} />;
     }
     if(role==='officer'){
-      if(page==='dashboard') return <DashboardReal go={go} />;
-      if(page==='review') return <OfficerReviewReal go={go} setSel={setSel} />;
-      if(page==='students') return <OfficerStudentsReal go={go} setSel={setSel} />;
-      if(page==='import') return <StudentImport toast={showToast} />;
-      if(page==='detail') return <StudentDetailReal student={sel} go={go} toast={showToast} />;
-      if(page==='rounds') return <ManageRoundsSubjectsReal toast={showToast} />;
-      if(page==='usermgmt') return <ManageUsersReal toast={showToast} currentUserId={currentUser?.id} />;
-      if(page==='newsmgmt') return <ManageNewsReal toast={showToast} />;
-      if(page==='reports') return <ReportsReal toast={showToast} />;
+      if(page==='dashboard') return <DashboardReal go={go} lang={lang} />;
+      if(page==='review') return <OfficerReviewReal go={go} setSel={setSel} lang={lang} />;
+      if(page==='students') return <OfficerStudentsReal go={go} setSel={setSel} lang={lang} />;
+      if(page==='import') return <StudentImport toast={showToast} lang={lang} />;
+      if(page==='detail') return <StudentDetailReal student={sel} go={go} toast={showToast} lang={lang} />;
+      if(page==='rounds') return <ManageRoundsSubjectsReal toast={showToast} lang={lang} />;
+      if(page==='usermgmt') return <ManageUsersReal toast={showToast} currentUserId={currentUser?.id} lang={lang} />;
+      if(page==='newsmgmt') return <ManageNewsReal toast={showToast} lang={lang} />;
+      if(page==='reports') return <ReportsReal toast={showToast} lang={lang} />;
     }
     if(role==='executive'){
-      if(page==='dashboard') return <DashboardReal go={go} readonly />;
-      if(page==='students') return <OfficerStudentsReal go={go} setSel={setSel} />;
-      if(page==='detail') return <StudentDetailReal student={sel} go={go} toast={showToast} readonly />;
-      if(page==='reports') return <ReportsReal toast={showToast} readonly />;
+      if(page==='dashboard') return <DashboardReal go={go} readonly lang={lang} />;
+      if(page==='students') return <OfficerStudentsReal go={go} setSel={setSel} lang={lang} />;
+      if(page==='detail') return <StudentDetailReal student={sel} go={go} toast={showToast} readonly lang={lang} />;
+      if(page==='reports') return <ReportsReal toast={showToast} readonly lang={lang} />;
     }
     return <Empty title="ไม่พบหน้าที่ต้องการ" />;
   };
