@@ -31,6 +31,17 @@ export const findActive = (academicYear) => {
 
 export const create = (data) => prisma.submissionRound.create({ data });
 
+// จำนวนผลสอบที่ผูกกับรอบนี้ — ใช้กันลบรอบที่นักศึกษากรอกไปแล้ว
+export const countExamResults = (id) =>
+  prisma.examResult.count({ where: { round_id: Number(id) } });
+
+// จำนวนข่าว/ประกาศที่อ้างรอบนี้ — ลบรอบทิ้งจะทำให้ประกาศชี้ไปที่ว่าง
+export const countNews = (id) =>
+  prisma.news.count({ where: { round_id: Number(id) } });
+
+export const remove = (id) =>
+  prisma.submissionRound.delete({ where: { round_id: Number(id) } });
+
 export const update = (id, data) =>
   prisma.submissionRound.update({
     where: { round_id: Number(id) },
