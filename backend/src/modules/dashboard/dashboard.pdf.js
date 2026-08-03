@@ -57,15 +57,17 @@ export const buildReportPdf = (stats, rows, res) => {
   doc.font("th-bold").fontSize(14).text("สรุปภาพรวม");
   doc.moveDown(0.4);
   doc.font("th").fontSize(11);
+  // % ทุกตัวต้องบอกด้วยว่าหารด้วยอะไร ไม่งั้นคนอ่านรายงานจะเอาไปเทียบกับตัวเลขผิดตัว
   const summary = [
-    ["นักศึกษาทั้งหมด", `${stats.total} คน`],
-    ["ส่งผลสอบแล้ว", `${stats.submitted} คน (${stats.fillRate}%)`],
+    ["นักศึกษาทั้งรุ่น", `${stats.total} คน`],
+    ["เปิดสิทธิ์กรอกแล้ว", `${stats.eligible} คน`],
+    ["ส่งผลสอบแล้ว", `${stats.submitted} คน (${stats.fillRate}% ของคนที่กรอกได้)`],
     ["ยังไม่เริ่มกรอก", `${stats.not_started} คน`],
     ["รอตรวจ", `${stats.by.submitted} คน`],
     ["ยืนยันแล้ว", `${stats.by.approved} คน`],
     ["ตีกลับ", `${stats.by.rejected} คน`],
-    ["ผ่านครบทุกวิชา", `${stats.fullyPassed} คน`],
-    ["อัตราสอบผ่านรวม", `${stats.overallPassRate}%`],
+    ["ผ่านครบทุกวิชา", `${stats.fullyPassed} คน (${stats.fullyPassedRate}% ของคนที่ส่ง)`],
+    ["อัตราผ่านเฉลี่ยรายวิชา", `${stats.subjectPassRate}%`],
   ];
   summary.forEach(([label, value]) => {
     doc.text(`${label} : ${value}`, 50);
