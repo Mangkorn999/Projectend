@@ -57,7 +57,7 @@ export function DashboardReal({ go, readonly }) {
         sub={`${roundLabel(round)} · นักศึกษารุ่น ${round.academic_year} ทั้งหมด ${total} คน เปิดสิทธิ์กรอกแล้ว ${eligible} คน`}
         actions={<>
           <select className="input" value={roundId} onChange={e => setRoundId(e.target.value)}
-            style={{ minWidth: 200, height: 40 }} aria-label="เลือกรอบการกรอกผลสอบ">
+            style={{ minWidth: 200 }} aria-label="เลือกรอบการกรอกผลสอบ">
             <option value="">รอบที่เปิดรับอยู่</option>
             {rounds.map(r => <option key={r.round_id} value={r.round_id}>{roundLabel(r)}</option>)}
           </select>

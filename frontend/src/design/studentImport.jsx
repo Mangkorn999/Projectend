@@ -318,7 +318,7 @@ function ManualAdd({ toast }) {
   };
 
   return (
-    <div className="card" style={{ padding:0, maxWidth:560, overflow:'hidden' }}>
+    <div className="card" style={{ padding:0, maxWidth:680, overflow:'hidden' }}>
       <div style={{ display:'flex', alignItems:'center', gap:12, padding:'18px 22px',
         borderBottom:'1px solid var(--ink-100)', background:'var(--ink-50)' }}>
         <div style={{ width:38, height:38, borderRadius:10, flex:'none', background:'var(--gold-100)',
@@ -331,54 +331,85 @@ function ManualAdd({ toast }) {
         </div>
       </div>
 
-      <div style={{ padding:22 }}>
-        <div className="field" style={{ marginBottom:14 }}>
-          <label>รหัสนักศึกษา (student_id)</label>
-          <input className="input" value={form.student_id} onChange={set('student_id')} placeholder="6610210001" />
-        </div>
-        <div className="grid g-2" style={{ marginBottom:14 }}>
-          <div className="field">
-            <label>ชื่อจริง</label>
-            <input className="input" value={form.first_name} onChange={set('first_name')} />
+      <div style={{ padding:'20px 24px 4px' }}>
+        <FormSection title="ข้อมูลนักศึกษา">
+          <div className="grid g-2">
+            <div className="field">
+              <label>รหัสนักศึกษา <Req /></label>
+              <input className="input mono" value={form.student_id} onChange={set('student_id')} placeholder="6610210001" />
+            </div>
+            <div className="field">
+              <label>ปีการศึกษา (พ.ศ.) <Req /></label>
+              <input className="input tnum" type="number" value={form.academic_year} onChange={set('academic_year')} placeholder="2568" />
+            </div>
+          </div>
+          <div className="grid g-2">
+            <div className="field">
+              <label>ชื่อจริง <Req /></label>
+              <input className="input" value={form.first_name} onChange={set('first_name')} placeholder="สมชาย" />
+            </div>
+            <div className="field">
+              <label>นามสกุล <Req /></label>
+              <input className="input" value={form.last_name} onChange={set('last_name')} placeholder="ใจดี" />
+            </div>
           </div>
           <div className="field">
-            <label>นามสกุล</label>
-            <input className="input" value={form.last_name} onChange={set('last_name')} />
-          </div>
-        </div>
-        <div className="field" style={{ marginBottom:14 }}>
-          <label>อีเมล</label>
-          <input className="input" type="email" value={form.email} onChange={set('email')} placeholder="6610210001@psu.ac.th" />
-        </div>
-        <div className="field" style={{ marginBottom:14 }}>
-          <label>เบอร์โทร</label>
-          <input className="input" value={form.phone} onChange={set('phone')} placeholder="0812345678" />
-        </div>
-        <div className="grid g-2" style={{ marginBottom:8 }}>
-          <div className="field">
-            <label>ห้องเรียน</label>
+            <label>ห้องเรียน <Req /></label>
             <select className="select" value={form.room_id} onChange={set('room_id')} disabled={loadingRooms}>
               <option value="">{loadingRooms ? 'กำลังโหลด…' : '— เลือกห้องเรียน —'}</option>
               {rooms.map(r => <option key={r.room_id} value={r.room_id}>{r.room_name}</option>)}
             </select>
+            {!loadingRooms && rooms.length === 0 && (
+              <span className="hint" style={{ color:'var(--status-wait-fg)' }}>
+                ยังไม่มีห้องเรียนในระบบ — ติดต่อผู้ดูแลระบบให้เพิ่มห้องเรียนก่อน
+              </span>
+            )}
           </div>
-          <div className="field">
-            <label>ปีการศึกษา (พ.ศ.)</label>
-            <input className="input" type="number" value={form.academic_year} onChange={set('academic_year')} placeholder="2568" />
+        </FormSection>
+
+        <FormSection title="ข้อมูลติดต่อ">
+          <div className="grid g-2">
+            <div className="field">
+              <label>อีเมล <Req /></label>
+              <input className="input" type="email" value={form.email} onChange={set('email')} placeholder="6610210001@psu.ac.th" />
+            </div>
+            <div className="field">
+              <label>เบอร์โทร <Req /></label>
+              <input className="input tnum" value={form.phone} onChange={set('phone')} placeholder="0812345678" />
+            </div>
           </div>
-        </div>
-        {!loadingRooms && rooms.length === 0 && (
-          <div style={{ color:'var(--status-wait-fg)', background:'var(--status-wait-bg)',
-            borderRadius:9, padding:'9px 12px', fontSize:12.5, marginBottom:14 }}>
-            ยังไม่มีห้องเรียนในระบบ — ติดต่อผู้ดูแลระบบให้เพิ่มห้องเรียนก่อน
+        </FormSection>
+
+        {error && (
+          <div role="alert" style={{ display:'flex', gap:9, alignItems:'flex-start', color:'var(--status-reject-fg)',
+            background:'var(--status-reject-bg)', borderRadius:9, padding:'10px 13px', fontSize:13, marginBottom:16 }}>
+            <Icon name="xCircle" size={16} style={{ flex:'none', marginTop:1 }} />
+            <span>{error}</span>
           </div>
         )}
-        {error && <div style={{ color:'var(--status-reject-fg)', background:'var(--status-reject-bg)',
-          borderRadius:9, padding:'9px 12px', fontSize:13, marginBottom:14 }}>{error}</div>}
-        <button className="btn btn-primary btn-block" onClick={submit} disabled={saving}>
-          {saving ? 'กำลังบันทึก…' : 'เพิ่มนักศึกษา'}
+      </div>
+
+      <div style={{ display:'flex', gap:10, justifyContent:'flex-end', alignItems:'center', padding:'14px 24px',
+        borderTop:'1px solid var(--ink-100)', background:'var(--ink-50)' }}>
+        <span style={{ marginRight:'auto', fontSize:12.5, color:'var(--ink-500)' }}><Req /> จำเป็นต้องกรอก</span>
+        <button className="btn btn-ghost" onClick={()=>{ setForm(EMPTY_FORM); setError(''); }} disabled={saving}>ล้างฟอร์ม</button>
+        <button className="btn btn-primary" onClick={submit} disabled={saving}>
+          <Icon name="plus" size={16} /> {saving ? 'กำลังบันทึก…' : 'เพิ่มนักศึกษา'}
         </button>
       </div>
+    </div>
+  );
+}
+
+const Req = () => <span style={{ color:'var(--status-reject-fg)' }} aria-hidden="true">*</span>;
+
+// หัวข้อกลุ่ม field — ฟอร์มยาว 7 ช่องรวดเดียวอ่านยาก แบ่งเป็นกลุ่มให้กวาดตาเจอเร็วขึ้น
+function FormSection({ title, children }) {
+  return (
+    <div style={{ marginBottom:18 }}>
+      <div style={{ fontSize:12, fontWeight:700, letterSpacing:'.04em', textTransform:'uppercase',
+        color:'var(--ink-500)', marginBottom:10 }}>{title}</div>
+      <div style={{ display:'flex', flexDirection:'column', gap:14 }}>{children}</div>
     </div>
   );
 }

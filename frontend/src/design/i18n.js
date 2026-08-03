@@ -26,8 +26,6 @@ const DICT = {
     'role.executive': 'ผู้บริหารคณะ',
     'role.admin': 'ผู้ดูแลระบบ',
 
-    'sidebar.footerPrefix': 'เข้าใช้งานในบทบาท',
-
     'nav.student.news': 'ข่าวสาร / ประกาศ',
     'nav.student.form': 'กรอกผลสอบ',
     'nav.student.status': 'สถานะการกรอก',
@@ -418,8 +416,6 @@ const DICT = {
     'role.officer': 'Faculty Officer',
     'role.executive': 'Faculty Executive',
     'role.admin': 'Administrator',
-
-    'sidebar.footerPrefix': 'Signed in as',
 
     'nav.student.news': 'News / Announcements',
     'nav.student.form': 'Submit Exam Results',

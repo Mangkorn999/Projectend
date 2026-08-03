@@ -22,6 +22,7 @@ export function OfficerStudentsReal({ go, setSel }) {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('ALL');
   const [room, setRoom] = useState('ALL');
+  const [year, setYear] = useState('ALL');
   const [page, setPage] = useState(0);
   const per = 10;
 
@@ -62,13 +63,17 @@ export function OfficerStudentsReal({ go, setSel }) {
   const filtered = students.filter(s => {
     if (status !== 'ALL' && s.status !== status) return false;
     if (room !== 'ALL' && s.room !== room) return false;
+    if (year !== 'ALL' && String(s.year) !== year) return false;
     if (q && !(`${s.firstName}${s.lastName}${s.sid}`.includes(q))) return false;
     return true;
   });
   const pageRows = filtered.slice(page * per, (page + 1) * per);
   const pages = Math.ceil(filtered.length / per);
 
-  useEffect(() => setPage(0), [q, status, room]);
+  useEffect(() => setPage(0), [q, status, room, year]);
+
+  // ปีการศึกษา (พ.ศ.) ของนักศึกษาที่มีจริงในระบบ เรียงใหม่→เก่า
+  const years = [...new Set(students.map(s => s.year).filter(Boolean))].sort((a, b) => b - a);
 
   if (loading) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>กำลังโหลดข้อมูล…</div>;
   if (error) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--reject,#dc2626)' }}>โหลดข้อมูลไม่สำเร็จ: {error}</div>;
@@ -89,12 +94,15 @@ export function OfficerStudentsReal({ go, setSel }) {
         <select className="select" style={{ width: 'auto', minWidth: 120 }} value={room} onChange={e => setRoom(e.target.value)}>
           <option value="ALL">ทุกห้อง</option>{rooms.map(r => <option key={r} value={r}>{r}</option>)}
         </select>
+        <select className="select" style={{ width: 'auto', minWidth: 130 }} value={year} onChange={e => setYear(e.target.value)}>
+          <option value="ALL">ทุกปีการศึกษา</option>{years.map(y => <option key={y} value={String(y)}>ปี {y}</option>)}
+        </select>
       </div>
 
       <div className="card" style={{ overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
           <table className="tbl">
-            <thead><tr><th>นักศึกษา</th><th>ห้อง</th><th>ผลสอบ</th><th>สถานะ</th><th>ส่งเมื่อ</th><th></th></tr></thead>
+            <thead><tr><th>นักศึกษา</th><th>ห้อง</th><th>ปีการศึกษา</th><th>ผลสอบ</th><th>สถานะ</th><th>ส่งเมื่อ</th><th></th></tr></thead>
             <tbody>
               {pageRows.map(s => (
                 <tr key={s.sid} className="clickable" onClick={() => { setSel(s); go('detail'); }}>
@@ -102,6 +110,7 @@ export function OfficerStudentsReal({ go, setSel }) {
                     <div><div style={{ fontWeight: 600, fontSize: 14 }}>{s.firstName} {s.lastName}</div>
                     <div className="mono" style={{ fontSize: 12, color: 'var(--ink-400)' }}>{s.sid}</div></div></div></td>
                   <td><span className="chip" style={{ fontSize: 12 }}>{s.room}</span></td>
+                  <td className="tnum" style={{ fontSize: 13, color: 'var(--ink-700)' }}>{s.year || '—'}</td>
                   <td>{s.status === 'DRAFT' ? <span style={{ color: 'var(--ink-400)' }}>—</span> :
                     <span className="tnum" style={{ fontWeight: 700, color: s.allPass ? 'var(--pass)' : 'var(--ink-800)' }}>{s.passedCount}/8</span>}</td>
                   <td><StatusBadge status={s.status} /></td>
