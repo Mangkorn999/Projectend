@@ -126,7 +126,7 @@ export function App() {
     if(role==='officer'){
       if(page==='dashboard') return <DashboardReal go={go} lang={lang} />;
       if(page==='review') return <OfficerReviewReal go={go} setSel={setSel} lang={lang} />;
-      if(page==='students') return <OfficerStudentsReal go={go} setSel={setSel} lang={lang} />;
+      if(page==='students') return <OfficerStudentsReal go={go} setSel={setSel} toast={showToast} lang={lang} />;
       if(page==='import') return <StudentImport toast={showToast} lang={lang} />;
       if(page==='detail') return <StudentDetailReal student={sel} go={go} toast={showToast} lang={lang} />;
       if(page==='rounds') return <ManageRoundsSubjectsReal toast={showToast} lang={lang} />;
@@ -136,7 +136,7 @@ export function App() {
     }
     if(role==='executive'){
       if(page==='dashboard') return <DashboardReal go={go} readonly lang={lang} />;
-      if(page==='students') return <OfficerStudentsReal go={go} setSel={setSel} lang={lang} />;
+      if(page==='students') return <OfficerStudentsReal go={go} setSel={setSel} toast={showToast} readonly lang={lang} />;
       if(page==='detail') return <StudentDetailReal student={sel} go={go} toast={showToast} readonly lang={lang} />;
       if(page==='reports') return <ReportsReal toast={showToast} readonly lang={lang} />;
     }
