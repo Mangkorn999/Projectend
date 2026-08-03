@@ -175,6 +175,42 @@ const main = async () => {
     });
     check("submit same round twice -> 409", again.status, 409);
 
+    // ---- rejected results must be fixable, that is the point of rejecting ----
+    const resultId = submit1.json.data.result_id;
+    const rejected = await call("PATCH", `/api/exam-results/${resultId}/reject`, {
+      token: oToken, body: { remark: "เอกสารไม่ชัด" },
+    });
+    check("officer rejects -> 200", rejected.status, 200);
+
+    // send the same 3-pass/2-fail spread again: the later rounds below expect
+    // exactly 3 carried-forward passes
+    const redo = await call("POST", "/api/exam-results", {
+      token: sToken,
+      body: {
+        subject_results: ids.slice(0, 5).map((id, i) => ({ subject_id: id, is_passed: i < 3 })),
+      },
+    });
+    check("resubmit after reject -> 200", redo.status, 200);
+    check("  updates the same row", redo.json.data?.result_id, resultId);
+    check("  back to pending", redo.json.data?.staff_status, "pending");
+    check("  reject remark cleared", redo.json.data?.remark, null);
+    check("  confirmer cleared", redo.json.data?.confirmed_by, null);
+    check("  old marks replaced, not appended", redo.json.data?.subject_results?.length, 5);
+    check("  marks still 3 pass / 2 fail", redo.json.data?.subject_results?.filter((s) => s.is_passed).length, 3);
+
+    const redoAgain = await call("POST", "/api/exam-results", {
+      token: sToken,
+      body: { subject_results: ids.slice(0, 5).map((id) => ({ subject_id: id, is_passed: true })) },
+    });
+    check("resubmit while pending -> 409", redoAgain.status, 409);
+
+    await call("PATCH", `/api/exam-results/${resultId}/approve`, { token: oToken });
+    const afterApprove = await call("POST", "/api/exam-results", {
+      token: sToken,
+      body: { subject_results: ids.slice(0, 5).map((id) => ({ subject_id: id, is_passed: true })) },
+    });
+    check("resubmit after approve -> 409", afterApprove.status, 409);
+
     await call("PUT", `/api/rounds/${r1}`, { token: oToken, body: { status: "closed" } });
 
     // ---- round 2: tests 6 subjects, 3 of them already passed ----

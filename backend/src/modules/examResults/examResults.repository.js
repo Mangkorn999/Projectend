@@ -85,6 +85,28 @@ export const findById = (result_id) =>
     include: withDetails,
   });
 
+// ส่งใหม่หลังโดนตีกลับ — ทับผลรายวิชาชุดเดิม แล้วกลับไปเข้าคิวรอตรวจ
+// ล้าง remark กับคนที่เคยตรวจทิ้ง ไม่งั้นใบที่แก้แล้วยังติดเหตุผลตีกลับรอบก่อนค้างอยู่
+export const resubmitWithSubjects = (result_id, subjectResults) =>
+  prisma.examResult.update({
+    where: { result_id: Number(result_id) },
+    data: {
+      staff_status: STAFF_STATUS.PENDING,
+      remark: null,
+      confirmed_by: null,
+      confirmed_at: null,
+      submitted_at: new Date(),
+      subject_results: {
+        deleteMany: {}, // ลบของเดิมทั้งชุดก่อน แล้วค่อยใส่ชุดใหม่
+        create: subjectResults.map((s) => ({
+          subject_id: Number(s.subject_id),
+          is_passed: Boolean(s.is_passed),
+        })),
+      },
+    },
+    include: withDetails,
+  });
+
 // สร้าง exam_result + subject_results พร้อมกันใน transaction เดียว
 // (nested create ของ Prisma เป็น transaction ให้อยู่แล้ว)
 export const createWithSubjects = (

@@ -37,7 +37,9 @@ export const create = async (req, res, next) => {
       student.student_id,
       round.round_id,
     );
-    if (existing) throw httpError("กรอกผลสอบรอบนี้ไปแล้ว", 409);
+    // ใบที่ถูกตีกลับให้ส่งทับได้ — การตีกลับมีไว้ให้แก้แล้วส่งใหม่ ถ้าปิดไว้นักศึกษาจะค้างอยู่ตรงนั้น
+    const isRedo = existing?.staff_status === STAFF_STATUS.REJECTED;
+    if (existing && !isRedo) throw httpError("กรอกผลสอบรอบนี้ไปแล้ว", 409);
 
     const allSubjects = await subjectsRepo.findAll();
     const roundSubjectIds = subjectsOfRound(round, allSubjects).map(
@@ -74,15 +76,17 @@ export const create = async (req, res, next) => {
       is_passed: passedIds.includes(id) ? true : answers.get(id),
     }));
 
-    const result = await examRepo.createWithSubjects(
-      {
-        student_id: student.student_id,
-        round_id: round.round_id,
-        student_status: STUDENT_STATUS.SUBMITTED,
-        staff_status: STAFF_STATUS.PENDING,
-      },
-      finalResults,
-    );
+    const result = isRedo
+      ? await examRepo.resubmitWithSubjects(existing.result_id, finalResults)
+      : await examRepo.createWithSubjects(
+          {
+            student_id: student.student_id,
+            round_id: round.round_id,
+            student_status: STUDENT_STATUS.SUBMITTED,
+            staff_status: STAFF_STATUS.PENDING,
+          },
+          finalResults,
+        );
 
     res.json({ success: true, data: result });
   } catch (err) {

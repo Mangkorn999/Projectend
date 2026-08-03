@@ -173,6 +173,10 @@ src/modules/subjects/
 
 **เงื่อนไข `POST /api/exam-results`:** ต้องมี `exam_eligible = true` → ต้องมีรอบเปิดของรุ่นตัวเอง → กรอกซ้ำรอบเดิมไม่ได้ (409)
 
+**ยกเว้นใบที่ถูกตีกลับ** — `staff_status: "rejected"` ส่งทับได้ (ใช้ `result_id` เดิม ลบผลรายวิชาชุดเก่าทิ้ง
+กลับเป็น `pending` ล้าง `remark`/`confirmed_by`/`confirmed_at`). ถ้าปิดตรงนี้ไว้ ปุ่ม "ตีกลับ" จะใช้ไม่ได้จริง
+เพราะนักศึกษาแก้ตามที่เจ้าหน้าที่บอกแล้วส่งกลับไม่ได้ — `pending`/`approved` ยังคง 409 เหมือนเดิม
+
 body: `{ "subject_results": [{ "subject_id": 1, "is_passed": true }, ... ] }`
 
 **ส่งเฉพาะวิชาที่ยังไม่ผ่าน** — วิชาที่ `already_passed` ไม่ต้องส่งมา backend เติมเป็น "ผ่าน" ให้เอง (copy-forward)

@@ -13,6 +13,7 @@ export function ExamFormReal({ go, toast }) {
   const [subjects, setSubjects] = useState([]);
   const [round, setRound] = useState(null);
   const [blocked, setBlocked] = useState(''); // ข้อความเหตุผลที่กรอกไม่ได้ (ไม่มีสิทธิ์/ไม่มีรอบ/กรอกไปแล้ว)
+  const [rejected, setRejected] = useState(null); // ใบที่ถูกตีกลับ ต้องกรอกใหม่ทับของเดิม
   const [results, setResults] = useState({}); // { [subject_id]: true|false }
   const [files, setFiles] = useState({}); // { EXAM: File, LICENSE: File }
   const [loading, setLoading] = useState(true);
@@ -35,10 +36,11 @@ export function ExamFormReal({ go, toast }) {
           return;
         }
         // เช็คว่ารอบนี้กรอกไปแล้วหรือยัง — กันเสีย submit ซ้ำ (backend ก็เช็คซ้ำอีกชั้นตอน POST อยู่แล้ว)
+        // ยกเว้นใบที่ถูกตีกลับ ต้องให้กรอกใหม่ได้ ไม่งั้นแก้ตามที่เจ้าหน้าที่บอกไม่ได้เลย
         const mine = await apiFetch('/exam-results/me');
-        if (mine.some(r => r.round_id === activeRound.round_id)) {
-          setBlocked('กรอกผลสอบรอบนี้ไปแล้ว ดูสถานะได้ที่หน้าสถานะการกรอก');
-        }
+        const inRound = mine.find(r => r.round_id === activeRound.round_id);
+        if (inRound && inRound.staff_status === 'rejected') setRejected(inRound);
+        else if (inRound) setBlocked('กรอกผลสอบรอบนี้ไปแล้ว ดูสถานะได้ที่หน้าสถานะการกรอก');
       })
       .catch(e => {
         // 403 = ยังไม่ได้รับสิทธิ์ — เป็นเหตุผลที่กรอกไม่ได้ ไม่ใช่ระบบพัง
@@ -93,7 +95,26 @@ export function ExamFormReal({ go, toast }) {
 
   return (
     <div className="fade-up">
-      <PageHead title="กรอกผลสอบ" sub={round ? `รอบที่ ${round.attempt_number}/${round.academic_year}` : ''} />
+      <PageHead title={rejected ? 'แก้ไขและส่งผลสอบใหม่' : 'กรอกผลสอบ'}
+        sub={round ? `รอบที่ ${round.attempt_number}/${round.academic_year}` : ''} />
+
+      {rejected && (
+        <div className="card card-pad" style={{ marginBottom: 18, borderLeft: '4px solid var(--status-reject-dot)' }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+            <Icon name="xCircle" size={19} style={{ color: 'var(--status-reject-dot)', flex: 'none', marginTop: 1 }} />
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 14.5, marginBottom: 3 }}>ผลสอบที่ส่งไปถูกตีกลับ</div>
+              <p style={{ margin: 0, fontSize: 13.5, color: 'var(--ink-700)' }}>
+                {rejected.remark || 'เจ้าหน้าที่ไม่ได้ระบุเหตุผล กรุณาติดต่อเจ้าหน้าที่คณะ'}
+              </p>
+              <p style={{ margin: '6px 0 0', fontSize: 12.5, color: 'var(--ink-500)' }}>
+                กรอกใหม่แล้วส่งอีกครั้ง ระบบจะแทนที่ผลเดิมและกลับไปรอเจ้าหน้าที่ตรวจ
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="row wrap-m" style={{ alignItems: 'flex-start' }}>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div className="card" style={{ overflow: 'hidden' }}>
@@ -149,7 +170,7 @@ export function ExamFormReal({ go, toast }) {
             {error && <div style={{ color: 'var(--reject,#dc2626)', fontSize: 13, marginTop: 10 }}>{error}</div>}
             <button className="btn btn-primary btn-block btn-lg" style={{ marginTop: 14 }}
               disabled={filled < toAnswer.length || submitting} onClick={submit}>
-              {submitting ? 'กำลังส่ง…' : 'ส่งผลสอบ'} <Icon name="send" size={16} />
+              {submitting ? 'กำลังส่ง…' : rejected ? 'ส่งผลสอบใหม่' : 'ส่งผลสอบ'} <Icon name="send" size={16} />
             </button>
           </div>
         </div>
