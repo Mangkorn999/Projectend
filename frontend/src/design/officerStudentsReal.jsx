@@ -1,11 +1,14 @@
 /* ============================================================
    เจ้าหน้าที่ / ผู้บริหาร — รายชื่อนักศึกษา (ข้อมูลจริงจาก backend)
    แทนที่ OfficerStudents เดิมใน officer.jsx ที่ยังใช้ mock STUDENTS/ROOMS
+
+   สิทธิ์กรอกผลสอบ (exam_eligible) เปิด/ปิดจากหน้านี้ผ่าน PATCH /api/students/bulk-eligible
+   — เจ้าหน้าที่เท่านั้น (ผู้บริหารเห็นสถานะได้ แต่แก้ไม่ได้)
    ============================================================ */
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
 import { PageHead, Avatar, StatusBadge } from './components.jsx';
-import { apiFetch } from './api.js';
+import { apiFetch, ApiError } from './api.js';
 import { t } from './i18n.js';
 
 // แปลง staff_status จาก backend (pending/approved/rejected) → status key ที่ StatusBadge เข้าใจ
@@ -15,7 +18,7 @@ const STAFF_STATUS_TO_BADGE = {
   rejected: 'REJECTED',
 };
 
-export function OfficerStudentsReal({ go, setSel, lang }) {
+export function OfficerStudentsReal({ go, setSel, toast, readonly, lang }) {
   const tt = (key, vars) => t(lang, key, vars);
   const [students, setStudents] = useState([]);
   const [rooms, setRooms] = useState([]);
@@ -24,7 +27,11 @@ export function OfficerStudentsReal({ go, setSel, lang }) {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('ALL');
   const [room, setRoom] = useState('ALL');
+  const [year, setYear] = useState('ALL');
+  const [eligible, setEligible] = useState('ALL');
   const [page, setPage] = useState(0);
+  const [selected, setSelected] = useState(() => new Set()); // student_id ที่ติ๊กไว้
+  const [saving, setSaving] = useState(false);
   const per = 10;
 
   useEffect(() => {
@@ -46,6 +53,7 @@ export function OfficerStudentsReal({ go, setSel, lang }) {
             lastName: s.user.last_name,
             room: s.room?.room_name || '-',
             year: s.academic_year,
+            eligible: !!s.exam_eligible,
             status: latest ? STAFF_STATUS_TO_BADGE[latest.staff_status] : 'DRAFT',
             passedCount,
             allPass: passedCount === latest?.subject_results.length && passedCount > 0,
@@ -64,13 +72,58 @@ export function OfficerStudentsReal({ go, setSel, lang }) {
   const filtered = students.filter(s => {
     if (status !== 'ALL' && s.status !== status) return false;
     if (room !== 'ALL' && s.room !== room) return false;
+    if (year !== 'ALL' && String(s.year) !== year) return false;
+    if (eligible !== 'ALL' && s.eligible !== (eligible === 'YES')) return false;
     if (q && !(`${s.firstName}${s.lastName}${s.sid}`.includes(q))) return false;
     return true;
   });
   const pageRows = filtered.slice(page * per, (page + 1) * per);
   const pages = Math.ceil(filtered.length / per);
 
-  useEffect(() => setPage(0), [q, status, room]);
+  useEffect(() => setPage(0), [q, status, room, year, eligible]);
+
+  // ปีการศึกษา (พ.ศ.) ของนักศึกษาที่มีจริงในระบบ เรียงใหม่→เก่า
+  const years = [...new Set(students.map(s => s.year).filter(Boolean))].sort((a, b) => b - a);
+
+  // ─── เปิด/ปิดสิทธิ์กรอกผลสอบ ─────────────────────────
+  // ติ๊กเลือกได้ทั้งที่ถูกกรองไว้ ไม่ใช่แค่หน้าปัจจุบัน — เปิดสิทธิ์ทั้งรุ่นทีเดียวจบ
+  const allFilteredSelected = filtered.length > 0 && filtered.every(s => selected.has(s.sid));
+
+  const toggleOne = (sid) => setSelected(prev => {
+    const next = new Set(prev);
+    next.has(sid) ? next.delete(sid) : next.add(sid);
+    return next;
+  });
+
+  const toggleAllFiltered = () => setSelected(prev => {
+    if (allFilteredSelected) {
+      const next = new Set(prev);
+      filtered.forEach(s => next.delete(s.sid));
+      return next;
+    }
+    return new Set([...prev, ...filtered.map(s => s.sid)]);
+  });
+
+  const setEligibility = async (value) => {
+    const ids = [...selected];
+    if (!ids.length) return;
+    setSaving(true);
+    try {
+      await apiFetch('/students/bulk-eligible', {
+        method: 'PATCH',
+        body: { student_ids: ids, exam_eligible: value },
+      });
+      // อัปเดตในตารางเลย ไม่ต้องโหลดรายชื่อ+ผลสอบใหม่ทั้งชุด
+      const touched = new Set(ids);
+      setStudents(prev => prev.map(s => (touched.has(s.sid) ? { ...s, eligible: value } : s)));
+      setSelected(new Set());
+      toast?.(tt(value ? 'officer.students.grantedToast' : 'officer.students.revokedToast', { n: ids.length }));
+    } catch (e) {
+      toast?.(e instanceof ApiError ? e.message : tt('officer.students.eligibleFailMsg'), 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (loading) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
   if (error) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--reject,#dc2626)' }}>{tt('statuspage.loadFailPrefix', { msg: error })}</div>;
@@ -91,19 +144,60 @@ export function OfficerStudentsReal({ go, setSel, lang }) {
         <select className="select" style={{ width: 'auto', minWidth: 120 }} value={room} onChange={e => setRoom(e.target.value)}>
           <option value="ALL">{tt('officer.students.allRoom')}</option>{rooms.map(r => <option key={r} value={r}>{r}</option>)}
         </select>
+        <select className="select" style={{ width: 'auto', minWidth: 130 }} value={year} onChange={e => setYear(e.target.value)}>
+          <option value="ALL">{tt('officer.students.allYear')}</option>{years.map(y => <option key={y} value={String(y)}>{tt('officer.students.yearOpt', { year: y })}</option>)}
+        </select>
+        <select className="select" style={{ width: 'auto', minWidth: 150 }} value={eligible} onChange={e => setEligible(e.target.value)}>
+          <option value="ALL">{tt('officer.students.allEligible')}</option>
+          <option value="YES">{tt('officer.students.eligibleYes')}</option>
+          <option value="NO">{tt('officer.students.eligibleNo')}</option>
+        </select>
       </div>
+
+      {/* แถบจัดการสิทธิ์ — โผล่เฉพาะตอนติ๊กเลือกไว้ ไม่งั้นกินที่เปล่าๆ */}
+      {!readonly && selected.size > 0 && (
+        <div className="card" style={{ padding: '12px 18px', marginBottom: 18, display: 'flex', alignItems: 'center',
+          gap: 12, flexWrap: 'wrap', borderColor: 'var(--navy-600)' }}>
+          <span style={{ fontSize: 14, fontWeight: 600 }}>{tt('officer.students.selectedCount', { n: selected.size })}</span>
+          <button className="btn btn-ghost btn-sm" onClick={() => setSelected(new Set())} disabled={saving}>{tt('officer.students.clearSelection')}</button>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+            <button className="btn btn-ghost btn-sm" onClick={() => setEligibility(false)} disabled={saving}>
+              <Icon name="xCircle" size={15} /> {tt('officer.students.revokeBtn')}
+            </button>
+            <button className="btn btn-primary btn-sm" onClick={() => setEligibility(true)} disabled={saving}>
+              <Icon name="checkCircle" size={15} /> {saving ? tt('officer.students.savingEligible') : tt('officer.students.grantBtn')}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="card" style={{ overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
           <table className="tbl">
-            <thead><tr><th>{tt('officer.students.colStudent')}</th><th>{tt('officer.students.colRoom')}</th><th>{tt('officer.students.colResult')}</th><th>{tt('officer.students.colStatus')}</th><th>{tt('officer.students.colSubmitted')}</th><th></th></tr></thead>
+            <thead><tr>
+              {!readonly && <th style={{ width: 40 }}>
+                <input type="checkbox" checked={allFilteredSelected} onChange={toggleAllFiltered}
+                  aria-label={tt('officer.students.selectAllAria')} style={{ width: 16, height: 16, cursor: 'pointer' }} />
+              </th>}
+              <th>{tt('officer.students.colStudent')}</th><th>{tt('officer.students.colRoom')}</th><th>{tt('officer.students.colYear')}</th>
+              <th>{tt('officer.students.colEligible')}</th>
+              <th>{tt('officer.students.colResult')}</th><th>{tt('officer.students.colStatus')}</th><th>{tt('officer.students.colSubmitted')}</th><th></th>
+            </tr></thead>
             <tbody>
               {pageRows.map(s => (
                 <tr key={s.sid} className="clickable" onClick={() => { setSel(s); go('detail'); }}>
+                  {!readonly && <td onClick={e => e.stopPropagation()}>
+                    <input type="checkbox" checked={selected.has(s.sid)} onChange={() => toggleOne(s.sid)}
+                      aria-label={tt('officer.students.selectOneAria', { name: `${s.firstName} ${s.lastName}` })}
+                      style={{ width: 16, height: 16, cursor: 'pointer' }} />
+                  </td>}
                   <td><div style={{ display: 'flex', alignItems: 'center', gap: 11 }}><Avatar name={s.firstName} size={34} />
                     <div><div style={{ fontWeight: 600, fontSize: 14 }}>{s.firstName} {s.lastName}</div>
                     <div className="mono" style={{ fontSize: 12, color: 'var(--ink-400)' }}>{s.sid}</div></div></div></td>
                   <td><span className="chip" style={{ fontSize: 12 }}>{s.room}</span></td>
+                  <td className="tnum" style={{ fontSize: 13, color: 'var(--ink-700)' }}>{s.year || '—'}</td>
+                  <td><span className={'badge ' + (s.eligible ? 'ok' : 'draft')}><span className="dot"></span>
+                    {s.eligible ? tt('officer.students.eligibleYes') : tt('officer.students.eligibleNo')}</span></td>
                   <td>{s.status === 'DRAFT' ? <span style={{ color: 'var(--ink-400)' }}>—</span> :
                     <span className="tnum" style={{ fontWeight: 700, color: s.allPass ? 'var(--pass)' : 'var(--ink-800)' }}>{s.passedCount}/8</span>}</td>
                   <td><StatusBadge status={s.status} lang={lang} /></td>

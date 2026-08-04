@@ -5,8 +5,25 @@
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
 import { PageHead, Modal, StatusBadge } from './components.jsx';
-import { apiFetch, ApiError } from './api.js';
+import { apiFetch, ApiError, fetchAuthedObjectUrl } from './api.js';
 import { t } from './i18n.js';
+
+/* รูปประกอบประกาศ — endpoint ต้องใช้ Authorization header ซึ่ง <img src> ใส่เองไม่ได้
+   เลยต้องโหลดเป็น blob ก่อนแล้วค่อยชี้ src ไปที่ object URL
+   รูปที่แนบมามีได้ทุกขนาด/สัดส่วน — จำกัดด้วย maxHeight + object-fit ให้การ์ดไม่ยืดตามรูป */
+function NewsImage({ newsId, maxHeight = 320, radius = 12 }) {
+  const [url, setUrl] = useState('');
+  useEffect(() => {
+    let revoked = false, current = '';
+    fetchAuthedObjectUrl(`/news/${newsId}/image`)
+      .then(u => { if (revoked) { URL.revokeObjectURL(u); return; } current = u; setUrl(u); })
+      .catch(() => {});
+    return () => { revoked = true; if (current) URL.revokeObjectURL(current); };
+  }, [newsId]);
+  if (!url) return null;
+  return <img src={url} alt="" style={{ display: 'block', width: '100%', maxHeight, objectFit: 'cover',
+    borderRadius: radius, border: '1px solid var(--ink-200)', background: 'var(--ink-50)' }} />;
+}
 
 export function StudentNewsReal({ go, lang }) {
   const [news, setNews] = useState(null);
@@ -61,6 +78,7 @@ export function StudentNewsReal({ go, lang }) {
                   <span>{n.poster.first_name} {n.poster.last_name}</span>
                 </div>
               </div>
+              {n.image_path && <div style={{ width: 76, flex: 'none' }}><NewsImage newsId={n.news_id} maxHeight={76} radius={9} /></div>}
               <Icon name="chevR" size={20} style={{ color: 'var(--ink-300)', flex: 'none', marginTop: 4 }} />
             </div>
           </div>
@@ -74,6 +92,7 @@ export function StudentNewsReal({ go, lang }) {
             <span className="chip">{tt('news.roundSlash', { attempt: open.round.attempt_number, year: open.round.academic_year })}</span>
             <span className="chip" style={{ background: 'transparent', color: 'var(--ink-500)' }}><Icon name="calendar" size={13} /> {new Date(open.posted_at).toLocaleDateString('th-TH')}</span>
           </div>
+          {open.image_path && <div style={{ marginBottom: 14 }}><NewsImage newsId={open.news_id} maxHeight={420} /></div>}
           <p style={{ margin: 0, fontSize: 15, lineHeight: 1.7, color: 'var(--ink-900)', whiteSpace: 'pre-wrap' }}>{open.content}</p>
           <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--ink-100)', fontSize: 13, color: 'var(--ink-500)' }}>
             {tt('news.postedByFooter', { name: `${open.poster.first_name} ${open.poster.last_name}` })}
@@ -84,12 +103,36 @@ export function StudentNewsReal({ go, lang }) {
   );
 }
 
+// พรีวิวรูปที่เพิ่งเลือกจากเครื่อง (ยังไม่ได้อัปโหลด)
+function ImagePreview({ file, onRemove, label }) {
+  const [url, setUrl] = useState('');
+  useEffect(() => {
+    const u = URL.createObjectURL(file);
+    setUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [file]);
+  return (
+    <div style={{ position: 'relative' }}>
+      {url && <img src={url} alt="" style={{ display: 'block', width: '100%', maxHeight: 200, objectFit: 'cover',
+        borderRadius: 12, border: '1px solid var(--ink-200)' }} />}
+      <button type="button" className="btn btn-ghost btn-sm" onClick={onRemove}
+        style={{ position: 'absolute', top: 8, right: 8, background: '#fff' }}><Icon name="x" size={14} /> {label}</button>
+      <div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 6 }}>
+        {file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB
+      </div>
+    </div>
+  );
+}
+
 export function ManageNewsReal({ toast, lang }) {
   const [items, setItems] = useState(null);
   const [rounds, setRounds] = useState([]);
   const [modal, setModal] = useState(null); // {} (new) | news | null
   const [form, setForm] = useState({ title: '', content: '', round_id: '' });
   const [saving, setSaving] = useState(false);
+  const [imageFile, setImageFile] = useState(null);   // รูปใหม่ที่เพิ่งเลือก (ยังไม่อัปโหลด)
+  const [dropImage, setDropImage] = useState(false);  // กดเอารูปเดิมออก
+  const [imgError, setImgError] = useState('');
   const tt = (key, vars) => t(lang, key, vars);
 
   const load = () => apiFetch('/news').then(setItems).catch(e => toast(e.message, 'error'));
@@ -98,6 +141,26 @@ export function ManageNewsReal({ toast, lang }) {
   const openModal = (n) => {
     setModal(n || {});
     setForm({ title: n?.title || '', content: n?.content || '', round_id: n?.round_id ?? (rounds[0]?.round_id || '') });
+    setImageFile(null); setDropImage(false); setImgError('');
+  };
+
+  const pickImage = (file) => {
+    setImgError('');
+    if (!file) return;
+    if (!/^image\/(jpeg|png|webp|gif)$/.test(file.type)) { setImgError(tt('newsMgmt.imageTypeError')); return; }
+    if (file.size > 5 * 1024 * 1024) { setImgError(tt('newsMgmt.imageSizeError')); return; }
+    setImageFile(file); setDropImage(false);
+  };
+
+  // รูปอัปโหลดแยกจากตัวประกาศ (multipart) — ต้องมี news_id ก่อน ตอนสร้างใหม่เลยยิงหลังบันทึกสำเร็จ
+  const syncImage = async (newsId) => {
+    if (imageFile) {
+      const fd = new FormData();
+      fd.append('image', imageFile);
+      await apiFetch(`/news/${newsId}/image`, { method: 'POST', body: fd });
+    } else if (dropImage) {
+      await apiFetch(`/news/${newsId}/image`, { method: 'DELETE' });
+    }
   };
 
   const submit = async () => {
@@ -105,9 +168,11 @@ export function ManageNewsReal({ toast, lang }) {
     try {
       if (modal?.news_id) {
         await apiFetch(`/news/${modal.news_id}`, { method: 'PUT', body: form });
+        await syncImage(modal.news_id);
         toast(tt('newsMgmt.savedToast'));
       } else {
-        await apiFetch('/news', { method: 'POST', body: form });
+        const created = await apiFetch('/news', { method: 'POST', body: form });
+        await syncImage(created.news_id);
         toast(tt('newsMgmt.publishedToast'));
       }
       setModal(null);
@@ -144,6 +209,7 @@ export function ManageNewsReal({ toast, lang }) {
               <div style={{ fontSize: 15, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.title}</div>
               <div style={{ fontSize: 12.5, color: 'var(--ink-500)', marginTop: 3 }}>{tt('news.roundSlash', { attempt: n.round.attempt_number, year: n.round.academic_year })} · {new Date(n.posted_at).toLocaleDateString('th-TH')} · {n.poster.first_name}</div>
             </div>
+            {n.image_path && <div style={{ width: 64, flex: 'none' }}><NewsImage newsId={n.news_id} maxHeight={64} radius={9} /></div>}
             <button className="btn btn-ghost btn-sm" onClick={() => openModal(n)}><Icon name="edit" size={15} /> {tt('newsMgmt.editBtn')}</button>
             <button className="btn btn-ghost btn-sm" style={{ padding: 7, border: 'none', color: 'var(--fail)' }} onClick={() => remove(n)}><Icon name="trash" size={16} /></button>
           </div>
@@ -160,6 +226,27 @@ export function ManageNewsReal({ toast, lang }) {
             </select>
           </div>
           <div className="field"><label>{tt('newsMgmt.fieldContent')}</label><textarea className="input" rows={4} value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} placeholder={tt('newsMgmt.contentPh')} /></div>
+          <div className="field">
+            <label>{tt('newsMgmt.fieldImage')} <span style={{ fontWeight: 400, color: 'var(--ink-500)' }}>{tt('newsMgmt.imageOptional')}</span></label>
+            {imageFile ? (
+              <ImagePreview file={imageFile} onRemove={() => setImageFile(null)} label={tt('newsMgmt.removeImageBtn')} />
+            ) : modal?.image_path && !dropImage ? (
+              <div style={{ position: 'relative' }}>
+                <NewsImage newsId={modal.news_id} maxHeight={200} />
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDropImage(true)}
+                  style={{ position: 'absolute', top: 8, right: 8, background: '#fff' }}><Icon name="trash" size={14} /> {tt('newsMgmt.removeImageBtn')}</button>
+              </div>
+            ) : (
+              <label className="btn btn-ghost" style={{ cursor: 'pointer', alignSelf: 'flex-start' }}>
+                <Icon name="upload" size={16} /> {tt('newsMgmt.pickImageBtn')}
+                <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" style={{ display: 'none' }}
+                  onChange={e => pickImage(e.target.files?.[0])} />
+              </label>
+            )}
+            <span className="hint" style={imgError ? { color: 'var(--status-reject-fg)' } : undefined}>
+              {imgError || tt('newsMgmt.imageHint')}
+            </span>
+          </div>
         </div>
       </Modal>
     </div>

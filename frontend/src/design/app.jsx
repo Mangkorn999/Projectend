@@ -3,13 +3,12 @@
    Main app — role routing, shell, tweaks
    ============================================================ */
 import { useState, useEffect } from 'react';
-import { Icon } from './data.jsx';
 import { TopBar, Sidebar, Toast, useToast, Empty } from './components.jsx';
 import { t as translate } from './i18n.js';
 import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakToggle, TweakColor } from './tweaks-panel.jsx';
 import { Login } from './login.jsx';
 import { ForceChangePassword } from './forceChangePassword.jsx';
-import { getToken, getStoredUser, clearSession } from './api.js';
+import { getToken, getStoredUser, clearSession, apiFetch } from './api.js';
 import { FormIntro } from './student.jsx';
 import { StudentImport } from './studentImport.jsx';
 import { OfficerStudentsReal } from './officerStudentsReal.jsx';
@@ -38,12 +37,13 @@ const navStudent = (lang)=>[
   { k:'history', label:translate(lang,'nav.student.history'), icon:'history' },
 ];
 
-const NAV = (lang)=>({
+// pendingCount = จำนวนผลสอบที่รอเจ้าหน้าที่ตรวจจริง ณ ตอนนี้ (ไม่ใช่เลข mock)
+const NAV = (lang, pendingCount)=>({
   student: [],
   officer: [
     { section:translate(lang,'nav.section.overview') },
     { k:'dashboard', label:translate(lang,'nav.officer.dashboard'), icon:'grid' },
-    { k:'review', label:translate(lang,'nav.officer.review'), icon:'checkCircle', badge:'29' },
+    { k:'review', label:translate(lang,'nav.officer.review'), icon:'checkCircle', badge: pendingCount || null },
     { k:'students', label:translate(lang,'nav.officer.students'), icon:'users' },
     { k:'import', label:translate(lang,'nav.officer.import'), icon:'upload' },
     { section:translate(lang,'nav.section.manage') },
@@ -74,6 +74,15 @@ export function App() {
   const [toast, showToast] = useToast();
   const [formStep, setFormStep] = useState(0);
   const [lang, setLang] = useState('TH'); // 'TH' | 'EN' — wired into student-side pages via i18n.js
+  const [pendingCount, setPendingCount] = useState(0); // เลขบน badge "ตรวจสอบ/ยืนยันผล"
+
+  // นับผลสอบที่ยังรอตรวจใหม่ทุกครั้งที่เปลี่ยนหน้า — ตรวจเสร็จกลับมา badge ต้องลดลงเอง
+  useEffect(()=>{
+    if (role !== 'officer') { setPendingCount(0); return; }
+    apiFetch('/exam-results')
+      .then(rows => setPendingCount(rows.filter(r => r.staff_status === 'pending').length))
+      .catch(()=>{});
+  }, [role, page]);
 
   // accent override
   useEffect(()=>{ document.documentElement.style.setProperty('--gold-500', t.accent);
@@ -101,7 +110,7 @@ export function App() {
   if (mustChangePassword) return <ForceChangePassword onDone={handlePasswordChanged} />;
   if(!role) return <><Login onLogin={handleLogin} /><TweaksUI t={t} setTweak={setTweak} /></>;
 
-  const nav = role==='student' ? navStudent(lang) : NAV(lang)[role];
+  const nav = role==='student' ? navStudent(lang) : NAV(lang, pendingCount)[role];
   const go = (p, step=0)=>{ setPage(p); setFormStep(step); window.scrollTo(0,0); };
   // ไม่มีสลับ role ปลอมอีกแล้ว — 'logout' คือทางเดียวที่เหลือ เคลียร์ token จริงด้วย
   const switchRole = (r)=>{ if(r==='logout'){ clearSession(); setRole(null); setCurrentUser(null); return; } };
@@ -117,7 +126,7 @@ export function App() {
     if(role==='officer'){
       if(page==='dashboard') return <DashboardReal go={go} lang={lang} />;
       if(page==='review') return <OfficerReviewReal go={go} setSel={setSel} lang={lang} />;
-      if(page==='students') return <OfficerStudentsReal go={go} setSel={setSel} lang={lang} />;
+      if(page==='students') return <OfficerStudentsReal go={go} setSel={setSel} toast={showToast} lang={lang} />;
       if(page==='import') return <StudentImport toast={showToast} lang={lang} />;
       if(page==='detail') return <StudentDetailReal student={sel} go={go} toast={showToast} lang={lang} />;
       if(page==='rounds') return <ManageRoundsSubjectsReal toast={showToast} lang={lang} />;
@@ -127,7 +136,7 @@ export function App() {
     }
     if(role==='executive'){
       if(page==='dashboard') return <DashboardReal go={go} readonly lang={lang} />;
-      if(page==='students') return <OfficerStudentsReal go={go} setSel={setSel} lang={lang} />;
+      if(page==='students') return <OfficerStudentsReal go={go} setSel={setSel} toast={showToast} readonly lang={lang} />;
       if(page==='detail') return <StudentDetailReal student={sel} go={go} toast={showToast} readonly lang={lang} />;
       if(page==='reports') return <ReportsReal toast={showToast} readonly lang={lang} />;
     }
@@ -143,13 +152,8 @@ export function App() {
         onMenu={()=>setSbOpen(true)} onSwitchRole={switchRole}
         lang={lang} setLang={setLang} />
       <div className="app-shell">
-        <Sidebar items={nav} active={activeNav} onNav={go} open={sbOpen} onClose={()=>setSbOpen(false)}
-          footer={<div className="card" style={{ padding:'12px 13px', background:'var(--ink-50)', border:'1px solid var(--ink-200)', boxShadow:'none' }}>
-            <div style={{ display:'flex', alignItems:'center', gap:9 }}>
-              <div style={{ width:32, height:32, borderRadius:9, background:'var(--navy-700)', color:'var(--gold-500)', display:'flex', alignItems:'center', justifyContent:'center', flex:'none' }}><Icon name="shield" size={17}/></div>
-              <div style={{ fontSize:11.5, color:'var(--ink-500)', lineHeight:1.35 }}>{translate(lang,'sidebar.footerPrefix')}<br/><b style={{ color:'var(--ink-800)', fontSize:12.5 }}>{translate(lang,'role.'+role)}</b></div>
-            </div>
-          </div>} />
+        {/* บทบาทผู้ใช้แสดงที่เมนูผู้ใช้บน TopBar ที่เดียว — การ์ดใน sidebar ซ้ำโดยไม่จำเป็น */}
+        <Sidebar items={nav} active={activeNav} onNav={go} open={sbOpen} onClose={()=>setSbOpen(false)} />
         <main className="app-main">
           <div className="app-content">{render()}</div>
         </main>

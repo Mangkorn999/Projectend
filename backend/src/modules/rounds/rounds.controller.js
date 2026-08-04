@@ -174,3 +174,38 @@ export const update = async (req, res, next) => {
     next(err);
   }
 };
+
+// ลบรอบได้เฉพาะรอบที่ยังไม่มีใครใช้จริง — ผลสอบ/ประกาศที่ผูกอยู่จะกลายเป็นข้อมูลกำพร้า
+// (foreign key จะกันให้อยู่แล้ว แต่ error ที่ได้จะอ่านไม่รู้เรื่อง ต้องเช็คเองเพื่อบอกสาเหตุให้ชัด)
+export const remove = async (req, res, next) => {
+  try {
+    const round = await roundsRepo.findById(req.params.id);
+    if (!round) throw httpError("ไม่พบรอบการกรอกนี้", 404);
+
+    if (round.status === "open") {
+      throw httpError("รอบนี้กำลังเปิดรับอยู่ ต้องปิดรอบก่อนถึงจะลบได้", 400);
+    }
+
+    const [resultCount, newsCount] = await Promise.all([
+      roundsRepo.countExamResults(round.round_id),
+      roundsRepo.countNews(round.round_id),
+    ]);
+    if (resultCount > 0) {
+      throw httpError(
+        `ลบไม่ได้ — มีผลสอบของนักศึกษา ${resultCount} รายการอยู่ในรอบนี้แล้ว`,
+        400,
+      );
+    }
+    if (newsCount > 0) {
+      throw httpError(
+        `ลบไม่ได้ — มีประกาศ ${newsCount} รายการผูกกับรอบนี้อยู่ ลบประกาศก่อน`,
+        400,
+      );
+    }
+
+    await roundsRepo.remove(round.round_id);
+    res.json({ success: true, data: null });
+  } catch (err) {
+    next(err);
+  }
+};

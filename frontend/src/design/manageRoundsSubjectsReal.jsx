@@ -17,10 +17,20 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
   const [subs, setSubs] = useState(null);
   const [roundModal, setRoundModal] = useState(null); // 'new' | round | null
   const [subjectModal, setSubjectModal] = useState(null); // {} (new) | subject | null
+  const [deleteRound, setDeleteRound] = useState(null); // รอบที่กำลังจะลบ (ยืนยันก่อน)
+  const [cohorts, setCohorts] = useState([]); // [{ year, count }] รุ่นนักศึกษาที่มีจริงในระบบ
 
   const loadRounds = () => apiFetch('/rounds').then(setRounds).catch(e => toast(e.message, 'error'));
   const loadSubs = () => apiFetch('/subjects').then(setSubs).catch(e => toast(e.message, 'error'));
-  useEffect(() => { loadRounds(); loadSubs(); }, []);
+  useEffect(() => {
+    loadRounds(); loadSubs();
+    // รุ่นนักศึกษาที่มีอยู่จริง — เอาไว้ช่วยเลือกกลุ่มเป้าหมายของรอบ กันพิมพ์ปีผิดเป็นรุ่นที่ไม่มีใครอยู่
+    apiFetch('/students').then(list => {
+      const byYear = new Map();
+      for (const s of list) byYear.set(s.academic_year, (byYear.get(s.academic_year) || 0) + 1);
+      setCohorts([...byYear.entries()].map(([year, count]) => ({ year, count })).sort((a, b) => b.year - a.year));
+    }).catch(() => {});
+  }, []);
 
   const saveRound = async (form) => {
     try {
@@ -35,6 +45,17 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
       loadRounds();
     } catch (e) {
       toast(e instanceof ApiError ? e.message : tt('roundsMgmt.saveFailMsg'), 'error');
+    }
+  };
+
+  const confirmDeleteRound = async () => {
+    try {
+      await apiFetch(`/rounds/${deleteRound.round_id}`, { method: 'DELETE' });
+      toast('ลบรอบแล้ว', 'info');
+      setDeleteRound(null);
+      loadRounds();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : 'ลบไม่สำเร็จ', 'error');
     }
   };
 
@@ -86,9 +107,15 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
             <div key={r.round_id} className="card card-pad">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                 <span className={'badge ' + (r.status === 'open' ? 'ok' : 'draft')}><span className="dot"></span>{r.status === 'open' ? tt('roundsMgmt.openBadge') : tt('roundsMgmt.closedBadge')}</span>
-                <button className="btn btn-ghost btn-sm" style={{ padding: 7, border: 'none' }} onClick={() => setRoundModal(r)}><Icon name="edit" size={16} /></button>
+                <div style={{ display: 'flex', gap: 2 }}>
+                  <button className="btn btn-ghost btn-sm" style={{ padding: 7, border: 'none' }} aria-label={tt('roundsMgmt.editRoundAria')}
+                    onClick={() => setRoundModal(r)}><Icon name="edit" size={16} /></button>
+                  <button className="btn btn-ghost btn-sm" style={{ padding: 7, border: 'none', color: 'var(--fail)' }} aria-label={tt('roundsMgmt.deleteRoundAria')}
+                    onClick={() => setDeleteRound(r)}><Icon name="trash" size={16} /></button>
+                </div>
               </div>
               <div style={{ fontSize: 18, fontWeight: 800 }}>{tt('roundsMgmt.roundLine', { attempt: r.attempt_number, year: r.academic_year })}</div>
+              <div style={{ fontSize: 12.5, color: 'var(--ink-500)', marginTop: 4 }}>{tt('roundsMgmt.targetLine', { year: r.academic_year })}</div>
               <div className="hr" style={{ margin: '14px 0' }}></div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--ink-500)' }}>{tt('roundsMgmt.openDateLabel')}</span><b>{new Date(r.open_date).toLocaleDateString('th-TH')}</b></div>
@@ -116,13 +143,23 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
         </div>
       )}
 
-      <RoundModal round={roundModal} allSubjects={subs} onClose={() => setRoundModal(null)} onSave={saveRound} tt={tt} />
+      <RoundModal round={roundModal} allSubjects={subs} cohorts={cohorts} onClose={() => setRoundModal(null)} onSave={saveRound} tt={tt} />
+      <Modal open={!!deleteRound} onClose={() => setDeleteRound(null)} title={tt('roundsMgmt.deleteRoundTitle')} width={440} tone="danger"
+        footer={<><button className="btn btn-ghost" onClick={() => setDeleteRound(null)}>{tt('roundsMgmt.cancelBtn')}</button>
+          <button className="btn btn-danger" onClick={confirmDeleteRound}><Icon name="trash" size={16} /> {tt('roundsMgmt.deleteRoundBtn')}</button></>}>
+        <div style={{ fontSize: 14, lineHeight: 1.7 }}>
+          {tt('roundsMgmt.deleteRoundBodyPre')} <b>{tt('roundsMgmt.roundLine', { attempt: deleteRound?.attempt_number, year: deleteRound?.academic_year })}</b> {tt('roundsMgmt.deleteRoundBodyPost')}<br />
+          <span style={{ color: 'var(--ink-500)', fontSize: 13 }}>
+            {tt('roundsMgmt.deleteRoundNote')}
+          </span>
+        </div>
+      </Modal>
       <SubjectModal subject={subjectModal} onClose={() => setSubjectModal(null)} onSave={saveSubject} tt={tt} />
     </div>
   );
 }
 
-function RoundModal({ round, allSubjects, onClose, onSave, tt }) {
+function RoundModal({ round, allSubjects, cohorts, onClose, onSave, tt }) {
   const isNew = round === 'new';
   const r = isNew ? {} : (round || {});
   const [academicYear, setAcademicYear] = useState('');
@@ -131,10 +168,12 @@ function RoundModal({ round, allSubjects, onClose, onSave, tt }) {
   const [closeDate, setCloseDate] = useState('');
   const [status, setStatus] = useState('open');
   const [subjectIds, setSubjectIds] = useState([]); // วิชาที่รอบนี้ทดสอบ
+  const [customYear, setCustomYear] = useState(false); // เปิดรอบให้รุ่นที่ยังไม่มีนักศึกษาในระบบ
 
   useEffect(() => {
     if (!round) return;
     setAcademicYear(r.academic_year ?? '');
+    setCustomYear(!!r.academic_year && !cohorts.some(c => c.year === r.academic_year));
     setAttemptNumber(r.attempt_number ?? '');
     setOpenDate(toDateInput(r.open_date));
     setCloseDate(toDateInput(r.close_date));
@@ -166,8 +205,29 @@ function RoundModal({ round, allSubjects, onClose, onSave, tt }) {
           <Icon name="check" size={16} /> {tt('roundsMgmt.saveBtn')}</button></>}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div className="grid g-2" style={{ gap: 14 }}>
-          <div className="field"><label>{tt('roundsMgmt.fieldYear')}</label><input className="input" value={academicYear} onChange={e => setAcademicYear(e.target.value)} /></div>
-          <div className="field"><label>{tt('roundsMgmt.fieldAttempt')}</label><input className="input" value={attemptNumber} onChange={e => setAttemptNumber(e.target.value)} /></div>
+          {/* academic_year ของรอบ = กลุ่มเป้าหมาย: backend เปิดรอบนี้ให้เฉพาะนักศึกษารุ่นเดียวกันเท่านั้น */}
+          <div className="field">
+            <label>{tt('roundsMgmt.fieldCohort')}</label>
+            {customYear || cohorts.length === 0 ? (
+              <input className="input tnum" type="number" value={academicYear} placeholder="2568"
+                onChange={e => setAcademicYear(e.target.value)} />
+            ) : (
+              <select className="select" value={academicYear}
+                onChange={e => { if (e.target.value === '__custom') { setCustomYear(true); setAcademicYear(''); } else setAcademicYear(e.target.value); }}>
+                <option value="">{tt('roundsMgmt.cohortPickOpt')}</option>
+                {cohorts.map(c => <option key={c.year} value={c.year}>{tt('roundsMgmt.cohortOpt', { year: c.year, count: c.count })}</option>)}
+                <option value="__custom">{tt('roundsMgmt.cohortCustomOpt')}</option>
+              </select>
+            )}
+            <span className="hint">
+              {customYear && cohorts.length > 0
+                ? <>{tt('roundsMgmt.cohortManualHint')} <button type="button" onClick={() => { setCustomYear(false); setAcademicYear(''); }}
+                    style={{ border: 'none', background: 'none', padding: 0, color: 'var(--navy-600)', cursor: 'pointer', font: 'inherit', textDecoration: 'underline' }}>
+                    {tt('roundsMgmt.cohortBackToList')}</button></>
+                : tt('roundsMgmt.cohortHint')}
+            </span>
+          </div>
+          <div className="field"><label>{tt('roundsMgmt.fieldAttempt')}</label><input className="input tnum" type="number" value={attemptNumber} onChange={e => setAttemptNumber(e.target.value)} placeholder="1" /></div>
         </div>
         <div className="grid g-2" style={{ gap: 14 }}>
           <div className="field"><label>{tt('roundsMgmt.fieldOpenDate')}</label><input className="input" type="date" value={openDate} onChange={e => setOpenDate(e.target.value)} /></div>

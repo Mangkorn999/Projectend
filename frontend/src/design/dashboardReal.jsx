@@ -59,7 +59,7 @@ export function DashboardReal({ go, readonly, lang }) {
         sub={tt('dashReal.sub', { round: roundLabel(round), year: round.academic_year, total, eligible })}
         actions={<>
           <select className="input" value={roundId} onChange={e => setRoundId(e.target.value)}
-            style={{ minWidth: 200, height: 40 }} aria-label={tt('dashReal.roundSelectLabel')}>
+            style={{ minWidth: 200 }} aria-label={tt('dashReal.roundSelectLabel')}>
             <option value="">{tt('dashReal.roundOpenOption')}</option>
             {rounds.map(r => <option key={r.round_id} value={r.round_id}>{roundLabel(r)}</option>)}
           </select>
