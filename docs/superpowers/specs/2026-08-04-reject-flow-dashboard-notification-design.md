@@ -184,8 +184,8 @@ by.approved + by.submitted + by.rejected + by.draft + not_started === eligible
 
 | แหล่ง | เงื่อนไข | หัวข้อ | กดแล้วไป |
 |---|---|---|---|
-| `GET /api/exam-results/mine` | `staff_status = 'rejected'` | "ผลสอบถูกตีกลับ" + `remark` | หน้ากรอกผลสอบ |
-| `GET /api/exam-results/mine` | `staff_status = 'approved'` | "ผลสอบได้รับการยืนยัน" | หน้าสถานะการกรอก |
+| `GET /api/exam-results/me` | `staff_status = 'rejected'` | "ผลสอบถูกตีกลับ" + `remark` | หน้ากรอกผลสอบ |
+| `GET /api/exam-results/me` | `staff_status = 'approved'` | "ผลสอบได้รับการยืนยัน" | หน้าสถานะการกรอก |
 | `GET /api/news` | 5 รายการล่าสุด | หัวข้อประกาศ | หน้าข่าวสาร |
 
 - key ของแต่ละรายการ: `exam:<result_id>:<staff_status>` / `news:<news_id>`
