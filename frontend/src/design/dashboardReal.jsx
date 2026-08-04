@@ -98,11 +98,20 @@ export function DashboardReal({ go, readonly, lang }) {
             <span className="tnum chip" style={{ background: 'var(--blue-50)', color: 'var(--blue-600)', fontWeight: 700 }}>{tt('dashReal.avgAllSubjects', { rate: subjectPassRate })}</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {perSubject.map(sub => (
-              <BarRow key={sub.subject_id} label={`${sub.subject_code} · ${subjectName(lang, sub.subject_code, sub.subject_name)}`} value={sub.rate} max={100}
-                color={sub.rate >= 70 ? 'var(--status-ok-dot)' : sub.rate >= 40 ? 'var(--status-wait-dot)' : 'var(--status-reject-dot)'}
-                right={`${sub.rate}%`} sub={tt('dashReal.passFailSub', { pass: sub.pass, fail: sub.fail })} />
-            ))}
+            {perSubject.map(sub => {
+              const label = `${sub.subject_code} · ${subjectName(lang, sub.subject_code, sub.subject_name)}`;
+              // rate = null คือไม่มีใครสอบวิชานี้ในรอบ (ทุกคนยกผลผ่านมาจากรอบก่อน)
+              // ต้องขึ้น — ไม่ใช่ 0% เพราะ 0% แปลว่าสอบแล้วตกหมด คนละเรื่องกัน
+              if (sub.rate === null) return (
+                <BarRow key={sub.subject_id} label={label} value={0} max={100}
+                  color="var(--ink-200)" right="—" sub={tt('dashReal.noExamThisRound')} />
+              );
+              return (
+                <BarRow key={sub.subject_id} label={label} value={sub.rate} max={100}
+                  color={sub.rate >= 70 ? 'var(--status-ok-dot)' : sub.rate >= 40 ? 'var(--status-wait-dot)' : 'var(--status-reject-dot)'}
+                  right={`${sub.rate}%`} sub={tt('dashReal.passFailSub', { pass: sub.pass, fail: sub.fail })} />
+              );
+            })}
           </div>
         </div>
       </div>

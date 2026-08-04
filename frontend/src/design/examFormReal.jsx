@@ -15,7 +15,8 @@ export function ExamFormReal({ go, toast, lang }) {
   const [subjects, setSubjects] = useState([]);
   const [round, setRound] = useState(null);
   const [blocked, setBlocked] = useState(''); // ข้อความเหตุผลที่กรอกไม่ได้ (ไม่มีสิทธิ์/ไม่มีรอบ/กรอกไปแล้ว)
-  const [rejected, setRejected] = useState(null); // ใบที่ถูกตีกลับ ต้องกรอกใหม่ทับของเดิม
+  // ใบของรอบนี้ที่ส่งไปแล้ว (ถ้ามี) — แก้ทับได้จนกว่าเจ้าหน้าที่จะยืนยันหรือรอบจะปิด
+  const [existing, setExisting] = useState(null);
   const [results, setResults] = useState({}); // { [subject_id]: true|false }
   const [files, setFiles] = useState({}); // { EXAM: File, LICENSE: File }
   const [loading, setLoading] = useState(true);
@@ -37,12 +38,21 @@ export function ExamFormReal({ go, toast, lang }) {
           setBlocked(tt('examform.allPassedRound'));
           return;
         }
-        // เช็คว่ารอบนี้กรอกไปแล้วหรือยัง — กันเสีย submit ซ้ำ (backend ก็เช็คซ้ำอีกชั้นตอน POST อยู่แล้ว)
-        // ยกเว้นใบที่ถูกตีกลับ ต้องให้กรอกใหม่ได้ ไม่งั้นแก้ตามที่เจ้าหน้าที่บอกไม่ได้เลย
+        // ยืนยันแล้วเท่านั้นที่ล็อก — pending กับ rejected ยังแก้ได้
+        // (backend เช็คซ้ำอีกชั้นตอน POST อยู่แล้ว)
         const mine = await apiFetch('/exam-results/me');
         const inRound = mine.find(r => r.round_id === activeRound.round_id);
-        if (inRound && inRound.staff_status === 'rejected') setRejected(inRound);
-        else if (inRound) setBlocked(tt('examform.alreadySubmittedRound'));
+        if (inRound?.staff_status === 'approved') {
+          setBlocked(tt('examform.alreadySubmittedRound'));
+        } else if (inRound) {
+          setExisting(inRound);
+          // เติมคำตอบเดิมกลับเข้าฟอร์ม ไม่งั้นต้องติ๊กใหม่หมดทั้งที่แก้แค่วิชาเดียว
+          const prev = {};
+          for (const sr of inRound.subject_results || []) {
+            if (!sr.carried_forward) prev[sr.subject_id] = sr.is_passed;
+          }
+          setResults(prev);
+        }
       })
       .catch(e => {
         // 403 = ยังไม่ได้รับสิทธิ์ — เป็นเหตุผลที่กรอกไม่ได้ ไม่ใช่ระบบพัง
@@ -97,21 +107,33 @@ export function ExamFormReal({ go, toast, lang }) {
 
   return (
     <div className="fade-up">
-      <PageHead title={rejected ? tt('examform.editTitle') : tt('nav.student.form')}
+      <PageHead title={existing ? tt('examform.editTitle') : tt('nav.student.form')}
         sub={round ? tt('news.roundSlash', { attempt: round.attempt_number, year: round.academic_year }) : ''} />
 
-      {rejected && (
+      {existing?.staff_status === 'rejected' && (
         <div className="card card-pad" style={{ marginBottom: 18, borderLeft: '4px solid var(--status-reject-dot)' }}>
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
             <Icon name="xCircle" size={19} style={{ color: 'var(--status-reject-dot)', flex: 'none', marginTop: 1 }} />
             <div>
               <div style={{ fontWeight: 700, fontSize: 14.5, marginBottom: 3 }}>{tt('examform.rejectedTitle')}</div>
               <p style={{ margin: 0, fontSize: 13.5, color: 'var(--ink-700)' }}>
-                {rejected.remark || tt('examform.rejectedDefaultReason')}
+                {existing.remark || tt('examform.rejectedDefaultReason')}
               </p>
               <p style={{ margin: '6px 0 0', fontSize: 12.5, color: 'var(--ink-500)' }}>
                 {tt('examform.rejectedResubmitNote')}
               </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {existing?.staff_status === 'pending' && (
+        <div className="card card-pad" style={{ marginBottom: 18, borderLeft: '4px solid var(--status-wait-dot)' }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+            <Icon name="clock" size={19} style={{ color: 'var(--status-wait-dot)', flex: 'none', marginTop: 1 }} />
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 14.5, marginBottom: 3 }}>{tt('examform.editableTitle')}</div>
+              <p style={{ margin: 0, fontSize: 13.5, color: 'var(--ink-700)' }}>{tt('examform.editableNote')}</p>
             </div>
           </div>
         </div>
@@ -172,7 +194,10 @@ export function ExamFormReal({ go, toast, lang }) {
             {error && <div style={{ color: 'var(--reject,#dc2626)', fontSize: 13, marginTop: 10 }}>{error}</div>}
             <button className="btn btn-primary btn-block btn-lg" style={{ marginTop: 14 }}
               disabled={filled < toAnswer.length || submitting} onClick={submit}>
-              {submitting ? tt('common.submitting') : rejected ? tt('examform.resubmitBtn') : tt('review.submitBtn')} <Icon name="send" size={16} />
+              {submitting ? tt('common.submitting')
+                : existing?.staff_status === 'rejected' ? tt('examform.resubmitBtn')
+                : existing ? tt('examform.editBtn')
+                : tt('review.submitBtn')} <Icon name="send" size={16} />
             </button>
           </div>
         </div>

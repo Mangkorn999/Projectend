@@ -204,7 +204,7 @@ function RoundModal({ round, allSubjects, cohorts, onClose, onSave, tt }) {
           })}>
           <Icon name="check" size={16} /> {tt('roundsMgmt.saveBtn')}</button></>}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div className="grid g-2" style={{ gap: 14 }}>
+        <div className="grid g-2 fields-row" style={{ gap: 14 }}>
           {/* academic_year ของรอบ = กลุ่มเป้าหมาย: backend เปิดรอบนี้ให้เฉพาะนักศึกษารุ่นเดียวกันเท่านั้น */}
           <div className="field">
             <label>{tt('roundsMgmt.fieldCohort')}</label>
@@ -229,7 +229,7 @@ function RoundModal({ round, allSubjects, cohorts, onClose, onSave, tt }) {
           </div>
           <div className="field"><label>{tt('roundsMgmt.fieldAttempt')}</label><input className="input tnum" type="number" value={attemptNumber} onChange={e => setAttemptNumber(e.target.value)} placeholder="1" /></div>
         </div>
-        <div className="grid g-2" style={{ gap: 14 }}>
+        <div className="grid g-2 fields-row" style={{ gap: 14 }}>
           <div className="field"><label>{tt('roundsMgmt.fieldOpenDate')}</label><input className="input" type="date" value={openDate} onChange={e => setOpenDate(e.target.value)} /></div>
           <div className="field"><label>{tt('roundsMgmt.fieldCloseDate')}</label><input className="input" type="date" value={closeDate} onChange={e => setCloseDate(e.target.value)} /></div>
         </div>

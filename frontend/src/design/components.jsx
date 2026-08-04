@@ -26,25 +26,11 @@ export function Avatar({ name, size = 38, bg }) {
   return <span className="avatar" style={{ width:size, height:size, fontSize:size*0.42, background:bg }}>{init}</span>;
 }
 
-/* ---- Notifications per role ---- */
-// mock data เดิม (ยังไม่มี backend endpoint จริง) — ปิดไว้ก่อน ให้ dropdown โชว์ empty state แทน
-// const NOTIFS = {
-//   officer: [
-//     { icon:'checkCircle', tone:'wait', title:'มีนักศึกษาส่งผลสอบใหม่รอตรวจสอบ', sub:'6 รายการ · รอบ 1/2569', time:'10 นาทีที่แล้ว' },
-//     { icon:'clock', tone:'reject', title:'รอบการกรอกใกล้ปิดรับสมัครแล้ว', sub:'รอบ 1/2569 · ปิดรับใน 4 วัน', time:'2 ชม. ที่แล้ว' },
-//   ],
-//   student: [
-//     { icon:'xCircle', tone:'reject', title:'ผลสอบของคุณถูกตีกลับ', sub:'เอกสารหลักฐานไม่ชัดเจน กรุณาแก้ไขและส่งใหม่', time:'1 ชม. ที่แล้ว' },
-//     { icon:'clock', tone:'wait', title:'รอบการกรอกใกล้ปิดรับสมัครแล้ว', sub:'รอบ 1/2569 · ปิดรับใน 4 วัน', time:'5 ชม. ที่แล้ว' },
-//   ],
-//   executive: [
-//     { icon:'report', tone:'ok', title:'รายงานสรุปผลสอบรอบ 1/2569 พร้อมแล้ว', sub:'ยืนยันผลครบ 60 คน จาก 120 คน', time:'30 นาทีที่แล้ว' },
-//   ],
-// };
-const NOTIFS = {};
+/* แจ้งเตือนของจริงประกอบที่ app.jsx (ดู design/notifications.js) แล้วส่งเข้า TopBar เป็น prop
+   mock data ชุดเดิมลบทิ้งแล้ว */
 
 /* ---- App shell: TopBar ---- */
-export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=0, lang='TH', setLang }) {
+export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notifications=[], unread=0, onNotifOpen, onNotifGo, lang='TH', setLang }) {
   const [open, setOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   return (
@@ -68,25 +54,29 @@ export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=0, l
           background: lang==='EN'?'var(--navy-700)':'transparent', color: lang==='EN'?'#fff':'var(--ink-500)' }}>EN</button>
       </div>}
       <button className="btn btn-ghost btn-sm" style={{ position:'relative', padding:9, border:'1px solid var(--ink-200)' }}
-        onClick={()=>setNotifOpen(true)}>
+        onClick={()=>{ setNotifOpen(true); onNotifOpen?.(); }}>
         <Icon name="bell" size={19} />
-        {notif>0 && <span style={{ position:'absolute', top:5, right:5, width:8, height:8, borderRadius:'50%',
+        {unread>0 && <span style={{ position:'absolute', top:5, right:5, width:8, height:8, borderRadius:'50%',
           background:'var(--fail)', boxShadow:'0 0 0 2px #fff' }}></span>}
       </button>
       <Modal open={notifOpen} onClose={()=>setNotifOpen(false)} title={t(lang,'topbar.notifTitle')} width={680}>
-        {NOTIFS[role] ? (
+        {notifications.length ? (
           <div style={{ minHeight:440, display:'flex', flexDirection:'column', gap:2 }}>
-            {NOTIFS[role].map((n,i)=>(
-              <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:13, padding:'13px 6px',
-                borderBottom: i<NOTIFS[role].length-1?'1px solid var(--ink-100)':'none' }}>
+            {notifications.map((n,i)=>(
+              <button key={n.key} onClick={()=>{ setNotifOpen(false); onNotifGo?.(n.page); }}
+                style={{ display:'flex', alignItems:'flex-start', gap:13, padding:'13px 6px', width:'100%',
+                  background:'transparent', border:'none', textAlign:'left', cursor:'pointer', fontFamily:'inherit',
+                  borderBottom: i<notifications.length-1?'1px solid var(--ink-100)':'none' }}>
                 <div style={{ width:38, height:38, borderRadius:10, flex:'none', display:'flex', alignItems:'center', justifyContent:'center',
                   background:`var(--status-${n.tone}-bg)`, color:`var(--status-${n.tone}-fg)` }}><Icon name={n.icon} size={18}/></div>
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ fontSize:14, fontWeight:700, color:'var(--ink-900)' }}>{n.title}</div>
                   <div style={{ fontSize:13, color:'var(--ink-500)', marginTop:2 }}>{n.sub}</div>
                 </div>
-                <div style={{ fontSize:11.5, color:'var(--ink-400)', flex:'none', whiteSpace:'nowrap' }}>{n.time}</div>
-              </div>
+                <div style={{ fontSize:11.5, color:'var(--ink-400)', flex:'none', whiteSpace:'nowrap' }}>
+                  {n.at ? new Date(n.at).toLocaleDateString(lang==='EN'?'en-GB':'th-TH') : ''}
+                </div>
+              </button>
             ))}
           </div>
         ) : (
@@ -357,6 +347,45 @@ export function Empty({ icon='doc', title, sub, action }) {
     {sub && <div style={{ marginTop:5, fontSize:13.5 }}>{sub}</div>}
     {action && <div style={{ marginTop:16 }}>{action}</div>}
   </div>;
+}
+
+/* ---- Pagination ----
+   เลขหน้าที่จะแสดง: หน้าแรก/หน้าสุดท้ายเสมอ + หน้าข้างเคียง อย่างอื่นย่อเป็น '…'
+   page เป็น index เริ่มที่ 0 */
+export function pageNumbers(page, pages) {
+  if (pages <= 7) return Array.from({ length: pages }, (_, i) => i);
+  const out = [0];
+  const from = Math.max(1, Math.min(page - 1, pages - 4));
+  const to = Math.min(pages - 2, Math.max(page + 1, 3));
+  if (from > 1) out.push('…');
+  for (let i = from; i <= to; i++) out.push(i);
+  if (to < pages - 2) out.push('…');
+  out.push(pages - 1);
+  return out;
+}
+
+export function Pagination({ page, pages, onPage, lang = 'TH' }) {
+  if (pages <= 1) return null;
+  const tt = (key, vars) => t(lang, key, vars);
+  return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12,
+      flexWrap:'wrap', padding:'12px 18px', borderTop:'1px solid var(--ink-100)' }}>
+      <span style={{ fontSize:13, color:'var(--ink-500)' }}>{tt('officer.students.pageInfo', { page: page + 1, pages })}</span>
+      <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+        <button className="btn btn-ghost btn-sm" disabled={page === 0} onClick={() => onPage(page - 1)}>
+          <Icon name="chevL" size={15} /> {tt('officer.students.prevBtn')}</button>
+        <div style={{ display:'flex', gap:4 }}>
+          {pageNumbers(page, pages).map((n, i) => n === '…'
+            ? <span key={`gap${i}`} style={{ padding:'0 4px', color:'var(--ink-400)', fontSize:13, alignSelf:'center' }}>…</span>
+            : <button key={n} className={`btn btn-sm ${n === page ? '' : 'btn-ghost'}`} onClick={() => onPage(n)}
+                style={{ minWidth:32, padding:'0 8px', justifyContent:'center', fontWeight: n === page ? 700 : 500 }}>{n + 1}</button>
+          )}
+        </div>
+        <button className="btn btn-ghost btn-sm" disabled={page >= pages - 1} onClick={() => onPage(page + 1)}>
+          {tt('officer.students.nextBtn')} <Icon name="chevR" size={15} /></button>
+      </div>
+    </div>
+  );
 }
 
 /* ---- Stepper ---- */

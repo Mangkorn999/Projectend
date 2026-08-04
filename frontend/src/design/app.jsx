@@ -9,6 +9,7 @@ import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakToggle, TweakCol
 import { Login } from './login.jsx';
 import { ForceChangePassword } from './forceChangePassword.jsx';
 import { getToken, getStoredUser, clearSession, apiFetch } from './api.js';
+import { buildNotifications, readKeys, markAllRead } from './notifications.js';
 import { FormIntro } from './student.jsx';
 import { StudentImport } from './studentImport.jsx';
 import { OfficerStudentsReal } from './officerStudentsReal.jsx';
@@ -75,12 +76,40 @@ export function App() {
   const [formStep, setFormStep] = useState(0);
   const [lang, setLang] = useState('TH'); // 'TH' | 'EN' — wired into student-side pages via i18n.js
   const [pendingCount, setPendingCount] = useState(0); // เลขบน badge "ตรวจสอบ/ยืนยันผล"
+  const [notifications, setNotifications] = useState([]);
+  const [unread, setUnread] = useState(0);
+
+  // แจ้งเตือน — ประกอบจาก endpoint ที่มีอยู่ ดึงใหม่ทุกครั้งที่เปลี่ยนหน้า
+  // นักศึกษาเห็นผลของตัวเอง + ประกาศ, role อื่นเห็นแค่ประกาศ
+  useEffect(()=>{
+    if (!role || !currentUser) { setNotifications([]); setUnread(0); return; }
+    let dropped = false;
+    (async () => {
+      const news = await apiFetch('/news').catch(()=>[]);
+      const examResults = role === 'student'
+        ? await apiFetch('/exam-results/me').catch(()=>[])
+        : [];
+      if (dropped) return; // เปลี่ยนหน้า/ออกจากระบบระหว่างรอ — ทิ้งผลไปเลย
+      const items = buildNotifications({ role, examResults, news, lang });
+      const read = readKeys(currentUser.id);
+      setNotifications(items);
+      setUnread(items.filter(n => !read.includes(n.key)).length);
+    })();
+    return () => { dropped = true; };
+  }, [role, currentUser, page, lang]);
 
   // นับผลสอบที่ยังรอตรวจใหม่ทุกครั้งที่เปลี่ยนหน้า — ตรวจเสร็จกลับมา badge ต้องลดลงเอง
+  // นับเฉพาะรอบที่เปิดอยู่ (ไม่มีก็รอบล่าสุด) ให้ตรงกับที่หน้าคิวตรวจสอบเปิดมาเจอ
+  // ถ้านับรวมทุกรอบทุกปี เลข badge จะไม่มีวันตรงกับลิสต์ที่เห็นจริง
   useEffect(()=>{
     if (role !== 'officer') { setPendingCount(0); return; }
-    apiFetch('/exam-results')
-      .then(rows => setPendingCount(rows.filter(r => r.staff_status === 'pending').length))
+    apiFetch('/rounds')
+      .then(rounds => {
+        const round = rounds.find(r => r.status === 'open') || rounds[0];
+        if (!round) return setPendingCount(0);
+        return apiFetch(`/exam-results?round_id=${round.round_id}&staff_status=pending`)
+          .then(rows => setPendingCount(rows.length));
+      })
       .catch(()=>{});
   }, [role, page]);
 
@@ -150,6 +179,9 @@ export function App() {
       <TopBar role={role} roleLabel={translate(lang,'role.'+role)}
         user={{ firstName: currentUser?.name || '', lastName: '' }}
         onMenu={()=>setSbOpen(true)} onSwitchRole={switchRole}
+        notifications={notifications} unread={unread}
+        onNotifOpen={()=>{ markAllRead(currentUser.id, notifications.map(n=>n.key)); setUnread(0); }}
+        onNotifGo={go}
         lang={lang} setLang={setLang} />
       <div className="app-shell">
         {/* บทบาทผู้ใช้แสดงที่เมนูผู้ใช้บน TopBar ที่เดียว — การ์ดใน sidebar ซ้ำโดยไม่จำเป็น */}

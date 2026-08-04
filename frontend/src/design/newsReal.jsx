@@ -2,7 +2,7 @@
    ข่าวสาร/ประกาศ (ข้อมูลจริงจาก backend) — ทั้งฝั่งนักศึกษา (อ่านอย่างเดียว) และเจ้าหน้าที่ (CRUD)
    แทนที่ StudentNews (student.jsx) และ ManageNews (officer-manage.jsx) ที่ใช้ mock NEWS/ROUNDS
    ============================================================ */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Icon } from './data.jsx';
 import { PageHead, Modal, StatusBadge } from './components.jsx';
 import { apiFetch, ApiError, fetchAuthedObjectUrl } from './api.js';
@@ -11,8 +11,63 @@ import { t } from './i18n.js';
 /* รูปประกอบประกาศ — endpoint ต้องใช้ Authorization header ซึ่ง <img src> ใส่เองไม่ได้
    เลยต้องโหลดเป็น blob ก่อนแล้วค่อยชี้ src ไปที่ object URL
    รูปที่แนบมามีได้ทุกขนาด/สัดส่วน — จำกัดด้วย maxHeight + object-fit ให้การ์ดไม่ยืดตามรูป */
-function NewsImage({ newsId, maxHeight = 320, radius = 12 }) {
+/* รูปเต็มจอพร้อมซูม — รูปประกาศมักเป็นไดอะแกรมที่อ่านไม่ออกในขนาดย่อ
+   ใช้ CSS transform ล้วน ไม่ต้องพึ่ง library ซูมสำเร็จรูป */
+function Lightbox({ url, onClose, tt }) {
+  const [scale, setScale] = useState(1);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const drag = useRef(null); // จุดที่เริ่มลาก — null = ตอนนี้ไม่ได้ลากอยู่
+
+  useEffect(() => {
+    const onKey = e => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    // กันหน้าเบื้องหลังเลื่อนตามตอน overlay เปิดอยู่
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
+  }, [onClose]);
+
+  // จำกัด 1–5 เท่า ต่ำกว่า 1 ไม่มีประโยชน์ สูงกว่า 5 ก็เห็นแต่พิกเซล
+  const zoom = next => {
+    const s = Math.min(5, Math.max(1, next));
+    setScale(s);
+    if (s === 1) setPos({ x: 0, y: 0 }); // กลับขนาดเดิมแล้วต้องกลับมากลางจอด้วย
+  };
+
+  const onDown = e => { if (scale > 1) drag.current = { x: e.clientX - pos.x, y: e.clientY - pos.y }; };
+  const onMove = e => { if (drag.current) setPos({ x: e.clientX - drag.current.x, y: e.clientY - drag.current.y }); };
+  const onUp = () => { drag.current = null; };
+
+  const btn = { border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: 14, fontWeight: 700,
+    fontFamily: 'inherit', cursor: 'pointer', background: 'rgba(255,255,255,.92)', color: 'var(--ink-900)' };
+
+  return (
+    <div onClick={onClose} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
+      style={{ position: 'fixed', inset: 0, zIndex: 120, background: 'rgba(0,0,0,.86)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+      {/* stopPropagation กันคลิกปุ่มแล้วทะลุไปโดน overlay จนปิดไปเลย */}
+      <div onClick={e => e.stopPropagation()}
+        style={{ position: 'absolute', top: 16, right: 16, display: 'flex', gap: 8, zIndex: 1 }}>
+        <button style={btn} title={tt('news.zoomOut')} onClick={() => zoom(scale - 0.5)}>−</button>
+        <button style={btn} title={tt('news.zoomReset')} onClick={() => zoom(1)}>{Math.round(scale * 100)}%</button>
+        <button style={btn} title={tt('news.zoomIn')} onClick={() => zoom(scale + 0.5)}>+</button>
+        <button style={btn} title={tt('news.zoomClose')} onClick={onClose}>✕</button>
+      </div>
+      <img src={url} alt="" draggable={false}
+        onClick={e => e.stopPropagation()}
+        onMouseDown={onDown}
+        onWheel={e => zoom(scale + (e.deltaY < 0 ? 0.3 : -0.3))}
+        style={{ maxWidth: '92vw', maxHeight: '92vh', objectFit: 'contain', userSelect: 'none',
+          transform: `translate(${pos.x}px, ${pos.y}px) scale(${scale})`,
+          cursor: scale > 1 ? 'grab' : 'zoom-in',
+          transition: drag.current ? 'none' : 'transform .12s' }} />
+    </div>
+  );
+}
+
+function NewsImage({ newsId, maxHeight = 320, radius = 12, fit = 'cover', zoomable = false, tt }) {
   const [url, setUrl] = useState('');
+  const [zoom, setZoom] = useState(false);
   useEffect(() => {
     let revoked = false, current = '';
     fetchAuthedObjectUrl(`/news/${newsId}/image`)
@@ -21,8 +76,13 @@ function NewsImage({ newsId, maxHeight = 320, radius = 12 }) {
     return () => { revoked = true; if (current) URL.revokeObjectURL(current); };
   }, [newsId]);
   if (!url) return null;
-  return <img src={url} alt="" style={{ display: 'block', width: '100%', maxHeight, objectFit: 'cover',
-    borderRadius: radius, border: '1px solid var(--ink-200)', background: 'var(--ink-50)' }} />;
+  return (<>
+    <img src={url} alt="" onClick={zoomable ? () => setZoom(true) : undefined}
+      style={{ display: 'block', width: '100%', maxHeight, objectFit: fit,
+        borderRadius: radius, border: '1px solid var(--ink-200)', background: 'var(--ink-50)',
+        cursor: zoomable ? 'zoom-in' : 'default' }} />
+    {zoom && <Lightbox url={url} onClose={() => setZoom(false)} tt={tt} />}
+  </>);
 }
 
 export function StudentNewsReal({ go, lang }) {
@@ -92,7 +152,10 @@ export function StudentNewsReal({ go, lang }) {
             <span className="chip">{tt('news.roundSlash', { attempt: open.round.attempt_number, year: open.round.academic_year })}</span>
             <span className="chip" style={{ background: 'transparent', color: 'var(--ink-500)' }}><Icon name="calendar" size={13} /> {new Date(open.posted_at).toLocaleDateString('th-TH')}</span>
           </div>
-          {open.image_path && <div style={{ marginBottom: 14 }}><NewsImage newsId={open.news_id} maxHeight={420} /></div>}
+          {open.image_path && <div style={{ marginBottom: 14 }}>
+            <NewsImage newsId={open.news_id} maxHeight={420} fit="contain" zoomable tt={tt} />
+            <div className="hint" style={{ marginTop: 6, textAlign: 'center' }}>{tt('news.zoomHint')}</div>
+          </div>}
           <p style={{ margin: 0, fontSize: 15, lineHeight: 1.7, color: 'var(--ink-900)', whiteSpace: 'pre-wrap' }}>{open.content}</p>
           <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--ink-100)', fontSize: 13, color: 'var(--ink-500)' }}>
             {tt('news.postedByFooter', { name: `${open.poster.first_name} ${open.poster.last_name}` })}

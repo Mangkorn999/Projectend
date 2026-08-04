@@ -7,7 +7,7 @@
    ============================================================ */
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, Avatar, StatusBadge } from './components.jsx';
+import { PageHead, Avatar, StatusBadge, Pagination } from './components.jsx';
 import { apiFetch, ApiError } from './api.js';
 import { t } from './i18n.js';
 
@@ -56,6 +56,8 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang }) {
             eligible: !!s.exam_eligible,
             status: latest ? STAFF_STATUS_TO_BADGE[latest.staff_status] : 'DRAFT',
             passedCount,
+            // ตัวหารคือจำนวนวิชาที่ผลใบนั้นเก็บไว้จริง — บางรอบสอบไม่ครบทุกวิชา
+            subjectCount: latest ? latest.subject_results.length : 0,
             allPass: passedCount === latest?.subject_results.length && passedCount > 0,
             submittedAt: latest ? new Date(latest.submitted_at).toLocaleDateString('th-TH') : null,
             // StudentDetail (officer.jsx) ยังไม่ต่อ backend จริง — ใส่ค่าว่างกันหน้าแตกตอนคลิกเข้าไปดู
@@ -199,7 +201,7 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang }) {
                   <td><span className={'badge ' + (s.eligible ? 'ok' : 'draft')}><span className="dot"></span>
                     {s.eligible ? tt('officer.students.eligibleYes') : tt('officer.students.eligibleNo')}</span></td>
                   <td>{s.status === 'DRAFT' ? <span style={{ color: 'var(--ink-400)' }}>—</span> :
-                    <span className="tnum" style={{ fontWeight: 700, color: s.allPass ? 'var(--pass)' : 'var(--ink-800)' }}>{s.passedCount}/8</span>}</td>
+                    <span className="tnum" style={{ fontWeight: 700, color: s.allPass ? 'var(--pass)' : 'var(--ink-800)' }}>{s.passedCount}/{s.subjectCount}</span>}</td>
                   <td><StatusBadge status={s.status} lang={lang} /></td>
                   <td style={{ color: 'var(--ink-500)', fontSize: 13 }}>{s.submittedAt || '—'}</td>
                   <td style={{ textAlign: 'right' }}><Icon name="chevR" size={18} style={{ color: 'var(--ink-300)' }} /></td>
@@ -208,13 +210,7 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang }) {
             </tbody>
           </table>
         </div>
-        {pages > 1 && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', borderTop: '1px solid var(--ink-100)' }}>
-          <span style={{ fontSize: 13, color: 'var(--ink-500)' }}>{tt('officer.students.pageInfo', { page: page + 1, pages })}</span>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-ghost btn-sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}><Icon name="chevL" size={15} /> {tt('officer.students.prevBtn')}</button>
-            <button className="btn btn-ghost btn-sm" disabled={page >= pages - 1} onClick={() => setPage(p => p + 1)}>{tt('officer.students.nextBtn')} <Icon name="chevR" size={15} /></button>
-          </div>
-        </div>}
+        <Pagination page={page} pages={pages} onPage={setPage} lang={lang} />
       </div>
     </div>
   );

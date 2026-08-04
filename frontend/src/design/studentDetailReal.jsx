@@ -29,10 +29,14 @@ export function StudentDetailReal({ student, go, toast, readonly, lang }) {
       apiFetch(`/exam-results?student_id=${student.sid}`),
     ]).then(([subjectList, results]) => {
       setSubjects(subjectList);
-      setExamResult(results[0] || null); // เรียงจาก submitted_at desc อยู่แล้ว — ตัวแรกคือรอบล่าสุด
+      // มาจากหน้าคิวตรวจสอบจะระบุใบที่กดมาด้วย (resultId) — ต้องเปิดใบนั้น ไม่ใช่ใบล่าสุด
+      // ไม่งั้นกดจากแท็บ "รอตรวจสอบ" แล้วเปิดมาเจอใบรอบอื่นที่ถูกตีกลับไปแล้ว
+      // มาจากหน้ารายชื่อนักศึกษาไม่มี resultId — ใช้ใบล่าสุด (เรียง submitted_at desc มาแล้ว)
+      const picked = student.resultId ? results.find(r => r.result_id === student.resultId) : null;
+      setExamResult(picked || results[0] || null);
     }).catch(e => setError(e.message)).finally(() => setLoading(false));
   };
-  useEffect(load, [student.sid]);
+  useEffect(load, [student.sid, student.resultId]);
 
   const status = examResult ? STAFF_STATUS_TO_BADGE[examResult.staff_status] : 'DRAFT';
   const passedCount = examResult ? examResult.subject_results.filter(r => r.is_passed).length : 0;
