@@ -6,7 +6,7 @@
    ============================================================ */
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, StatCard, Donut, BarRow } from './components.jsx';
+import { PageHead, StatCard, Donut, BarRow, MultiLineChart, Modal } from './components.jsx';
 import { apiFetch } from './api.js';
 import { t, subjectName } from './i18n.js';
 
@@ -67,29 +67,32 @@ export function DashboardReal({ go, readonly, lang }) {
             <span className="nav-badge" style={{ background: 'var(--gold-500)', color: '#3a2c05', marginLeft: 2 }}>{by.submitted}</span></button>}
         </>} />
 
-      <div className="grid g-5" style={{ marginBottom: 20 }}>
+      {!readonly && <div className="grid g-5" style={{ marginBottom: 20 }}>
         <StatCard icon="users" label={tt('dashReal.eligibleStatLabel')} value={eligible} sub={tt('dashReal.eligibleStatSub', { total })} tone="navy" accent onClick={() => go('students')} />
         <StatCard icon="edit" label={tt('dashReal.submittedStatLabel')} value={submitted} sub={tt('dashReal.submittedStatSub', { rate: fillRate })} tone="blue" accent onClick={() => go('students')} />
-        <StatCard icon="clock" label={tt('status.SUBMITTED')} value={by.submitted} sub={tt('dashReal.pendingSub')} tone="wait" accent onClick={() => !readonly && go('review')} />
+        <StatCard icon="clock" label={tt('status.SUBMITTED')} value={by.submitted} sub={tt('dashReal.pendingSub')} tone="wait" accent onClick={() => go('review')} />
         <StatCard icon="checkCircle" label={tt('status.CONFIRMED')} value={by.approved} sub={tt('dashReal.confirmedSub', { n: fullyPassed, rate: fullyPassedRate })} tone="ok" accent />
-        <StatCard icon="xCircle" label={tt('status.REJECTED')} value={by.rejected} sub={tt('dashReal.rejectedSub')} tone="reject" accent onClick={() => !readonly && go('review')} />
-      </div>
+        <StatCard icon="xCircle" label={tt('status.REJECTED')} value={by.rejected} sub={tt('dashReal.rejectedSub')} tone="reject" accent onClick={() => go('review')} />
+      </div>}
 
       <div className="row wrap-m" style={{ alignItems: 'flex-start' }}>
-        <div className="card card-pad" style={{ flex: '1 1 320px' }}>
-          <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 800 }}>{tt('dashReal.statusBreakdownTitle')}</h3>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
-            <Donut segments={segs} center={<><div className="tnum" style={{ fontSize: 26, fontWeight: 800 }}>{eligible}</div><div style={{ fontSize: 11.5, color: 'var(--ink-500)' }}>{tt('dashReal.eligibleLabel')}</div></>} />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-              {segs.map(s => (
-                <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5 }}>
-                  <span style={{ width: 10, height: 10, borderRadius: 3, background: s.color, flex: 'none' }}></span>
-                  <span style={{ flex: 1, color: 'var(--ink-700)' }}>{s.label}</span>
-                  <span className="tnum" style={{ fontWeight: 700 }}>{s.value}</span>
-                </div>
-              ))}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, flex: '1 1 320px' }}>
+          <div className="card card-pad">
+            <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 800 }}>{tt('dashReal.statusBreakdownTitle')}</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+              <Donut segments={segs} center={<><div className="tnum" style={{ fontSize: 26, fontWeight: 800 }}>{eligible}</div><div style={{ fontSize: 11.5, color: 'var(--ink-500)' }}>{tt('dashReal.eligibleLabel')}</div></>} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                {segs.map(s => (
+                  <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 3, background: s.color, flex: 'none' }}></span>
+                    <span style={{ flex: 1, color: 'var(--ink-700)' }}>{s.label}</span>
+                    <span className="tnum" style={{ fontWeight: 700 }}>{s.value}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
+          {readonly && history && history.years.length > 0 && <SubjectHistoryChart history={history} tt={tt} />}
         </div>
 
         <div className="card card-pad" style={{ flex: '1.3 1 380px' }}>
@@ -108,6 +111,47 @@ export function DashboardReal({ go, readonly, lang }) {
       </div>
 
       {history && history.years.length > 0 && <YearCompare history={history} tt={tt} />}
+    </div>
+  );
+}
+
+// สี 3 ปีย้อนหลัง — ปีล่าสุดเข้มสุด เก่าสุดจางสุด รองรับปีเพิ่มในอนาคตด้วย modulo
+const HISTORY_COLORS = ['var(--navy-600)', 'var(--blue-400)', 'var(--ink-300)', '#c9971f', '#8b5e34'];
+
+// อัตราผ่านรายวิชาย้อนหลัง 3 ปี — เส้นละปี, แกน x = รหัสวิชา, ข้อมูลอัปเดตตาม /dashboard/history อัตโนมัติเมื่อมีรอบ/ปีใหม่เข้ามา
+function SubjectHistoryChart({ history, tt }) {
+  const [expanded, setExpanded] = useState(false);
+  const years = [...history.years]
+    .filter(y => y.perSubject && y.perSubject.length > 0)
+    .sort((a, b) => a.academic_year - b.academic_year); // เก่า→ใหม่ อ่านซ้ายไปขวา
+
+  if (years.length === 0) return null;
+
+  const categories = years[years.length - 1].perSubject.map(s => s.subject_code);
+  const series = years.map((y, i) => ({
+    label: String(y.academic_year),
+    color: HISTORY_COLORS[i % HISTORY_COLORS.length],
+    values: categories.map(code => y.perSubject.find(s => s.subject_code === code)?.rate ?? 0),
+  }));
+
+  return (
+    <div className="card card-pad" style={{ marginTop: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+        <div>
+          <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800 }}>{tt('dashReal.subjectHistoryTitle')}</h3>
+          <p style={{ margin: 0, color: 'var(--ink-500)', fontSize: 13 }}>{tt('dashReal.subjectHistorySub')}</p>
+        </div>
+        <button className="btn btn-ghost btn-sm" style={{ padding: 7, flex: 'none' }} title={tt('dashReal.expandChart')} onClick={() => setExpanded(true)}>
+          <Icon name="expand" size={16} />
+        </button>
+      </div>
+      <div style={{ marginTop: 16 }}>
+        <MultiLineChart categories={categories} series={series} height={220} width={640} />
+      </div>
+
+      <Modal open={expanded} onClose={() => setExpanded(false)} title={tt('dashReal.subjectHistoryTitle')} width={860}>
+        <MultiLineChart categories={categories} series={series} height={380} width={800} legendSize={13} />
+      </Modal>
     </div>
   );
 }

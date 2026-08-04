@@ -119,6 +119,7 @@ const buildYearSummary = async (year, allSubjects) => {
   const everSubmitted = new Set(); // student_id ที่ส่งอย่างน้อย 1 รอบในปีนี้
   const everFullyPassed = new Set(); // student_id ที่เคยผ่านครบในรอบใดรอบหนึ่ง
   const roundSummaries = [];
+  const yearSent = []; // ผลส่งแล้วรวมทุกรอบของปีนี้ — ใช้ทำอัตราผ่านรายวิชาย้อนหลัง
 
   for (const round of rounds) {
     const results = await dashRepo.findResultsByRound(round.round_id);
@@ -136,6 +137,7 @@ const buildYearSummary = async (year, allSubjects) => {
       )
       .forEach((r) => everFullyPassed.add(r.student_id));
 
+    yearSent.push(...sent);
     roundSummaries.push({
       round_id: round.round_id,
       attempt_number: round.attempt_number,
@@ -155,6 +157,8 @@ const buildYearSummary = async (year, allSubjects) => {
     fillRate: percent(everSubmitted.size, eligible),
     passRate: percent(everFullyPassed.size, everSubmitted.size),
     rounds: roundSummaries,
+    // อัตราผ่านรายวิชา รวมทุกรอบของปีนี้ — ใช้กราฟเทียบอัตราผ่านรายวิชาย้อนหลัง
+    perSubject: buildPerSubject(yearSent, allSubjects),
   };
 };
 
