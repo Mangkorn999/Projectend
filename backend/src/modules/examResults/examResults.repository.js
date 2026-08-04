@@ -9,6 +9,10 @@ export const STAFF_STATUS = {
   REJECTED: "rejected",
 };
 
+// ก้อน include ที่ใช้ซ้ำ 5 ที่ในไฟล์นี้ — บอก Prisma ว่าให้ดึงตารางที่เกี่ยวข้องมาด้วย
+// เขียนไว้ที่เดียว เวลาแก้จะได้ไม่ต้องไล่แก้ทั้ง 5 จุด
+// เวลาเอาไปใช้จะเจอ { ...withDetails, student } — เครื่องหมาย ... (spread)
+// แปลว่า "ก๊อปทุก key ในก้อนนี้มาวางตรงนี้" = round, subject_results, certificates, student
 const withDetails = {
   round: true,
   subject_results: { include: { subject: true } },
@@ -34,18 +38,35 @@ export const findByStudentAndRound = (student_id, round_id) =>
     where: { student_id, round_id: Number(round_id) },
   });
 
-// วิชาที่นักศึกษาคนนี้เคยสอบผ่านมาแล้ว (จากทุกรอบที่เคยกรอก) — ไม่ต้องกรอกซ้ำอีก
+// วิชาที่นักศึกษาคนนี้เคยสอบผ่านมาแล้ว (จากรอบอื่น) — ไม่ต้องกรอกซ้ำอีก
 // ไม่ต้องกรองปี เพราะนักศึกษา 1 คนอยู่รุ่นเดียว รอบที่เคยกรอกคือรอบของรุ่นตัวเองอยู่แล้ว
-export const findPassedSubjectIds = async (student_id) => {
+//
+// excludeRoundId = รอบที่กำลังจะกรอก/กำลังดูอยู่ ต้องตัดออกเสมอ
+// ไม่งั้นใบของรอบนี้เองที่ถูกตีกลับ จะย้อนกลับมาล็อกวิชาที่ตัวเองเพิ่งติ๊กผ่าน
+// กลายเป็น "ผ่านแล้วจากรอบก่อน" ทั้งที่ยังไม่มีรอบก่อน แล้วแก้ผลไม่ได้
+export const findPassedSubjectIds = async (student_id, excludeRoundId = null) => {
   const rows = await prisma.subjectResult.findMany({
-    where: { is_passed: true, exam_result: { student_id } },
+    where: {
+      is_passed: true,
+      exam_result: {
+        student_id,
+        // ... (spread) = "ถ้ามี excludeRoundId ให้แปะเงื่อนไข NOT เข้าไป ถ้าไม่มีก็ไม่แปะอะไร"
+        ...(excludeRoundId ? { NOT: { round_id: Number(excludeRoundId) } } : {}),
+      },
+    },
     select: { subject_id: true },
   });
   // วิชาเดียวกันอาจผ่านซ้ำได้หลายรอบ (copy-forward) ตัดซ้ำออกก่อนคืน
+  // อ่านบรรทัดล่างจากในออกนอก 3 ชั้น:
+  //   1. rows.map(...)  → เอาเฉพาะ subject_id ออกมา เช่น [1, 2, 2, 3]
+  //   2. new Set(...)   → Set คือกล่องที่ห้ามมีของซ้ำ ได้ Set {1, 2, 3}
+  //   3. [... ]         → แปลง Set กลับเป็น array ธรรมดา [1, 2, 3]
   return [...new Set(rows.map((r) => r.subject_id))];
 };
 
 // ฝั่งเจ้าหน้าที่ — ดูผลสอบทุกคน กรองได้ตามรอบ/สถานะ/นักศึกษา
+// ({ a, b } = {}) = รับ object 1 ก้อนแล้วแกะออกเป็นตัวแปรทันที
+//   ส่วน = {} ข้างหลัง คือค่าตั้งต้น กันเรียก findAll() เปล่าๆ แล้วพังเพราะแกะ undefined ไม่ได้
 export const findAll = ({ round_id, staff_status, student_id } = {}) => {
   const where = {};
   if (round_id) where.round_id = Number(round_id);
@@ -85,6 +106,14 @@ export const findById = (result_id) =>
     include: withDetails,
   });
 
+// แปลงผลรายวิชาให้อยู่ในรูปที่ Prisma รับ — ใช้ทั้งตอนสร้างใหม่และตอนส่งทับ
+const toSubjectRows = (subjectResults) =>
+  subjectResults.map((s) => ({
+    subject_id: Number(s.subject_id),
+    is_passed: Boolean(s.is_passed),
+    carried_forward: Boolean(s.carried_forward),
+  }));
+
 // ส่งใหม่หลังโดนตีกลับ — ทับผลรายวิชาชุดเดิม แล้วกลับไปเข้าคิวรอตรวจ
 // ล้าง remark กับคนที่เคยตรวจทิ้ง ไม่งั้นใบที่แก้แล้วยังติดเหตุผลตีกลับรอบก่อนค้างอยู่
 export const resubmitWithSubjects = (result_id, subjectResults) =>
@@ -98,10 +127,7 @@ export const resubmitWithSubjects = (result_id, subjectResults) =>
       submitted_at: new Date(),
       subject_results: {
         deleteMany: {}, // ลบของเดิมทั้งชุดก่อน แล้วค่อยใส่ชุดใหม่
-        create: subjectResults.map((s) => ({
-          subject_id: Number(s.subject_id),
-          is_passed: Boolean(s.is_passed),
-        })),
+        create: toSubjectRows(subjectResults),
       },
     },
     include: withDetails,
@@ -120,10 +146,7 @@ export const createWithSubjects = (
       student_status,
       staff_status,
       subject_results: {
-        create: subjectResults.map((s) => ({
-          subject_id: Number(s.subject_id),
-          is_passed: Boolean(s.is_passed),
-        })),
+        create: toSubjectRows(subjectResults),
       },
     },
     include: withDetails,

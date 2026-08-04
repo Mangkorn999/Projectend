@@ -2,6 +2,8 @@
 
 เอกสารสอนอ่าน-เขียนโค้ดเอง อ้างอิงจากไฟล์จริงในโปรเจกต์นี้. ไม่ใช่ spec — แค่ cheat sheet.
 
+> **เจอสัญลักษณ์แปลกๆ อ่านไม่ออก** (`...` `?.` `??` `=>` `?:`) → ข้ามไป [ส่วนที่ 5](#5-สัญลักษณ์แปลกๆ-ที่เจอในโค้ดเรา) ล่างสุด มีตัวอย่างจากโค้ดจริงทุกตัว พร้อมเวอร์ชันเขียนยาวๆ ให้เทียบ
+
 ---
 
 ## 1. JavaScript (ES Modules + async/await)
@@ -197,3 +199,220 @@ feat: implement authentication routes and login controller
 chore: remove SyntaxCraft (wrong project) files
 ```
 รูปแบบ: `<type>(<scope>): <อธิบายสั้น>` — type ที่ใช้: `feat`, `fix`, `chore`, `merge`.
+
+---
+
+## 5. สัญลักษณ์แปลกๆ ที่เจอในโค้ดเรา
+
+ทุกตัวในนี้เป็น **ทางลัดในการเขียน** ไม่ใช่ความสามารถพิเศษ — เขียนแบบยาวก็ได้ผลเหมือนกันเป๊ะ.
+คอลัมน์ "เขียนยาว" คือสิ่งที่มันแปลว่าอะไรจริงๆ.
+
+### 5.1 `=>` — arrow function (ฟังก์ชันแบบสั้น)
+
+```js
+// backend/src/modules/rounds/rounds.repository.js
+export const findById = (id) => prisma.submissionRound.findUnique({ where: { round_id: Number(id) } });
+```
+เขียนยาว = อันเดียวกัน:
+```js
+export function findById(id) {
+  return prisma.submissionRound.findUnique({ where: { round_id: Number(id) } });
+}
+```
+
+กฎที่ต้องจำ: arrow ที่**ไม่มีปีกกา** `{}` = `return` ค่านั้นให้อัตโนมัติ.
+ถ้าใส่ปีกกาแล้วต้องเขียน `return` เอง ไม่งั้นได้ `undefined`:
+```js
+const f = (x) => x * 2;          // คืน x*2
+const g = (x) => { x * 2; };      // คืน undefined! ลืม return
+const h = (x) => { return x * 2; }; // ถูก
+```
+
+### 5.2 `?.` — optional chaining (กันพังตอนค่าเป็น null)
+
+```js
+// frontend/src/design/officerReviewReal.jsx
+room: r.student.room?.room_name || '-',
+```
+เขียนยาว:
+```js
+let room;
+if (r.student.room) {          // ถ้ามี room จริง
+  room = r.student.room.room_name;
+} else {
+  room = undefined;
+}
+if (!room) room = '-';          // ส่วนของ || '-'
+```
+มีไว้ทำไม: นักศึกษาบางคนยังไม่ได้ห้อง `room` เป็น `null`. เขียน `r.student.room.room_name` ตรงๆ จะพังทันทีด้วย
+`TypeError: Cannot read properties of null (reading 'room_name')`.
+
+### 5.3 `||` กับ `??` — ค่าสำรอง
+
+```js
+const PORT = process.env.PORT || 3000;     // backend/src/server.js
+remark: remark ?? null,                     // backend/src/modules/examResults/examResults.controller.js
+```
+- `a || b` → ถ้า `a` เป็นค่า "เท็จ" (`null`, `undefined`, `0`, `""`, `false`) ให้ใช้ `b`
+- `a ?? b` → ใช้ `b` **เฉพาะตอน** `a` เป็น `null` หรือ `undefined` เท่านั้น
+
+ต่างกันตรงไหน สำคัญมาก:
+```js
+0 || 100     // = 100  ← 0 ถือเป็นเท็จ เลยโดนแทน (มักไม่ใช่สิ่งที่ต้องการ)
+0 ?? 100     // = 0    ← 0 เป็นค่าจริง ไม่โดนแทน
+```
+
+### 5.4 `? :` — ternary (if/else แบบบรรทัดเดียว)
+
+```js
+// backend/src/modules/examResults/examResults.controller.js
+const result = isRedo
+  ? await examRepo.resubmitWithSubjects(existing.result_id, finalResults)
+  : await examRepo.createWithSubjects({ ... }, finalResults);
+```
+เขียนยาว:
+```js
+let result;
+if (isRedo) {
+  result = await examRepo.resubmitWithSubjects(existing.result_id, finalResults);
+} else {
+  result = await examRepo.createWithSubjects({ ... }, finalResults);
+}
+```
+อ่านว่า: `เงื่อนไข ? เอาอันนี้ : ไม่งั้นเอาอันนี้`
+
+### 5.5 `...` — spread (คลายของในกล่องออกมา)
+
+**กับ object** = ก๊อปทุก key ของก้อนเดิมมาใส่ก้อนใหม่:
+```js
+// backend/src/modules/examResults/examResults.repository.js
+const withDetails = { round: true, subject_results: { include: { subject: true } }, certificates: true };
+
+include: { ...withDetails, student: studentSafeSelect }
+```
+เขียนยาว = อันเดียวกัน:
+```js
+include: {
+  round: true,
+  subject_results: { include: { subject: true } },
+  certificates: true,
+  student: studentSafeSelect,
+}
+```
+มีไว้ทำไม: ก้อน `withDetails` ถูกใช้ 5 ที่ในไฟล์เดียว. เขียนยาวทั้ง 5 ที่ = แก้ทีต้องไล่แก้ 5 จุด ลืมจุดเดียวก็บั๊ก.
+
+**กับ array** = คลาย array ออกเป็นสมาชิกเดี่ยวๆ:
+```js
+const ids = [...selected];                 // Set → array ธรรมดา
+const all = [...prev, ...filtered];        // ต่อ 2 array เข้าด้วยกัน (= prev.concat(filtered))
+```
+
+### 5.6 `.map()` / `.filter()` / `.some()` / `.every()` — วนลูปแบบสั้น
+
+| เขียนสั้น | แปลว่า | ได้อะไรกลับมา |
+|---|---|---|
+| `arr.map(x => ...)` | แปลงทุกตัว | array ใหม่ **ขนาดเท่าเดิม** |
+| `arr.filter(x => ...)` | คัดเฉพาะที่เงื่อนไขจริง | array ใหม่ **สั้นลงหรือเท่าเดิม** |
+| `arr.some(x => ...)` | มีสักตัวที่จริงไหม | `true` / `false` |
+| `arr.every(x => ...)` | จริงหมดทุกตัวไหม | `true` / `false` |
+| `arr.find(x => ...)` | หาตัวแรกที่จริง | ตัวนั้น หรือ `undefined` |
+
+```js
+// backend/src/modules/dashboard/dashboard.service.js
+const pass = marks.filter((m) => m.is_passed).length;
+```
+เขียนยาว:
+```js
+let pass = 0;
+for (const m of marks) {
+  if (m.is_passed) {
+    pass = pass + 1;
+  }
+}
+```
+
+ต่อกันหลายตัวได้ อ่านจากซ้ายไปขวาทีละขั้น:
+```js
+results.filter(r => r.staff_status === 'pending').map(r => r.student_id)
+// ขั้น 1 คัดเฉพาะใบที่รอตรวจ → ขั้น 2 ดึงเฉพาะรหัสนักศึกษาออกมา
+```
+
+### 5.7 `new Set()` — กล่องที่ห้ามมีของซ้ำ
+
+```js
+// backend/src/modules/examResults/examResults.repository.js
+return [...new Set(rows.map((r) => r.subject_id))];
+```
+อ่านทีละชั้นจากในออกนอก:
+1. `rows.map(r => r.subject_id)` → `[1, 2, 2, 3]` (มี 2 ซ้ำ)
+2. `new Set(...)` → `Set {1, 2, 3}` (Set ตัดซ้ำให้เอง)
+3. `[... ]` → `[1, 2, 3]` (แปลง Set กลับเป็น array ธรรมดา)
+
+ใช้เช็ค "มีอยู่ในกลุ่มไหม" เร็วกว่า array มาก:
+```js
+const submittedIds = new Set(results.map(r => r.student_id));
+submittedIds.has('6410001')   // true / false
+```
+
+### 5.8 `===` vs `==`
+
+**ใช้ `===` เสมอ.** `==` แปลงชนิดให้เองก่อนเทียบ ทำให้เกิดเรื่องแบบนี้:
+```js
+"1" == 1     // true  ← แปลง string เป็นเลขให้ก่อน
+"1" === 1    // false ← คนละชนิด ถือว่าไม่เท่า (ถูกต้องกว่า)
+```
+เวลาเทียบ id ที่มาจาก URL (เป็น string เสมอ) กับ id จาก DB (เป็น number) ต้องแปลงเองก่อน:
+```js
+String(r.round_id) === String(roundId)     // หรือ Number(...) ทั้งคู่
+```
+
+### 5.9 `async` / `await` / `Promise.all`
+
+`await` = "รอตรงนี้จนกว่าจะได้ผล ค่อยไปบรรทัดถัดไป". ใช้ได้เฉพาะในฟังก์ชันที่มี `async`.
+
+```js
+// รอทีละอัน — ช้า เพราะอันที่ 2 ต้องรออันที่ 1 เสร็จก่อนทั้งที่ไม่เกี่ยวกัน
+const total = await dashRepo.countStudentsByYear(year);
+const eligible = await dashRepo.countEligibleByYear(year);
+
+// ยิงพร้อมกันแล้วรอให้ครบ — เร็วกว่า (backend/src/modules/dashboard/dashboard.service.js)
+const [total, eligible] = await Promise.all([
+  dashRepo.countStudentsByYear(year),
+  dashRepo.countEligibleByYear(year),
+]);
+```
+`const [a, b] = ...` คือ **array destructuring** — เอาตัวที่ 0 ใส่ `a`, ตัวที่ 1 ใส่ `b` ตามลำดับ.
+
+### 5.10 object shorthand — key กับ value ชื่อเดียวกัน
+
+```js
+const student_id = "6410001";
+const data = { student_id };          // = { student_id: student_id }
+```
+
+### 5.11 default parameter — ค่าตั้งต้นของ argument
+
+```js
+// backend/src/modules/dashboard/dashboard.service.js
+export const buildHistory = async (yearCount = 3) => { ... }
+
+buildHistory();     // yearCount = 3 (ไม่ส่งมา ใช้ค่าตั้งต้น)
+buildHistory(5);    // yearCount = 5
+```
+
+### 5.12 `({ a, b } = {})` — รับ object แล้วแกะทันที
+
+```js
+// backend/src/modules/examResults/examResults.repository.js
+export const findAll = ({ round_id, staff_status, student_id } = {}) => { ... }
+```
+เขียนยาว:
+```js
+export function findAll(options) {
+  if (options === undefined) options = {};   // ← ส่วน = {} ข้างหลัง กันเรียก findAll() เปล่าๆ แล้วพัง
+  const round_id = options.round_id;
+  const staff_status = options.staff_status;
+  const student_id = options.student_id;
+  ...
+}
+```

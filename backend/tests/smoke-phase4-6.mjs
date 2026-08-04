@@ -138,11 +138,21 @@ const main = async () => {
   check("POST exam-results → 200", submit.status, 200, JSON.stringify(submit.json).slice(0, 160));
   const resultId = submit.json?.data?.result_id;
 
-  const dup = await call("POST", "/api/exam-results", {
+  // ส่งซ้ำระหว่างยังไม่ตรวจ = แก้ไข แต่ต้องส่งมาให้ครบทุกวิชาของรอบ
+  const partial = await call("POST", "/api/exam-results", {
     token: studentToken,
     body: { subject_results: [{ subject_id: subjectIds[0], is_passed: true }] },
   });
-  check("POST exam-results ซ้ำรอบเดิม → 409", dup.status, 409);
+  check("POST exam-results แก้แต่ส่งไม่ครบ → 400", partial.status, 400);
+
+  const edit = await call("POST", "/api/exam-results", {
+    token: studentToken,
+    body: {
+      subject_results: subjectIds.map((id, i) => ({ subject_id: id, is_passed: i !== 2 })),
+    },
+  });
+  check("POST exam-results แก้ครบทุกวิชา → 200", edit.status, 200);
+  check("แก้แล้วยังเป็นใบเดิม", edit.json?.data?.result_id, resultId);
 
   const mine = await call("GET", "/api/exam-results/me", { token: studentToken });
   check("GET exam-results/me → 200", mine.status, 200);

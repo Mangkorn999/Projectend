@@ -4,7 +4,7 @@
   "type": "module",
   "main": "app.js",
   "scripts": {
-    "test": "node tests/smoke-phase1-3.mjs && node tests/smoke-phase4-6.mjs && node tests/smoke-phase9-import.mjs && node tests/smoke-phase10-round-subjects.mjs && node tests/smoke-phase11-carry-forward.mjs",
+    "test": "node tests/smoke-phase1-3.mjs && node tests/smoke-phase4-6.mjs && node tests/smoke-phase9-import.mjs && node tests/smoke-phase10-round-subjects.mjs && node tests/smoke-phase11-carry-forward.mjs && node tests/smoke-phase12-reject-edit.mjs",
     "start": "node src/server.js"
   },
   "author": "",

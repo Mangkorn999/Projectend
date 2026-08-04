@@ -21,6 +21,12 @@ const countByStatus = (results) => {
 
 // ผ่านครบ = ทุกวิชาของรอบนี้มีผลส่งมา และผ่านหมด
 // เทียบทีละ subject_id ไม่ใช่นับจำนวน เพราะผลเก่าอาจมีวิชานอกรอบติดมาด้วย
+//
+// อ่านบรรทัดล่างเป็นภาษาคน: "คัดเฉพาะใบที่ ทุกวิชาของรอบ มีอย่างน้อย 1 ผลที่ตรงวิชานั้นและผ่าน แล้วนับจำนวน"
+//   .filter(...) = คัดเฉพาะตัวที่เงื่อนไขเป็นจริง
+//   .every(...)  = จริงหมดทุกตัวไหม → true/false
+//   .some(...)   = มีสักตัวที่จริงไหม → true/false
+//   .length      = นับจำนวนที่เหลือหลังคัด
 const countFullyPassed = (sent, subjectIds) =>
   sent.filter((r) =>
     subjectIds.every((id) =>
@@ -28,12 +34,14 @@ const countFullyPassed = (sent, subjectIds) =>
     ),
   ).length;
 
-// ผ่าน/ไม่ผ่าน แยกรายวิชา นับจากคนที่ส่งแล้วเท่านั้น
+// ผ่าน/ไม่ผ่าน แยกรายวิชา นับเฉพาะคนที่ "สอบวิชานั้นจริงในรอบนี้"
+// วิชาที่ทุกคนยกผลผ่านมาจากรอบก่อน (carried_forward) ไม่มีใครสอบ ต้องไม่ขึ้น 100%
+// rate: null แปลว่า "ไม่มีข้อมูล" คนละเรื่องกับ 0 ที่แปลว่า "สอบแล้วตกหมด"
 const buildPerSubject = (sent, subjects) =>
   subjects.map((sub) => {
     const marks = sent
       .map((r) => r.subject_results.find((x) => x.subject_id === sub.subject_id))
-      .filter(Boolean);
+      .filter((m) => m && !m.carried_forward);
     const pass = marks.filter((m) => m.is_passed).length;
     return {
       subject_id: sub.subject_id,
@@ -41,7 +49,7 @@ const buildPerSubject = (sent, subjects) =>
       subject_name: sub.subject_name,
       pass,
       fail: marks.length - pass,
-      rate: percent(pass, marks.length),
+      rate: marks.length ? percent(pass, marks.length) : null,
     };
   });
 
@@ -77,9 +85,11 @@ export const buildStats = async (roundId) => {
   const fullyPassed = countFullyPassed(sent, subjectIds);
 
   // เฉลี่ยอัตราผ่านของทุกวิชา — คนละตัวกับ fullyPassedRate ที่นับเป็นรายคน
+  // ข้ามวิชาที่ไม่มีใครสอบจริง ไม่งั้นตัวหารจะรวมวิชาที่ไม่มีข้อมูลเข้ามาด้วย
+  const sat = perSubject.filter((s) => s.rate !== null);
   const subjectPassRate = percent(
-    perSubject.reduce((sum, s) => sum + s.pass, 0),
-    perSubject.reduce((sum, s) => sum + s.pass + s.fail, 0),
+    sat.reduce((sum, s) => sum + s.pass, 0),
+    sat.reduce((sum, s) => sum + s.pass + s.fail, 0),
   );
 
   return {

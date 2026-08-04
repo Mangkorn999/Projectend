@@ -121,6 +121,10 @@ model SubjectResult {
   result_id         Int
   subject_id        Int
   is_passed         Boolean
+  // true = ไม่ได้สอบวิชานี้ในรอบนี้ ผลผ่านยกมาจากรอบก่อน (copy-forward)
+  // แยกไว้ให้สถิติรายวิชานับเฉพาะคนที่สอบจริง
+  // default false = แถวเก่าก่อนมี column นี้ ถือว่าสอบจริงทั้งหมด
+  carried_forward   Boolean    @default(false)
   exam_result       ExamResult @relation(fields: [result_id], references: [result_id])
   subject           Subject    @relation(fields: [subject_id], references: [subject_id])
 

@@ -13,6 +13,9 @@ export const errorHandler = (err, req, res, next) => {
     success: false,
     message,
     // แสดง stack เฉพาะตอน development เท่านั้น
+    // บรรทัดล่างคือท่า "ใส่ key นี้แบบมีเงื่อนไข":
+    //   เป็น development → ได้ { stack: ... } แล้ว ... กระจาย key stack เข้ามาใน object นี้
+    //   ไม่ใช่ development → ได้ false แล้ว ...false ไม่เพิ่มอะไรเลย (ไม่ error)
     ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
   });
 };

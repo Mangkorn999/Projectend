@@ -37,15 +37,24 @@ export const create = async (req, res, next) => {
       student.student_id,
       round.round_id,
     );
-    // ใบที่ถูกตีกลับให้ส่งทับได้ — การตีกลับมีไว้ให้แก้แล้วส่งใหม่ ถ้าปิดไว้นักศึกษาจะค้างอยู่ตรงนั้น
-    const isRedo = existing?.staff_status === STAFF_STATUS.REJECTED;
-    if (existing && !isRedo) throw httpError("กรอกผลสอบรอบนี้ไปแล้ว", 409);
+    // แก้ทับได้จนกว่าเจ้าหน้าที่จะยืนยัน หรือรอบจะปิด — อย่างใดอย่างหนึ่งมาก่อน
+    // (รอบปิดไม่ต้องเช็คตรงนี้ เพราะ findActive ด้านบนคืน null ไปแล้ว)
+    // ยืนยันแล้วต้องล็อก ไม่งั้นเปลี่ยนผลหลังเจ้าหน้าที่เซ็นไปแล้วได้
+    if (existing?.staff_status === STAFF_STATUS.APPROVED) {
+      throw httpError("เจ้าหน้าที่ยืนยันผลสอบรอบนี้แล้ว แก้ไขไม่ได้", 409);
+    }
+    const isRedo = Boolean(existing);
 
     const allSubjects = await subjectsRepo.findAll();
     const roundSubjectIds = subjectsOfRound(round, allSubjects).map(
       (s) => s.subject_id,
     );
-    const passedIds = await examRepo.findPassedSubjectIds(student.student_id);
+    // ส่ง round_id ไปด้วยเพื่อตัดใบของรอบนี้ออก
+    // วิชาที่ผ่านในใบที่ถูกตีกลับ ต้องกลับมาแก้ได้ ไม่ใช่ถูกล็อกเป็น "ผ่านแล้วจากรอบก่อน"
+    const passedIds = await examRepo.findPassedSubjectIds(
+      student.student_id,
+      round.round_id,
+    );
     // วิชาที่ยังต้องตอบจริงในรอบนี้ = วิชาของรอบ ลบวิชาที่เคยผ่านแล้ว
     const mustAnswer = roundSubjectIds.filter((id) => !passedIds.includes(id));
 
@@ -71,9 +80,18 @@ export const create = async (req, res, next) => {
 
     // เก็บให้ครบทุกวิชาของรอบเสมอ — วิชาที่เคยผ่านแล้วบันทึกต่อเป็นผ่านให้เลย (copy-forward)
     // ไม่เชื่อค่าที่ client ส่งมาสำหรับวิชาพวกนี้ กันแก้ผลที่ผ่านไปแล้วให้กลายเป็นไม่ผ่าน
+    //
+    // .map() = วนทุกตัวใน roundSubjectIds แล้วสร้าง array ใหม่ขนาดเท่าเดิม
+    // เครื่องหมาย ? : คือ if/else แบบบรรทัดเดียว อ่านว่า "เงื่อนไข ? เอาอันนี้ : ไม่งั้นเอาอันนี้"
+    // เขียนยาวๆ ได้แบบนี้:
+    //   let passed;
+    //   if (passedIds.includes(id)) { passed = true; }   // เคยผ่านแล้ว บังคับ true
+    //   else                        { passed = answers.get(id); }  // ใช้คำตอบที่ส่งมา
     const finalResults = roundSubjectIds.map((id) => ({
       subject_id: id,
       is_passed: passedIds.includes(id) ? true : answers.get(id),
+      // ยกมาจากรอบก่อน ไม่ได้สอบรอบนี้ — dashboard ต้องไม่นับเป็นคนสอบผ่าน
+      carried_forward: passedIds.includes(id),
     }));
 
     const result = isRedo

@@ -6,6 +6,8 @@ const NEWEST_FIRST = [{ academic_year: "desc" }, { attempt_number: "desc" }];
 // รอบที่ควรโชว์เมื่อเจ้าหน้าที่เปิด dashboard โดยไม่ได้เลือกรอบเอง
 // เอารอบที่เปิดรับอยู่ก่อน — เจ้าหน้าที่เข้ามาดูเพราะอยากรู้ว่ารอบนี้กรอกกันถึงไหนแล้ว
 // ถ้าไม่มีรอบเปิด ค่อยถอยไปรอบล่าสุด
+// ?? อ่านว่า "ถ้าฝั่งซ้ายเป็น null/undefined ให้ใช้ฝั่งขวาแทน"
+// = หารอบที่เปิดอยู่ก่อน ไม่เจอค่อยเอารอบล่าสุด
 export const findDefaultRound = async () =>
   (await prisma.submissionRound.findFirst({
     where: { status: "open" },
@@ -50,9 +52,15 @@ export const findAllSubjects = () =>
   prisma.subject.findMany({ orderBy: { subject_code: "asc" } });
 
 // ผลสอบทั้งหมดในรอบ + ผลรายวิชา (ใช้คำนวณสถิติ)
+// เอาเฉพาะนักศึกษาที่ยังมีสิทธิ์กรอก เพราะตัวหารทุกตัวใน dashboard คือ eligible
+// ถ้าไม่กรอง คนที่ส่งแล้วโดนปิดสิทธิ์ทีหลังจะทำให้ผลรวมเกิน eligible
+// แล้ว Math.max(...) ใน not_started จะตัดเป็น 0 วงกับตัวเลขตรงกลางเลยไม่ตรงกัน
 export const findResultsByRound = (roundId) =>
   prisma.examResult.findMany({
-    where: { round_id: Number(roundId) },
+    where: {
+      round_id: Number(roundId),
+      student: { exam_eligible: true },
+    },
     include: {
       subject_results: true,
       student: {

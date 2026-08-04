@@ -169,11 +169,13 @@ const main = async () => {
     });
     check("round1 submit 5 subjects -> 200", submit1.status, 200);
 
+    // ส่งซ้ำระหว่างที่ยังไม่ตรวจ = แก้ไข ไม่ใช่ error
+    // ส่งชุดเดิม (3 ผ่าน / 2 ตก) เพื่อไม่ให้ตัวเลขของรอบถัดไปเพี้ยน
     const again = await call("POST", "/api/exam-results", {
       token: sToken,
-      body: { subject_results: ids.slice(0, 5).map((id) => ({ subject_id: id, is_passed: true })) },
+      body: { subject_results: ids.slice(0, 5).map((id, i) => ({ subject_id: id, is_passed: i < 3 })) },
     });
-    check("submit same round twice -> 409", again.status, 409);
+    check("edit same round while pending -> 200", again.status, 200);
 
     // ---- rejected results must be fixable, that is the point of rejecting ----
     const resultId = submit1.json.data.result_id;
@@ -198,11 +200,12 @@ const main = async () => {
     check("  old marks replaced, not appended", redo.json.data?.subject_results?.length, 5);
     check("  marks still 3 pass / 2 fail", redo.json.data?.subject_results?.filter((s) => s.is_passed).length, 3);
 
+    // ส่งทับได้เรื่อยๆ ตราบใดที่ยังไม่ถูกยืนยัน — ส่งชุดเดิมไว้ ตัวเลขรอบ 2 จะได้ไม่เพี้ยน
     const redoAgain = await call("POST", "/api/exam-results", {
       token: sToken,
-      body: { subject_results: ids.slice(0, 5).map((id) => ({ subject_id: id, is_passed: true })) },
+      body: { subject_results: ids.slice(0, 5).map((id, i) => ({ subject_id: id, is_passed: i < 3 })) },
     });
-    check("resubmit while pending -> 409", redoAgain.status, 409);
+    check("resubmit while pending -> 200", redoAgain.status, 200);
 
     await call("PATCH", `/api/exam-results/${resultId}/approve`, { token: oToken });
     const afterApprove = await call("POST", "/api/exam-results", {

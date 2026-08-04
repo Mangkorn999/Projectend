@@ -42,7 +42,11 @@ export const getActive = async (req, res, next) => {
 
     // รอบนี้สอบวิชาไหนบ้าง + วิชาไหนที่นักศึกษาคนนี้ผ่านไปแล้วจากรอบก่อน
     const allSubjects = await subjectsRepo.findAll();
-    const passedIds = await examRepo.findPassedSubjectIds(student.student_id);
+    // ส่ง round_id ไปด้วย ให้ already_passed ที่ frontend เห็น ตรงกับที่ backend เช็คตอน POST
+    const passedIds = await examRepo.findPassedSubjectIds(
+      student.student_id,
+      round.round_id,
+    );
     const subjects = subjectsOfRound(round, allSubjects).map((s) => ({
       ...s,
       already_passed: passedIds.includes(s.subject_id),

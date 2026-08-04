@@ -4,6 +4,10 @@
 // ตัวอย่างใช้งาน:
 // router.get("/admin", authenticate, requireRole("staff"), controller)
 
+// (...allowedRoles) = rest parameter — รับ argument กี่ตัวก็ได้ แล้วมัดเป็น array ให้
+//   requireRole("officer")               → allowedRoles = ["officer"]
+//   requireRole("officer", "executive")  → allowedRoles = ["officer", "executive"]
+// คืนค่าเป็น "ฟังก์ชัน" อีกที เพราะ Express ต้องการ middleware หน้าตา (req, res, next)
 export const requireRole = (...allowedRoles) => {
   return (req, res, next) => {
     if (!req.user) {
