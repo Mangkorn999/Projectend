@@ -151,14 +151,14 @@ async function main() {
   // 6. สร้างรายวิชาที่ใช้สอบ 8 วิชา
   await prisma.subject.createMany({
     data: [
-      { subject_code: "NUR01", subject_name: "การพยาบาลมารดาและทารก" },
-      { subject_code: "NUR02", subject_name: "การพยาบาลเด็กและวัยรุ่น" },
-      { subject_code: "NUR03", subject_name: "การพยาบาลผู้ใหญ่" },
-      { subject_code: "NUR04", subject_name: "การพยาบาลผู้สูงอายุ" },
-      { subject_code: "NUR05", subject_name: "การพยาบาลสุขภาพจิตและจิตเวช" },
-      { subject_code: "NUR06", subject_name: "การพยาบาลอนามัยชุมชน" },
-      { subject_code: "NUR07", subject_name: "การผดุงครรภ์" },
-      { subject_code: "NUR08", subject_name: "กฎหมายและจรรยาบรรณวิชาชีพ" },
+      { subject_code: "1101", subject_name: "การผดุงครรภ์" },
+      { subject_code: "1102", subject_name: "การพยาบาลมารดาและทารก" },
+      { subject_code: "1103", subject_name: "การพยาบาลเด็กและวัยรุ่น" },
+      { subject_code: "1104", subject_name: "การพยาบาลผู้ใหญ่" },
+      { subject_code: "1105", subject_name: "การพยาบาลผู้สูงอายุ" },
+      { subject_code: "1106", subject_name: "การพยาบาลสุขภาพจิตและจิตเวชศาสตร์" },
+      { subject_code: "1107", subject_name: "การพยาบาลอนามัยชุมชนและการรักษาพยาบาลขั้นต้น" },
+      { subject_code: "1108", subject_name: "กฎหมายว่าด้วยวิชาชีพการพยาบาลและการผดุงครรภ์ จรรยาบรรณวิชาชีพและกฎหมายอื่นที่เกี่ยวข้องฯ" },
     ],
   });
   console.log("Subjects created.");

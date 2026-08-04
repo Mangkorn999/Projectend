@@ -1226,14 +1226,14 @@ const DICT = {
 
 /* ชื่อวิชา 8 วิชาคงที่ตามหลักสูตร — backend เก็บแค่ภาษาไทย (schema ไม่มี field EN) ทำ mapping ฝั่ง frontend แทน */
 const SUBJECT_NAME_EN = {
-  NUR01: 'Maternal and Newborn Nursing',
-  NUR02: 'Pediatric and Adolescent Nursing',
-  NUR03: 'Adult Nursing',
-  NUR04: 'Elderly Nursing',
-  NUR05: 'Mental Health and Psychiatric Nursing',
-  NUR06: 'Community Health Nursing',
-  NUR07: 'Midwifery',
-  NUR08: 'Nursing Law and Ethics',
+  1101: 'Midwifery',
+  1102: 'Maternal and Newborn Nursing',
+  1103: 'Pediatric and Adolescent Nursing',
+  1104: 'Adult Nursing',
+  1105: 'Elderly Nursing',
+  1106: 'Mental Health and Psychiatric Nursing',
+  1107: 'Community Health Nursing and Primary Medical Care',
+  1108: 'Law on Nursing and Midwifery Profession, Professional Ethics and Related Laws',
 };
 
 export function subjectName(lang, code, fallbackName) {
