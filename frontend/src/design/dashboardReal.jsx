@@ -106,9 +106,11 @@ export function DashboardReal({ go, readonly, lang }) {
                 <BarRow key={sub.subject_id} label={label} value={0} max={100}
                   color="var(--ink-200)" right="—" sub={tt('dashReal.noExamThisRound')} />
               );
+              // เขียว = สัดส่วนที่ผ่าน, แดง = ส่วนที่เหลือคือไม่ผ่าน
+              // อ่านออกทันทีแม้ 0% (แดงเต็มแถบ) ซึ่งเดิมเป็นรางเปล่าดูไม่ต่างจาก "ไม่มีข้อมูล"
               return (
                 <BarRow key={sub.subject_id} label={label} value={sub.rate} max={100}
-                  color={sub.rate >= 70 ? 'var(--status-ok-dot)' : sub.rate >= 40 ? 'var(--status-wait-dot)' : 'var(--status-reject-dot)'}
+                  color="var(--pass)" track="var(--fail)"
                   right={`${sub.rate}%`} sub={tt('dashReal.passFailSub', { pass: sub.pass, fail: sub.fail })} />
               );
             })}
@@ -148,8 +150,9 @@ function YearCompare({ history, tt }) {
                 <td className="tnum" style={{ padding: '10px' }}>{y.eligible} / {y.total}</td>
                 <td className="tnum" style={{ padding: '10px' }}>{y.submitted} ({y.fillRate}%)</td>
                 <td style={{ padding: '10px' }}>
+                  {/* เขียว = ผ่านครบทุกวิชา, แดง = ส่วนที่เหลือคือยังผ่านไม่ครบ */}
                   <BarRow label="" value={y.passRate} max={100} right={tt('dashReal.passCountRate', { n: y.fullyPassed, rate: y.passRate })}
-                    color={y.passRate >= 70 ? 'var(--status-ok-dot)' : y.passRate >= 40 ? 'var(--status-wait-dot)' : 'var(--status-reject-dot)'} />
+                    color="var(--pass)" track="var(--fail)" />
                 </td>
               </tr>
             ))}

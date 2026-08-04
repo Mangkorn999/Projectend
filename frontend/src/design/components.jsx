@@ -194,14 +194,17 @@ export function Donut({ segments, size=180, thickness=26, center }) {
 }
 
 /* ---- Horizontal bar list (per-subject) ---- */
-export function BarRow({ label, value, max=100, color='var(--navy-600)', right, sub }) {
+// track = สีพื้นหลังของราง = ส่วนที่ "ยังไม่ถึง" ค่านี้
+// อัตราผ่านส่งสีแดงมา ส่วนที่เหลือจะได้อ่านออกว่า "ไม่ผ่าน" — ไม่งั้น 0% จะเป็นรางเปล่า
+// หน้าตาเหมือนกรณี "ไม่มีข้อมูล" จนแยกไม่ออก
+export function BarRow({ label, value, max=100, color='var(--navy-600)', track, right, sub }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:10 }}>
         <span style={{ fontSize:13.5, color:'var(--ink-900)', fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{label}</span>
         <span className="tnum" style={{ fontSize:13.5, fontWeight:700, color:'var(--ink-900)', flex:'none' }}>{right}</span>
       </div>
-      <div className="pbar" style={{ height:9 }}>
+      <div className="pbar" style={{ height:9, background: track || undefined }}>
         <i style={{ width:(value/max*100)+'%', background:color }}></i>
       </div>
       {sub && <div style={{ fontSize:11.5, color:'var(--ink-400)' }}>{sub}</div>}
