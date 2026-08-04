@@ -167,20 +167,32 @@ src/modules/subjects/
 
 | Method | URL | Role | คำอธิบาย |
 |---|---|---|---|
-| `POST` | `/api/exam-results` | student | สร้าง exam result + subject results |
+| `POST` | `/api/exam-results` | student | ส่ง/แก้ exam result + subject results |
 | `GET` | `/api/exam-results/me` | student | ดูผลสอบของตัวเอง |
 | `POST` | `/api/exam-results/:id/certificates` | student | อัปโหลดเอกสาร |
 
-**เงื่อนไข `POST /api/exam-results`:** ต้องมี `exam_eligible = true` → ต้องมีรอบเปิดของรุ่นตัวเอง → กรอกซ้ำรอบเดิมไม่ได้ (409)
+**เงื่อนไข `POST /api/exam-results`:** ต้องมี `exam_eligible = true` → ต้องมีรอบเปิดของรุ่นตัวเอง
 
-**ยกเว้นใบที่ถูกตีกลับ** — `staff_status: "rejected"` ส่งทับได้ (ใช้ `result_id` เดิม ลบผลรายวิชาชุดเก่าทิ้ง
-กลับเป็น `pending` ล้าง `remark`/`confirmed_by`/`confirmed_at`). ถ้าปิดตรงนี้ไว้ ปุ่ม "ตีกลับ" จะใช้ไม่ได้จริง
-เพราะนักศึกษาแก้ตามที่เจ้าหน้าที่บอกแล้วส่งกลับไม่ได้ — `pending`/`approved` ยังคง 409 เหมือนเดิม
+**หน้าต่างแก้ไข — แก้ทับได้จนกว่าเจ้าหน้าที่จะยืนยัน หรือรอบจะปิด**
+
+| สถานะใบเดิม | รอบ | ผลลัพธ์ |
+|---|---|---|
+| ไม่มีใบ | open | สร้างใหม่ |
+| `pending` | open | ส่งทับได้ |
+| `rejected` | open | ส่งทับได้ |
+| `approved` | open | **409** ล็อก |
+| ใดๆ | closed | **400** (ไม่มีรอบเปิด) |
+
+ส่งทับ = ใช้ `result_id` เดิม ลบผลรายวิชาชุดเก่าทิ้ง กลับเป็น `pending` ล้าง `remark`/`confirmed_by`/`confirmed_at`
 
 body: `{ "subject_results": [{ "subject_id": 1, "is_passed": true }, ... ] }`
 
 **ส่งเฉพาะวิชาที่ยังไม่ผ่าน** — วิชาที่ `already_passed` ไม่ต้องส่งมา backend เติมเป็น "ผ่าน" ให้เอง (copy-forward)
+พร้อมตั้ง `carried_forward: true` ไว้ให้ dashboard แยกออกว่าไม่ได้สอบจริงในรอบนี้
 ไม่เชื่อค่าที่ client ส่งมาสำหรับวิชาที่ผ่านไปแล้ว กันแก้ผลเก่าให้กลายเป็นไม่ผ่าน
+
+> ⚠️ `already_passed` นับจาก **รอบอื่น** เท่านั้น — `findPassedSubjectIds(student_id, excludeRoundId)`
+> ต้องส่ง `excludeRoundId` เป็นรอบที่กำลังกรอก ไม่งั้นใบที่ถูกตีกลับจะล็อกวิชาของตัวเองจนแก้ไม่ได้
 
 ตรวจก่อนบันทึกทุกครั้ง ผิดข้อไหนก็ 400: วิชาไม่อยู่ในรอบ / `is_passed` ไม่ใช่ boolean / ส่งวิชาซ้ำ / กรอกไม่ครบ
 
@@ -247,9 +259,12 @@ body ของ `POST`: `{ "title": "...", "content": "...", "round_id": 5 }` —
 - ไม่ส่ง `round_id` → เอารอบที่ `status: "open"` ก่อน ถ้าไม่มีค่อยเป็นรอบล่าสุด
 - `total` = นักศึกษาทั้งรุ่นที่ `academic_year` ตรงกับรอบ
 - `eligible` = เฉพาะคนที่ `exam_eligible: true` — คนที่กรอกได้จริง **ใช้เป็นตัวหารของ `fillRate`**
-- `not_started` = `eligible` − จำนวน exam_result ในรอบ
+- **สถิติทุกตัวนับเฉพาะนักศึกษาที่ `exam_eligible: true`** → `by.* + not_started` รวมได้เท่า `eligible` เสมอ
+- `not_started` = `eligible` − จำนวน exam_result ในรอบ (ของคนที่มีสิทธิ์)
 - `by.submitted` = ส่งแล้วแต่ยังไม่ตรวจ (`staff_status: pending`)
 - `perSubject` / `fullyPassed` นับเฉพาะคนที่ `student_status !== "draft"` และ**เฉพาะวิชาของรอบนั้น**
+- `perSubject[].rate` นับเฉพาะคนที่**สอบวิชานั้นจริง** (`carried_forward: false`) — ถ้าไม่มีใครสอบเลยจะเป็น `null` ไม่ใช่ `0` (หน้าเว็บแสดง `—`)
+- `fullyPassed` **ไม่**ตัด carry-forward ออก — ผ่านวิชานั้นตั้งแต่รอบก่อนก็นับว่าผ่านครบ
 - `fullyPassedRate` = % คนที่ผ่านครบทุกวิชา (รายคน) — `subjectPassRate` = % ผลรายวิชาที่ผ่าน (รายวิชา) คนละตัวกัน
 - `overallPassRate` = ค่าเดียวกับ `fullyPassedRate` เก็บชื่อเดิมไว้ไม่ให้หน้าเก่าพัง
 
