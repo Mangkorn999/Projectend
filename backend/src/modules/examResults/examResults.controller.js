@@ -4,6 +4,7 @@ import * as roundsRepo from "../rounds/rounds.repository.js";
 import * as studentRepo from "../students/student.repository.js";
 import * as subjectsRepo from "../subjects/subjects.repository.js";
 import { subjectsOfRound } from "../../utils/roundSubjects.js";
+import * as notifRepo from "../notifications/notifications.repository.js";
 
 const httpError = (message, statusCode) => {
   const err = new Error(message);
@@ -151,6 +152,17 @@ const reviewExamResult = async (req, res, next, { staff_status, requireRemark })
       remark: requireRemark ? remark : (remark ?? null),
       confirmed_by: req.user.userId, // อ่านจาก JWT เท่านั้น
     });
+
+    // แจ้งเตือนนักศึกษาเจ้าของผลสอบ — ยิงแบบ fire-and-forget ไม่ให้ล้มการยืนยัน/ตีกลับถ้าแจ้งเตือนพลาด
+    const roundLabel = `รอบ ${existing.round.attempt_number}/${existing.round.academic_year}`;
+    const message =
+      staff_status === "approved"
+        ? `ผลสอบ${roundLabel}ได้รับการยืนยันแล้ว`
+        : `ผลสอบ${roundLabel}ถูกตีกลับ: ${remark}`;
+    notifRepo
+      .create({ student_id: existing.student_id, type: staff_status, message })
+      .catch((e) => console.error("สร้างแจ้งเตือนไม่สำเร็จ:", e.message));
+
     res.json({ success: true, data: result });
   } catch (err) {
     next(err);

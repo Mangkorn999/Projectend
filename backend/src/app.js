@@ -14,6 +14,7 @@ import newsRouter from "./modules/news/news.routes.js";
 import dashboardRouter from "./modules/dashboard/dashboard.routes.js";
 import roomsRouter from "./modules/rooms/rooms.routes.js";
 import certificatesRouter from "./modules/certificates/certificates.routes.js";
+import notificationsRouter from "./modules/notifications/notifications.routes.js";
 
 import cors from "cors";
 
@@ -43,6 +44,7 @@ app.use("/api/news", newsRouter);
 app.use("/api/dashboard", dashboardRouter);
 app.use("/api/rooms", roomsRouter);
 app.use("/api/certificates", certificatesRouter);
+app.use("/api/notifications", notificationsRouter);
 
 // ─── Error Handler (ต้องอยู่ท้ายสุดเสมอ) ──────────
 app.use(errorHandler);

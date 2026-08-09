@@ -55,9 +55,17 @@ export async function apiFetch(path, { method = 'GET', body, auth = true } = {})
   // backend ตอบ { success, data } เสมอตอนสำเร็จ, { success:false, message } ตอน error
   const json = await res.json().catch(() => ({}));
   if (!res.ok || json.success === false) {
+    // token หมดอายุ/ไม่ถูกต้อง — เคลียร์ session แล้วเด้งกลับหน้า login แทนค้าง error ทิ้งไว้
+    if (res.status === 401) forceLogout();
     throw new ApiError(json.message || `Request failed (${res.status})`, res.status);
   }
   return json.data ?? json;
+}
+
+// เรียกจาก apiFetch เมื่อ token ใช้ไม่ได้แล้ว — reload หน้าให้ app.jsx เช็ค localStorage แล้วตกไปหน้า login เอง
+function forceLogout() {
+  clearSession();
+  window.location.reload();
 }
 
 /** โหลดไฟล์ที่ต้อง auth header มาเป็น object URL — <img src> แนบ Authorization เองไม่ได้

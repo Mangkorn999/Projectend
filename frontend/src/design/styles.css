@@ -175,6 +175,12 @@ select.input, select.select {
 @keyframes fadeUp { from { opacity:0; transform:translateY(8px);} to { opacity:1; transform:none; } }
 .fade-up { animation: fadeUp .4s cubic-bezier(.4,0,.2,1) both; }
 
+.lang-fade { transition: filter .28s ease, opacity .28s ease; }
+.lang-fade-blur { filter: blur(6px); opacity:.4; }
+
+@keyframes langSpin { to { transform: rotate(360deg); } }
+.lang-spinner { width:14px; height:14px; border-radius:50%; border:2px solid var(--ink-300); border-top-color:var(--navy-700); animation: langSpin .6s linear infinite; }
+
 /* tooltip-ish divider */
 .hr { height:1px; background:var(--ink-200); border:none; margin:0; }
 

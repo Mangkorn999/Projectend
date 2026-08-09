@@ -17,7 +17,7 @@ export function LoginPage({ onLogin }) {
   const go = () => { setLoading(true); setTimeout(()=>onLogin(role), 850); };
 
   return (
-    <div style={{ minHeight:'100vh', display:'grid', gridTemplateColumns:'1.05fr 1fr' }} className="login-wrap">
+    <div style={{ minHeight:'100vh', display:'grid', gridTemplateColumns:'1fr 1fr' }} className="login-wrap">
       {/* แผงซ้าย — แบรนด์ */}
       <div className="login-brand" style={{ background:'linear-gradient(155deg,var(--navy-800),#4a2601)',
         color:'#fff', padding:'48px 56px', display:'flex', flexDirection:'column', position:'relative', overflow:'hidden' }}>

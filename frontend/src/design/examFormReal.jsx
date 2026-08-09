@@ -18,7 +18,7 @@ export function ExamFormReal({ go, toast, lang }) {
   // ใบของรอบนี้ที่ส่งไปแล้ว (ถ้ามี) — แก้ทับได้จนกว่าเจ้าหน้าที่จะยืนยันหรือรอบจะปิด
   const [existing, setExisting] = useState(null);
   const [results, setResults] = useState({}); // { [subject_id]: true|false }
-  const [files, setFiles] = useState({}); // { EXAM: File, LICENSE: File }
+  const [files, setFiles] = useState({}); // { EXAM: File }
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -63,6 +63,8 @@ export function ExamFormReal({ go, toast, lang }) {
   }, []);
 
   // วิชาที่เคยผ่านแล้วไม่ต้องกรอกซ้ำ backend เติมให้เป็น "ผ่าน" ตอนบันทึกเอง
+  // already_passed มาจาก backend ที่ตัดใบของรอบนี้ออกไปแล้ว
+  // → ใบที่ถูกตีกลับ วิชาในรอบนั้นกลับมาแก้ได้หมด ไม่ต้องเช็ค remark ที่ฝั่ง frontend
   const toAnswer = subjects.filter(s => !s.already_passed);
   const passedBefore = subjects.filter(s => s.already_passed);
 
@@ -98,7 +100,7 @@ export function ExamFormReal({ go, toast, lang }) {
   if (blocked) return (
     <div className="fade-up">
       <PageHead title={tt('nav.student.form')} />
-      <div className="card card-pad" style={{ maxWidth: 520, textAlign: 'center', padding: 40 }}>
+      <div className="card card-pad" style={{ maxWidth: 860, margin: '0 auto', minHeight: 420, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 60 }}>
         <Icon name="info" size={34} style={{ color: 'var(--navy-600)', marginBottom: 12 }} />
         <p style={{ color: 'var(--ink-700)', fontSize: 14.5 }}>{blocked}</p>
       </div>
@@ -152,10 +154,10 @@ export function ExamFormReal({ go, toast, lang }) {
             {subjects.map((s, i) => (
               <div key={s.subject_id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px',
                 borderBottom: i < subjects.length - 1 ? '1px solid var(--ink-100)' : 'none',
-                background: s.already_passed ? 'var(--ink-50, #fafafa)' : 'transparent' }}>
+                background: (!isMismatchRedo && s.already_passed) ? 'var(--ink-50, #fafafa)' : 'transparent' }}>
                 <span className="mono" style={{ fontSize: 12, color: 'var(--ink-400)', width: 60, flex: 'none' }}>{s.subject_code}</span>
-                <span style={{ flex: 1, fontSize: 14.5, fontWeight: 500, color: s.already_passed ? 'var(--ink-500)' : 'var(--ink-800)' }}>{subjectName(lang, s.subject_code, s.subject_name)}</span>
-                {s.already_passed ? (
+                <span style={{ flex: 1, fontSize: 14.5, fontWeight: 500, color: (!isMismatchRedo && s.already_passed) ? 'var(--ink-500)' : 'var(--ink-800)' }}>{subjectName(lang, s.subject_code, s.subject_name)}</span>
+                {(!isMismatchRedo && s.already_passed) ? (
                   <span className="badge ok" style={{ flex: 'none' }}><span className="dot" />{tt('examform.alreadyPassedChip')}</span>
                 ) : (
                   <div className="seg">
@@ -176,7 +178,6 @@ export function ExamFormReal({ go, toast, lang }) {
             <p style={{ margin: '0 0 16px', color: 'var(--ink-500)', fontSize: 13 }}>{allPass ? tt('upload.allPassNote') : tt('upload.partialNote')}</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <FileSlot label={tt('upload.examLabel')} file={files.EXAM} onChange={f => setFiles(x => ({ ...x, EXAM: f }))} tt={tt} />
-              {allPass && <FileSlot label={tt('upload.licenseLabel')} file={files.LICENSE} onChange={f => setFiles(x => ({ ...x, LICENSE: f }))} tt={tt} />}
             </div>
           </div>
         </div>

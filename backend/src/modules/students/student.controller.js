@@ -1,6 +1,7 @@
 import { parse } from "csv-parse/sync";
 import iconv from "iconv-lite";
 import * as studentRepo from "./student.repository.js";
+import * as notifRepo from "../notifications/notifications.repository.js";
 
 const REQUIRED_COLUMNS = [
   "student_id",
@@ -113,6 +114,17 @@ export const bulkSetEligible = async (req, res, next) => {
       student_ids,
       exam_eligible,
     );
+
+    // แจ้งเตือนเฉพาะตอนเปิดสิทธิ์ — ปิดสิทธิ์ไม่ต้องแจ้ง ไม่ใช่ข่าวดีที่นักศึกษาต้องรู้ทันที
+    if (exam_eligible && student_ids?.length) {
+      notifRepo
+        .createMany(student_ids, {
+          type: "eligible",
+          message: "เจ้าหน้าที่เปิดสิทธิ์ให้กรอกผลสอบแล้ว",
+        })
+        .catch((e) => console.error("สร้างแจ้งเตือนไม่สำเร็จ:", e.message));
+    }
+
     res.json({ success: true, data: result });
   } catch (err) {
     next(err);

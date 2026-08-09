@@ -242,6 +242,7 @@ app.listen(PORT, () => { ... });
 | `/api/dashboard` | `modules/dashboard/dashboard.routes.js` |
 | `/api/rooms` | `modules/rooms/rooms.routes.js` |
 | `/api/certificates` | `modules/certificates/certificates.routes.js` |
+| `/api/notifications` | `modules/notifications/notifications.routes.js` |
 
 ### `src/config/db.js` (6 บรรทัด)
 สร้าง `PrismaClient` ไว้ตัวเดียวแล้ว export ออกไป (singleton) — สร้างหลายตัวจะเปิด connection ซ้ำจนเปลือง.
@@ -534,6 +535,22 @@ dashboard นับอัตราผ่านรายวิชาเฉพา�
 - validate ไม่ผ่าน → `discard(req.file)` **ลบไฟล์ที่เพิ่งเขียนลง disk ทิ้ง** ไม่ให้มีขยะค้าง
 - ชื่อไฟล์ภาษาไทย: multer อ่านมาเป็น latin1 ต้องแปลงกลับ `Buffer.from(name, "latin1").toString("utf8")` ไม่งั้นชื่อเพี้ยน
 - path เก็บเป็น `/` เสมอ (`.split(path.sep).join("/")`) ไม่ผูกกับ `\` ของ Windows
+
+### 7.9 notifications — แจ้งเตือนนักศึกษา
+
+| Method | URL | สิทธิ์ | ทำอะไร |
+|---|---|---|---|
+| GET | `/api/notifications/me` | 👤 | แจ้งเตือนของตัวเอง 50 อันล่าสุด ใหม่→เก่า |
+| PATCH | `/api/notifications/read-all` | 👤 | mark ว่าอ่านแล้วทั้งหมด |
+| PATCH | `/api/notifications/:id/read` | 👤 | mark อันเดียว |
+
+- **ทุก route ต้องมี `requireRole("student")`** — ไม่ใช่แค่ `authenticate`. role อื่นไม่มี `req.user.studentId` แล้ว Prisma จะมองว่า `student_id: undefined` = "ไม่ต้องกรอง" (ไม่ใช่ "หาไม่เจอ") → เห็นแจ้งเตือนของทุกคน / mark อ่านทั้งระบบ. `notifications.repository.js` มี `requireStudentId()` กันไว้อีกชั้น
+- ไม่มี endpoint ให้สร้างแจ้งเตือน — โมดูลอื่นเรียก `notifRepo.create()` / `createMany()` เอง
+- คนที่ยิงแจ้งเตือนตอนนี้:
+  - `examResults.controller.js` → เจ้าหน้าที่ approve/reject ผลสอบ (`type: "approved" | "rejected"`)
+  - `student.controller.js` → `bulkSetEligible` ตอน **เปิด** สิทธิ์เท่านั้น (`type: "eligible"`) ปิดสิทธิ์ไม่แจ้ง
+- ยิงแบบ fire-and-forget (`.catch(console.error)`) — แจ้งเตือนพลาดต้องไม่ทำให้ approve/reject ล้มไปด้วย
+- `markRead` ใช้ `updateMany` ที่ where ด้วย `student_id` เสมอ — เดา `notification_id` ถูกก็ mark ของคนอื่นไม่ได้
 - **`serveFile` เช็คสิทธิ์ก่อนส่งไฟล์เสมอ:** เจ้าของ หรือ officer/executive เท่านั้น — ไฟล์ไม่ได้เปิด public ให้เดา id เอา
 
 ### 7.9 news — ข่าว/ประกาศ
@@ -620,6 +637,7 @@ dashboard นับอัตราผ่านรายวิชาเฉพา�
 | `SubjectResult` | `subject_results` | ผ่าน/ไม่ผ่าน รายวิชา + `carried_forward` (ยกผลมาจากรอบก่อน ไม่ได้สอบรอบนี้) |
 | `Certificate` | `certificates` | ไฟล์หลักฐาน (เก็บแค่ path) |
 | `News` | `news` | ข่าว/ประกาศ |
+| `Notification` | `notifications` | แจ้งเตือนรายคน (`type` = `approved` / `rejected` / `eligible`) |
 | `Session` | `sessions` | มีตารางแต่ยังไม่ได้ใช้ (auth ใช้ JWT ล้วน) |
 
 `@@map("users")` = ชื่อ model ใน JS คือ `User` แต่ชื่อตารางจริงใน DB คือ `users`.
@@ -683,6 +701,23 @@ User ──1:M── SubmissionRound (creator, ผ่าน created_by)
 | student | `6610210631` | `6610210631` |
 | officer | `456` | `456` |
 | executive | `789` | `789` |
+
+### `prisma/demoSeed.js` — ข้อมูลชุดใหญ่สำหรับเดโม
+
+รัน: `npm run demo:seed`
+
+ต่างจาก `seed.js` ตรงที่ **ไม่แตะ** roles / faculties / rooms / subjects / บัญชี officer+executive — ของพวกนี้ต้องมีอยู่ใน DB ก่อน (ไม่งั้น script โยน error บอกว่าขาดอะไร). รันซ้ำได้ ตอนเริ่มจะลบเฉพาะนักศึกษาเดโม 20 คน + ผลสอบของคนพวกนั้นทิ้งก่อน.
+
+ใส่ให้: นักศึกษา 20 คน (2567 = 7, 2568 = 7, 2569 = 6, `exam_eligible = true` ทุกคน) → 5 รอบสอบ (`status = "closed"` ทั้งหมด) → ผลสอบ 27 ใบ **`staff_status = "approved"` ทุกใบ** → certificate 5 ไฟล์ (ชี้ PDF ที่มีจริงใน `uploads/certificates/`) → ข่าว 2 ชิ้น.
+
+เคสที่ครอบไว้ให้เดโม:
+- ผ่านครบ 8 วิชารอบเดียว
+- ตก 1 / 2 / 3 วิชา
+- รอบแก้ตัวที่ `subject_ids` เป็น subset (สอบไม่ครบ 8 วิชา) + แถวที่ `carried_forward = true`
+- สอบแก้ตัวแล้วผ่าน กับ สอบแก้ตัวแล้วยังตก
+- ปีที่มี 2 รอบ (2567, 2568) กับปีที่มีรอบเดียว (2569)
+
+รหัสผ่านนักศึกษาเดโม = `student_id` ตัวเอง, `must_change_password = false`.
 
 ---
 
@@ -880,11 +915,20 @@ curl -H "Authorization: Bearer <token>" http://localhost:3000/api/subjects/1
 
 | วันที่ | เปลี่ยนอะไร |
 |---|---|
+| 2026-08-09 | merge `feature/update-app` เข้า main — รวมงานของแก้มเข้ากับ reject-flow ที่ main ทำไว้ |
+| 2026-08-09 | เพิ่มโมดูล `notifications` + ตาราง `notifications` — แจ้งเตือนนักศึกษาตอนเจ้าหน้าที่ approve/reject และตอนเปิดสิทธิ์กรอก (migration `add_notifications`, `modules/notifications/*`, `examResults.controller.js`, `student.controller.js`, `app.js`) |
+| 2026-08-09 | **แก้ช่องโหว่:** `/api/notifications/*` เดิมมีแค่ `authenticate` — officer/executive เรียกได้แล้วเห็น/แก้แจ้งเตือนของนักศึกษาทุกคน (เพราะ `student_id: undefined` = Prisma ไม่กรอง). เพิ่ม `requireRole("student")` + `requireStudentId()` ใน repository (`notifications.routes.js`, `notifications.repository.js`) |
+| 2026-08-09 | `findPassedSubjectIds` ไม่นับใบที่ `staff_status = "rejected"` — ใบรอบก่อนที่โดนตีกลับไม่ล็อกวิชาในรอบถัดไปอีก (ใช้ร่วมกับ `excludeRoundId` เดิม). ส่วน `pending` ยังนับ ไม่งั้นเปิดรอบถัดไปก่อนตรวจเสร็จ นักศึกษาต้องกรอกวิชาที่เพิ่งผ่านซ้ำ (`examResults.repository.js`) |
+| 2026-08-09 | dashboard อัตราผ่านรายวิชาใช้กฎเดียวกัน — ตัดเฉพาะใบที่ถูกตีกลับ (`notRejected`) ไม่ใช่เอาเฉพาะ approved ที่ทำให้กราฟว่างจนกว่าเจ้าหน้าที่จะตรวจครบ. เพิ่ม `perSubject` ใน `/dashboard/history` สำหรับกราฟย้อนหลัง (`dashboard.service.js`) |
+| 2026-08-09 | `open_date` / `close_date` ตีความเป็นเวลาไทย (UTC+7) เสมอ ไม่ขึ้นกับ timezone ของ server — `parseThaiDateTime()` รับได้ทั้ง `"2026-08-09"` และ `"2026-08-09T14:30"`. ไม่ระบุเวลา: เปิดรับ = 00:00, ปิดรับ = 23:59:59.999. **ห้ามใช้ `setHours()`** เพราะใช้ timezone ของเครื่อง (`rounds.controller.js`) |
+| 2026-08-09 | ลบรอบได้ถ้าเลย `close_date` แล้ว แม้ `status` จะยังเป็น `"open"` — `status` ไม่ auto ปิดตัวเอง (`rounds.controller.js`) |
+| 2026-08-09 | แก้รหัส/ชื่อวิชา 8 วิชาให้ตรงหลักสูตรจริง `NUR01–08` → `1101–1108` + สคริปต์ `scripts/update-subjects.js` สำหรับ migrate ข้อมูลเดิม (`prisma/seed.js`) |
 | 2026-08-04 | dashboard นับเฉพาะนักศึกษาที่ `exam_eligible` — สัดส่วนใน donut รวมได้เท่าตัวเลขกลางเสมอ (`dashboard.repository.js`) |
 | 2026-08-04 | เพิ่ม `subject_results.carried_forward` — อัตราผ่านรายวิชานับเฉพาะคนที่สอบจริง วิชาที่ไม่มีผู้สอบคืน `rate: null` (migration `add_carried_forward_to_subject_results`, `dashboard.service.js`) |
 | 2026-08-04 | นักศึกษาแก้ผลสอบทับได้จนกว่าเจ้าหน้าที่จะยืนยันหรือรอบปิด (เดิมส่งได้ครั้งเดียว) (`examResults.controller.js`) |
 | 2026-08-04 | `findPassedSubjectIds` รับ `excludeRoundId` — ใบที่ถูกตีกลับไม่ล็อกวิชาของตัวเองอีก แก้ได้ครบทุกวิชา (`examResults.repository.js`, `examResults.controller.js`, `rounds.controller.js`) |
 | 2026-08-04 | `authenticate` เช็คกับ DB ว่า user ยังอยู่/ยังไม่ถูกถอนสิทธิ์ และสร้าง `req.user` จาก DB แทนค่าใน token — แก้ 500 `Foreign key constraint violated: submission_rounds_created_by_fkey` ตอนใช้ token ค้างหลัง seed ให้เป็น 401 แทน (`middlewares/auth.js`) |
+| 2026-08-04 | เพิ่ม `prisma/demoSeed.js` + npm script `demo:seed` — ข้อมูลเดโม 20 นักศึกษา 3 ปีการศึกษา ยืนยันครบทุกใบ (ไม่แตะ subjects/roles/officer/executive) |
 | 2026-08-04 | สร้างเอกสารนี้ครั้งแรก ครอบคลุม backend ทั้งหมด ณ commit `46a266a` |
 | 2026-08-03 | เพิ่ม `news.image_path` — แนบรูปในประกาศได้ (migration `add_news_image_path`, `news.controller.js`, `upload.js`) |
 | 2026-08-01 | เพิ่ม `submission_rounds.subject_ids` — รอบเลือกได้ว่าสอบวิชาไหนบ้าง (migration `add_round_subject_ids`, `utils/roundSubjects.js`) |

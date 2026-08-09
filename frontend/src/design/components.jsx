@@ -30,9 +30,13 @@ export function Avatar({ name, size = 38, bg }) {
    mock data ชุดเดิมลบทิ้งแล้ว */
 
 /* ---- App shell: TopBar ---- */
-export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notifications=[], unread=0, onNotifOpen, onNotifGo, lang='TH', setLang }) {
+// notifications: ทุกตัวถูกแปลงเป็นรูปเดียวกันที่ design/notifications.js แล้ว
+//   { key, tone, icon, page, title, sub, at }
+// onNotifOpen: เรียกตอนเปิด modal — ไป mark ว่าอ่านแล้วทั้งหมด (ทั้ง DB และ localStorage)
+export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notifications=[], unread=0, onNotifOpen, onNotifGo, lang='TH', setLang, langLoading=false }) {
   const [open, setOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const openNotif = () => { setNotifOpen(true); onNotifOpen?.(); };
   return (
     <header style={{ height:'var(--header-h)', background:'#fff', borderBottom:'1px solid var(--ink-200)',
       display:'flex', alignItems:'center', gap:16, padding:'0 18px 0 16px', position:'sticky', top:0, zIndex:40 }}>
@@ -47,14 +51,16 @@ export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notificati
       <div style={{ flex:1 }}></div>
       {setLang && <div style={{ display:'inline-flex', background:'var(--ink-100)', borderRadius:999, padding:3, gap:3 }}>
         <button onClick={()=>setLang('TH')} style={{ border:'none', padding:'5px 12px', borderRadius:999, fontSize:12, fontWeight:700,
-          fontFamily:'inherit', cursor:'pointer', transition:'.13s',
-          background: lang==='TH'?'var(--navy-700)':'transparent', color: lang==='TH'?'#fff':'var(--ink-500)' }}>TH</button>
+          fontFamily:'inherit', cursor:'pointer', transition:'.13s', display:'flex', alignItems:'center', justifyContent:'center', minWidth:22,
+          background: lang==='TH'?'var(--navy-700)':'transparent', color: lang==='TH'?'#fff':'var(--ink-500)' }}>
+          {langLoading && lang==='TH' ? <span className="lang-spinner"></span> : 'TH'}</button>
         <button onClick={()=>setLang('EN')} style={{ border:'none', padding:'5px 12px', borderRadius:999, fontSize:12, fontWeight:700,
-          fontFamily:'inherit', cursor:'pointer', transition:'.13s',
-          background: lang==='EN'?'var(--navy-700)':'transparent', color: lang==='EN'?'#fff':'var(--ink-500)' }}>EN</button>
+          fontFamily:'inherit', cursor:'pointer', transition:'.13s', display:'flex', alignItems:'center', justifyContent:'center', minWidth:22,
+          background: lang==='EN'?'var(--navy-700)':'transparent', color: lang==='EN'?'#fff':'var(--ink-500)' }}>
+          {langLoading && lang==='EN' ? <span className="lang-spinner"></span> : 'EN'}</button>
       </div>}
       <button className="btn btn-ghost btn-sm" style={{ position:'relative', padding:9, border:'1px solid var(--ink-200)' }}
-        onClick={()=>{ setNotifOpen(true); onNotifOpen?.(); }}>
+        onClick={openNotif}>
         <Icon name="bell" size={19} />
         {unread>0 && <span style={{ position:'absolute', top:5, right:5, width:8, height:8, borderRadius:'50%',
           background:'var(--fail)', boxShadow:'0 0 0 2px #fff' }}></span>}
@@ -71,7 +77,7 @@ export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notificati
                   background:`var(--status-${n.tone}-bg)`, color:`var(--status-${n.tone}-fg)` }}><Icon name={n.icon} size={18}/></div>
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ fontSize:14, fontWeight:700, color:'var(--ink-900)' }}>{n.title}</div>
-                  <div style={{ fontSize:13, color:'var(--ink-500)', marginTop:2 }}>{n.sub}</div>
+                  {n.sub && <div style={{ fontSize:13, color:'var(--ink-500)', marginTop:2 }}>{n.sub}</div>}
                 </div>
                 <div style={{ fontSize:11.5, color:'var(--ink-400)', flex:'none', whiteSpace:'nowrap' }}>
                   {n.at ? new Date(n.at).toLocaleDateString(lang==='EN'?'en-GB':'th-TH') : ''}
@@ -257,7 +263,7 @@ export function LineChart({ points, height=150, color='var(--navy-600)', suffix=
 }
 
 /* ---- Multi-series line chart (compare series over categories) ---- */
-export function MultiLineChart({ series, categories, height=180, suffix='%', yMin=0, yMax=100, width=340 }) {
+export function MultiLineChart({ series, categories, height=180, suffix='%', yMin=0, yMax=100, width=340, legendSize=9 }) {
   const w=width, padL=26, padR=10, padT=14, padB=26;
   const n = categories.length;
   const xs = i => padL + (n===1?0:i*(w-padL-padR)/(n-1));
@@ -279,7 +285,7 @@ export function MultiLineChart({ series, categories, height=180, suffix='%', yMi
         {categories.map((c,i)=>(<text key={i} x={xs(i)} y={height-7} textAnchor="middle" fontSize="9" fill="var(--ink-500)" fontFamily="'LINE Seed Sans TH', sans-serif">{c}</text>))}
       </svg>
       <div style={{ display:'flex', flexWrap:'wrap', gap:'6px 18px', justifyContent:'center', marginTop:8 }}>
-        {series.map((s,i)=>(<div key={i} style={{ display:'flex', alignItems:'center', gap:7, fontSize:12.5, color:'var(--ink-600)' }}>
+        {series.map((s,i)=>(<div key={i} style={{ display:'flex', alignItems:'center', gap:7, fontSize:legendSize, color:'var(--ink-600)' }}>
           <span style={{ width:14, height:3, borderRadius:2, background:s.color }}></span>{s.label}</div>))}
       </div>
     </div>

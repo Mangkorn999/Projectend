@@ -1,7 +1,16 @@
 /* ============================================================
-   แจ้งเตือน — ประกอบจาก endpoint ที่มีอยู่ ไม่มีตาราง notifications ใน DB
-   "ถูกตีกลับ + remark" กับ "ประกาศ" อยู่ใน exam_results / news ครบแล้ว
-   ตารางใหม่จะเป็นข้อมูลซ้ำที่ต้องคอย sync
+   แจ้งเตือน — มี 2 แหล่ง แล้วเอามารวมเป็นลิสต์เดียว
+
+   1. ตาราง notifications ใน DB (นักศึกษาเท่านั้น) — ผลถูกยืนยัน/ตีกลับ,
+      เจ้าหน้าที่เปิดสิทธิ์กรอก. เรื่อง "เปิดสิทธิ์" ประกอบเองจาก endpoint อื่นไม่ได้
+      เพราะไม่มีเวลาที่เจ้าหน้าที่กดเก็บไว้ที่ไหนเลย → ต้องมีตารางจริง
+      อ่านแล้ว/ยังไม่อ่าน เก็บที่ server (is_read)
+
+   2. ประกาศจาก /news — ทุก role เห็น ไม่ต้องมีตารางแยก เพราะ news มีข้อมูลครบแล้ว
+      อ่านแล้ว/ยังไม่อ่าน เก็บที่ localStorage ของเครื่องนั้น
+
+   ทั้ง 2 แหล่งถูกแปลงเป็นรูปเดียวกันก่อนส่งเข้า TopBar:
+     { key, tone, icon, page, title, sub, at }
    ============================================================ */
 import { t } from './i18n.js';
 
@@ -27,7 +36,32 @@ export function markAllRead(userId, keys) {
   localStorage.setItem(READ_PREFIX + userId, JSON.stringify(merged.slice(-200)));
 }
 
-// examResults = ผลของนักศึกษาเอง (role อื่นส่ง [] มา), news = ประกาศทั้งหมด
+// หน้าตาของแจ้งเตือนแต่ละ type ที่ backend ส่งมา (คอลัมน์ notifications.type)
+// page = หน้าที่จะพาไปเมื่อกดที่แจ้งเตือนนั้น
+const SERVER_TYPES = {
+  approved: { tone: 'ok', icon: 'checkCircle', page: 'status' },
+  rejected: { tone: 'reject', icon: 'xCircle', page: 'form' },
+  eligible: { tone: 'wait', icon: 'key', page: 'form' },
+};
+const FALLBACK_TYPE = { tone: 'wait', icon: 'bell', page: 'news' };
+
+// rows = ที่ได้จาก GET /notifications/me — แปลงให้เป็นรูปเดียวกับแจ้งเตือนที่ประกอบเอง
+export function fromServer(rows = []) {
+  return rows.map((n) => {
+    const style = SERVER_TYPES[n.type] || FALLBACK_TYPE;
+    return {
+      ...style,
+      key: `notif:${n.notification_id}`,
+      title: n.message,
+      at: n.created_at,
+      is_read: n.is_read, // อ่านแล้วหรือยัง มาจาก server ไม่ใช่ localStorage
+    };
+  });
+}
+
+// news = ประกาศทั้งหมด (ทุก role เห็นเหมือนกัน)
+// examResults ยังรับไว้เผื่อเรียกแบบเดิม แต่ฝั่งนักศึกษาไม่ต้องส่งมาแล้ว
+// เพราะเรื่องผลสอบมาจากตาราง notifications จริงแทน ถ้าส่งมาด้วยจะขึ้นซ้ำ 2 อัน
 export function buildNotifications({ role, examResults = [], news = [], lang = 'TH' }) {
   const tt = (key, vars) => t(lang, key, vars);
   const items = [];
@@ -60,6 +94,18 @@ export function buildNotifications({ role, examResults = [], news = [], lang = '
     });
   }
 
-  // ใหม่สุดขึ้นก่อน — ตัวที่ไม่มีวันที่ไปท้ายสุด
-  return items.sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));
+  return sortByNewest(items);
+}
+
+// ใหม่สุดขึ้นก่อน — ตัวที่ไม่มีวันที่ไปท้ายสุด
+export function sortByNewest(items) {
+  return [...items].sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));
+}
+
+// นับที่ยังไม่ได้อ่าน — is_read มาจาก server ใช้อันนั้นก่อน
+// ตัวที่ไม่มี is_read (ประกาศ) ค่อยดูจาก localStorage
+export function countUnread(items, read = []) {
+  return items.filter((n) =>
+    n.is_read === undefined ? !read.includes(n.key) : !n.is_read,
+  ).length;
 }

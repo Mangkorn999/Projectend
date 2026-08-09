@@ -32,6 +32,7 @@ export function Login({ onLogin }) {
   const isEN = lang==='EN';
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
 
   // login จริง ไปหา backend — psu_passport_id คือ student_id (นักศึกษา) หรือรหัสที่เจ้าหน้าที่ตั้งให้ (staff)
@@ -73,7 +74,7 @@ export function Login({ onLogin }) {
       {/* left brand panel */}
       <div className="login-brand" style={{ background:'linear-gradient(155deg,var(--navy-700),#b3550a)',
         color:'#fff', padding:'48px 56px', display:'flex', flexDirection:'column', position:'relative', overflow:'hidden',
-        flex:'1.05 1 480px' }}>
+        flex:'1 1 480px' }}>
         <div style={{ position:'absolute', width:480, height:480, borderRadius:'50%', right:-160, top:-160,
           background:'radial-gradient(circle,rgba(212,160,23,.20),transparent 70%)' }}></div>
         <div style={{ position:'absolute', width:360, height:360, borderRadius:'50%', left:-120, bottom:-140,
@@ -126,8 +127,17 @@ export function Login({ onLogin }) {
           </div>
           <div className="field" style={{ marginBottom:8 }}>
             <label>{isEN?passwordLabel_EN:'รหัสผ่าน'}</label>
-            <input className="input" type="password" placeholder="••••••••"
-              value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()} />
+            <div style={{ position:'relative' }}>
+              <input className="input" type={showPassword?'text':'password'} placeholder="••••••••"
+                style={{ paddingRight:40 }}
+                value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()} />
+              <button type="button" onClick={()=>setShowPassword(v=>!v)}
+                style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)',
+                  border:'none', background:'transparent', padding:4, cursor:'pointer',
+                  color: showPassword?'var(--navy-700)':'var(--ink-400)' }}>
+                <Icon name="eye" size={18} />
+              </button>
+            </div>
           </div>
           {error && <div style={{ color:'var(--reject,#dc2626)', fontSize:13, marginBottom:12 }}>{error}</div>}
           <div style={{ textAlign:'right', marginBottom:18 }}>

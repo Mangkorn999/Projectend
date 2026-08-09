@@ -143,8 +143,8 @@ const DICT = {
     'progress.saved': 'บันทึกร่างอัตโนมัติแล้ว',
     'progress.saving': 'กำลังบันทึก…',
 
-    'upload.allPassNote': 'คุณสอบผ่านครบทั้ง 8 วิชา — กรุณาแนบทั้งใบรายงานผลสอบ และใบประกอบวิชาชีพ',
-    'upload.partialNote': 'มีวิชาที่ยังไม่ผ่าน — แนบเฉพาะใบรายงานผลสอบก็เพียงพอ (แนบใบประกอบวิชาชีพได้เมื่อสอบผ่านครบแล้ว)',
+    'upload.allPassNote': 'คุณสอบผ่านครบทั้ง 8 วิชา — กรุณาแนบใบรายงานผลสอบ',
+    'upload.partialNote': 'มีวิชาที่ยังไม่ผ่าน — แนบใบรายงานผลสอบ',
     'upload.examLabel': 'ใบรายงานผลสอบ',
     'upload.examHint': 'ผลสอบรายวิชาทั้ง 8 วิชา',
     'upload.licenseLabel': 'ใบประกอบวิชาชีพการพยาบาล',
@@ -256,7 +256,7 @@ const DICT = {
     'officer.students.selectedCount': 'เลือกไว้ {n} คน',
     'officer.students.clearSelection': 'ล้างที่เลือก',
     'officer.students.grantBtn': 'เปิดสิทธิ์กรอกผลสอบ',
-    'officer.students.revokeBtn': 'ปิดสิทธิ์',
+    'officer.students.revokeBtn': 'ถอนสิทธิ์',
     'officer.students.savingEligible': 'กำลังบันทึก…',
     'officer.students.grantedToast': 'เปิดสิทธิ์กรอกผลสอบให้ {n} คนแล้ว',
     'officer.students.revokedToast': 'ปิดสิทธิ์กรอกผลสอบ {n} คนแล้ว',
@@ -498,6 +498,9 @@ const DICT = {
     'dashReal.colEligible': 'กรอกได้',
     'dashReal.colSubmitted': 'ส่งแล้ว',
     'dashReal.colFullPass': 'ผ่านครบทุกวิชา',
+    'dashReal.subjectHistoryTitle': 'อัตราผ่านรายวิชาย้อนหลัง',
+    'dashReal.subjectHistorySub': 'เปรียบเทียบอัตราผ่านแต่ละวิชาระหว่างปีการศึกษา อัปเดตอัตโนมัติเมื่อมีปี/รอบใหม่',
+    'dashReal.expandChart': 'ขยายดูกราฟ',
     'dashReal.passCountRate': '{n} คน · {rate}%',
     'detailReal.actionFailMsg': 'ทำรายการไม่สำเร็จ',
     'detailReal.notFilledYet': 'นักศึกษายังไม่ได้กรอกผลสอบ',
@@ -813,8 +816,8 @@ const DICT = {
     'progress.saved': 'Draft auto-saved',
     'progress.saving': 'Saving…',
 
-    'upload.allPassNote': 'You passed all 8 subjects — please attach both the exam result slip and the nursing license.',
-    'upload.partialNote': 'Some subjects are not yet passed — attaching the exam result slip is enough for now (attach the license once you pass all subjects).',
+    'upload.allPassNote': 'You passed all 8 subjects — please attach the exam result slip.',
+    'upload.partialNote': 'Some subjects are not yet passed — attach the exam result slip.',
     'upload.examLabel': 'Exam result slip',
     'upload.examHint': 'Results for all 8 subjects',
     'upload.licenseLabel': 'Nursing License',
@@ -1168,6 +1171,9 @@ const DICT = {
     'dashReal.colEligible': 'Eligible',
     'dashReal.colSubmitted': 'Submitted',
     'dashReal.colFullPass': 'Passed all subjects',
+    'dashReal.subjectHistoryTitle': 'Subject pass-rate history',
+    'dashReal.subjectHistorySub': 'Compares each subject\'s pass rate across academic years, updates automatically as new years/rounds come in',
+    'dashReal.expandChart': 'Expand chart',
     'dashReal.passCountRate': '{n} · {rate}%',
     'detailReal.actionFailMsg': 'Action failed',
     'detailReal.notFilledYet': 'Student has not submitted exam results yet',
@@ -1348,14 +1354,14 @@ const DICT = {
 
 /* ชื่อวิชา 8 วิชาคงที่ตามหลักสูตร — backend เก็บแค่ภาษาไทย (schema ไม่มี field EN) ทำ mapping ฝั่ง frontend แทน */
 const SUBJECT_NAME_EN = {
-  NUR01: 'Maternal and Newborn Nursing',
-  NUR02: 'Pediatric and Adolescent Nursing',
-  NUR03: 'Adult Nursing',
-  NUR04: 'Elderly Nursing',
-  NUR05: 'Mental Health and Psychiatric Nursing',
-  NUR06: 'Community Health Nursing',
-  NUR07: 'Midwifery',
-  NUR08: 'Nursing Law and Ethics',
+  1101: 'Midwifery',
+  1102: 'Maternal and Newborn Nursing',
+  1103: 'Pediatric and Adolescent Nursing',
+  1104: 'Adult Nursing',
+  1105: 'Elderly Nursing',
+  1106: 'Mental Health and Psychiatric Nursing',
+  1107: 'Community Health Nursing and Primary Medical Care',
+  1108: 'Law on Nursing and Midwifery Profession, Professional Ethics and Related Laws',
 };
 
 export function subjectName(lang, code, fallbackName) {

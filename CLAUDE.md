@@ -74,7 +74,13 @@ Path จริง: `frontend/` = React+Vite (`nurse-login-new`), `backend/` = Ex
 
 ## Backend — แผนงาน (มังกรรับผิดชอบ)
 
-รายละเอียด phase-by-phase + endpoint list + response format มาตรฐาน อยู่ใน [`backend/Backend.md`](backend/Backend.md) — เอกสารหลักสำหรับ backend, อัปเดตที่นี่เมื่อ progress เปลี่ยน.
+เอกสาร backend มี 3 ไฟล์ แยกหน้าที่กัน:
+
+| ไฟล์ | เนื้อหา | ต้องอัปเดตเมื่อ |
+|---|---|---|
+| [`backend/BACKEND_GUIDE.md`](backend/BACKEND_GUIDE.md) | อธิบาย backend ทั้งหมดแบบละเอียด — ไฟล์ไหนทำอะไร, endpoint ทุกตัว, กฎธุรกิจ, DB, คำสั่ง | **ทุกครั้งที่แก้โค้ด backend** (เพิ่ม endpoint / เปลี่ยน schema / เปลี่ยน logic / เพิ่มไฟล์) — แก้ในคอมมิตเดียวกัน + เพิ่มบรรทัดใน Changelog ท้ายไฟล์ |
+| [`backend/Backend.md`](backend/Backend.md) | แผนงาน phase-by-phase + endpoint list ย่อ | progress เปลี่ยน |
+| [`backend/SYNTAX_NOTES.md`](backend/SYNTAX_NOTES.md) | cheat sheet syntax JS/SQL/Prisma/Git สำหรับคนเพิ่งเริ่มเขียนโค้ด | เจอ syntax ใหม่ที่โปรเจกต์เริ่มใช้ |
 
 สรุปลำดับ: Setup ✅ → Auth middleware → Subjects CRUD → Users/Students → Rounds → Student กรอกผล → Staff ตรวจ/ยืนยัน → News → Dashboard/Export.
 

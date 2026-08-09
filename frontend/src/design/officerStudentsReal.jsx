@@ -106,8 +106,7 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang }) {
     return new Set([...prev, ...filtered.map(s => s.sid)]);
   });
 
-  const setEligibility = async (value) => {
-    const ids = [...selected];
+  const setEligibilityFor = async (ids, value) => {
     if (!ids.length) return;
     setSaving(true);
     try {
@@ -125,6 +124,10 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang }) {
     } finally {
       setSaving(false);
     }
+  };
+  const setEligibility = (value) => setEligibilityFor([...selected], value);
+  const toggleOneEligibility = (s) => {
+    setEligibilityFor([s.sid], !s.eligible);
   };
 
   if (loading) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
@@ -183,7 +186,9 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang }) {
               </th>}
               <th>{tt('officer.students.colStudent')}</th><th>{tt('officer.students.colRoom')}</th><th>{tt('officer.students.colYear')}</th>
               <th>{tt('officer.students.colEligible')}</th>
-              <th>{tt('officer.students.colResult')}</th><th>{tt('officer.students.colStatus')}</th><th>{tt('officer.students.colSubmitted')}</th><th></th>
+              <th>{tt('officer.students.colResult')}</th><th>{tt('officer.students.colStatus')}</th><th>{tt('officer.students.colSubmitted')}</th>
+              {!readonly && <th>{tt('officer.students.revokeBtn')}</th>}
+              <th></th>
             </tr></thead>
             <tbody>
               {pageRows.map(s => (
@@ -204,6 +209,11 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang }) {
                     <span className="tnum" style={{ fontWeight: 700, color: s.allPass ? 'var(--pass)' : 'var(--ink-800)' }}>{s.passedCount}/{s.subjectCount}</span>}</td>
                   <td><StatusBadge status={s.status} lang={lang} /></td>
                   <td style={{ color: 'var(--ink-500)', fontSize: 13 }}>{s.submittedAt || '—'}</td>
+                  {!readonly && <td onClick={e => e.stopPropagation()}>
+                    {s.eligible && <button disabled={saving} onClick={() => toggleOneEligibility(s)}
+                      className="badge reject" style={{ border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                      <Icon name="xCircle" size={13} /> {tt('officer.students.revokeBtn')}</button>}
+                  </td>}
                   <td style={{ textAlign: 'right' }}><Icon name="chevR" size={18} style={{ color: 'var(--ink-300)' }} /></td>
                 </tr>
               ))}

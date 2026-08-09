@@ -8,7 +8,32 @@ import { PageHead, Modal } from './components.jsx';
 import { apiFetch, ApiError } from './api.js';
 import { t } from './i18n.js';
 
-const toDateInput = (iso) => iso ? iso.slice(0, 10) : '';
+/* ---- วันที่/เวลา: ยึดเวลาไทยเสมอ ----
+   backend เก็บลง DB เป็น UTC และตีความค่าที่ส่งไปเป็นเวลาไทยเสมอ (ดู rounds.controller.js)
+   ฝั่งนี้ก็ต้องใช้เวลาไทยเหมือนกัน ไม่ใช่ timezone ของเครื่องเจ้าหน้าที่
+   ไม่งั้นเปิดจากโน้ตบุ๊กที่ตั้ง timezone ผิด จะเห็นเวลาไม่ตรงกับที่ backend บันทึกไว้จริง */
+const ICT_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+// ISO จาก backend (UTC) → ค่าที่ใส่ใน <input type="datetime-local"> เป็นเวลาไทย "YYYY-MM-DDTHH:mm"
+const toDateTimeInput = (iso) => {
+  if (!iso) return '';
+  // บวก 7 ชม. แล้วอ่านแบบ UTC = ได้ตัวเลขหน้าปัดเวลาไทยพอดี
+  return new Date(new Date(iso).getTime() + ICT_OFFSET_MS).toISOString().slice(0, 16);
+};
+
+// แสดงวันที่+เวลาไทยในลิสต์ เช่น "9 ส.ค. 2569 23:59"
+const showThaiDateTime = (iso) => {
+  if (!iso) return '-';
+  return new Date(iso).toLocaleString('th-TH', {
+    timeZone: 'Asia/Bangkok',
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+};
+
+// ค่าเริ่มต้นตอนสร้างรอบใหม่ — วันนี้ตามเวลาไทย ตามด้วยเวลาที่ระบุ
+const todayAt = (hhmm) =>
+  `${new Date(Date.now() + ICT_OFFSET_MS).toISOString().slice(0, 10)}T${hhmm}`;
 
 export function ManageRoundsSubjectsReal({ toast, lang }) {
   const tt = (key, vars) => t(lang, key, vars);
@@ -103,10 +128,13 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
 
       {tab === 'rounds' && (
         <div className="grid g-3">
-          {rounds.map(r => (
+          {rounds.map(r => {
+            // status field ไม่ auto ปิดเองเมื่อพ้น close_date — ต้องเช็ควันที่ประกอบด้วยตอนแสดงผล
+            const isEffectivelyOpen = r.status === 'open' && new Date(r.close_date) >= new Date();
+            return (
             <div key={r.round_id} className="card card-pad">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                <span className={'badge ' + (r.status === 'open' ? 'ok' : 'draft')}><span className="dot"></span>{r.status === 'open' ? tt('roundsMgmt.openBadge') : tt('roundsMgmt.closedBadge')}</span>
+                <span className={'badge ' + (isEffectivelyOpen ? 'ok' : 'draft')}><span className="dot"></span>{isEffectivelyOpen ? tt('roundsMgmt.openBadge') : tt('roundsMgmt.closedBadge')}</span>
                 <div style={{ display: 'flex', gap: 2 }}>
                   <button className="btn btn-ghost btn-sm" style={{ padding: 7, border: 'none' }} aria-label={tt('roundsMgmt.editRoundAria')}
                     onClick={() => setRoundModal(r)}><Icon name="edit" size={16} /></button>
@@ -118,11 +146,12 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
               <div style={{ fontSize: 12.5, color: 'var(--ink-500)', marginTop: 4 }}>{tt('roundsMgmt.targetLine', { year: r.academic_year })}</div>
               <div className="hr" style={{ margin: '14px 0' }}></div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--ink-500)' }}>{tt('roundsMgmt.openDateLabel')}</span><b>{new Date(r.open_date).toLocaleDateString('th-TH')}</b></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--ink-500)' }}>{tt('roundsMgmt.closeDateLabel')}</span><b>{new Date(r.close_date).toLocaleDateString('th-TH')}</b></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--ink-500)' }}>{tt('roundsMgmt.openDateLabel')}</span><b>{showThaiDateTime(r.open_date)}</b></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--ink-500)' }}>{tt('roundsMgmt.closeDateLabel')}</span><b>{showThaiDateTime(r.close_date)}</b></div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -175,8 +204,9 @@ function RoundModal({ round, allSubjects, cohorts, onClose, onSave, tt }) {
     setAcademicYear(r.academic_year ?? '');
     setCustomYear(!!r.academic_year && !cohorts.some(c => c.year === r.academic_year));
     setAttemptNumber(r.attempt_number ?? '');
-    setOpenDate(toDateInput(r.open_date));
-    setCloseDate(toDateInput(r.close_date));
+    // รอบใหม่: เปิดรับวันนี้ 00:00 ปิดรับวันนี้ 23:59 — เจ้าหน้าที่แก้เวลาต่อได้เอง
+    setOpenDate(isNew ? todayAt('00:00') : toDateTimeInput(r.open_date));
+    setCloseDate(isNew ? todayAt('23:59') : toDateTimeInput(r.close_date));
     setStatus(r.status ?? 'open');
     // รอบเก่าที่ยังไม่เคยเลือกวิชา (subject_ids ว่าง) ให้ถือว่าเลือกครบทุกวิชา
     const saved = r.subject_ids;
@@ -198,6 +228,7 @@ function RoundModal({ round, allSubjects, cohorts, onClose, onSave, tt }) {
         <button className="btn btn-primary" disabled={!isValid}
           onClick={() => onSave({
             academic_year: academicYear, attempt_number: attemptNumber,
+            // ส่งเป็น "YYYY-MM-DDTHH:mm" ตรงๆ — backend ตีความเป็นเวลาไทยให้เอง
             open_date: openDate, close_date: closeDate, status,
             // รอบที่เปิดอยู่ห้ามส่ง subject_ids ไป ไม่งั้น backend ตอบ 400
             ...(subjectsLocked ? {} : { subject_ids: subjectIds }),
@@ -230,8 +261,9 @@ function RoundModal({ round, allSubjects, cohorts, onClose, onSave, tt }) {
           <div className="field"><label>{tt('roundsMgmt.fieldAttempt')}</label><input className="input tnum" type="number" value={attemptNumber} onChange={e => setAttemptNumber(e.target.value)} placeholder="1" /></div>
         </div>
         <div className="grid g-2 fields-row" style={{ gap: 14 }}>
-          <div className="field"><label>{tt('roundsMgmt.fieldOpenDate')}</label><input className="input" type="date" value={openDate} onChange={e => setOpenDate(e.target.value)} /></div>
-          <div className="field"><label>{tt('roundsMgmt.fieldCloseDate')}</label><input className="input" type="date" value={closeDate} onChange={e => setCloseDate(e.target.value)} /></div>
+          {/* datetime-local = เลือกได้ทั้งวันที่และเวลา ค่าที่ได้คือ "YYYY-MM-DDTHH:mm" */}
+          <div className="field"><label>{tt('roundsMgmt.fieldOpenDate')}</label><input className="input" type="datetime-local" value={openDate} onChange={e => setOpenDate(e.target.value)} /></div>
+          <div className="field"><label>{tt('roundsMgmt.fieldCloseDate')}</label><input className="input" type="datetime-local" value={closeDate} onChange={e => setCloseDate(e.target.value)} /></div>
         </div>
         <div className="field">
           <label>{tt('roundsMgmt.fieldSubjects')} <span style={{ fontWeight: 400, color: 'var(--ink-500)' }}>{tt('roundsMgmt.selectedCount', { n: subjectIds.length, total: allSubjects.length })}</span></label>

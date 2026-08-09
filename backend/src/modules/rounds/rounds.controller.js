@@ -67,16 +67,61 @@ export const getActive = async (req, res, next) => {
   }
 };
 
-// แปลงเป็น Date แล้วเช็คว่าถูกต้องจริง — new Date("") หรือ new Date("ไม่ใช่วันที่")
-// จะได้ "Invalid Date" ซึ่งดูเหมือน Date ปกติแต่ใช้ไม่ได้ ถ้าไม่เช็คแล้วส่งเข้า Prisma ตรงๆ
-// จะพังแบบบอกสาเหตุไม่ได้ (500 เฉยๆ) ต้องเช็คตรงนี้ก่อนแล้วบอก error ให้ชัดเจน (400)
-const parseDate = (value, fieldLabel) => {
-  const date = new Date(value);
-  if (isNaN(date.getTime())) {
-    throw httpError(`${fieldLabel} ไม่ถูกต้อง`, 400);
-  }
+// ─── วันที่/เวลา ─────────────────────────────────
+//
+// ทุกอย่างในระบบนี้ตีความเป็นเวลาไทย (ICT) เสมอ ไม่ว่า server จะตั้ง timezone อะไร
+// ไทยเป็น UTC+7 ตายตัว ไม่มี daylight saving เลย → บวกลบเองได้ ไม่ต้องลง library
+//
+// ห้ามใช้ new Date(...).setHours() เด็ดขาด เพราะ setHours ใช้ timezone ของเครื่อง server
+// ถ้า deploy บนเครื่องที่ตั้งเป็น UTC จะกลายเป็น 23:59 UTC = 06:59 เช้าวันถัดไปเวลาไทย
+const ICT_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+const START_OF_DAY = { h: 0, m: 0, s: 0, ms: 0 };
+const END_OF_DAY = { h: 23, m: 59, s: 59, ms: 999 };
+
+// รับได้ทั้ง "2026-08-09" (วันที่อย่างเดียว) และ "2026-08-09T14:30" (จาก input datetime-local)
+// ถ้าไม่มีเวลามาด้วย ใช้ defaultTime แทน — เปิดรับใช้ต้นวัน ปิดรับใช้ท้ายวัน
+//
+// เช็คด้วย regex ก่อนแทนที่จะโยนเข้า new Date() ตรงๆ เพราะ new Date("อะไรก็ไม่รู้")
+// จะได้ "Invalid Date" ที่หน้าตาเหมือน Date ปกติ แล้วไปพังตอนลง Prisma เป็น 500 แทนที่จะเป็น 400
+const parseThaiDateTime = (value, fieldLabel, defaultTime) => {
+  const matched = String(value ?? "").match(
+    /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/,
+  );
+  if (!matched) throw httpError(`${fieldLabel} ไม่ถูกต้อง`, 400);
+
+  const [, year, month, day, hour, minute, second] = matched;
+  // มีเวลาส่งมา → ใช้เวลานั้น. ไม่มี → ใช้ค่า default ของ field นั้น
+  const time =
+    hour !== undefined
+      ? { h: Number(hour), m: Number(minute), s: Number(second ?? 0), ms: 0 }
+      : defaultTime;
+
+  // สร้างเป็น UTC ก่อน แล้วลบ 7 ชั่วโมง = เวลาไทยตามที่ผู้ใช้กรอกจริงๆ
+  // เช่น กรอก 23:59 ไทย → เก็บลง DB เป็น 16:59 UTC
+  const asUtc = Date.UTC(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    time.h,
+    time.m,
+    time.s,
+    time.ms,
+  );
+  const date = new Date(asUtc - ICT_OFFSET_MS);
+  // เลขวันที่อาจเกินจริงได้ เช่น "2026-02-31" — Date.UTC ไม่ error แต่เลื่อนวันให้เอง
+  if (isNaN(date.getTime())) throw httpError(`${fieldLabel} ไม่ถูกต้อง`, 400);
   return date;
 };
+
+// เปิดรับ = 00:00:00 เวลาไทย ถ้าเจ้าหน้าที่ไม่ได้ระบุเวลา
+const parseOpenDate = (value, fieldLabel) =>
+  parseThaiDateTime(value, fieldLabel, START_OF_DAY);
+
+// ปิดรับ = 23:59:59.999 เวลาไทย ถ้าเจ้าหน้าที่ไม่ได้ระบุเวลา
+// กันรอบหมดอายุตั้งแต่เที่ยงคืนต้นวันปิด
+const parseCloseDate = (value, fieldLabel) =>
+  parseThaiDateTime(value, fieldLabel, END_OF_DAY);
 
 // เช็ค subject_ids ที่ officer ส่งมาว่าใช้ได้จริง แล้วคืนเป็น array ของตัวเลข
 // ต้องเช็คเองเพราะเก็บเป็น Int[] ไม่มี foreign key คอยกันให้
@@ -132,8 +177,8 @@ export const create = async (req, res, next) => {
       subject_ids: subjectIds,
       academic_year: Number(academic_year),
       attempt_number: Number(attempt_number),
-      open_date: parseDate(open_date, "วันที่เปิดรับ"),
-      close_date: parseDate(close_date, "วันที่ปิดรับ"),
+      open_date: parseOpenDate(open_date, "วันที่เปิดรับ"),
+      close_date: parseCloseDate(close_date, "วันที่ปิดรับ"),
       status: status ?? "closed",
       created_by: req.user.userId, // อ่านจาก JWT เท่านั้น ไม่เชื่อ body
     });
@@ -168,8 +213,8 @@ export const update = async (req, res, next) => {
     if (academic_year !== undefined) data.academic_year = Number(academic_year);
     if (attempt_number !== undefined)
       data.attempt_number = Number(attempt_number);
-    if (open_date !== undefined) data.open_date = parseDate(open_date, "วันที่เปิดรับ");
-    if (close_date !== undefined) data.close_date = parseDate(close_date, "วันที่ปิดรับ");
+    if (open_date !== undefined) data.open_date = parseOpenDate(open_date, "วันที่เปิดรับ");
+    if (close_date !== undefined) data.close_date = parseCloseDate(close_date, "วันที่ปิดรับ");
     if (status !== undefined) data.status = status;
 
     const round = await roundsRepo.update(req.params.id, data);
@@ -186,7 +231,8 @@ export const remove = async (req, res, next) => {
     const round = await roundsRepo.findById(req.params.id);
     if (!round) throw httpError("ไม่พบรอบการกรอกนี้", 404);
 
-    if (round.status === "open") {
+    // status field ไม่ auto ปิดเองเมื่อพ้น close_date — เช็ควันที่ประกอบด้วยว่า "เปิดจริง" หรือแค่ยังไม่ได้กดปิด
+    if (round.status === "open" && new Date(round.close_date) >= new Date()) {
       throw httpError("รอบนี้กำลังเปิดรับอยู่ ต้องปิดรอบก่อนถึงจะลบได้", 400);
     }
 

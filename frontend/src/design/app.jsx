@@ -9,7 +9,7 @@ import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakToggle, TweakCol
 import { Login } from './login.jsx';
 import { ForceChangePassword } from './forceChangePassword.jsx';
 import { getToken, getStoredUser, clearSession, apiFetch } from './api.js';
-import { buildNotifications, readKeys, markAllRead } from './notifications.js';
+import { buildNotifications, fromServer, sortByNewest, countUnread, readKeys, markAllRead } from './notifications.js';
 import { FormIntro } from './student.jsx';
 import { StudentImport } from './studentImport.jsx';
 import { OfficerStudentsReal } from './officerStudentsReal.jsx';
@@ -31,10 +31,11 @@ const TWEAK_DEFAULTS = {
   density: 'regular',
 };
 
-const navStudent = (lang)=>[
+// rejectedCount = จำนวนใบที่เจ้าหน้าที่ตีกลับ ยังไม่ได้กรอกส่งใหม่ — ขึ้น badge เตือนที่เมนู "กรอกผลสอบ"
+const navStudent = (lang, rejectedCount)=>[
   { k:'news', label:translate(lang,'nav.student.news'), icon:'news' },
-  { k:'formIntro', label:translate(lang,'nav.student.form'), icon:'edit', badge:'!' },
-  { k:'status', label:translate(lang,'nav.student.status'), icon:'clock' },
+  { k:'formIntro', label:translate(lang,'nav.student.form'), icon:'edit', badge: rejectedCount || null },
+  { k:'status', label:translate(lang,'nav.student.status'), icon:'clock', badge: rejectedCount || null },
   { k:'history', label:translate(lang,'nav.student.history'), icon:'history' },
 ];
 
@@ -75,28 +76,54 @@ export function App() {
   const [toast, showToast] = useToast();
   const [formStep, setFormStep] = useState(0);
   const [lang, setLang] = useState('TH'); // 'TH' | 'EN' — wired into student-side pages via i18n.js
+  const [langBlurring, setLangBlurring] = useState(false);
+  const changeLang = (v) => {
+    if (v === lang) return;
+    setLangBlurring(true);
+    setTimeout(() => {
+      setLang(v);
+      setTimeout(() => setLangBlurring(false), 20);
+    }, 280);
+  };
   const [pendingCount, setPendingCount] = useState(0); // เลขบน badge "ตรวจสอบ/ยืนยันผล"
+  const [rejectedCount, setRejectedCount] = useState(0); // เลขบน badge เตือนนักศึกษาว่ามีใบถูกตีกลับ
   const [notifications, setNotifications] = useState([]);
   const [unread, setUnread] = useState(0);
 
-  // แจ้งเตือน — ประกอบจาก endpoint ที่มีอยู่ ดึงใหม่ทุกครั้งที่เปลี่ยนหน้า
-  // นักศึกษาเห็นผลของตัวเอง + ประกาศ, role อื่นเห็นแค่ประกาศ
+  // แจ้งเตือน — ดึงใหม่ทุกครั้งที่เปลี่ยนหน้า
+  // นักศึกษา: ของจริงจากตาราง notifications + ประกาศ
+  // role อื่น: ประกาศอย่างเดียว (ยังไม่มีแจ้งเตือนใน DB ให้)
   useEffect(()=>{
     if (!role || !currentUser) { setNotifications([]); setUnread(0); return; }
     let dropped = false;
     (async () => {
       const news = await apiFetch('/news').catch(()=>[]);
-      const examResults = role === 'student'
-        ? await apiFetch('/exam-results/me').catch(()=>[])
+      const rows = role === 'student'
+        ? await apiFetch('/notifications/me').catch(()=>[])
         : [];
       if (dropped) return; // เปลี่ยนหน้า/ออกจากระบบระหว่างรอ — ทิ้งผลไปเลย
-      const items = buildNotifications({ role, examResults, news, lang });
-      const read = readKeys(currentUser.id);
+      // ไม่ส่ง examResults เข้า buildNotifications แล้ว เรื่องผลสอบมาจาก DB ทางเดียว
+      const items = sortByNewest([
+        ...fromServer(rows),
+        ...buildNotifications({ role, news, lang }),
+      ]);
       setNotifications(items);
-      setUnread(items.filter(n => !read.includes(n.key)).length);
+      setUnread(countUnread(items, readKeys(currentUser.id)));
     })();
     return () => { dropped = true; };
   }, [role, currentUser, page, lang]);
+
+  // เปิดกระดิ่ง = อ่านหมดแล้ว ต้องเคลียร์ทั้ง 2 ที่
+  // ประกาศเก็บที่ localStorage, แจ้งเตือนของนักศึกษาเก็บที่ DB
+  const openNotifications = () => {
+    markAllRead(currentUser.id, notifications.map(n => n.key));
+    if (role === 'student' && notifications.some(n => n.is_read === false)) {
+      apiFetch('/notifications/read-all', { method:'PATCH' }).catch(()=>{});
+      setNotifications(items => items.map(n =>
+        n.is_read === undefined ? n : { ...n, is_read: true }));
+    }
+    setUnread(0);
+  };
 
   // นับผลสอบที่ยังรอตรวจใหม่ทุกครั้งที่เปลี่ยนหน้า — ตรวจเสร็จกลับมา badge ต้องลดลงเอง
   // นับเฉพาะรอบที่เปิดอยู่ (ไม่มีก็รอบล่าสุด) ให้ตรงกับที่หน้าคิวตรวจสอบเปิดมาเจอ
@@ -109,6 +136,23 @@ export function App() {
         if (!round) return setPendingCount(0);
         return apiFetch(`/exam-results?round_id=${round.round_id}&staff_status=pending`)
           .then(rows => setPendingCount(rows.length));
+      })
+      .catch(()=>{});
+  }, [role, page]);
+
+  // เช็คใบที่ถูกตีกลับทุกครั้งที่เปลี่ยนหน้า — กรอกส่งใหม่แล้ว badge ต้องหายเอง
+  // นับเฉพาะใบล่าสุดของแต่ละรอบ (rows เรียง submitted_at desc มาแล้ว) กันนับซ้ำใบเก่าที่เคยตีกลับแต่ resubmit ผ่านไปแล้ว
+  useEffect(()=>{
+    if (role !== 'student') { setRejectedCount(0); return; }
+    apiFetch('/exam-results/me')
+      .then(rows => {
+        const seenRounds = new Set();
+        const latestPerRound = rows.filter(r => {
+          if (seenRounds.has(r.round_id)) return false;
+          seenRounds.add(r.round_id);
+          return true;
+        });
+        setRejectedCount(latestPerRound.filter(r => r.staff_status === 'rejected').length);
       })
       .catch(()=>{});
   }, [role, page]);
@@ -137,9 +181,9 @@ export function App() {
   const handlePasswordChanged = ()=>{ setMustChangePassword(false); setRole(null); setCurrentUser(null); };
 
   if (mustChangePassword) return <ForceChangePassword onDone={handlePasswordChanged} />;
-  if(!role) return <><Login onLogin={handleLogin} /><TweaksUI t={t} setTweak={setTweak} /></>;
+  if(!role) return <Login onLogin={handleLogin} />;
 
-  const nav = role==='student' ? navStudent(lang) : NAV(lang, pendingCount)[role];
+  const nav = role==='student' ? navStudent(lang, rejectedCount) : NAV(lang, pendingCount)[role];
   const go = (p, step=0)=>{ setPage(p); setFormStep(step); window.scrollTo(0,0); };
   // ไม่มีสลับ role ปลอมอีกแล้ว — 'logout' คือทางเดียวที่เหลือ เคลียร์ token จริงด้วย
   const switchRole = (r)=>{ if(r==='logout'){ clearSession(); setRole(null); setCurrentUser(null); return; } };
@@ -180,10 +224,9 @@ export function App() {
         user={{ firstName: currentUser?.name || '', lastName: '' }}
         onMenu={()=>setSbOpen(true)} onSwitchRole={switchRole}
         notifications={notifications} unread={unread}
-        onNotifOpen={()=>{ markAllRead(currentUser.id, notifications.map(n=>n.key)); setUnread(0); }}
-        onNotifGo={go}
-        lang={lang} setLang={setLang} />
-      <div className="app-shell">
+        onNotifOpen={openNotifications} onNotifGo={go}
+        lang={lang} setLang={changeLang} langLoading={langBlurring} />
+      <div className={'app-shell lang-fade'+(langBlurring?' lang-fade-blur':'')}>
         {/* บทบาทผู้ใช้แสดงที่เมนูผู้ใช้บน TopBar ที่เดียว — การ์ดใน sidebar ซ้ำโดยไม่จำเป็น */}
         <Sidebar items={nav} active={activeNav} onNav={go} open={sbOpen} onClose={()=>setSbOpen(false)} />
         <main className="app-main">
@@ -191,7 +234,6 @@ export function App() {
         </main>
       </div>
       <Toast toast={toast} />
-      <TweaksUI t={t} setTweak={setTweak} role={role} />
     </div>
   );
 }

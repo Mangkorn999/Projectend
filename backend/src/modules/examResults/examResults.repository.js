@@ -50,6 +50,12 @@ export const findPassedSubjectIds = async (student_id, excludeRoundId = null) =>
       is_passed: true,
       exam_result: {
         student_id,
+        // ใบที่ถูกตีกลับไม่นับเป็นผ่าน — ผลในใบนั้นยังเชื่อไม่ได้
+        // ไม่งั้นใบรอบก่อนที่โดนตีกลับ จะย้อนมาล็อกวิชาในรอบถัดไปแบบแก้ไม่ได้เลย
+        //
+        // ส่วน pending (ส่งแล้วรอเจ้าหน้าที่ตรวจ) ยังนับให้ — ไม่งั้นเปิดรอบถัดไป
+        // ก่อนเจ้าหน้าที่ตรวจเสร็จ นักศึกษาต้องมากรอกวิชาที่เพิ่งผ่านซ้ำอีกรอบ
+        staff_status: { not: "rejected" },
         // ... (spread) = "ถ้ามี excludeRoundId ให้แปะเงื่อนไข NOT เข้าไป ถ้าไม่มีก็ไม่แปะอะไร"
         ...(excludeRoundId ? { NOT: { round_id: Number(excludeRoundId) } } : {}),
       },
