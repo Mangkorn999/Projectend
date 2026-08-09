@@ -103,10 +103,13 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
 
       {tab === 'rounds' && (
         <div className="grid g-3">
-          {rounds.map(r => (
+          {rounds.map(r => {
+            // status field ไม่ auto ปิดเองเมื่อพ้น close_date — ต้องเช็ควันที่ประกอบด้วยตอนแสดงผล
+            const isEffectivelyOpen = r.status === 'open' && new Date(r.close_date) >= new Date();
+            return (
             <div key={r.round_id} className="card card-pad">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                <span className={'badge ' + (r.status === 'open' ? 'ok' : 'draft')}><span className="dot"></span>{r.status === 'open' ? tt('roundsMgmt.openBadge') : tt('roundsMgmt.closedBadge')}</span>
+                <span className={'badge ' + (isEffectivelyOpen ? 'ok' : 'draft')}><span className="dot"></span>{isEffectivelyOpen ? tt('roundsMgmt.openBadge') : tt('roundsMgmt.closedBadge')}</span>
                 <div style={{ display: 'flex', gap: 2 }}>
                   <button className="btn btn-ghost btn-sm" style={{ padding: 7, border: 'none' }} aria-label={tt('roundsMgmt.editRoundAria')}
                     onClick={() => setRoundModal(r)}><Icon name="edit" size={16} /></button>
@@ -122,7 +125,8 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--ink-500)' }}>{tt('roundsMgmt.closeDateLabel')}</span><b>{new Date(r.close_date).toLocaleDateString('th-TH')}</b></div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -198,7 +202,8 @@ function RoundModal({ round, allSubjects, cohorts, onClose, onSave, tt }) {
         <button className="btn btn-primary" disabled={!isValid}
           onClick={() => onSave({
             academic_year: academicYear, attempt_number: attemptNumber,
-            open_date: openDate, close_date: closeDate, status,
+            // ปิดรับ = 23:59 ของวันปิดรับ ไม่ใช่เที่ยงคืนต้นวัน ไม่งั้นรอบหมดอายุตั้งแต่เช้าวันปิด
+            open_date: openDate, close_date: closeDate ? `${closeDate}T23:59:59` : closeDate, status,
             // รอบที่เปิดอยู่ห้ามส่ง subject_ids ไป ไม่งั้น backend ตอบ 400
             ...(subjectsLocked ? {} : { subject_ids: subjectIds }),
           })}>

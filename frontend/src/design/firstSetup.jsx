@@ -18,6 +18,8 @@ export function FirstSetup({ onBack, lang }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const submit = async () => {
     setError('');
@@ -86,11 +88,29 @@ export function FirstSetup({ onBack, lang }) {
               </div>
               <div className="field" style={{ marginBottom:10 }}>
                 <label>{isEN?'New password':'รหัสผ่านใหม่'}</label>
-                <input className="input" type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="อย่างน้อย 8 ตัวอักษร"/>
+                <div style={{ position:'relative' }}>
+                  <input className="input" type={showPassword?'text':'password'} style={{ paddingRight:40 }}
+                    value={password} onChange={e=>setPassword(e.target.value)} placeholder="อย่างน้อย 8 ตัวอักษร"/>
+                  <button type="button" onClick={()=>setShowPassword(v=>!v)}
+                    style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)',
+                      border:'none', background:'transparent', padding:4, cursor:'pointer',
+                      color: showPassword?'var(--navy-700)':'var(--ink-400)' }}>
+                    <Icon name="eye" size={18} />
+                  </button>
+                </div>
               </div>
               <div className="field" style={{ marginBottom:8 }}>
                 <label>{isEN?'Confirm password':'ยืนยันรหัสผ่าน'}</label>
-                <input className="input" type="password" value={confirm} onChange={e=>setConfirm(e.target.value)}/>
+                <div style={{ position:'relative' }}>
+                  <input className="input" type={showConfirm?'text':'password'} style={{ paddingRight:40 }}
+                    value={confirm} onChange={e=>setConfirm(e.target.value)}/>
+                  <button type="button" onClick={()=>setShowConfirm(v=>!v)}
+                    style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)',
+                      border:'none', background:'transparent', padding:4, cursor:'pointer',
+                      color: showConfirm?'var(--navy-700)':'var(--ink-400)' }}>
+                    <Icon name="eye" size={18} />
+                  </button>
+                </div>
               </div>
               {error && <div style={{ color:'var(--reject,#dc2626)', fontSize:13, marginBottom:12 }}>{error}</div>}
               <button className="btn btn-primary btn-block" onClick={submit} disabled={loading} style={{ marginBottom:10 }}>

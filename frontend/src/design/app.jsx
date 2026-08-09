@@ -74,6 +74,15 @@ export function App() {
   const [toast, showToast] = useToast();
   const [formStep, setFormStep] = useState(0);
   const [lang, setLang] = useState('TH'); // 'TH' | 'EN' — wired into student-side pages via i18n.js
+  const [langBlurring, setLangBlurring] = useState(false);
+  const changeLang = (v) => {
+    if (v === lang) return;
+    setLangBlurring(true);
+    setTimeout(() => {
+      setLang(v);
+      setTimeout(() => setLangBlurring(false), 20);
+    }, 280);
+  };
   const [pendingCount, setPendingCount] = useState(0); // เลขบน badge "ตรวจสอบ/ยืนยันผล"
 
   // นับผลสอบที่ยังรอตรวจใหม่ทุกครั้งที่เปลี่ยนหน้า — ตรวจเสร็จกลับมา badge ต้องลดลงเอง
@@ -108,7 +117,7 @@ export function App() {
   const handlePasswordChanged = ()=>{ setMustChangePassword(false); setRole(null); setCurrentUser(null); };
 
   if (mustChangePassword) return <ForceChangePassword onDone={handlePasswordChanged} />;
-  if(!role) return <><Login onLogin={handleLogin} /><TweaksUI t={t} setTweak={setTweak} /></>;
+  if(!role) return <Login onLogin={handleLogin} />;
 
   const nav = role==='student' ? navStudent(lang) : NAV(lang, pendingCount)[role];
   const go = (p, step=0)=>{ setPage(p); setFormStep(step); window.scrollTo(0,0); };
@@ -150,8 +159,8 @@ export function App() {
       <TopBar role={role} roleLabel={translate(lang,'role.'+role)}
         user={{ firstName: currentUser?.name || '', lastName: '' }}
         onMenu={()=>setSbOpen(true)} onSwitchRole={switchRole}
-        lang={lang} setLang={setLang} />
-      <div className="app-shell">
+        lang={lang} setLang={changeLang} langLoading={langBlurring} />
+      <div className={'app-shell lang-fade'+(langBlurring?' lang-fade-blur':'')}>
         {/* บทบาทผู้ใช้แสดงที่เมนูผู้ใช้บน TopBar ที่เดียว — การ์ดใน sidebar ซ้ำโดยไม่จำเป็น */}
         <Sidebar items={nav} active={activeNav} onNav={go} open={sbOpen} onClose={()=>setSbOpen(false)} />
         <main className="app-main">
@@ -159,7 +168,6 @@ export function App() {
         </main>
       </div>
       <Toast toast={toast} />
-      <TweaksUI t={t} setTweak={setTweak} role={role} />
     </div>
   );
 }

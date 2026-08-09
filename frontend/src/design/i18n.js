@@ -242,7 +242,7 @@ const DICT = {
     'officer.students.selectedCount': 'เลือกไว้ {n} คน',
     'officer.students.clearSelection': 'ล้างที่เลือก',
     'officer.students.grantBtn': 'เปิดสิทธิ์กรอกผลสอบ',
-    'officer.students.revokeBtn': 'ปิดสิทธิ์',
+    'officer.students.revokeBtn': 'ถอนสิทธิ์',
     'officer.students.savingEligible': 'กำลังบันทึก…',
     'officer.students.grantedToast': 'เปิดสิทธิ์กรอกผลสอบให้ {n} คนแล้ว',
     'officer.students.revokedToast': 'ปิดสิทธิ์กรอกผลสอบ {n} คนแล้ว',
