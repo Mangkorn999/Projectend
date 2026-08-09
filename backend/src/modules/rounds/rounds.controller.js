@@ -74,6 +74,13 @@ const parseDate = (value, fieldLabel) => {
   return date;
 };
 
+// ปิดรับ = 23:59:59 ของวันที่เลือกเสมอ กันรอบหมดอายุตั้งแต่เที่ยงคืนต้นวันปิด
+const parseCloseDate = (value, fieldLabel) => {
+  const date = parseDate(value, fieldLabel);
+  date.setHours(23, 59, 59, 999);
+  return date;
+};
+
 // เช็ค subject_ids ที่ officer ส่งมาว่าใช้ได้จริง แล้วคืนเป็น array ของตัวเลข
 // ต้องเช็คเองเพราะเก็บเป็น Int[] ไม่มี foreign key คอยกันให้
 const validateSubjectIds = async (rawIds) => {
@@ -129,7 +136,7 @@ export const create = async (req, res, next) => {
       academic_year: Number(academic_year),
       attempt_number: Number(attempt_number),
       open_date: parseDate(open_date, "วันที่เปิดรับ"),
-      close_date: parseDate(close_date, "วันที่ปิดรับ"),
+      close_date: parseCloseDate(close_date, "วันที่ปิดรับ"),
       status: status ?? "closed",
       created_by: req.user.userId, // อ่านจาก JWT เท่านั้น ไม่เชื่อ body
     });
@@ -165,7 +172,7 @@ export const update = async (req, res, next) => {
     if (attempt_number !== undefined)
       data.attempt_number = Number(attempt_number);
     if (open_date !== undefined) data.open_date = parseDate(open_date, "วันที่เปิดรับ");
-    if (close_date !== undefined) data.close_date = parseDate(close_date, "วันที่ปิดรับ");
+    if (close_date !== undefined) data.close_date = parseCloseDate(close_date, "วันที่ปิดรับ");
     if (status !== undefined) data.status = status;
 
     const round = await roundsRepo.update(req.params.id, data);
@@ -182,7 +189,8 @@ export const remove = async (req, res, next) => {
     const round = await roundsRepo.findById(req.params.id);
     if (!round) throw httpError("ไม่พบรอบการกรอกนี้", 404);
 
-    if (round.status === "open") {
+    // status field ไม่ auto ปิดเองเมื่อพ้น close_date — เช็ควันที่ประกอบด้วยว่า "เปิดจริง" หรือแค่ยังไม่ได้กดปิด
+    if (round.status === "open" && new Date(round.close_date) >= new Date()) {
       throw httpError("รอบนี้กำลังเปิดรับอยู่ ต้องปิดรอบก่อนถึงจะลบได้", 400);
     }
 

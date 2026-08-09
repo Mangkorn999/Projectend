@@ -7,6 +7,9 @@ const percent = (part, whole) => (whole ? Math.round((part / whole) * 100) : 0);
 // เก็บเฉพาะคนที่กดส่งแล้ว — draft ยังกรอกไม่เสร็จ เอามาคิด % ไม่ได้
 const onlySent = (results) => results.filter((r) => r.student_status !== "draft");
 
+// เก็บเฉพาะที่เจ้าหน้าที่ยืนยันแล้ว — ตีกลับ/รอตรวจ ยังไม่นับเข้าอัตราผ่านรายวิชา
+const onlyApproved = (results) => results.filter((r) => r.staff_status === "approved");
+
 // นับว่าผลสอบแต่ละใบอยู่สถานะไหน
 const countByStatus = (results) => {
   const by = { draft: 0, submitted: 0, approved: 0, rejected: 0 };
@@ -73,7 +76,8 @@ export const buildStats = async (roundId) => {
 
   const sent = onlySent(results);
   const submitted = sent.length;
-  const perSubject = buildPerSubject(sent, subjects);
+  const approved = onlyApproved(results);
+  const perSubject = buildPerSubject(approved, subjects);
   const fullyPassed = countFullyPassed(sent, subjectIds);
 
   // เฉลี่ยอัตราผ่านของทุกวิชา — คนละตัวกับ fullyPassedRate ที่นับเป็นรายคน
@@ -119,11 +123,12 @@ const buildYearSummary = async (year, allSubjects) => {
   const everSubmitted = new Set(); // student_id ที่ส่งอย่างน้อย 1 รอบในปีนี้
   const everFullyPassed = new Set(); // student_id ที่เคยผ่านครบในรอบใดรอบหนึ่ง
   const roundSummaries = [];
-  const yearSent = []; // ผลส่งแล้วรวมทุกรอบของปีนี้ — ใช้ทำอัตราผ่านรายวิชาย้อนหลัง
+  const yearApproved = []; // ผลที่เจ้าหน้าที่ยืนยันแล้วรวมทุกรอบของปีนี้ — ใช้ทำอัตราผ่านรายวิชาย้อนหลัง
 
   for (const round of rounds) {
     const results = await dashRepo.findResultsByRound(round.round_id);
     const sent = onlySent(results);
+    const approved = onlyApproved(results);
     const subjectIds = subjectsOfRound(round, allSubjects).map(
       (s) => s.subject_id,
     );
@@ -137,7 +142,7 @@ const buildYearSummary = async (year, allSubjects) => {
       )
       .forEach((r) => everFullyPassed.add(r.student_id));
 
-    yearSent.push(...sent);
+    yearApproved.push(...approved);
     roundSummaries.push({
       round_id: round.round_id,
       attempt_number: round.attempt_number,
@@ -158,7 +163,7 @@ const buildYearSummary = async (year, allSubjects) => {
     passRate: percent(everFullyPassed.size, everSubmitted.size),
     rounds: roundSummaries,
     // อัตราผ่านรายวิชา รวมทุกรอบของปีนี้ — ใช้กราฟเทียบอัตราผ่านรายวิชาย้อนหลัง
-    perSubject: buildPerSubject(yearSent, allSubjects),
+    perSubject: buildPerSubject(yearApproved, allSubjects),
   };
 };
 
