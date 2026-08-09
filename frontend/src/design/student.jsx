@@ -86,7 +86,7 @@ export function FormIntro({ go, lang='TH' }) {
     <div className="fade-up">
       <PageHead title={t(lang,'formintro.title')}
         crumb={<><a onClick={()=>go('news')} style={{cursor:'pointer'}}>{t(lang,'examform.crumbHome')}</a> <Icon name="chevR" size={13}/> {t(lang,'examform.crumbForm')}</>} />
-      <div className="card card-pad" style={{ maxWidth:640, textAlign:'center', padding:'40px 32px' }}>
+      <div className="card card-pad" style={{ maxWidth:960, margin:'0 auto', textAlign:'center', padding:'40px 32px' }}>
         <div style={{ width:64, height:64, borderRadius:16, background:'var(--blue-50)', color:'var(--navy-700)',
           display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 18px' }}>
           <Icon name="edit" size={30} />

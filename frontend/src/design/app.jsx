@@ -30,10 +30,11 @@ const TWEAK_DEFAULTS = {
   density: 'regular',
 };
 
-const navStudent = (lang)=>[
+// rejectedCount = จำนวนใบที่เจ้าหน้าที่ตีกลับ ยังไม่ได้กรอกส่งใหม่ — ขึ้น badge เตือนที่เมนู "กรอกผลสอบ"
+const navStudent = (lang, rejectedCount)=>[
   { k:'news', label:translate(lang,'nav.student.news'), icon:'news' },
-  { k:'formIntro', label:translate(lang,'nav.student.form'), icon:'edit', badge:'!' },
-  { k:'status', label:translate(lang,'nav.student.status'), icon:'clock' },
+  { k:'formIntro', label:translate(lang,'nav.student.form'), icon:'edit', badge: rejectedCount || null },
+  { k:'status', label:translate(lang,'nav.student.status'), icon:'clock', badge: rejectedCount || null },
   { k:'history', label:translate(lang,'nav.student.history'), icon:'history' },
 ];
 
@@ -84,12 +85,30 @@ export function App() {
     }, 280);
   };
   const [pendingCount, setPendingCount] = useState(0); // เลขบน badge "ตรวจสอบ/ยืนยันผล"
+  const [rejectedCount, setRejectedCount] = useState(0); // เลขบน badge เตือนนักศึกษาว่ามีใบถูกตีกลับ
 
   // นับผลสอบที่ยังรอตรวจใหม่ทุกครั้งที่เปลี่ยนหน้า — ตรวจเสร็จกลับมา badge ต้องลดลงเอง
   useEffect(()=>{
     if (role !== 'officer') { setPendingCount(0); return; }
     apiFetch('/exam-results')
       .then(rows => setPendingCount(rows.filter(r => r.staff_status === 'pending').length))
+      .catch(()=>{});
+  }, [role, page]);
+
+  // เช็คใบที่ถูกตีกลับทุกครั้งที่เปลี่ยนหน้า — กรอกส่งใหม่แล้ว badge ต้องหายเอง
+  // นับเฉพาะใบล่าสุดของแต่ละรอบ (rows เรียง submitted_at desc มาแล้ว) กันนับซ้ำใบเก่าที่เคยตีกลับแต่ resubmit ผ่านไปแล้ว
+  useEffect(()=>{
+    if (role !== 'student') { setRejectedCount(0); return; }
+    apiFetch('/exam-results/me')
+      .then(rows => {
+        const seenRounds = new Set();
+        const latestPerRound = rows.filter(r => {
+          if (seenRounds.has(r.round_id)) return false;
+          seenRounds.add(r.round_id);
+          return true;
+        });
+        setRejectedCount(latestPerRound.filter(r => r.staff_status === 'rejected').length);
+      })
       .catch(()=>{});
   }, [role, page]);
 
@@ -119,7 +138,7 @@ export function App() {
   if (mustChangePassword) return <ForceChangePassword onDone={handlePasswordChanged} />;
   if(!role) return <Login onLogin={handleLogin} />;
 
-  const nav = role==='student' ? navStudent(lang) : NAV(lang, pendingCount)[role];
+  const nav = role==='student' ? navStudent(lang, rejectedCount) : NAV(lang, pendingCount)[role];
   const go = (p, step=0)=>{ setPage(p); setFormStep(step); window.scrollTo(0,0); };
   // ไม่มีสลับ role ปลอมอีกแล้ว — 'logout' คือทางเดียวที่เหลือ เคลียร์ token จริงด้วย
   const switchRole = (r)=>{ if(r==='logout'){ clearSession(); setRole(null); setCurrentUser(null); return; } };

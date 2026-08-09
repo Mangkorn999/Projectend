@@ -129,8 +129,8 @@ const DICT = {
     'progress.saved': 'บันทึกร่างอัตโนมัติแล้ว',
     'progress.saving': 'กำลังบันทึก…',
 
-    'upload.allPassNote': 'คุณสอบผ่านครบทั้ง 8 วิชา — กรุณาแนบทั้งใบรายงานผลสอบ และใบประกอบวิชาชีพ',
-    'upload.partialNote': 'มีวิชาที่ยังไม่ผ่าน — แนบเฉพาะใบรายงานผลสอบก็เพียงพอ (แนบใบประกอบวิชาชีพได้เมื่อสอบผ่านครบแล้ว)',
+    'upload.allPassNote': 'คุณสอบผ่านครบทั้ง 8 วิชา — กรุณาแนบใบรายงานผลสอบ',
+    'upload.partialNote': 'มีวิชาที่ยังไม่ผ่าน — แนบใบรายงานผลสอบ',
     'upload.examLabel': 'ใบรายงานผลสอบ',
     'upload.examHint': 'ผลสอบรายวิชาทั้ง 8 วิชา',
     'upload.licenseLabel': 'ใบประกอบวิชาชีพการพยาบาล',
@@ -782,8 +782,8 @@ const DICT = {
     'progress.saved': 'Draft auto-saved',
     'progress.saving': 'Saving…',
 
-    'upload.allPassNote': 'You passed all 8 subjects — please attach both the exam result slip and the nursing license.',
-    'upload.partialNote': 'Some subjects are not yet passed — attaching the exam result slip is enough for now (attach the license once you pass all subjects).',
+    'upload.allPassNote': 'You passed all 8 subjects — please attach the exam result slip.',
+    'upload.partialNote': 'Some subjects are not yet passed — attach the exam result slip.',
     'upload.examLabel': 'Exam result slip',
     'upload.examHint': 'Results for all 8 subjects',
     'upload.licenseLabel': 'Nursing License',

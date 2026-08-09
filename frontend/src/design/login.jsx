@@ -74,7 +74,7 @@ export function Login({ onLogin }) {
       {/* left brand panel */}
       <div className="login-brand" style={{ background:'linear-gradient(155deg,var(--navy-700),#b3550a)',
         color:'#fff', padding:'48px 56px', display:'flex', flexDirection:'column', position:'relative', overflow:'hidden',
-        flex:'1.05 1 480px' }}>
+        flex:'1 1 480px' }}>
         <div style={{ position:'absolute', width:480, height:480, borderRadius:'50%', right:-160, top:-160,
           background:'radial-gradient(circle,rgba(212,160,23,.20),transparent 70%)' }}></div>
         <div style={{ position:'absolute', width:360, height:360, borderRadius:'50%', left:-120, bottom:-140,

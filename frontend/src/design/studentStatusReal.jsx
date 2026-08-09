@@ -43,7 +43,7 @@ export function StudentStatusReal({ go, lang }) {
   const timeline = [
     { label: tt('statuspage.timeline.0'), date: submittedAt, done: true },
     { label: tt('statuspage.timeline.1'), date: status === 'SUBMITTED' ? tt('statuspage.inProgress') : (latest.confirmed_at ? new Date(latest.confirmed_at).toLocaleString('th-TH') : '—'), active: status === 'SUBMITTED', done: status !== 'SUBMITTED' },
-    { label: status === 'REJECTED' ? tt('status.REJECTED') : tt('statuspage.confirmLabel'), date: status === 'CONFIRMED' ? tt('statuspage.completedLabel') : status === 'REJECTED' ? (latest.remark || '—') : tt('statuspage.waitResultLabel'), done: status === 'CONFIRMED' || status === 'REJECTED' },
+    { label: status === 'REJECTED' ? tt('status.REJECTED') : tt('statuspage.confirmLabel'), date: status === 'CONFIRMED' ? tt('statuspage.completedLabel') : status === 'REJECTED' ? (latest.remark || '—') : tt('statuspage.waitResultLabel'), done: status === 'CONFIRMED' || status === 'REJECTED', rejected: status === 'REJECTED' },
   ];
 
   return (
@@ -66,7 +66,7 @@ export function StudentStatusReal({ go, lang }) {
           </div>
           <div className="card card-pad">
             <h3 style={{ margin: '0 0 14px', fontSize: 16, fontWeight: 800 }}>{tt('statuspage.subjectSummaryTitle')}</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 9 }}>
               {latest.subject_results.map(s => (
                 <div key={s.subject_result_id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '9px 13px', background: '#fff', border: '1px solid var(--ink-200)', borderRadius: 9 }}>
                   <span style={{ fontSize: 13, color: 'var(--ink-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subjectName(lang, s.subject.subject_code, s.subject.subject_name)}</span>
@@ -84,13 +84,13 @@ export function StudentStatusReal({ go, lang }) {
                 <div key={i} style={{ display: 'flex', gap: 12 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     <div style={{ width: 26, height: 26, borderRadius: '50%', flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: tl.done ? 'var(--pass)' : tl.active ? 'var(--status-wait-dot)' : '#fff',
+                      background: tl.rejected ? 'var(--status-reject-dot)' : tl.done ? 'var(--pass)' : tl.active ? 'var(--status-wait-dot)' : '#fff',
                       color: (tl.done || tl.active) ? '#fff' : 'var(--ink-400)', border: (tl.done || tl.active) ? 'none' : '2px solid var(--ink-200)' }}>
-                      {tl.done ? <Icon name="check" size={14} /> : tl.active ? <Icon name="clock" size={13} /> : i + 1}</div>
+                      {tl.rejected ? <Icon name="x" size={14} /> : tl.done ? <Icon name="check" size={14} /> : tl.active ? <Icon name="clock" size={13} /> : i + 1}</div>
                     {i < timeline.length - 1 && <div style={{ width: 2, flex: 1, minHeight: 30, background: tl.done ? 'var(--pass)' : 'var(--ink-200)' }}></div>}
                   </div>
                   <div style={{ paddingBottom: 18 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: tl.active ? 'var(--status-wait-fg)' : 'var(--ink-800)' }}>{tl.label}</div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: tl.rejected ? 'var(--status-reject-fg)' : tl.active ? 'var(--status-wait-fg)' : 'var(--ink-800)' }}>{tl.label}</div>
                     <div style={{ fontSize: 12.5, color: 'var(--ink-500)', marginTop: 2 }}>{tl.date}</div>
                   </div>
                 </div>
