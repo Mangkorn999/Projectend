@@ -44,9 +44,12 @@ export function Avatar({ name, size = 38, bg }) {
 const NOTIFS = {};
 
 /* ---- App shell: TopBar ---- */
-export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=0, lang='TH', setLang, langLoading=false }) {
+// notifications: [{ notification_id, type, message, is_read, created_at }] — จริงจาก backend เฉพาะ role student ตอนนี้
+// onOpenNotif: เรียกตอนเปิด modal ครั้งแรกที่มี unread ค้างอยู่ ให้ไป mark-all-read
+export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=0, lang='TH', setLang, langLoading=false, notifications=null, onOpenNotif }) {
   const [open, setOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const openNotif = () => { setNotifOpen(true); onOpenNotif && onOpenNotif(); };
   return (
     <header style={{ height:'var(--header-h)', background:'#fff', borderBottom:'1px solid var(--ink-200)',
       display:'flex', alignItems:'center', gap:16, padding:'0 18px 0 16px', position:'sticky', top:0, zIndex:40 }}>
@@ -70,26 +73,31 @@ export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=0, l
           {langLoading && lang==='EN' ? <span className="lang-spinner"></span> : 'EN'}</button>
       </div>}
       <button className="btn btn-ghost btn-sm" style={{ position:'relative', padding:9, border:'1px solid var(--ink-200)' }}
-        onClick={()=>setNotifOpen(true)}>
+        onClick={openNotif}>
         <Icon name="bell" size={19} />
         {notif>0 && <span style={{ position:'absolute', top:5, right:5, width:8, height:8, borderRadius:'50%',
           background:'var(--fail)', boxShadow:'0 0 0 2px #fff' }}></span>}
       </button>
       <Modal open={notifOpen} onClose={()=>setNotifOpen(false)} title={t(lang,'topbar.notifTitle')} width={680}>
-        {NOTIFS[role] ? (
+        {(notifications ?? NOTIFS[role])?.length > 0 ? (
           <div style={{ minHeight:440, display:'flex', flexDirection:'column', gap:2 }}>
-            {NOTIFS[role].map((n,i)=>(
-              <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:13, padding:'13px 6px',
-                borderBottom: i<NOTIFS[role].length-1?'1px solid var(--ink-100)':'none' }}>
+            {(notifications ?? NOTIFS[role]).map((n,i,arr)=>{
+              const tone = n.tone ?? (n.type==='rejected' ? 'reject' : n.type==='approved' ? 'ok' : 'wait');
+              const icon = n.icon ?? (n.type==='rejected' ? 'xCircle' : n.type==='approved' ? 'checkCircle' : 'key');
+              return (
+              <div key={n.notification_id ?? i} style={{ display:'flex', alignItems:'flex-start', gap:13, padding:'13px 6px',
+                borderBottom: i<arr.length-1?'1px solid var(--ink-100)':'none', opacity: n.is_read===false?1:.7 }}>
                 <div style={{ width:38, height:38, borderRadius:10, flex:'none', display:'flex', alignItems:'center', justifyContent:'center',
-                  background:`var(--status-${n.tone}-bg)`, color:`var(--status-${n.tone}-fg)` }}><Icon name={n.icon} size={18}/></div>
+                  background:`var(--status-${tone}-bg)`, color:`var(--status-${tone}-fg)` }}><Icon name={icon} size={18}/></div>
                 <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:14, fontWeight:700, color:'var(--ink-900)' }}>{n.title}</div>
-                  <div style={{ fontSize:13, color:'var(--ink-500)', marginTop:2 }}>{n.sub}</div>
+                  <div style={{ fontSize:14, fontWeight:700, color:'var(--ink-900)' }}>{n.title ?? n.message}</div>
+                  {n.sub && <div style={{ fontSize:13, color:'var(--ink-500)', marginTop:2 }}>{n.sub}</div>}
                 </div>
-                <div style={{ fontSize:11.5, color:'var(--ink-400)', flex:'none', whiteSpace:'nowrap' }}>{n.time}</div>
+                <div style={{ fontSize:11.5, color:'var(--ink-400)', flex:'none', whiteSpace:'nowrap' }}>
+                  {n.time ?? (n.created_at && new Date(n.created_at).toLocaleString('th-TH'))}
+                </div>
               </div>
-            ))}
+            );})}
           </div>
         ) : (
           <div style={{ minHeight:440, display:'flex', alignItems:'center', justifyContent:'center' }}>

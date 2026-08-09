@@ -112,6 +112,20 @@ export function App() {
       .catch(()=>{});
   }, [role, page]);
 
+  // แจ้งเตือนกระดิ่งบนสุด — ตอนนี้ทำให้จริงเฉพาะฝั่งนักศึกษา (เจ้าหน้าที่/ผู้บริหารยังเป็น mock เดิม)
+  const [notifications, setNotifications] = useState(null);
+  useEffect(()=>{
+    if (role !== 'student') { setNotifications(null); return; }
+    apiFetch('/notifications/me').then(setNotifications).catch(()=>{});
+  }, [role, page]);
+  const unreadNotifCount = notifications ? notifications.filter(n => !n.is_read).length : 0;
+  const markNotifsRead = () => {
+    if (role !== 'student' || unreadNotifCount === 0) return;
+    apiFetch('/notifications/read-all', { method: 'PATCH' })
+      .then(() => setNotifications(rows => rows.map(n => ({ ...n, is_read: true }))))
+      .catch(()=>{});
+  };
+
   // accent override
   useEffect(()=>{ document.documentElement.style.setProperty('--gold-500', t.accent);
     document.documentElement.style.setProperty('--gold-600', shade(t.accent,-18)); }, [t.accent]);
@@ -178,7 +192,8 @@ export function App() {
       <TopBar role={role} roleLabel={translate(lang,'role.'+role)}
         user={{ firstName: currentUser?.name || '', lastName: '' }}
         onMenu={()=>setSbOpen(true)} onSwitchRole={switchRole}
-        lang={lang} setLang={changeLang} langLoading={langBlurring} />
+        lang={lang} setLang={changeLang} langLoading={langBlurring}
+        notif={unreadNotifCount} notifications={notifications} onOpenNotif={markNotifsRead} />
       <div className={'app-shell lang-fade'+(langBlurring?' lang-fade-blur':'')}>
         {/* บทบาทผู้ใช้แสดงที่เมนูผู้ใช้บน TopBar ที่เดียว — การ์ดใน sidebar ซ้ำโดยไม่จำเป็น */}
         <Sidebar items={nav} active={activeNav} onNav={go} open={sbOpen} onClose={()=>setSbOpen(false)} />
