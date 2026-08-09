@@ -37,8 +37,9 @@ export const findByStudentAndRound = (student_id, round_id) =>
 // วิชาที่นักศึกษาคนนี้เคยสอบผ่านมาแล้ว (จากทุกรอบที่เคยกรอก) — ไม่ต้องกรอกซ้ำอีก
 // ไม่ต้องกรองปี เพราะนักศึกษา 1 คนอยู่รุ่นเดียว รอบที่เคยกรอกคือรอบของรุ่นตัวเองอยู่แล้ว
 export const findPassedSubjectIds = async (student_id) => {
+  // นับเฉพาะที่เจ้าหน้าที่ยืนยันแล้ว (approved) — ใบที่ยังรอตรวจ/ถูกตีกลับ ยังถือว่าผ่านจริงไม่ได้
   const rows = await prisma.subjectResult.findMany({
-    where: { is_passed: true, exam_result: { student_id } },
+    where: { is_passed: true, exam_result: { student_id, staff_status: "approved" } },
     select: { subject_id: true },
   });
   // วิชาเดียวกันอาจผ่านซ้ำได้หลายรอบ (copy-forward) ตัดซ้ำออกก่อนคืน

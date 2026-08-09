@@ -41,13 +41,19 @@ export const create = async (req, res, next) => {
     const isRedo = existing?.staff_status === STAFF_STATUS.REJECTED;
     if (existing && !isRedo) throw httpError("กรอกผลสอบรอบนี้ไปแล้ว", 409);
 
+    // ปลดล็อกแก้ผ่าน/ไม่ผ่านได้เฉพาะตีกลับด้วยเหตุผลนี้เท่านั้น (ไฟล์แนบไม่ตรงกับผลที่กรอกไว้จริง)
+    // เหตุผลตีกลับอื่นๆ (เช่น กรอกผลสอบผิดวิชา) ยังล็อกวิชาที่ approved จากรอบอื่นตามเดิม
+    const REDO_UNLOCK_REMARK = "ผลสอบไม่ตรงกับไฟล์แนบ";
+    const isMismatchRedo = isRedo && existing.remark === REDO_UNLOCK_REMARK;
+
     const allSubjects = await subjectsRepo.findAll();
     const roundSubjectIds = subjectsOfRound(round, allSubjects).map(
       (s) => s.subject_id,
     );
     const passedIds = await examRepo.findPassedSubjectIds(student.student_id);
-    // วิชาที่ยังต้องตอบจริงในรอบนี้ = วิชาของรอบ ลบวิชาที่เคยผ่านแล้ว
-    const mustAnswer = roundSubjectIds.filter((id) => !passedIds.includes(id));
+    const lockedIds = isMismatchRedo ? [] : passedIds;
+    // วิชาที่ยังต้องตอบจริงในรอบนี้ = วิชาของรอบ ลบวิชาที่ล็อกไว้แล้ว
+    const mustAnswer = roundSubjectIds.filter((id) => !lockedIds.includes(id));
 
     // ตรวจของที่ส่งมาทีละรายการก่อน ไม่ปล่อยให้ค่าแปลกๆ ไหลลง DB
     const answers = new Map();
@@ -69,11 +75,11 @@ export const create = async (req, res, next) => {
       throw httpError(`กรอกผลไม่ครบ ยังขาดอีก ${missing.length} วิชา`, 400);
     }
 
-    // เก็บให้ครบทุกวิชาของรอบเสมอ — วิชาที่เคยผ่านแล้วบันทึกต่อเป็นผ่านให้เลย (copy-forward)
-    // ไม่เชื่อค่าที่ client ส่งมาสำหรับวิชาพวกนี้ กันแก้ผลที่ผ่านไปแล้วให้กลายเป็นไม่ผ่าน
+    // เก็บให้ครบทุกวิชาของรอบเสมอ — วิชาที่ล็อก (ผ่าน+approved จากรอบอื่นแล้ว) บันทึกต่อเป็นผ่านให้เลย (copy-forward)
+    // ไม่เชื่อค่าที่ client ส่งมาสำหรับวิชาที่ล็อก กันแก้ผลที่ approved ไปแล้วให้กลายเป็นไม่ผ่าน
     const finalResults = roundSubjectIds.map((id) => ({
       subject_id: id,
-      is_passed: passedIds.includes(id) ? true : answers.get(id),
+      is_passed: lockedIds.includes(id) ? true : answers.get(id),
     }));
 
     const result = isRedo
