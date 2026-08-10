@@ -135,10 +135,28 @@ async function main() {
 
   // แม็พ subject_code -> subject_id ไว้ใช้ตอนสร้างผลรายวิชา
   const byCode = new Map(subjects.map((s) => [s.subject_code, s]));
+
+  // ข้อมูลเดโมข้างบนอ้างวิชาด้วยชื่อย่อ NUR01–NUR08 (วิชาที่ 1–8 ตามลำดับ)
+  // ส่วนรหัสวิชาจริงใน DB มาจาก seed.js และเปลี่ยนได้ (ตอนนี้เป็น 1101–1108)
+  // แปลง NURxx เป็น "วิชาลำดับที่ xx" ก่อน เดโมจะได้ไม่พังเวลารหัสวิชาเปลี่ยน
+  const subjectByOrder = [...subjects].sort((a, b) => a.subject_id - b.subject_id);
   const idOf = (code) => {
+    const nurMatch = code.match(/^NUR(\d+)$/);
+    if (nurMatch) {
+      const order = Number(nurMatch[1]); // NUR03 -> 3
+      const s = subjectByOrder[order - 1]; // array เริ่มนับที่ 0 เลยต้องลบ 1
+      if (!s) throw new Error(`ไม่มีวิชาลำดับที่ ${order} (มีแค่ ${subjects.length} วิชา)`);
+      return s.subject_id;
+    }
     const s = byCode.get(code);
     if (!s) throw new Error(`ไม่รู้จักวิชา ${code}`);
     return s.subject_id;
+  };
+
+  // ชื่อวิชาจริงของ NURxx ไว้เขียนในข่าวประกาศ ให้ตรงกับที่โชว์ในระบบ
+  const nameOf = (code) => {
+    const id = idOf(code);
+    return subjectByOrder.find((s) => s.subject_id === id).subject_name;
   };
 
   // --- ล้างข้อมูลเดโมเก่า (เฉพาะของ demo seed เอง) เพื่อให้รันซ้ำได้ ---
@@ -269,7 +287,8 @@ async function main() {
       title: "แจ้งกำหนดการสอบแก้ตัว ปีการศึกษา 2568 ครั้งที่ 2",
       content:
         "นักศึกษาที่ยังสอบไม่ผ่านบางรายวิชา ให้กรอกผลสอบรอบแก้ตัวภายในวันที่ 31 ตุลาคม 2568 " +
-        "รายวิชาที่เปิดสอบรอบนี้: NUR01, NUR04, NUR08",
+        "รายวิชาที่เปิดสอบรอบนี้: " +
+        ["NUR01", "NUR04", "NUR08"].map(nameOf).join(", "),
     },
   });
   console.log("news created: 2");

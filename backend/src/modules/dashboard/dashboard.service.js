@@ -93,10 +93,15 @@ export const buildStats = async (roundId) => {
   // เฉลี่ยอัตราผ่านของทุกวิชา — คนละตัวกับ fullyPassedRate ที่นับเป็นรายคน
   // ข้ามวิชาที่ไม่มีใครสอบจริง ไม่งั้นตัวหารจะรวมวิชาที่ไม่มีข้อมูลเข้ามาด้วย
   const sat = perSubject.filter((s) => s.rate !== null);
-  const subjectPassRate = percent(
-    sat.reduce((sum, s) => sum + s.pass, 0),
-    sat.reduce((sum, s) => sum + s.pass + s.fail, 0),
-  );
+
+  // บวกสะสมทีละวิชา: totalPass = ผ่านรวมทุกวิชา, totalMarks = จำนวนผลสอบรวมทุกวิชา
+  let totalPass = 0;
+  let totalMarks = 0;
+  for (const s of sat) {
+    totalPass = totalPass + s.pass;
+    totalMarks = totalMarks + s.pass + s.fail;
+  }
+  const subjectPassRate = percent(totalPass, totalMarks);
 
   return {
     round: {

@@ -83,29 +83,44 @@ export const create = async (req, res, next) => {
     // ไม่เชื่อค่าที่ client ส่งมาสำหรับวิชาพวกนี้ กันแก้ผลที่ผ่านไปแล้วให้กลายเป็นไม่ผ่าน
     //
     // .map() = วนทุกตัวใน roundSubjectIds แล้วสร้าง array ใหม่ขนาดเท่าเดิม
-    // เครื่องหมาย ? : คือ if/else แบบบรรทัดเดียว อ่านว่า "เงื่อนไข ? เอาอันนี้ : ไม่งั้นเอาอันนี้"
-    // เขียนยาวๆ ได้แบบนี้:
-    //   let passed;
-    //   if (passedIds.includes(id)) { passed = true; }   // เคยผ่านแล้ว บังคับ true
-    //   else                        { passed = answers.get(id); }  // ใช้คำตอบที่ส่งมา
-    const finalResults = roundSubjectIds.map((id) => ({
-      subject_id: id,
-      is_passed: passedIds.includes(id) ? true : answers.get(id),
-      // ยกมาจากรอบก่อน ไม่ได้สอบรอบนี้ — dashboard ต้องไม่นับเป็นคนสอบผ่าน
-      carried_forward: passedIds.includes(id),
-    }));
+    const finalResults = roundSubjectIds.map((id) => {
+      // วิชานี้เคยผ่านมาจากรอบก่อนหรือเปล่า
+      const passedBefore = passedIds.includes(id);
 
-    const result = isRedo
-      ? await examRepo.resubmitWithSubjects(existing.result_id, finalResults)
-      : await examRepo.createWithSubjects(
-          {
-            student_id: student.student_id,
-            round_id: round.round_id,
-            student_status: STUDENT_STATUS.SUBMITTED,
-            staff_status: STAFF_STATUS.PENDING,
-          },
-          finalResults,
-        );
+      let isPassed;
+      if (passedBefore) {
+        isPassed = true; // เคยผ่านแล้ว บังคับเป็นผ่าน ไม่สนค่าที่ client ส่งมา
+      } else {
+        isPassed = answers.get(id); // ยังไม่เคยผ่าน ใช้คำตอบที่นักศึกษากรอกมา
+      }
+
+      return {
+        subject_id: id,
+        is_passed: isPassed,
+        // ยกมาจากรอบก่อน ไม่ได้สอบรอบนี้ — dashboard ต้องไม่นับเป็นคนสอบผ่าน
+        carried_forward: passedBefore,
+      };
+    });
+
+    // isRedo = เคยส่งใบของรอบนี้ไปแล้วและกำลังแก้ส่งใหม่ (ไม่ใช่สร้างใบใหม่)
+    let result;
+    if (isRedo) {
+      // ทับผลเดิมในใบเดิม ไม่สร้างใบใหม่ ไม่งั้นจะมี 2 ใบในรอบเดียว
+      result = await examRepo.resubmitWithSubjects(
+        existing.result_id,
+        finalResults,
+      );
+    } else {
+      result = await examRepo.createWithSubjects(
+        {
+          student_id: student.student_id,
+          round_id: round.round_id,
+          student_status: STUDENT_STATUS.SUBMITTED,
+          staff_status: STAFF_STATUS.PENDING,
+        },
+        finalResults,
+      );
+    }
 
     res.json({ success: true, data: result });
   } catch (err) {
@@ -147,18 +162,29 @@ const reviewExamResult = async (req, res, next, { staff_status, requireRemark })
       throw httpError("ต้องระบุเหตุผลที่ตีกลับ (remark)", 400);
     }
 
+    // ตอนตีกลับ (requireRemark = true) remark ผ่านการเช็คข้างบนแล้วว่าไม่ว่าง
+    // ตอนยืนยัน เจ้าหน้าที่จะใส่ remark มาหรือไม่ก็ได้ — ไม่ใส่มาเลยให้เก็บ null ลง DB
+    let remarkToSave = remark;
+    if (remarkToSave === undefined || remarkToSave === null) {
+      remarkToSave = null;
+    }
+
     const result = await examRepo.updateStaffStatus(req.params.id, {
       staff_status,
-      remark: requireRemark ? remark : (remark ?? null),
+      remark: remarkToSave,
       confirmed_by: req.user.userId, // อ่านจาก JWT เท่านั้น
     });
 
     // แจ้งเตือนนักศึกษาเจ้าของผลสอบ — ยิงแบบ fire-and-forget ไม่ให้ล้มการยืนยัน/ตีกลับถ้าแจ้งเตือนพลาด
     const roundLabel = `รอบ ${existing.round.attempt_number}/${existing.round.academic_year}`;
-    const message =
-      staff_status === "approved"
-        ? `ผลสอบ${roundLabel}ได้รับการยืนยันแล้ว`
-        : `ผลสอบ${roundLabel}ถูกตีกลับ: ${remark}\nกรุณากรอกผลสอบของท่านใหม่อีกครั้ง`;
+    // ข้อความแจ้งเตือนต่างกันตามว่าเจ้าหน้าที่กดยืนยันหรือกดตีกลับ
+    let message;
+    if (staff_status === "approved") {
+      message = `ผลสอบ${roundLabel}ได้รับการยืนยันแล้ว`;
+    } else {
+      // \n = ขึ้นบรรทัดใหม่ ฝั่งหน้าเว็บเอาบรรทัดที่ 2 ไปโชว์เป็นตัวเล็กใต้หัวข้อ
+      message = `ผลสอบ${roundLabel}ถูกตีกลับ: ${remark}\nกรุณากรอกผลสอบของท่านใหม่อีกครั้ง`;
+    }
     notifRepo
       .create({ student_id: existing.student_id, type: staff_status, message })
       .catch((e) => console.error("สร้างแจ้งเตือนไม่สำเร็จ:", e.message));

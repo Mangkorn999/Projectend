@@ -4,10 +4,24 @@
 export const errorHandler = (err, req, res, next) => {
   console.error(`[ERROR] ${req.method} ${req.path}:`, err.message);
 
-  // multer โยน MulterError มาโดยไม่มี statusCode (เช่น ไฟล์ใหญ่เกิน limit) → นับเป็น 400
-  const statusCode =
-    err.statusCode || (err.name === "MulterError" ? 400 : 500);
-  const message = err.message || "เกิดข้อผิดพลาดภายใน server";
+  // หาว่าจะตอบ HTTP status อะไรกลับไป เรียงตามลำดับความสำคัญ:
+  //   1. controller ใส่ err.statusCode มาเอง → ใช้ค่านั้น
+  //   2. multer โยน MulterError มาโดยไม่มี statusCode (เช่น ไฟล์ใหญ่เกิน limit) → 400 (ผู้ใช้ส่งมาผิด)
+  //   3. นอกนั้นคือ bug ในระบบเรา → 500
+  let statusCode;
+  if (err.statusCode) {
+    statusCode = err.statusCode;
+  } else if (err.name === "MulterError") {
+    statusCode = 400;
+  } else {
+    statusCode = 500;
+  }
+
+  // err.message ว่าง (บาง error ไม่มีข้อความ) ค่อยใช้ข้อความกลาง
+  let message = err.message;
+  if (!message) {
+    message = "เกิดข้อผิดพลาดภายใน server";
+  }
 
   res.status(statusCode).json({
     success: false,

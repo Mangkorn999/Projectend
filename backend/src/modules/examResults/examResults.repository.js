@@ -44,6 +44,17 @@ export const findByStudentAndRound = (student_id, round_id) =>
 // excludeRoundId = รอบที่กำลังจะกรอก/กำลังดูอยู่ ต้องตัดออกเสมอ
 // ไม่งั้นใบของรอบนี้เองที่ถูกตีกลับ จะย้อนกลับมาล็อกวิชาที่ตัวเองเพิ่งติ๊กผ่าน
 // กลายเป็น "ผ่านแล้วจากรอบก่อน" ทั้งที่ยังไม่มีรอบก่อน แล้วแก้ผลไม่ได้
+//
+// ตัวช่วยข้างล่างสร้าง "เงื่อนไขตัดรอบนั้นออก" ให้ Prisma:
+//   ส่ง excludeRoundId มา  → ได้ { NOT: { round_id: 5 } }
+//   ไม่ส่งมา (null)        → ได้ {} ก้อนว่าง = ไม่กรองอะไรเพิ่ม
+const buildExcludeRound = (excludeRoundId) => {
+  if (!excludeRoundId) {
+    return {};
+  }
+  return { NOT: { round_id: Number(excludeRoundId) } };
+};
+
 export const findPassedSubjectIds = async (student_id, excludeRoundId = null) => {
   const rows = await prisma.subjectResult.findMany({
     where: {
@@ -56,8 +67,10 @@ export const findPassedSubjectIds = async (student_id, excludeRoundId = null) =>
         // ส่วน pending (ส่งแล้วรอเจ้าหน้าที่ตรวจ) ยังนับให้ — ไม่งั้นเปิดรอบถัดไป
         // ก่อนเจ้าหน้าที่ตรวจเสร็จ นักศึกษาต้องมากรอกวิชาที่เพิ่งผ่านซ้ำอีกรอบ
         staff_status: { not: "rejected" },
-        // ... (spread) = "ถ้ามี excludeRoundId ให้แปะเงื่อนไข NOT เข้าไป ถ้าไม่มีก็ไม่แปะอะไร"
-        ...(excludeRoundId ? { NOT: { round_id: Number(excludeRoundId) } } : {}),
+        // เงื่อนไขเพิ่มเติม: ไม่เอาผลของรอบที่กำลังกรอกอยู่ (ถ้าผู้เรียกส่ง excludeRoundId มา)
+        // ...(spread) = แกะ key ใน object ก้อนนี้มาแปะรวมกับ key ข้างบน
+        // ก้อนว่าง {} แปะแล้วไม่เพิ่มเงื่อนไขอะไรเลย
+        ...buildExcludeRound(excludeRoundId),
       },
     },
     select: { subject_id: true },
