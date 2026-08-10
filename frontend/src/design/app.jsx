@@ -55,9 +55,9 @@ const NAV = (lang, pendingCount)=>({
     { section:translate(lang,'nav.section.reports') },
     { k:'reports', label:translate(lang,'nav.officer.reports'), icon:'report' },
   ],
+  // ผู้บริหารเห็นได้แค่ภาพรวม — backend ตัดสิทธิ์ /students กับ /exam-results ไปแล้ว (403)
   executive: [
     { k:'dashboard', label:translate(lang,'nav.executive.dashboard'), icon:'grid' },
-    { k:'students', label:translate(lang,'nav.executive.students'), icon:'users' },
     { k:'reports', label:translate(lang,'nav.executive.reports'), icon:'report' },
   ],
 });
@@ -226,10 +226,9 @@ export function App() {
       if(page==='newsmgmt') return <ManageNewsReal toast={showToast} lang={lang} />;
       if(page==='reports') return <ReportsReal toast={showToast} lang={lang} />;
     }
+    // ไม่มีหน้า students/detail ให้ผู้บริหารแล้ว — endpoint รายบุคคลเป็นของ officer เท่านั้น
     if(role==='executive'){
       if(page==='dashboard') return <DashboardReal go={go} readonly lang={lang} />;
-      if(page==='students') return <OfficerStudentsReal go={go} setSel={setSel} toast={showToast} readonly lang={lang} />;
-      if(page==='detail') return <StudentDetailReal student={sel} go={go} toast={showToast} readonly lang={lang} />;
       if(page==='reports') return <ReportsReal toast={showToast} readonly lang={lang} />;
     }
     return <Empty title="ไม่พบหน้าที่ต้องการ" />;
