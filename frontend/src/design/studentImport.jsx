@@ -10,7 +10,7 @@ import { t } from './i18n.js';
 
 const CSV_TEMPLATE =
   'student_id,first_name,last_name,email,phone,room_name,academic_year\n' +
-  '6610210001,สมชาย,ใจดี,somchai.j@psu.ac.th,0812345678,ห้องเรียนปกติ,2566\n';
+  '6610210001,สมชาย,ใจดี,6610210001@psu.ac.th,0812345678,ห้องเรียนปกติ,2566\n';
 
 export function StudentImport({ toast, lang }) {
   const [tab, setTab] = useState('csv'); // 'csv' | 'manual'
@@ -375,7 +375,7 @@ function ManualAdd({ toast, tt }) {
           <div className="grid g-2">
             <div className="field">
               <label>{tt('importReal.fieldEmail')} <Req /></label>
-              <input className="input" type="email" value={form.email} onChange={set('email')} placeholder="6610210001@psu.ac.th" />
+              <input className="input" type="email" value={form.email} onChange={set('email')} placeholder="studentid@psu.ac.th" />
             </div>
             <div className="field">
               <label>{tt('importReal.fieldPhone')} <Req /></label>

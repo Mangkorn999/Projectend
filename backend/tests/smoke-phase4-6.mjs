@@ -86,8 +86,13 @@ const main = async () => {
   );
 
   // ── Phase 4: rounds ──────────────────────────────
+  // exam_eligible เป็น default true แล้ว — ต้องถอนสิทธิ์ก่อนถึงจะทดสอบด่านนี้ได้
+  await call("PATCH", "/api/students/bulk-eligible", {
+    token: officerToken,
+    body: { student_ids: ["6610210631"], exam_eligible: false },
+  });
   const noRoundYet = await call("GET", "/api/rounds/active", { token: studentToken });
-  check("rounds/active ก่อนเปิดสิทธิ์ → 403", noRoundYet.status, 403, JSON.stringify(noRoundYet.json?.message));
+  check("rounds/active ตอนถูกถอนสิทธิ์ → 403", noRoundYet.status, 403, JSON.stringify(noRoundYet.json?.message));
 
   const eligible = await call("PATCH", "/api/students/bulk-eligible", {
     token: officerToken,

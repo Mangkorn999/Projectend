@@ -49,10 +49,14 @@ const FALLBACK_TYPE = { tone: 'wait', icon: 'bell', page: 'news' };
 export function fromServer(rows = []) {
   return rows.map((n) => {
     const style = SERVER_TYPES[n.type] || FALLBACK_TYPE;
+    // backend คั่นบรรทัดรองด้วย \n (เช่น "...ถูกตีกลับ: เอกสารไม่ชัด\nกรุณากรอกผลสอบของท่านใหม่อีกครั้ง")
+    // บรรทัดแรกเป็นหัวข้อ ที่เหลือเป็นคำอธิบายตัวเล็กใต้หัวข้อ
+    const [mainLine, ...subLines] = n.message.split("\n");
     return {
       ...style,
       key: `notif:${n.notification_id}`,
-      title: n.message,
+      title: mainLine,
+      sub: subLines.join(" ") || undefined,
       at: n.created_at,
       is_read: n.is_read, // อ่านแล้วหรือยัง มาจาก server ไม่ใช่ localStorage
     };

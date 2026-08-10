@@ -77,6 +77,7 @@ export function App() {
   const [formStep, setFormStep] = useState(0);
   const [lang, setLang] = useState('TH'); // 'TH' | 'EN' — wired into student-side pages via i18n.js
   const [langBlurring, setLangBlurring] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const changeLang = (v) => {
     if (v === lang) return;
     setLangBlurring(true);
@@ -183,6 +184,7 @@ export function App() {
   }, []);
 
   const handleLogin = (user, mustChange)=>{
+    setLoggingOut(false); // เผื่อ login กลับมาหลัง logout ค้าง state เบลอไว้จากรอบก่อน
     if (mustChange) { setMustChangePassword(true); return; }
     setCurrentUser(user);
     setRole(user.role);
@@ -198,9 +200,11 @@ export function App() {
   const nav = role==='student' ? navStudent(lang, rejectedCount) : NAV(lang, pendingCount)[role];
   const go = (p, step=0)=>{ setPage(p); setFormStep(step); window.scrollTo(0,0); };
   // ไม่มีสลับ role ปลอมอีกแล้ว — 'logout' คือทางเดียวที่เหลือ
-  // logout() ยิง POST /auth/logout ให้ backend ลบ cookie ก่อน แล้วค่อยเคลียร์ฝั่ง browser
+  // เบลอหน้าจอ 280ms เหมือนตอนสลับภาษา ระหว่างนั้นยิง POST /auth/logout ให้ backend ลบ cookie
+  // (clearSession() อย่างเดียวไม่พอ — cookie เป็น httpOnly ฝั่ง JS ลบเองไม่ได้)
   const switchRole = async (r)=>{
     if (r === 'logout') {
+      setLoggingOut(true);
       await logout();
       setRole(null);
       setCurrentUser(null);
@@ -244,7 +248,7 @@ export function App() {
         notifications={notifications} unread={unread}
         onNotifOpen={openNotifications} onNotifGo={go}
         lang={lang} setLang={changeLang} langLoading={langBlurring} />
-      <div className={'app-shell lang-fade'+(langBlurring?' lang-fade-blur':'')}>
+      <div className={'app-shell lang-fade'+(langBlurring?' lang-fade-blur':'')+(loggingOut?' logout-blur':'')}>
         {/* บทบาทผู้ใช้แสดงที่เมนูผู้ใช้บน TopBar ที่เดียว — การ์ดใน sidebar ซ้ำโดยไม่จำเป็น */}
         <Sidebar items={nav} active={activeNav} onNav={go} open={sbOpen} onClose={()=>setSbOpen(false)} />
         <main className="app-main">

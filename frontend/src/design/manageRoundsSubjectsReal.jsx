@@ -44,6 +44,7 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
   const [subjectModal, setSubjectModal] = useState(null); // {} (new) | subject | null
   const [deleteRound, setDeleteRound] = useState(null); // รอบที่กำลังจะลบ (ยืนยันก่อน)
   const [cohorts, setCohorts] = useState([]); // [{ year, count }] รุ่นนักศึกษาที่มีจริงในระบบ
+  const [yearFilter, setYearFilter] = useState('open'); // กรองรายการรอบ — 'open' = เฉพาะรอบที่ยังเปิดอยู่, หรือเลือกปีเจาะจง
 
   const loadRounds = () => apiFetch('/rounds').then(setRounds).catch(e => toast(e.message, 'error'));
   const loadSubs = () => apiFetch('/subjects').then(setSubs).catch(e => toast(e.message, 'error'));
@@ -53,6 +54,11 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
     apiFetch('/students').then(list => {
       const byYear = new Map();
       for (const s of list) byYear.set(s.academic_year, (byYear.get(s.academic_year) || 0) + 1);
+      // เผื่อรุ่นล่าสุดยังไม่มีนักศึกษาในระบบเลย ก็ให้เลือกได้อยู่ดี — โชว์ปีปัจจุบัน (พ.ศ.) ย้อนหลัง 3 ปีเสมอ
+      const currentBEYear = new Date().getFullYear() + 543;
+      for (const year of [currentBEYear, currentBEYear - 1, currentBEYear - 2]) {
+        if (!byYear.has(year)) byYear.set(year, 0);
+      }
       setCohorts([...byYear.entries()].map(([year, count]) => ({ year, count })).sort((a, b) => b.year - a.year));
     }).catch(() => {});
   }, []);
@@ -127,10 +133,20 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
       </div>
 
       {tab === 'rounds' && (
+        <>
+        <div className="field" style={{ maxWidth: 220, marginBottom: 14 }}>
+          <label>{tt('roundsMgmt.fieldCohort')}</label>
+          <select className="select" value={yearFilter} onChange={e => setYearFilter(e.target.value)}>
+            <option value="open">{tt('roundsMgmt.yearFilterOpen')}</option>
+            {cohorts.map(c => <option key={c.year} value={c.year}>{c.year}</option>)}
+          </select>
+        </div>
         <div className="grid g-3">
-          {rounds.map(r => {
-            // status field ไม่ auto ปิดเองเมื่อพ้น close_date — ต้องเช็ควันที่ประกอบด้วยตอนแสดงผล
-            const isEffectivelyOpen = r.status === 'open' && new Date(r.close_date) >= new Date();
+          {rounds
+            .map(r => ({ ...r, isEffectivelyOpen: r.status === 'open' && new Date(r.close_date) >= new Date() }))
+            .filter(r => yearFilter === 'open' ? r.isEffectivelyOpen : String(r.academic_year) === String(yearFilter))
+            .map(r => {
+            const { isEffectivelyOpen } = r;
             return (
             <div key={r.round_id} className="card card-pad">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -153,6 +169,7 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
             );
           })}
         </div>
+        </>
       )}
 
       {tab === 'subjects' && (

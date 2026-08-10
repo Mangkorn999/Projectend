@@ -137,6 +137,11 @@ const buildYearSummary = async (year, allSubjects) => {
   const roundSummaries = [];
   const yearCounted = []; // ผลที่นับได้ (ไม่ถูกตีกลับ) รวมทุกรอบของปีนี้ — ใช้ทำอัตราผ่านรายวิชาย้อนหลัง
 
+  // แยกผ่านครบ/ส่งแล้วตามห้องเรียนด้วย (นับรายคน dedup เหมือนภาพรวม) — key = room_id
+  const roomMeta = new Map(); // room_id -> room_name
+  const roomSubmitted = new Map(); // room_id -> Set(student_id)
+  const roomFullyPassed = new Map(); // room_id -> Set(student_id)
+
   for (const round of rounds) {
     const results = await dashRepo.findResultsByRound(round.round_id);
     const sent = onlySent(results);
@@ -145,14 +150,27 @@ const buildYearSummary = async (year, allSubjects) => {
       (s) => s.subject_id,
     );
 
-    sent.forEach((r) => everSubmitted.add(r.student_id));
+    sent.forEach((r) => {
+      everSubmitted.add(r.student_id);
+
+      const room = r.student.room;
+      roomMeta.set(room.room_id, room.room_name);
+      if (!roomSubmitted.has(room.room_id)) roomSubmitted.set(room.room_id, new Set());
+      roomSubmitted.get(room.room_id).add(r.student_id);
+    });
     sent
       .filter((r) =>
         subjectIds.every((id) =>
           r.subject_results.some((sr) => sr.subject_id === id && sr.is_passed),
         ),
       )
-      .forEach((r) => everFullyPassed.add(r.student_id));
+      .forEach((r) => {
+        everFullyPassed.add(r.student_id);
+
+        const room = r.student.room;
+        if (!roomFullyPassed.has(room.room_id)) roomFullyPassed.set(room.room_id, new Set());
+        roomFullyPassed.get(room.room_id).add(r.student_id);
+      });
 
     yearCounted.push(...counted);
     roundSummaries.push({
@@ -165,6 +183,21 @@ const buildYearSummary = async (year, allSubjects) => {
     });
   }
 
+  // เรียงตาม room_id เพื่อให้ลำดับคอลัมน์คงที่ (ปกติ = id เล็กสุด มาก่อนตามลำดับ seed)
+  const byRoom = [...roomMeta.keys()]
+    .sort((a, b) => a - b)
+    .map((room_id) => {
+      const submittedCount = roomSubmitted.get(room_id)?.size ?? 0;
+      const fullyPassedCount = roomFullyPassed.get(room_id)?.size ?? 0;
+      return {
+        room_id,
+        room_name: roomMeta.get(room_id),
+        submitted: submittedCount,
+        fullyPassed: fullyPassedCount,
+        passRate: percent(fullyPassedCount, submittedCount),
+      };
+    });
+
   return {
     academic_year: year,
     total,
@@ -174,6 +207,7 @@ const buildYearSummary = async (year, allSubjects) => {
     fillRate: percent(everSubmitted.size, eligible),
     passRate: percent(everFullyPassed.size, everSubmitted.size),
     rounds: roundSummaries,
+    byRoom, // ผ่านครบ/ส่งแล้วแยกตามห้องเรียน (ปกติ/ภาษาอังกฤษ) — ใช้ตารางเทียบย้อนหลัง
     // อัตราผ่านรายวิชา รวมทุกรอบของปีนี้ — ใช้กราฟเทียบอัตราผ่านรายวิชาย้อนหลัง
     perSubject: buildPerSubject(yearCounted, allSubjects),
   };
