@@ -131,8 +131,8 @@ src/modules/subjects/
 |---|---|---|---|
 | `GET` | `/api/users` | staff | ดูรายชื่อผู้ใช้ทั้งหมด |
 | `POST` | `/api/users/:id/role` | staff | เปลี่ยน role ผู้ใช้ |
-| `GET` | `/api/students` | staff | ดูรายชื่อนักศึกษา |
-| `GET` | `/api/students/:id` | staff, student | ดูข้อมูลนักศึกษา |
+| `GET` | `/api/students` | officer | ดูรายชื่อนักศึกษา (executive ไม่ได้) |
+| `GET` | `/api/students/:id` | officer, student | ดูข้อมูลนักศึกษา (executive ไม่ได้) |
 
 ---
 
@@ -213,7 +213,7 @@ body: `{ "subject_results": [{ "subject_id": 1, "is_passed": true }, ... ] }`
 
 | Method | URL | Role | คำอธิบาย |
 |---|---|---|---|
-| `GET` | `/api/exam-results` | officer, executive | ดูผลสอบทุกคน + filter |
+| `GET` | `/api/exam-results` | officer | ดูผลสอบทุกคน + filter (executive ไม่ได้ — ดูได้แค่ dashboard) |
 | `PATCH` | `/api/exam-results/:id/approve` | officer | ยืนยัน |
 | `PATCH` | `/api/exam-results/:id/reject` | officer | ตีกลับ + remark (บังคับ) |
 

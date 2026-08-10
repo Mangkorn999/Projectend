@@ -217,8 +217,15 @@ const main = async () => {
   const leaked = JSON.stringify(listOfficer.json).includes("nursing_council");
   check("list ไม่มี field รหัสสภาหลุด", leaked, false);
 
+  // executive ถูกตัดสิทธิ์ข้อมูลรายบุคคลแล้ว — เหลือดูได้แค่ภาพรวมใน dashboard
   const listExec = await call("GET", "/api/exam-results", { token: execToken });
-  check("executive GET /api/exam-results → 200", listExec.status, 200);
+  check("executive GET /api/exam-results → 403 (ตัดสิทธิ์รายบุคคล)", listExec.status, 403);
+
+  const studentsExec = await call("GET", "/api/students", { token: execToken });
+  check("executive GET /api/students → 403 (ตัดสิทธิ์รายบุคคล)", studentsExec.status, 403);
+
+  const statsExec = await call("GET", "/api/dashboard/stats", { token: execToken });
+  check("executive GET /api/dashboard/stats → 200 (ภาพรวมยังดูได้)", statsExec.status, 200);
 
   const filtered = await call("GET", "/api/exam-results?staff_status=pending", { token: officerToken });
   check("filter staff_status=pending → 1 รายการ", filtered.json?.data?.length, 1);

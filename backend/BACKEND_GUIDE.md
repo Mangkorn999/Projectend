@@ -428,12 +428,14 @@ public เพราะหน้าสมัคร/ตั้งรหัสคร
 
 | Method | URL | สิทธิ์ | ทำอะไร |
 |---|---|---|---|
-| GET | `/api/students` | 🧑‍💼 👔 | รายชื่อนักศึกษาทั้งหมด |
-| GET | `/api/students/:id` | 🔑 | ดูรายคน (นักศึกษาดูได้แค่ตัวเอง) |
+| GET | `/api/students` | 🧑‍💼 | รายชื่อนักศึกษาทั้งหมด |
+| GET | `/api/students/:id` | 🧑‍💼 👤 | ดูรายคน (นักศึกษาดูได้แค่ตัวเอง) |
 | POST | `/api/students` | 🧑‍💼 | เพิ่มทีละคน |
 | PATCH | `/api/students/bulk-eligible` | 🧑‍💼 | เปิด/ปิดสิทธิ์กรอกผลสอบหลายคนพร้อมกัน |
 | POST | `/api/students/import` | 🧑‍💼 | import CSV |
 | POST | `/api/students/:id/reset-password` | 🧑‍💼 | ล้างรหัสผ่านให้ไปตั้งใหม่ |
+
+> **executive เข้าไม่ได้ทั้ง 2 เส้น** — ผู้บริหารดูได้แค่ภาพรวมที่ `/api/dashboard/stats|history` ไม่เห็นข้อมูลนักศึกษารายบุคคล
 
 **`getById` — เช็คสิทธิ์ระดับข้อมูล** (`requireRole` ทำแทนไม่ได้):
 ```js
@@ -496,7 +498,7 @@ status: "open"  และ  open_date <= ตอนนี้  และ  close_dat
 | POST | `/api/exam-results` | 👤 | ส่ง/แก้ผลสอบของรอบที่เปิดอยู่ |
 | GET | `/api/exam-results/me` | 👤 | ประวัติของตัวเอง |
 | POST | `/api/exam-results/:id/certificates` | 👤 | แนบ PDF |
-| GET | `/api/exam-results` | 🧑‍💼 👔 | ดูทั้งหมด (กรองได้) |
+| GET | `/api/exam-results` | 🧑‍💼 | ดูทั้งหมด (กรองได้) |
 | PATCH | `/api/exam-results/:id/approve` | 🧑‍💼 | ยืนยันผล |
 | PATCH | `/api/exam-results/:id/reject` | 🧑‍💼 | ตีกลับ (ต้องมี remark) |
 
@@ -575,7 +577,7 @@ dashboard นับอัตราผ่านรายวิชาเฉพา�
   - `student.controller.js` → `bulkSetEligible` ตอน **เปิด** สิทธิ์เท่านั้น (`type: "eligible"`) ปิดสิทธิ์ไม่แจ้ง
 - ยิงแบบ fire-and-forget (`.catch(console.error)`) — แจ้งเตือนพลาดต้องไม่ทำให้ approve/reject ล้มไปด้วย
 - `markRead` ใช้ `updateMany` ที่ where ด้วย `student_id` เสมอ — เดา `notification_id` ถูกก็ mark ของคนอื่นไม่ได้
-- **`serveFile` เช็คสิทธิ์ก่อนส่งไฟล์เสมอ:** เจ้าของ หรือ officer/executive เท่านั้น — ไฟล์ไม่ได้เปิด public ให้เดา id เอา
+- **`serveFile` เช็คสิทธิ์ก่อนส่งไฟล์เสมอ:** เจ้าของ หรือ officer เท่านั้น (executive ไม่ได้) — ไฟล์ไม่ได้เปิด public ให้เดา id เอา
 
 ### 7.9 news — ข่าว/ประกาศ
 
@@ -778,10 +780,11 @@ User ──1:M── SubmissionRound (creator, ผ่าน created_by)
 3. ทุก endpoint ที่ไม่ public ต้องมี `authenticate` **ก่อน** `requireRole`
 4. `password_hash` ห้ามหลุดออก response — ใช้ `select` ที่ระบุ field ชัดเจน (`PUBLIC_USER_FIELDS`)
 5. ข้อความ error ตอน login/first-setup ต้องเหมือนกันทุกกรณี ไม่บอกว่าผิดตรงไหน
-6. เจ้าของข้อมูล (ownership) ต้องเช็คใน controller — `requireRole` บอกได้แค่ "เป็นนักศึกษา" ไม่ได้บอกว่า "เป็นนักศึกษาคนนี้"
-7. **token อยู่ใน httpOnly cookie เท่านั้น** — ห้ามส่ง token กลับใน JSON body และห้ามให้ frontend เก็บใน localStorage อีก (ย้อนกลับไปเปิดช่อง XSS)
-8. `cors` ต้องระบุ `origin` เป็น URL จริงคู่กับ `credentials: true` — **ห้ามใช้ `origin: "*"`** เบราว์เซอร์ไม่ยอมส่ง cookie ให้ และเป็นการเปิดให้ทุกเว็บยิง API พร้อม cookie ของผู้ใช้
-9. `sameSite: "lax"` คือด่านกัน CSRF เดียวที่มี — ถ้าเปลี่ยนเป็น `"none"` (เช่นตอน deploy แยก domain) ต้องเพิ่ม CSRF token ด้วย
+6. **executive เห็นได้แค่ตัวเลขรวม** — ทุก endpoint ที่คืนข้อมูลนักศึกษารายบุคคล (students, exam-results, ไฟล์ certificate, export PDF) ต้องเป็น `requireRole("officer")` เท่านั้น
+7. เจ้าของข้อมูล (ownership) ต้องเช็คใน controller — `requireRole` บอกได้แค่ "เป็นนักศึกษา" ไม่ได้บอกว่า "เป็นนักศึกษาคนนี้"
+8. **token อยู่ใน httpOnly cookie เท่านั้น** — ห้ามส่ง token กลับใน JSON body และห้ามให้ frontend เก็บใน localStorage อีก (ย้อนกลับไปเปิดช่อง XSS)
+9. `cors` ต้องระบุ `origin` เป็น URL จริงคู่กับ `credentials: true` — **ห้ามใช้ `origin: "*"`** เบราว์เซอร์ไม่ยอมส่ง cookie ให้ และเป็นการเปิดให้ทุกเว็บยิง API พร้อม cookie ของผู้ใช้
+10. `sameSite: "lax"` คือด่านกัน CSRF เดียวที่มี — ถ้าเปลี่ยนเป็น `"none"` (เช่นตอน deploy แยก domain) ต้องเพิ่ม CSRF token ด้วย
 
 ---
 
@@ -943,6 +946,7 @@ curl -H "Authorization: Bearer <token>" http://localhost:3000/api/subjects/1
 
 | วันที่ | เปลี่ยนอะไร |
 |---|---|
+| 2026-08-10 | **ตัดสิทธิ์ executive จากข้อมูลนักศึกษารายบุคคล** — `GET /api/students`, `GET /api/students/:id`, `GET /api/exam-results` และไฟล์ certificate (`serveFile`) เหลือ officer เท่านั้น. ผู้บริหารเห็นได้แค่ตัวเลขรวมที่ `/api/dashboard/stats|history` (data minimization — ผู้บริหารไม่ต้องแตะ PII). **รายงานบทที่ 4.3 ต้องแก้ตาม** เพราะเดิมระบุว่าผู้บริหารมีหน้า "รายละเอียดนักศึกษา" (`students.routes.js`, `examResults.routes.js`, `certificates.controller.js`, `tests/smoke-phase4-6.mjs`). **frontend ต้องซ่อนเมนูของผู้บริหารให้เหลือ Dashboard — แจ้งแก้ม** |
 | 2026-08-10 | **ย้าย JWT จาก localStorage ไป httpOnly cookie** — `login` ตั้ง cookie ด้วย `TOKEN_COOKIE_OPTIONS` (httpOnly + sameSite lax + maxAge 1 วัน) และไม่ส่ง `token` กลับใน body อีก, `authenticate` อ่าน token จาก `req.cookies.token` แทน `Authorization` header, เพิ่ม `POST /api/auth/logout` (public) สั่ง `clearCookie`, `app.js` เพิ่ม `cookieParser()`. เหตุผล: localStorage โดน XSS อ่านได้ httpOnly ไม่ได้. **ต้องเปลี่ยน `secure: false` เป็น `true` ก่อนขึ้น production** (`authController.js`, `middlewares/auth.js`, `app.js`, `auth.routes.js`, `package.json`) |
 | 2026-08-10 | tests ทั้ง 6 ไฟล์: ตัวช่วย `call` ส่ง `Cookie` header แทน `Authorization`, `call` คืน `cookie` ที่แกะจาก `set-cookie` ให้ (ค่าที่ส่งเข้า param `token` ตอนนี้คือข้อความ cookie เต็ม เช่น `token=eyJ...`), เพิ่มเทสต์ logout ใน `smoke-phase1-3.mjs`. **frontend แก้พร้อมกัน** (`api.js`, `login.jsx`, `app.jsx`, `forceChangePassword.jsx`, `reportsReal.jsx`) — ต้องแจ้งแก้ม |
 | 2026-08-09 | merge `feature/update-app` เข้า main — รวมงานของแก้มเข้ากับ reject-flow ที่ main ทำไว้ |

@@ -18,8 +18,9 @@ const upload = multer({
 });
 
 const router = express.Router();
-router.get("/", authenticate, requireRole("officer", "executive"), getAll);
-router.get("/:id", authenticate, getById); // เช็ค ownership ใน controller
+// executive ไม่มีสิทธิ์ดูข้อมูลรายบุคคล — ดูได้แค่ภาพรวมที่ /api/dashboard
+router.get("/", authenticate, requireRole("officer"), getAll);
+router.get("/:id", authenticate, requireRole("officer", "student"), getById); // student เช็ค ownership ต่อใน controller
 // เพิ่มนักศึกษาทีละคน (พิมพ์เอง) — คู่กับ import CSV ด้านล่าง
 router.post("/", authenticate, requireRole("officer"), create);
 router.patch(

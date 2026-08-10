@@ -57,7 +57,8 @@ export const upload = async (req, res, next) => {
 };
 
 // GET /api/certificates/:id/file — เปิด/โหลดไฟล์จริง
-// เจ้าของผลสอบ (นักศึกษาคนนั้น) หรือ officer/executive เท่านั้นที่เข้าถึงได้ — กันคนอื่นเดา id แล้วดูไฟล์คนอื่น
+// เจ้าของผลสอบ (นักศึกษาคนนั้น) หรือ officer เท่านั้นที่เข้าถึงได้ — กันคนอื่นเดา id แล้วดูไฟล์คนอื่น
+// executive เข้าไม่ได้ (เห็นได้แค่ภาพรวมใน dashboard)
 export const serveFile = async (req, res, next) => {
   try {
     const certificate = await certRepo.findById(req.params.id);
@@ -67,7 +68,7 @@ export const serveFile = async (req, res, next) => {
     if (!examResult) throw httpError("ไม่พบผลสอบที่เกี่ยวข้อง", 404);
 
     const isOwner = req.user.studentId === examResult.student_id;
-    const isStaff = req.user.role === "officer" || req.user.role === "executive";
+    const isStaff = req.user.role === "officer";
     if (!isOwner && !isStaff) {
       throw httpError("ไม่มีสิทธิ์เข้าถึงไฟล์นี้", 403);
     }

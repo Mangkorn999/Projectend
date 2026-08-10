@@ -22,9 +22,9 @@ router.post(
   uploadPdf.single("file"),
   uploadCertificate,
 );
-// ─── เจ้าหน้าที่ / ผู้บริหาร ───
-// executive ดูได้อย่างเดียว (read-only) แก้ไขไม่ได้
-router.get("/", authenticate, requireRole("officer", "executive"), getAll);
+// ─── เจ้าหน้าที่ ───
+// executive ไม่มีสิทธิ์ดูผลสอบรายบุคคล — ดูได้แค่สถิติรวมที่ /api/dashboard
+router.get("/", authenticate, requireRole("officer"), getAll);
 router.patch("/:id/approve", authenticate, requireRole("officer"), approve);
 router.patch("/:id/reject", authenticate, requireRole("officer"), reject);
 
