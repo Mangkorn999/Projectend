@@ -84,16 +84,22 @@ Request → Routes → Controller → Service → Repository → Database
 - [x] ทดสอบ `auth.js` middleware — ลอง request โดยไม่มี token → ต้องได้ 401
 - [x] ทดสอบ `requireRole.js` — ลอง request ด้วย token role ผิด → ต้องได้ 403
 - [x] สร้าง `GET /api/auth/me` — ดึงข้อมูล user ปัจจุบันจาก JWT
+- [x] สร้าง `POST /api/auth/logout` — สั่งลบ cookie (public ไม่ต้อง authenticate)
+
+> **อัปเดต 2026-08-10:** token ย้ายไปอยู่ใน **httpOnly cookie** ไม่ส่งกลับใน JSON body แล้ว
+> รายละเอียดทั้งหมดดู [`BACKEND_GUIDE.md` ส่วน 7.1](BACKEND_GUIDE.md#71-auth--เข้าสู่ระบบ)
 
 **วิธีทดสอบ Postman:**
 ```
-# 1. Login ก่อน
+# 1. Login ก่อน — Postman เก็บ cookie ให้เองอัตโนมัติ
 POST http://localhost:3000/api/auth/login
-Body: { "psu_passport_id": "6510110001" }
+Body: { "psu_passport_id": "6510110001", "password": "6510110001" }
 
-# 2. Copy token จาก response ใส่ header
+# 2. เรียกต่อได้เลย ไม่ต้อง copy token ใส่ header
 GET http://localhost:3000/api/auth/me
-Authorization: Bearer <token>
+
+# 3. ออกจากระบบ (ลบ cookie)
+POST http://localhost:3000/api/auth/logout
 ```
 
 ---

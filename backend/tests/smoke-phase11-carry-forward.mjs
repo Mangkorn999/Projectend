@@ -7,7 +7,9 @@ let failures = 0;
 
 const call = async (method, url, { token, body } = {}) => {
   const headers = {};
-  if (token) headers.Authorization = `Bearer ${token}`;
+  // `token` ที่ส่งเข้ามาคือข้อความ cookie เต็มๆ เช่น "token=eyJhbGci..."
+  // backend อ่าน JWT จาก httpOnly cookie แล้ว ไม่ได้อ่านจาก Authorization header อีก
+  if (token) headers.Cookie = token;
   if (body !== undefined) headers["Content-Type"] = "application/json";
   const res = await fetch(`${BASE}${url}`, {
     method,
@@ -15,7 +17,14 @@ const call = async (method, url, { token, body } = {}) => {
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const json = await res.json().catch(() => ({}));
-  return { status: res.status, json };
+  // ดึง cookie ที่ server ส่งกลับมา (มีเฉพาะตอน login) เพื่อเอาไปใช้ request ถัดๆ ไป
+  // set-cookie มาเป็น "token=eyJ...; Path=/; HttpOnly; SameSite=Lax" — เอาแค่ชิ้นแรกก่อน ;
+  let cookie = null;
+  const setCookie = res.headers.get("set-cookie");
+  if (setCookie) {
+    cookie = setCookie.split(";")[0];
+  }
+  return { status: res.status, json, cookie };
 };
 
 const check = (name, actual, expected) => {
@@ -74,15 +83,15 @@ const addStudent = async (token, id, year, roomId) => {
   const login = await call("POST", "/api/auth/login", {
     body: { psu_passport_id: id, password: PASSWORD },
   });
-  if (!login.json.token) { console.log(`student ${id} login failed:`, JSON.stringify(login.json)); process.exit(1); }
-  return login.json.token;
+  if (!login.cookie) { console.log(`student ${id} login failed:`, JSON.stringify(login.json)); process.exit(1); }
+  return login.cookie;
 };
 
 const main = async () => {
   const officer = await call("POST", "/api/auth/login", {
     body: { psu_passport_id: "456", password: "456" },
   });
-  const oToken = officer.json.token;
+  const oToken = officer.cookie;
   if (!oToken) { console.log("officer login failed:", JSON.stringify(officer.json)); process.exit(1); }
 
   const ids = (await call("GET", "/api/subjects", { token: oToken })).json.data.map((s) => s.subject_id);

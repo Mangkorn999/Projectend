@@ -8,7 +8,7 @@ import { t as translate } from './i18n.js';
 import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakToggle, TweakColor } from './tweaks-panel.jsx';
 import { Login } from './login.jsx';
 import { ForceChangePassword } from './forceChangePassword.jsx';
-import { getToken, getStoredUser, clearSession, apiFetch } from './api.js';
+import { getStoredUser, logout, apiFetch } from './api.js';
 import { buildNotifications, fromServer, sortByNewest, countUnread, readKeys, markAllRead } from './notifications.js';
 import { FormIntro } from './student.jsx';
 import { StudentImport } from './studentImport.jsx';
@@ -161,13 +161,25 @@ export function App() {
   useEffect(()=>{ document.documentElement.style.setProperty('--gold-500', t.accent);
     document.documentElement.style.setProperty('--gold-600', shade(t.accent,-18)); }, [t.accent]);
 
-  // เข้าเว็บซ้ำ (refresh) — ถ้ามี token+user เก็บไว้ใน localStorage อยู่แล้ว ให้ login ต่อเลยไม่ต้องกรอกใหม่
+  // เข้าเว็บซ้ำ (refresh) — ถ้ามี user เก็บไว้ใน localStorage ให้ login ต่อเลยไม่ต้องกรอกใหม่
+  // token อยู่ใน httpOnly cookie แล้ว JS มองไม่เห็น เลยเช็คเองไม่ได้เหมือนเดิม
+  // ต้องยิง /auth/me ถาม backend ว่า cookie ยังใช้ได้ไหม ถ้าไม่ได้ apiFetch จะเคลียร์ + reload ให้เอง
   useEffect(()=>{
     const stored = getStoredUser();
-    if (getToken() && stored) {
-      if (stored.mustChangePassword) { setMustChangePassword(true); return; }
-      setCurrentUser(stored); setRole(stored.role); setPage(DEFAULT_PAGE[stored.role]);
-    }
+    if (!stored) return;
+
+    if (stored.mustChangePassword) { setMustChangePassword(true); return; }
+
+    const verifyCookie = async ()=>{
+      try {
+        await apiFetch('/auth/me');
+        setCurrentUser(stored); setRole(stored.role); setPage(DEFAULT_PAGE[stored.role]);
+      } catch (err) {
+        // 401 = cookie หมดอายุ apiFetch จัดการเด้งออกให้แล้ว ที่นี่ไม่ต้องทำอะไรเพิ่ม
+        console.error('session check failed:', err);
+      }
+    };
+    verifyCookie();
   }, []);
 
   const handleLogin = (user, mustChange)=>{
@@ -185,8 +197,15 @@ export function App() {
 
   const nav = role==='student' ? navStudent(lang, rejectedCount) : NAV(lang, pendingCount)[role];
   const go = (p, step=0)=>{ setPage(p); setFormStep(step); window.scrollTo(0,0); };
-  // ไม่มีสลับ role ปลอมอีกแล้ว — 'logout' คือทางเดียวที่เหลือ เคลียร์ token จริงด้วย
-  const switchRole = (r)=>{ if(r==='logout'){ clearSession(); setRole(null); setCurrentUser(null); return; } };
+  // ไม่มีสลับ role ปลอมอีกแล้ว — 'logout' คือทางเดียวที่เหลือ
+  // logout() ยิง POST /auth/logout ให้ backend ลบ cookie ก่อน แล้วค่อยเคลียร์ฝั่ง browser
+  const switchRole = async (r)=>{
+    if (r === 'logout') {
+      await logout();
+      setRole(null);
+      setCurrentUser(null);
+    }
+  };
 
   const render = ()=>{
     if(role==='student'){

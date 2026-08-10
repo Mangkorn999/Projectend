@@ -41,7 +41,7 @@
 ```
 เบราว์เซอร์
    │  PATCH /api/exam-results/12/approve
-   │  Header: Authorization: Bearer eyJhbGci...
+   │  Cookie: token=eyJhbGci...   ← httpOnly cookie เบราว์เซอร์แนบมาเอง
    ▼
 src/server.js          ← เปิด port รอรับ request
    ▼
@@ -74,7 +74,8 @@ PostgreSQL (ฐานข้อมูล ProjectEnd)
 | **controller** | สมองของ endpoint — ตรวจ input, ตัดสินใจ, เลือกเรียก repository |
 | **repository** | คนที่คุยกับฐานข้อมูล **ที่เดียวในระบบ** |
 | **service** | คำนวณที่ซับซ้อนจนไม่ควรอยู่ใน controller (มีแค่ dashboard) |
-| **JWT** | บัตรผ่านที่ backend ออกให้ตอน login. ข้างในเก็บ userId + role |
+| **JWT** | บัตรผ่านที่ backend ออกให้ตอน login. ข้างในเก็บ userId + role. เก็บไว้ใน httpOnly cookie |
+| **httpOnly cookie** | cookie ที่ JavaScript ในหน้าเว็บอ่านไม่ได้ มีแต่เบราว์เซอร์กับ server ที่เห็น — กัน XSS ขโมย token |
 | **Prisma** | ตัวช่วยคุย PostgreSQL ด้วย JavaScript แทนการเขียน SQL เอง |
 
 ---
@@ -222,11 +223,14 @@ app.listen(PORT, () => { ... });
 ประกอบ Express ทั้งตัว **ลำดับสำคัญมาก** — Express ทำงานจากบนลงล่าง:
 
 1. `validateEnv()` — เช็ค `.env` ครบก่อน ขาดแล้วพังทันทีตรงนี้ ดีกว่าไปพังกลางทางตอนมีคนใช้
-2. `cors({ origin: "http://localhost:5174" })` — อนุญาตให้เว็บ frontend เรียก API ข้าม port ได้
+2. `cors({ origin: "http://localhost:5174", credentials: true })` — อนุญาตให้เว็บ frontend เรียก API ข้าม port ได้
    → **ถ้าเปลี่ยน port ของ frontend ต้องมาแก้บรรทัดนี้ด้วย** ไม่งั้นเบราว์เซอร์บล็อกทุก request
+   → `credentials: true` จำเป็นสำหรับ cookie: ถ้าไม่มี เบราว์เซอร์จะไม่ส่ง cookie ข้าม origin ให้เลย และต้องระบุ origin เป็น URL จริง **ห้ามใช้ `*`**
 3. `express.json()` — แปลง JSON ใน body ให้เป็น object ใน `req.body` (ไม่มีบรรทัดนี้ `req.body` จะเป็น undefined)
-4. `app.use("/api/xxx", xxxRouter)` — ผูก 10 router
-5. `app.use(errorHandler)` — **ต้องอยู่ท้ายสุดเสมอ** Express ถือว่า middleware ที่มี 4 พารามิเตอร์ `(err, req, res, next)` คือตัวจัดการ error
+4. `cookieParser()` — อ่าน cookie ที่เบราว์เซอร์ส่งมาใส่ไว้ที่ `req.cookies`
+   → **ต้องอยู่ก่อน router ทุกตัว** ไม่งั้น `req.cookies` เป็น undefined แล้ว `authenticate` หา token ไม่เจอ = 401 ทุก request
+5. `app.use("/api/xxx", xxxRouter)` — ผูก 11 router
+6. `app.use(errorHandler)` — **ต้องอยู่ท้ายสุดเสมอ** Express ถือว่า middleware ที่มี 4 พารามิเตอร์ `(err, req, res, next)` คือตัวจัดการ error
 
 **ตารางเส้นทางหลัก**
 
@@ -270,8 +274,11 @@ if (missing.length > 0) throw new Error(`Missing required environment variables:
 ใช้กับทุก endpoint ที่ไม่ public.
 
 ```js
-const authHeader = req.headers["authorization"];   // "Bearer eyJhbGci..."
-const token = authHeader && authHeader.split(" ")[1];  // ตัดคำว่า Bearer ทิ้ง เอาแต่ token
+// token อยู่ใน httpOnly cookie ชื่อ "token" — เบราว์เซอร์แนบมาให้เองทุก request
+let token = null;
+if (req.cookies) {
+  token = req.cookies.token;
+}
 const decoded = jwt.verify(token, process.env.JWT_SECRET);
 req.user = decoded;   // { userId, role, studentId, mustChangePassword }
 next();
@@ -339,7 +346,8 @@ res.status(statusCode).json({ success: false, message });
 | Method | URL | สิทธิ์ | ทำอะไร |
 |---|---|---|---|
 | POST | `/api/auth/first-setup` | 🔓 | นักศึกษาตั้งรหัสผ่านครั้งแรก |
-| POST | `/api/auth/login` | 🔓 | เข้าสู่ระบบ ได้ token กลับไป |
+| POST | `/api/auth/login` | 🔓 | เข้าสู่ระบบ — ตั้ง httpOnly cookie ชื่อ `token` ให้ |
+| POST | `/api/auth/logout` | 🔓 | ออกจากระบบ — สั่งลบ cookie |
 | GET | `/api/auth/me` | 🔑 | ดูข้อมูลตัวเอง |
 | PATCH | `/api/auth/password` | 🔑 | เปลี่ยนรหัสผ่านตัวเอง |
 
@@ -358,6 +366,22 @@ const token = jwt.sign({ userId, role, studentId, mustChangePassword }, JWT_SECR
 - รหัสผิด หรือไม่มีบัญชีนี้ → **401** ข้อความเดียวกัน ไม่บอกว่าผิดตรงไหน
 - token อายุ **1 วัน** — หมดอายุแล้วต้อง login ใหม่
 - ข้างใน token มี: `userId`, `role`, `studentId` (null ถ้าไม่ใช่นักศึกษา), `mustChangePassword`
+- **ไม่ส่ง token กลับใน JSON body** — ส่งลง cookie ด้วย `res.cookie("token", token, TOKEN_COOKIE_OPTIONS)`
+
+**`TOKEN_COOKIE_OPTIONS`** (บนสุดของ `authController.js`) — ต้องใช้ชุดเดียวกันทั้งตอนตั้งและตอนลบ ถ้าไม่ตรงกันเบราว์เซอร์ถือว่าเป็น cookie คนละใบแล้วลบไม่ออก
+
+| ตัวเลือก | ค่า | ทำไม |
+|---|---|---|
+| `httpOnly` | `true` | JavaScript ในหน้าเว็บอ่านไม่ได้ → XSS ขโมย token ไปไม่ได้ (นี่คือเหตุผลหลักที่ย้ายมาจาก localStorage) |
+| `secure` | `false` | dev ยังเป็น http ธรรมดา — **ขึ้น production (HTTPS) ต้องเปลี่ยนเป็น `true`** |
+| `sameSite` | `"lax"` | เว็บอื่นยิง request ข้ามเว็บมา เบราว์เซอร์ไม่แนบ cookie ให้ = กัน CSRF |
+| `path` | `"/"` | ใช้ได้ทุก path |
+| `maxAge` | `86400000` (1 วัน) | ต้องเท่ากับ `expiresIn` ของ JWT ไม่งั้น cookie ค้างแต่ token หมดอายุ |
+
+**`logout`** — `res.clearCookie("token", TOKEN_COOKIE_OPTIONS)` แล้วตอบ 200
+- **ไม่ผ่าน `authenticate`** เพราะ token หมดอายุ/พังแล้วก็ยังต้องกด logout ให้ cookie หลุดได้
+- เดิมไม่มี endpoint นี้ (frontend ลบ localStorage เองได้) แต่ httpOnly cookie ฝั่ง JS แตะไม่ได้ ต้องให้ server สั่งลบเท่านั้น
+- **ข้อจำกัดที่ต้องรู้:** JWT เป็น stateless — logout ลบแค่ cookie ในเบราว์เซอร์ ตัว token ยังใช้ได้จนหมดอายุถ้ามีใครก๊อปไว้. ด่านที่ปิดช่องนี้จริงคือด่าน 2 ของ `authenticate` (เช็ค DB ทุก request) ถ้าจะ revoke แบบตรงๆ ต้องเอาตาราง `sessions` มาใช้ (ยังไม่ทำ)
 
 **`changePassword`** — ต้องกรอกรหัสเดิมถูกก่อน + รหัสใหม่ห้ามซ้ำของเดิม. เปลี่ยนเสร็จ token ใบเก่ายังมี `mustChangePassword: true` ค้างอยู่ → **ต้อง login ใหม่**.
 
@@ -736,16 +760,17 @@ User ──1:M── SubmissionRound (creator, ผ่าน created_by)
       ส่ง student_id + first_name + last_name + password ใหม่
       → ถูกทั้ง 3 อย่าง: เก็บ bcrypt hash, must_change_password = false
 
-3. POST /api/auth/login  → ได้ token (อายุ 1 วัน)
+3. POST /api/auth/login  → server ตอบ Set-Cookie: token=... (อายุ 1 วัน, httpOnly)
 
-4. ทุก request ถัดไปแนบ header:  Authorization: Bearer <token>
+4. ทุก request ถัดไปเบราว์เซอร์แนบ cookie มาเอง
+      (frontend แค่ใส่ credentials: 'include' ใน fetch ไม่ต้องจับ token เลย)
 
 5. เจ้าหน้าที่เปิดสิทธิ์ให้ (PATCH /api/students/bulk-eligible)
       → exam_eligible = true → ถึงจะกรอกผลสอบได้
 ```
 
 ### สำหรับ officer/executive
-เจ้าหน้าที่สร้างบัญชีให้ (`POST /api/users`) พร้อมตั้งรหัสชั่วคราว → `must_change_password: true` → login ครั้งแรกใช้งานอะไรไม่ได้จนกว่าจะ `PATCH /api/auth/password` → เปลี่ยนเสร็จต้อง login ใหม่เพื่อรับ token ที่ไม่มีธงบังคับแล้ว.
+เจ้าหน้าที่สร้างบัญชีให้ (`POST /api/users`) พร้อมตั้งรหัสชั่วคราว → `must_change_password: true` → login ครั้งแรกใช้งานอะไรไม่ได้จนกว่าจะ `PATCH /api/auth/password` → เปลี่ยนเสร็จต้อง logout แล้ว login ใหม่เพื่อรับ cookie ใบใหม่ที่ไม่มีธงบังคับแล้ว.
 
 ### กติกาความปลอดภัยที่ต้องรักษาไว้
 1. **role อ่านจาก JWT เท่านั้น** — ห้ามเชื่อ role ที่ client ส่งมาใน body
@@ -754,6 +779,9 @@ User ──1:M── SubmissionRound (creator, ผ่าน created_by)
 4. `password_hash` ห้ามหลุดออก response — ใช้ `select` ที่ระบุ field ชัดเจน (`PUBLIC_USER_FIELDS`)
 5. ข้อความ error ตอน login/first-setup ต้องเหมือนกันทุกกรณี ไม่บอกว่าผิดตรงไหน
 6. เจ้าของข้อมูล (ownership) ต้องเช็คใน controller — `requireRole` บอกได้แค่ "เป็นนักศึกษา" ไม่ได้บอกว่า "เป็นนักศึกษาคนนี้"
+7. **token อยู่ใน httpOnly cookie เท่านั้น** — ห้ามส่ง token กลับใน JSON body และห้ามให้ frontend เก็บใน localStorage อีก (ย้อนกลับไปเปิดช่อง XSS)
+8. `cors` ต้องระบุ `origin` เป็น URL จริงคู่กับ `credentials: true` — **ห้ามใช้ `origin: "*"`** เบราว์เซอร์ไม่ยอมส่ง cookie ให้ และเป็นการเปิดให้ทุกเว็บยิง API พร้อม cookie ของผู้ใช้
+9. `sameSite: "lax"` คือด่านกัน CSRF เดียวที่มี — ถ้าเปลี่ยนเป็น `"none"` (เช่นตอน deploy แยก domain) ต้องเพิ่ม CSRF token ด้วย
 
 ---
 
@@ -763,7 +791,7 @@ User ──1:M── SubmissionRound (creator, ผ่าน created_by)
 ```json
 { "success": true, "data": { ... } }
 ```
-`data` เป็น object / array / `null` ก็ได้. **ข้อยกเว้น:** `POST /api/auth/login` ตอบรูปแบบเก่า (`{ message, token, user }`) ไม่มี `success` — frontend ผูกกับรูปแบบนี้อยู่ ถ้าจะแก้ต้องแก้พร้อมกันทั้งสองฝั่ง.
+`data` เป็น object / array / `null` ก็ได้. **ข้อยกเว้น:** `POST /api/auth/login` ตอบรูปแบบเก่า (`{ message, must_change_password, user }` — ไม่มี `token` แล้ว ย้ายไป cookie) ไม่มี `success` — frontend ผูกกับรูปแบบนี้อยู่ ถ้าจะแก้ต้องแก้พร้อมกันทั้งสองฝั่ง.
 
 ### ผิดพลาด
 ```json
@@ -915,6 +943,8 @@ curl -H "Authorization: Bearer <token>" http://localhost:3000/api/subjects/1
 
 | วันที่ | เปลี่ยนอะไร |
 |---|---|
+| 2026-08-10 | **ย้าย JWT จาก localStorage ไป httpOnly cookie** — `login` ตั้ง cookie ด้วย `TOKEN_COOKIE_OPTIONS` (httpOnly + sameSite lax + maxAge 1 วัน) และไม่ส่ง `token` กลับใน body อีก, `authenticate` อ่าน token จาก `req.cookies.token` แทน `Authorization` header, เพิ่ม `POST /api/auth/logout` (public) สั่ง `clearCookie`, `app.js` เพิ่ม `cookieParser()`. เหตุผล: localStorage โดน XSS อ่านได้ httpOnly ไม่ได้. **ต้องเปลี่ยน `secure: false` เป็น `true` ก่อนขึ้น production** (`authController.js`, `middlewares/auth.js`, `app.js`, `auth.routes.js`, `package.json`) |
+| 2026-08-10 | tests ทั้ง 6 ไฟล์: ตัวช่วย `call` ส่ง `Cookie` header แทน `Authorization`, `call` คืน `cookie` ที่แกะจาก `set-cookie` ให้ (ค่าที่ส่งเข้า param `token` ตอนนี้คือข้อความ cookie เต็ม เช่น `token=eyJ...`), เพิ่มเทสต์ logout ใน `smoke-phase1-3.mjs`. **frontend แก้พร้อมกัน** (`api.js`, `login.jsx`, `app.jsx`, `forceChangePassword.jsx`, `reportsReal.jsx`) — ต้องแจ้งแก้ม |
 | 2026-08-09 | merge `feature/update-app` เข้า main — รวมงานของแก้มเข้ากับ reject-flow ที่ main ทำไว้ |
 | 2026-08-09 | เพิ่มโมดูล `notifications` + ตาราง `notifications` — แจ้งเตือนนักศึกษาตอนเจ้าหน้าที่ approve/reject และตอนเปิดสิทธิ์กรอก (migration `add_notifications`, `modules/notifications/*`, `examResults.controller.js`, `student.controller.js`, `app.js`) |
 | 2026-08-09 | **แก้ช่องโหว่:** `/api/notifications/*` เดิมมีแค่ `authenticate` — officer/executive เรียกได้แล้วเห็น/แก้แจ้งเตือนของนักศึกษาทุกคน (เพราะ `student_id: undefined` = Prisma ไม่กรอง). เพิ่ม `requireRole("student")` + `requireStudentId()` ใน repository (`notifications.routes.js`, `notifications.repository.js`) |

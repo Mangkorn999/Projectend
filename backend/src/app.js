@@ -17,6 +17,7 @@ import certificatesRouter from "./modules/certificates/certificates.routes.js";
 import notificationsRouter from "./modules/notifications/notifications.routes.js";
 
 import cors from "cors";
+import cookieParser from "cookie-parser";
 
 // ตรวจ .env ก่อนเริ่ม app — ถ้าขาดตัวไหน throw error ทันที
 validateEnv();
@@ -32,6 +33,9 @@ app.use(
   }),
 );
 app.use(express.json());
+// อ่าน cookie ที่ browser ส่งมาแล้วใส่ไว้ที่ req.cookies ให้ middleware ใช้
+// ต้องอยู่ก่อน routes ทุกตัว ไม่งั้น req.cookies จะเป็น undefined
+app.use(cookieParser());
 
 // ─── Routes ──────────────────────────────────────────
 app.use("/api/auth", authRouter);

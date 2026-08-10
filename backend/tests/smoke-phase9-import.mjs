@@ -8,7 +8,9 @@ let failures = 0;
 
 const call = async (method, url, { token, body, form } = {}) => {
   const headers = {};
-  if (token) headers.Authorization = `Bearer ${token}`;
+  // `token` ที่ส่งเข้ามาคือข้อความ cookie เต็มๆ เช่น "token=eyJhbGci..."
+  // backend อ่าน JWT จาก httpOnly cookie แล้ว ไม่ได้อ่านจาก Authorization header อีก
+  if (token) headers.Cookie = token;
   let payload;
   if (form) {
     payload = form;
@@ -23,7 +25,14 @@ const call = async (method, url, { token, body, form } = {}) => {
   } catch {
     json = { _raw: "<non-json>" };
   }
-  return { status: res.status, json };
+  // ดึง cookie ที่ server ส่งกลับมา (มีเฉพาะตอน login) เพื่อเอาไปใช้ request ถัดๆ ไป
+  // set-cookie มาเป็น "token=eyJ...; Path=/; HttpOnly; SameSite=Lax" — เอาแค่ชิ้นแรกก่อน ;
+  let cookie = null;
+  const setCookie = res.headers.get("set-cookie");
+  if (setCookie) {
+    cookie = setCookie.split(";")[0];
+  }
+  return { status: res.status, json, cookie };
 };
 
 const check = (name, actual, expected, extra = "") => {
@@ -47,7 +56,7 @@ const csvBody = (roomName, studentId = "6699990001") =>
 const main = async () => {
   const officerLogin = await login("456");
   check("login officer → 200", officerLogin.status, 200);
-  const officerToken = officerLogin.json.token;
+  const officerToken = officerLogin.cookie;
 
   // ── rooms ────────────────────────────────────────
   const rooms = await call("GET", "/api/rooms");

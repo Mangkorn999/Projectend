@@ -8,7 +8,7 @@ import { PageHead, Modal, StatusBadge } from './components.jsx';
 import { apiFetch, ApiError, fetchAuthedObjectUrl } from './api.js';
 import { t } from './i18n.js';
 
-/* รูปประกอบประกาศ — endpoint ต้องใช้ Authorization header ซึ่ง <img src> ใส่เองไม่ได้
+/* รูปประกอบประกาศ — endpoint ต้อง login ก่อน แต่ <img src> ยิงเองแล้วคุม credentials ไม่ได้
    เลยต้องโหลดเป็น blob ก่อนแล้วค่อยชี้ src ไปที่ object URL
    รูปที่แนบมามีได้ทุกขนาด/สัดส่วน — จำกัดด้วย maxHeight + object-fit ให้การ์ดไม่ยืดตามรูป */
 /* รูปเต็มจอพร้อมซูม — รูปประกาศมักเป็นไดอะแกรมที่อ่านไม่ออกในขนาดย่อ

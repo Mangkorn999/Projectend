@@ -5,7 +5,9 @@ let failures = 0;
 
 const call = async (method, url, { token, body } = {}) => {
   const headers = {};
-  if (token) headers.Authorization = `Bearer ${token}`;
+  // `token` ที่ส่งเข้ามาคือข้อความ cookie เต็มๆ เช่น "token=eyJhbGci..."
+  // backend อ่าน JWT จาก httpOnly cookie แล้ว ไม่ได้อ่านจาก Authorization header อีก
+  if (token) headers.Cookie = token;
   if (body !== undefined) headers["Content-Type"] = "application/json";
   const res = await fetch(`${BASE}${url}`, {
     method,
@@ -14,7 +16,14 @@ const call = async (method, url, { token, body } = {}) => {
   });
   let json = null;
   try { json = await res.json(); } catch { json = null; }
-  return { status: res.status, json };
+  // ดึง cookie ที่ server ส่งกลับมา (มีเฉพาะตอน login) เพื่อเอาไปใช้ request ถัดๆ ไป
+  // set-cookie มาเป็น "token=eyJ...; Path=/; HttpOnly; SameSite=Lax" — เอาแค่ชิ้นแรกก่อน ;
+  let cookie = null;
+  const setCookie = res.headers.get("set-cookie");
+  if (setCookie) {
+    cookie = setCookie.split(";")[0];
+  }
+  return { status: res.status, json, cookie };
 };
 
 const check = (name, actual, expected, extra = "") => {
@@ -30,15 +39,25 @@ const login = (psu_passport_id) =>
   });
 
 const main = async () => {
-  const student = (await login("6610210631")).json.token;
-  const officer = (await login("456")).json.token;
+  const student = (await login("6610210631")).cookie;
+  const officer = (await login("456")).cookie;
 
   // Phase 1 — auth/me
   const me = await call("GET", "/api/auth/me", { token: student });
   check("GET /api/auth/me → 200", me.status, 200, JSON.stringify(me.json));
   check("auth/me ไม่มี token → 401", (await call("GET", "/api/auth/me")).status, 401);
-  const badToken = await fetch(`${BASE}/api/auth/me`, { headers: { Authorization: "Bearer garbage" } });
+  const badToken = await fetch(`${BASE}/api/auth/me`, { headers: { Cookie: "token=garbage" } });
   check("auth/me token ปลอม → 401", badToken.status, 401);
+
+  // logout — ต้องสั่งให้ browser ลบ cookie ทิ้ง (ฝั่ง JS ลบ httpOnly cookie เองไม่ได้)
+  const logoutRes = await fetch(`${BASE}/api/auth/logout`, {
+    method: "POST",
+    headers: { Cookie: student },
+  });
+  check("POST /api/auth/logout → 200", logoutRes.status, 200);
+  // คำสั่งลบ cookie คือส่ง Set-Cookie ค่าว่างพร้อมวันหมดอายุย้อนหลัง
+  const clearHeader = logoutRes.headers.get("set-cookie") || "";
+  check("logout สั่งลบ cookie", clearHeader.startsWith("token=;"), true, clearHeader);
 
   // Phase 2 — subjects CRUD
   const created = await call("POST", "/api/subjects", {

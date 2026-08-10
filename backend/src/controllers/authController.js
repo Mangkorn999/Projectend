@@ -8,6 +8,17 @@ const prisma = new PrismaClient();
 const SALT_ROUNDS = 10;
 const MIN_PASSWORD_LENGTH = 8;
 
+// ตัวเลือกของ cookie ที่ใช้เก็บ token
+// ต้องใช้ชุดเดียวกันทั้งตอน res.cookie() (ตอน login) และ res.clearCookie() (ตอน logout)
+// ถ้าสองที่ไม่ตรงกัน browser จะถือว่าเป็น cookie คนละใบ แล้วลบไม่ออก = กด logout แต่ยัง login อยู่
+const TOKEN_COOKIE_OPTIONS = {
+  httpOnly: true, // JavaScript ในหน้าเว็บอ่านไม่ได้ = XSS ขโมย token ไปไม่ได้
+  secure: false, // dev ยังเป็น http ธรรมดา / ถ้าขึ้น production (HTTPS) ต้องเปลี่ยนเป็น true
+  sameSite: "lax", // เว็บอื่นยิง request ข้ามเว็บมา browser จะไม่แนบ cookie ให้ = กัน CSRF
+  path: "/", // ใช้ได้ทุก path ใต้ domain นี้
+  maxAge: 24 * 60 * 60 * 1000, // 1 วัน (หน่วยเป็น ms) ต้องเท่ากับ expiresIn ของ JWT
+};
+
 // ตั้งรหัสผ่านครั้งแรก — เฉพาะ user ที่เจ้าหน้าที่ import มาแล้วยังไม่เคยตั้งรหัส
 // ยืนยันตัวตนด้วย student_id + ชื่อ + นามสกุล ต้องตรงกับข้อมูล import เป๊ะ (กัน typo สุ่ม)
 // ไม่มี self-service reset — ถ้าเคยตั้งแล้วต้องให้เจ้าหน้าที่ reset ให้ (ดู students.controller resetPassword)
@@ -134,9 +145,13 @@ export const login = async (req, res) => {
       { expiresIn: "1d" },
     );
 
+    // ส่ง token ลง httpOnly cookie แทนใส่ไว้ใน JSON body
+    // browser จะเก็บให้เองและแนบมาทุก request ถัดไป frontend ไม่ต้องจับ token เลย
+    res.cookie("token", token, TOKEN_COOKIE_OPTIONS);
+
     res.json({
       message: "เข้าสู่ระบบสำเร็จ",
-      token,
+      // ไม่ส่ง token กลับไปแล้ว — อยู่ใน cookie ที่ JS อ่านไม่ได้
       must_change_password: user.must_change_password,
       user: {
         id: user.user_id,
@@ -148,6 +163,15 @@ export const login = async (req, res) => {
     console.error(error);
     res.status(500).json({ success: false, message: "server error" });
   }
+};
+
+// POST /api/auth/logout — ออกจากระบบ
+// เดิมไม่มี endpoint นี้ เพราะ frontend ลบ token ใน localStorage เองได้
+// แต่ httpOnly cookie ฝั่ง JavaScript แตะไม่ได้ ต้องให้ server สั่งลบให้เท่านั้น
+// ไม่ต้องผ่าน authenticate — token หมดอายุ/พังแล้วก็ยังต้องกด logout ให้ cookie หลุดได้
+export const logout = async (req, res) => {
+  res.clearCookie("token", TOKEN_COOKIE_OPTIONS);
+  res.json({ success: true, data: { message: "ออกจากระบบแล้ว" } });
 };
 
 // PATCH /api/auth/password — เปลี่ยนรหัสผ่านของตัวเอง

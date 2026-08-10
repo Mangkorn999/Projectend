@@ -11,10 +11,13 @@ const prisma = new PrismaClient();
 const PASSWORD_SETUP_PATHS = ["/me", "/password"];
 
 export const authenticate = async (req, res, next) => {
-  const authHeader = req.headers["authorization"];
-  // header มาเป็นข้อความว่า "Bearer eyJhbGci..." — ตัดด้วยช่องว่างแล้วเอาชิ้นที่ 1 (นับจาก 0)
-  // ส่วน `authHeader &&` กันกรณีไม่มี header เลย (undefined) แล้วไปเรียก .split() จะพัง
-  const token = authHeader && authHeader.split(" ")[1]; // "Bearer <token>"
+  // token อยู่ใน httpOnly cookie ชื่อ "token" — browser แนบมาให้เองทุก request
+  // frontend ไม่ได้ส่ง Authorization header มาแล้ว (JS อ่าน httpOnly cookie ไม่ได้)
+  // req.cookies มาจาก cookieParser() ใน app.js — เช็คก่อนกันกรณี middleware ไม่ได้ถูก mount
+  let token = null;
+  if (req.cookies) {
+    token = req.cookies.token;
+  }
 
   if (!token) {
     return res

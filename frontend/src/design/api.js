@@ -4,24 +4,36 @@
    ============================================================ */
 const API_BASE = 'http://localhost:3000/api';
 
-// เก็บ JWT ไว้ที่ localStorage — คงอยู่ข้าม refresh หน้า, หายเมื่อ logout/เคลียร์เอง
-const TOKEN_KEY = 'nursing_token';
+// JWT ไม่ได้อยู่ฝั่งนี้แล้ว — backend เก็บไว้ใน httpOnly cookie ชื่อ "token"
+// JS อ่าน/เขียน cookie ใบนั้นไม่ได้เลย (นั่นคือจุดประสงค์ — XSS ขโมย token ไปไม่ได้)
+// localStorage เหลือเก็บแค่ user object ไว้ render UI ตอน refresh หน้า ไม่ใช่ความลับ
 const USER_KEY = 'nursing_user';
 
-export function getToken() { return localStorage.getItem(TOKEN_KEY); }
 export function getStoredUser() {
   const raw = localStorage.getItem(USER_KEY);
-  return raw ? JSON.parse(raw) : null;
+  if (!raw) return null;
+  return JSON.parse(raw);
 }
-// mustChangePassword เก็บติดไปกับ user object ใน localStorage — ต้องรู้ตอน refresh หน้าด้วย
+// mustChangePassword เก็บติดไปกับ user object — ต้องรู้ตอน refresh หน้าด้วย
 // ไม่ใช่แค่ตอน login ครั้งแรก เพราะ backend ยัง block ทุก endpoint จนกว่าจะเปลี่ยนรหัส
-export function setSession(token, user, mustChangePassword = false) {
-  localStorage.setItem(TOKEN_KEY, token);
-  localStorage.setItem(USER_KEY, JSON.stringify({ ...user, mustChangePassword }));
+export function setSession(user, mustChangePassword = false) {
+  const stored = { ...user, mustChangePassword };
+  localStorage.setItem(USER_KEY, JSON.stringify(stored));
 }
+// ลบแค่ฝั่ง browser — cookie ต้องให้ backend สั่งลบผ่าน POST /auth/logout (ดู logout() ล่างสุด)
 export function clearSession() {
-  localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+}
+
+// ออกจากระบบให้ครบทั้ง 2 ฝั่ง: บอก backend ลบ cookie ก่อน แล้วค่อยล้าง user ที่เก็บไว้
+export async function logout() {
+  try {
+    await apiFetch('/auth/logout', { method: 'POST', auth: false });
+  } catch (err) {
+    // ยิงไม่ผ่าน (server ล่ม/เน็ตหลุด) ก็ยังต้องเคลียร์ฝั่ง browser ให้หลุดหน้า login
+    console.error('logout request failed:', err);
+  }
+  clearSession();
 }
 
 /* ApiError — ให้หน้าเรียก catch แล้วอ่าน .message (ข้อความไทยจาก backend) ไปโชว์ users ได้ตรงๆ */
@@ -33,7 +45,7 @@ export class ApiError extends Error {
 }
 
 /**
- * เรียก backend endpoint จริง — แนบ Authorization header อัตโนมัติถ้ามี token
+ * เรียก backend endpoint จริง — เบราว์เซอร์แนบ httpOnly cookie มาเองจาก credentials: 'include'
  * path: เช่น '/auth/login' (ไม่ต้องใส่ '/api' นำหน้า ใส่ให้แล้วใน API_BASE)
  * body: ถ้าเป็น FormData จะไม่ตั้ง Content-Type เอง (ให้ browser ใส่ boundary ให้)
  */
@@ -41,15 +53,24 @@ export async function apiFetch(path, { method = 'GET', body, auth = true } = {})
   const headers = {};
   const isFormData = body instanceof FormData;
   if (body && !isFormData) headers['Content-Type'] = 'application/json';
-  if (auth) {
-    const token = getToken();
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  // เตรียม body ที่จะส่ง: FormData ส่งดิบๆ, object ธรรมดาต้องแปลงเป็นข้อความ JSON ก่อน
+  let sendBody = undefined;
+  if (body) {
+    if (isFormData) {
+      sendBody = body;
+    } else {
+      sendBody = JSON.stringify(body);
+    }
   }
 
   const res = await fetch(`${API_BASE}${path}`, {
     method,
     headers,
-    body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
+    body: sendBody,
+    // สั่งให้ browser แนบ cookie ไปด้วย — frontend (5174) กับ backend (3000) คนละ origin
+    // ถ้าไม่ใส่บรรทัดนี้ cookie จะไม่ถูกส่งไปเลย แล้วทุก request จะได้ 401
+    credentials: 'include',
   });
 
   // backend ตอบ { success, data } เสมอตอนสำเร็จ, { success:false, message } ตอน error
@@ -59,26 +80,30 @@ export async function apiFetch(path, { method = 'GET', body, auth = true } = {})
     if (res.status === 401) forceLogout();
     throw new ApiError(json.message || `Request failed (${res.status})`, res.status);
   }
-  return json.data ?? json;
+  // backend ส่วนใหญ่ห่อคำตอบไว้ใน .data แต่บางตัว (เช่น /auth/login) ส่งมาแบนๆ
+  if (json.data === undefined || json.data === null) return json;
+  return json.data;
 }
 
-// เรียกจาก apiFetch เมื่อ token ใช้ไม่ได้แล้ว — reload หน้าให้ app.jsx เช็ค localStorage แล้วตกไปหน้า login เอง
+// เรียกจาก apiFetch เมื่อ cookie หมดอายุ/ใช้ไม่ได้แล้ว
+// ลบ user ที่ค้างอยู่ทิ้งแล้ว reload — app.jsx จะไม่เห็น user แล้วตกไปหน้า login เอง
+// ไม่ต้องยิง /auth/logout เพราะ cookie ใบนั้นใช้ไม่ได้อยู่แล้ว
 function forceLogout() {
   clearSession();
   window.location.reload();
 }
 
-/** โหลดไฟล์ที่ต้อง auth header มาเป็น object URL — <img src> แนบ Authorization เองไม่ได้
+/** โหลดไฟล์ที่ต้อง login ก่อน มาเป็น object URL — <img src> ยิงเองแล้วคุม credentials ไม่ได้
  *  ผู้เรียกต้อง URL.revokeObjectURL() เองตอนเลิกใช้ ไม่งั้น blob ค้างใน memory */
 export async function fetchAuthedObjectUrl(path) {
-  const res = await fetch(`${API_BASE}${path}`, { headers: { Authorization: `Bearer ${getToken()}` } });
+  const res = await fetch(`${API_BASE}${path}`, { credentials: 'include' });
   if (!res.ok) throw new ApiError(`Request failed (${res.status})`, res.status);
   return URL.createObjectURL(await res.blob());
 }
 
-/** เปิดไฟล์ (PDF) ที่ต้อง auth header ในแท็บใหม่ — ใช้กับ certificate/report ที่ดาวน์โหลดผ่าน <a href> ตรงๆ ไม่ได้ */
+/** เปิดไฟล์ (PDF) ที่ต้อง login ก่อน ในแท็บใหม่ — ใช้กับ certificate/report ที่ดาวน์โหลดผ่าน <a href> ตรงๆ ไม่ได้ */
 export async function openAuthedFile(path, filename) {
-  const res = await fetch(`${API_BASE}${path}`, { headers: { Authorization: `Bearer ${getToken()}` } });
+  const res = await fetch(`${API_BASE}${path}`, { credentials: 'include' });
   if (!res.ok) {
     const json = await res.json().catch(() => ({}));
     throw new ApiError(json.message || `Request failed (${res.status})`, res.status);

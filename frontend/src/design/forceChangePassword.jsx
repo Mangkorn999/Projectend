@@ -7,7 +7,7 @@
 import { useState } from 'react';
 import { Icon } from './data.jsx';
 import { Logo } from './logos.jsx';
-import { apiFetch, ApiError, clearSession } from './api.js';
+import { apiFetch, ApiError, logout } from './api.js';
 
 export function ForceChangePassword({ onDone }) {
   const [currentPassword, setCurrentPassword] = useState('');
@@ -27,8 +27,9 @@ export function ForceChangePassword({ onDone }) {
         method: 'PATCH',
         body: { current_password: currentPassword, new_password: newPassword },
       });
-      // token เดิมใช้ต่อไม่ได้ (mustChangePassword ฝังอยู่ใน JWT) — เคลียร์แล้วให้ login ใหม่
-      clearSession();
+      // token เดิมใช้ต่อไม่ได้ (mustChangePassword ฝังอยู่ใน JWT) — ต้องให้ backend ลบ cookie
+      // แล้ว login ใหม่เพื่อรับ cookie ใบใหม่ที่ mustChangePassword เป็น false
+      await logout();
       onDone();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'เกิดข้อผิดพลาด');

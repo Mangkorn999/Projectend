@@ -15,7 +15,6 @@ const universityName_EN = 'Prince of Songkla University';
 const heroTag_EN = 'Faculty Information System';
 const heroTitle_EN = ['Nursing License', 'Record System'];
 const heroDesc_EN = 'Central hub to record, track, verify, and summarize the nursing license examination — for students, faculty officers, and executives.';
-const heroStats_EN = [['8','Exam subjects'],['4','User roles'],['100%','Fully auditable']];
 const footerNote_EN = '© 2026 Faculty of Nursing, PSU · Prototype demo';
 const signinTitle_EN = 'Sign In';
 const signinSub_EN = 'Enter your username and password to sign in';
@@ -46,7 +45,8 @@ export function Login({ onLogin }) {
         auth: false,
         body: { psu_passport_id: username, password },
       });
-      setSession(data.token, data.user, data.must_change_password);
+      // ไม่มี data.token แล้ว — backend ตั้ง httpOnly cookie ให้ browser เก็บเองตอนตอบ request นี้
+      setSession(data.user, data.must_change_password);
       // ส่ง user (มี role จริงจาก JWT) ขึ้นไปให้ App.jsx ใช้ตั้ง state แทน role ปลอมแบบเดิม
       onLogin(data.user, data.must_change_password);
     } catch (e) {

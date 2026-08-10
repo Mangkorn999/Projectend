@@ -8,7 +8,7 @@ import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
 import { PageHead, StatusBadge } from './components.jsx';
 import { Logo } from './logos.jsx';
-import { apiFetch, getToken } from './api.js';
+import { apiFetch } from './api.js';
 import { t, subjectName } from './i18n.js';
 
 export function ReportsReal({ toast, readonly, lang }) {
@@ -24,9 +24,9 @@ export function ReportsReal({ toast, readonly, lang }) {
   const downloadPdf = async () => {
     setDownloading(true);
     try {
-      // ไฟล์ PDF ต้องแนบ Authorization header — เลย fetch เป็น blob เองแทนใช้ <a href> ตรงๆ
+      // ไฟล์ PDF ต้อง login ก่อน — fetch เป็น blob เองพร้อม credentials แทนใช้ <a href> ตรงๆ
       const res = await fetch(`http://localhost:3000/api/dashboard/export?round_id=${stats.round.round_id}`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
+        credentials: 'include',
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
