@@ -21,11 +21,24 @@ export function DashboardReal({ go, readonly, lang }) {
   const [roundPick, setRoundPick] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  // อัตราผ่านรายวิชาย้อนหลัง ต้องใช้แค่ผลรอบแรก (attempt_number=1) ของแต่ละปีเท่านั้น ไม่รวมรอบถัดไป —
+  // history.years[].perSubject รวมทุกรอบของปี ใช้ไม่ได้ตรงนี้ เลยต้องยิง /dashboard/stats?round_id= แยกทีละรอบแรกของแต่ละปี
+  const [firstRoundSubjects, setFirstRoundSubjects] = useState({}); // { [academic_year]: perSubject[] }
 
   // โหลดครั้งแรก — รายการรอบกับสรุปย้อนหลังไม่เปลี่ยนตามรอบที่เลือก โหลดรอบเดียวพอ
   useEffect(() => {
     Promise.all([apiFetch('/rounds'), apiFetch('/dashboard/history?years=3')])
-      .then(([roundList, hist]) => { setRounds(roundList); setHistory(hist); })
+      .then(([roundList, hist]) => {
+        setRounds(roundList);
+        setHistory(hist);
+        const round1ByYear = new Map();
+        roundList.forEach(r => { if (r.attempt_number === 1) round1ByYear.set(r.academic_year, r.round_id); });
+        return Promise.all(
+          [...round1ByYear.entries()].map(([year, rid]) =>
+            apiFetch(`/dashboard/stats?round_id=${rid}`).then(s => [year, s.perSubject]))
+        );
+      })
+      .then(pairs => setFirstRoundSubjects(Object.fromEntries(pairs)))
       .catch(e => setError(e.message));
   }, []);
 
@@ -82,7 +95,7 @@ export function DashboardReal({ go, readonly, lang }) {
         sub={tt('dashReal.subInfo', { year: round.academic_year, total, eligible })}
         actions={<>
           <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 10, maxWidth: '100%' }}>
-            <select className="input" value={roundPick} onChange={e => {
+            {!readonly && <select className="input" value={roundPick} onChange={e => {
                 const v = e.target.value;
                 setRoundPick(v);
                 if (v === '') {
@@ -97,7 +110,7 @@ export function DashboardReal({ go, readonly, lang }) {
               style={{ width: 'auto', maxWidth: '100%', padding: '8px 30px 8px 12px', flex: 'none' }} aria-label={tt('dashReal.roundPickLabel')}>
               <option value="">{tt('common.all')}</option>
               {roundsInYear.map(r => <option key={r.round_id} value={r.round_id}>{roundOnlyLabel(r)}</option>)}
-            </select>
+            </select>}
             <select className="input" value={round.academic_year} onChange={e => {
                 const y = Number(e.target.value);
                 const rep = yearOptions.find(r => r.academic_year === y);
@@ -122,6 +135,9 @@ export function DashboardReal({ go, readonly, lang }) {
 
       <div className="row wrap-m" style={{ alignItems: 'flex-start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20, flex: '1 1 320px', minWidth: 0 }}>
+          {readonly && history && history.years.length > 0 && <SubjectHistoryChart history={history} firstRoundSubjects={firstRoundSubjects} tt={tt} />}
+          {/* การ์ด "สัดส่วนสถานะการตรวจสอบ" — ผู้บริหารคณะไม่ต้องเห็น (คอมเมนต์พักไว้ก่อน ยังไม่ลบ) */}
+          {!readonly && (
           <div className="card card-pad">
             <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 800 }}>{tt('dashReal.statusBreakdownTitle')}</h3>
             <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
@@ -137,8 +153,8 @@ export function DashboardReal({ go, readonly, lang }) {
               </div>
             </div>
           </div>
-          {readonly && history && history.years.length > 0 && <SubjectHistoryChart history={history} tt={tt} />}
-          {history && history.years.length > 0 && <YearCompare history={history} tt={tt} />}
+          )}
+          {!readonly && history && history.years.length > 0 && <YearCompare history={history} tt={tt} />}
           {history && history.years.length > 0 && <FirstAttemptPassRate history={history} tt={tt} />}
         </div>
 
@@ -161,26 +177,35 @@ export function DashboardReal({ go, readonly, lang }) {
 }
 
 // สี 3 ปีย้อนหลัง — ปีล่าสุดเข้มสุด เก่าสุดจางสุด รองรับปีเพิ่มในอนาคตด้วย modulo
-const HISTORY_COLORS = ['var(--navy-600)', 'var(--blue-400)', 'var(--ink-300)', '#c9971f', '#8b5e34'];
+const HISTORY_COLORS = ['var(--navy-600)', 'var(--blue-600)', 'var(--ink-300)', '#c9971f', '#8b5e34'];
 
 // อัตราผ่านรายวิชาย้อนหลัง 3 ปี — เส้นละปี, แกน x = รหัสวิชา, ข้อมูลอัปเดตตาม /dashboard/history อัตโนมัติเมื่อมีรอบ/ปีใหม่เข้ามา
-function SubjectHistoryChart({ history, tt }) {
+function SubjectHistoryChart({ history, firstRoundSubjects, tt }) {
   const [expanded, setExpanded] = useState(false);
+  // ใช้แค่ผลรอบแรก (attempt_number=1) ของแต่ละปี ไม่รวมรอบถัดไป — ดึงจาก firstRoundSubjects ไม่ใช่ y.perSubject (นั่นรวมทุกรอบ)
   const years = [...history.years]
-    .filter(y => y.perSubject && y.perSubject.length > 0)
+    .filter(y => firstRoundSubjects[y.academic_year]?.length > 0)
     .sort((a, b) => a.academic_year - b.academic_year); // เก่า→ใหม่ อ่านซ้ายไปขวา
 
   if (years.length === 0) return null;
 
-  const categories = years[years.length - 1].perSubject.map(s => s.subject_code);
-  const series = years.map((y, i) => ({
-    label: String(y.academic_year),
-    color: HISTORY_COLORS[i % HISTORY_COLORS.length],
-    values: categories.map(code => y.perSubject.find(s => s.subject_code === code)?.rate ?? 0),
-  }));
+  const categories = firstRoundSubjects[years[years.length - 1].academic_year].map(s => s.subject_code);
+  const series = years.map((y, i) => {
+    const perSubject = firstRoundSubjects[y.academic_year];
+    return {
+      label: String(y.academic_year),
+      color: HISTORY_COLORS[i % HISTORY_COLORS.length],
+      values: categories.map(code => perSubject.find(s => s.subject_code === code)?.rate ?? 0),
+      tooltips: categories.map(code => {
+        const s = perSubject.find(x => x.subject_code === code);
+        if (!s) return '';
+        return tt('dashReal.subjectPointTooltip', { year: y.academic_year, code, pass: s.pass, total: s.pass + s.fail, rate: s.rate });
+      }),
+    };
+  });
 
   return (
-    <div className="card card-pad" style={{ marginTop: 20 }}>
+    <div className="card card-pad">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
         <div>
           <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800 }}>{tt('dashReal.subjectHistoryTitle')}</h3>
