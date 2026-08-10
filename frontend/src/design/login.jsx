@@ -24,15 +24,21 @@ const passwordLabel_EN = 'Password';
 const loggingIn_EN = 'Signing in…';
 const signInBtn_EN = 'Sign In';
 
+// จำแค่ username ไว้ — รหัสผ่านไม่เก็บ plaintext ใน localStorage (เสี่ยงถูกขโมยผ่าน XSS)
+// ให้ browser password manager จัดการเรื่องจำรหัสผ่านแทน ผ่าน autoComplete บน input
+const REMEMBER_KEY = 'nurse_remember_username';
+
 // เข้าใช้งานเว็บเดียวกันสำหรับทุก role — role มาจาก JWT/DB เสมอ ไม่มี login mode แยกอีกแล้ว
 export function Login({ onLogin }) {
   const [showFirstSetup, setShowFirstSetup] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
   const [loading, setLoading] = useState(false);
   const [lang, setLang] = useState('TH'); // 'TH' | 'EN'
   const isEN = lang==='EN';
-  const [username, setUsername] = useState('');
+  const [username, setUsername] = useState(() => localStorage.getItem(REMEMBER_KEY) || '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(() => !!localStorage.getItem(REMEMBER_KEY));
   const [error, setError] = useState('');
 
   // login จริง ไปหา backend — psu_passport_id คือ student_id (นักศึกษา) หรือรหัสที่เจ้าหน้าที่ตั้งให้ (staff)
@@ -46,6 +52,8 @@ export function Login({ onLogin }) {
         auth: false,
         body: { psu_passport_id: username, password },
       });
+      if (rememberMe) localStorage.setItem(REMEMBER_KEY, username);
+      else localStorage.removeItem(REMEMBER_KEY);
       setSession(data.token, data.user, data.must_change_password);
       // ส่ง user (มี role จริงจาก JWT) ขึ้นไปให้ App.jsx ใช้ตั้ง state แทน role ปลอมแบบเดิม
       onLogin(data.user, data.must_change_password);
@@ -57,6 +65,7 @@ export function Login({ onLogin }) {
   };
 
   if (showFirstSetup) return <FirstSetup onBack={()=>setShowFirstSetup(false)} lang={lang} />;
+  if (showForgot) return <ForgotPassword onBack={()=>setShowForgot(false)} lang={lang} />;
 
   return (
     <div style={{ minHeight:'100vh', display:'flex', position:'relative' }} className="login-wrap">
@@ -122,13 +131,13 @@ export function Login({ onLogin }) {
 
           <div className="field" style={{ marginBottom:12 }}>
             <label>{isEN?usernameLabel_EN:'รหัสผู้ใช้ (รหัสนักศึกษา / Username)'}</label>
-            <input className="input" type="text" placeholder="6xxxxxxxxx"
+            <input className="input" type="text" placeholder="6xxxxxxxxx" autoComplete="username"
               value={username} onChange={e=>setUsername(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()} />
           </div>
           <div className="field" style={{ marginBottom:8 }}>
             <label>{isEN?passwordLabel_EN:'รหัสผ่าน'}</label>
             <div style={{ position:'relative' }}>
-              <input className="input" type={showPassword?'text':'password'} placeholder="••••••••"
+              <input className="input" type={showPassword?'text':'password'} placeholder="••••••••" autoComplete="current-password"
                 style={{ paddingRight:40 }}
                 value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()} />
               <button type="button" onClick={()=>setShowPassword(v=>!v)}
@@ -139,8 +148,15 @@ export function Login({ onLogin }) {
               </button>
             </div>
           </div>
+          <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, cursor:'pointer', marginBottom:8 }}>
+            <input type="checkbox" checked={rememberMe} onChange={e=>setRememberMe(e.target.checked)} style={{ accentColor:'var(--navy-700)' }} />
+            {isEN?'Remember username':'จดจำรหัสผ่าน'}
+          </label>
           {error && <div style={{ color:'var(--reject,#dc2626)', fontSize:13, marginBottom:12 }}>{error}</div>}
-          <div style={{ textAlign:'right', marginBottom:18 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', gap:12, marginBottom:18, flexWrap:'wrap' }}>
+            <a onClick={()=>setShowForgot(true)} style={{ fontSize:13, cursor:'pointer' }}>
+              {isEN?'Forgot password?':'ลืมรหัสผ่าน?'}
+            </a>
             <a onClick={()=>setShowFirstSetup(true)} style={{ fontSize:13, cursor:'pointer' }}>
               {isEN?'First time? Set your password':'เข้าใช้งานครั้งแรก / ตั้งรหัสผ่าน'}
             </a>
@@ -152,6 +168,29 @@ export function Login({ onLogin }) {
         </div>
       </div>
       <style>{`@media(max-width:860px){.login-brand{display:none!important;}}`}</style>
+    </div>
+  );
+}
+
+// ยังไม่มี self-service reset password ใน backend (เจ้าหน้าที่เป็นคนตั้งรหัสผ่านให้ตอน import นักศึกษา)
+// เลยแจ้งให้ติดต่อเจ้าหน้าที่คณะแทน ไม่ใช่ฟอร์มส่งคำขอ reset จริง
+function ForgotPassword({ onBack, lang }) {
+  const isEN = lang==='EN';
+  return (
+    <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'var(--canvas)', padding:24 }}>
+      <div style={{ width:'100%', maxWidth:420 }}>
+        <div style={{ display:'flex', justifyContent:'center', marginBottom:20 }}><Logo size={44} /></div>
+        <div className="card" style={{ padding:28, textAlign:'center' }}>
+          <div style={{ color:'var(--navy-700)', marginBottom:10 }}><Icon name="key" size={40}/></div>
+          <h2 style={{ margin:'0 0 8px', fontSize:20, fontWeight:800 }}>{isEN?'Forgot your password?':'ลืมรหัสผ่าน?'}</h2>
+          <p style={{ color:'var(--ink-500)', fontSize:14, marginBottom:20 }}>
+            {isEN
+              ?'This system does not have self-service password reset yet. Please contact the faculty officer to reset your password.'
+              :'ระบบยังไม่มีการรีเซ็ตรหัสผ่านด้วยตนเอง กรุณาติดต่อเจ้าหน้าที่คณะเพื่อขอรีเซ็ตรหัสผ่าน'}
+          </p>
+          <button className="btn btn-primary btn-block" onClick={onBack}>{isEN?'← Back to sign in':'← กลับไปหน้าเข้าสู่ระบบ'}</button>
+        </div>
+      </div>
     </div>
   );
 }
