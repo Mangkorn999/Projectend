@@ -59,6 +59,7 @@ export const findResultsByRound = (roundId) =>
         select: {
           student_id: true,
           academic_year: true,
+          room: { select: { room_id: true, room_name: true } },
           user: { select: { first_name: true, last_name: true } },
         },
       },
