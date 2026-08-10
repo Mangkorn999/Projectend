@@ -80,18 +80,21 @@ export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=0, l
       </button>
       <Modal open={notifOpen} onClose={()=>setNotifOpen(false)} title={t(lang,'topbar.notifTitle')} width={680}>
         {(notifications ?? NOTIFS[role])?.length > 0 ? (
-          <div style={{ minHeight:440, display:'flex', flexDirection:'column', gap:2 }}>
+          <div style={{ minHeight:440, display:'flex', flexDirection:'column', gap:10 }}>
             {(notifications ?? NOTIFS[role]).map((n,i,arr)=>{
               const tone = n.tone ?? (n.type==='rejected' ? 'reject' : n.type==='approved' ? 'ok' : 'wait');
               const icon = n.icon ?? (n.type==='rejected' ? 'xCircle' : n.type==='approved' ? 'checkCircle' : 'key');
+              // backend คั่นบรรทัดรอง (เช่น "กรุณากรอกใหม่") ด้วย \n — แยกมาโชว์บางกว่าบรรทัดหลัก
+              const [mainLine, ...subLines] = (n.title ?? n.message).split('\n');
+              const sub = n.sub ?? subLines.join(' ');
               return (
-              <div key={n.notification_id ?? i} style={{ display:'flex', alignItems:'flex-start', gap:13, padding:'13px 6px',
-                borderBottom: i<arr.length-1?'1px solid var(--ink-100)':'none', opacity: n.is_read===false?1:.7 }}>
+              <div key={n.notification_id ?? i} style={{ display:'flex', alignItems:'flex-start', gap:13, padding:'13px 14px',
+                border:'1px solid var(--ink-200)', borderRadius:12, background: n.is_read===false?'#fff':'var(--ink-50, #fafafa)', opacity: n.is_read===false?1:.7 }}>
                 <div style={{ width:38, height:38, borderRadius:10, flex:'none', display:'flex', alignItems:'center', justifyContent:'center',
                   background:`var(--status-${tone}-bg)`, color:`var(--status-${tone}-fg)` }}><Icon name={icon} size={18}/></div>
                 <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:14, fontWeight:700, color:'var(--ink-900)' }}>{n.title ?? n.message}</div>
-                  {n.sub && <div style={{ fontSize:13, color:'var(--ink-500)', marginTop:2 }}>{n.sub}</div>}
+                  <div style={{ fontSize:14, fontWeight:700, color:'var(--ink-900)' }}>{mainLine}</div>
+                  {sub && <div style={{ fontSize:12.5, fontWeight:400, color:'var(--ink-500)', marginTop:2 }}>{sub}</div>}
                 </div>
                 <div style={{ fontSize:11.5, color:'var(--ink-400)', flex:'none', whiteSpace:'nowrap' }}>
                   {n.time ?? (n.created_at && new Date(n.created_at).toLocaleString('th-TH'))}

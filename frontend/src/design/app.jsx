@@ -76,6 +76,7 @@ export function App() {
   const [formStep, setFormStep] = useState(0);
   const [lang, setLang] = useState('TH'); // 'TH' | 'EN' — wired into student-side pages via i18n.js
   const [langBlurring, setLangBlurring] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const changeLang = (v) => {
     if (v === lang) return;
     setLangBlurring(true);
@@ -140,6 +141,7 @@ export function App() {
   }, []);
 
   const handleLogin = (user, mustChange)=>{
+    setLoggingOut(false); // เผื่อ login กลับมาหลัง logout ค้าง state เบลอไว้จากรอบก่อน
     if (mustChange) { setMustChangePassword(true); return; }
     setCurrentUser(user);
     setRole(user.role);
@@ -155,7 +157,13 @@ export function App() {
   const nav = role==='student' ? navStudent(lang, rejectedCount) : NAV(lang, pendingCount)[role];
   const go = (p, step=0)=>{ setPage(p); setFormStep(step); window.scrollTo(0,0); };
   // ไม่มีสลับ role ปลอมอีกแล้ว — 'logout' คือทางเดียวที่เหลือ เคลียร์ token จริงด้วย
-  const switchRole = (r)=>{ if(r==='logout'){ clearSession(); setRole(null); setCurrentUser(null); return; } };
+  // เบลอหน้าจอก่อนสัก 280ms เหมือนตอนสลับภาษา แล้วค่อยตัดกลับไปหน้า login ให้ไม่ดูสะดุด
+  const switchRole = (r)=>{
+    if(r==='logout'){
+      setLoggingOut(true);
+      setTimeout(()=>{ clearSession(); setRole(null); setCurrentUser(null); }, 280);
+    }
+  };
 
   const render = ()=>{
     if(role==='student'){
@@ -194,7 +202,7 @@ export function App() {
         onMenu={()=>setSbOpen(true)} onSwitchRole={switchRole}
         lang={lang} setLang={changeLang} langLoading={langBlurring}
         notif={unreadNotifCount} notifications={notifications} onOpenNotif={markNotifsRead} />
-      <div className={'app-shell lang-fade'+(langBlurring?' lang-fade-blur':'')}>
+      <div className={'app-shell lang-fade'+(langBlurring?' lang-fade-blur':'')+(loggingOut?' logout-blur':'')}>
         {/* บทบาทผู้ใช้แสดงที่เมนูผู้ใช้บน TopBar ที่เดียว — การ์ดใน sidebar ซ้ำโดยไม่จำเป็น */}
         <Sidebar items={nav} active={activeNav} onNav={go} open={sbOpen} onClose={()=>setSbOpen(false)} />
         <main className="app-main">

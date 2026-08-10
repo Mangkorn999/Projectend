@@ -177,6 +177,7 @@ select.input, select.select {
 
 .lang-fade { transition: filter .28s ease, opacity .28s ease; }
 .lang-fade-blur { filter: blur(6px); opacity:.4; }
+.logout-blur { filter: blur(6px); opacity:.4; }
 
 @keyframes langSpin { to { transform: rotate(360deg); } }
 .lang-spinner { width:14px; height:14px; border-radius:50%; border:2px solid var(--ink-300); border-top-color:var(--navy-700); animation: langSpin .6s linear infinite; }
