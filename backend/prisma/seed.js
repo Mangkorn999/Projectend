@@ -12,7 +12,6 @@ const SEED_ACCOUNT = { must_change_password: false };
 
 async function main() {
   //ลบข้อมูลเก่า หากเพิ่มเติม
-  await prisma.session.deleteMany({});
   await prisma.news.deleteMany({});
   await prisma.certificate.deleteMany({});
   await prisma.subjectResult.deleteMany({});

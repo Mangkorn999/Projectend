@@ -31,7 +31,6 @@ model User {
   created_at      DateTime          @default(now())
   confirmed_exams ExamResult[]      @relation("UserToExamResult")
   news            News[]            @relation("UserToNews")
-  sessions        Session[]
   student         Student?
   created_rounds  SubmissionRound[] @relation("UserToRound")
   role            Role              @relation(fields: [role_id], references: [role_id])
@@ -171,14 +170,4 @@ model Notification {
   student         Student  @relation(fields: [student_id], references: [student_id])
 
   @@map("notifications")
-}
-
-model Session {
-  session_id Int      @id @default(autoincrement())
-  user_id    Int
-  created_at DateTime @default(now())
-  expires_at DateTime
-  user       User     @relation(fields: [user_id], references: [user_id])
-
-  @@map("sessions")
 }

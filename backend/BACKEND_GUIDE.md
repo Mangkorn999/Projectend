@@ -664,7 +664,8 @@ dashboard นับอัตราผ่านรายวิชาเฉพา�
 | `Certificate` | `certificates` | ไฟล์หลักฐาน (เก็บแค่ path) |
 | `News` | `news` | ข่าว/ประกาศ |
 | `Notification` | `notifications` | แจ้งเตือนรายคน (`type` = `approved` / `rejected` / `eligible`) |
-| `Session` | `sessions` | มีตารางแต่ยังไม่ได้ใช้ (auth ใช้ JWT ล้วน) |
+
+> ตาราง `sessions` เคยมี (ตอนคิดจะทำ session-based auth) แต่ **ลบทิ้งแล้ว** — auth ใช้ JWT ใน httpOnly cookie ล้วน ไม่ต้องเก็บ session ใน DB
 
 `@@map("users")` = ชื่อ model ใน JS คือ `User` แต่ชื่อตารางจริงใน DB คือ `users`.
 
@@ -701,17 +702,20 @@ User ──1:M── SubmissionRound (creator, ผ่าน created_by)
 
 ### migration (ประวัติการแก้ตาราง)
 
-7 migration เรียงตามเวลา — อ่านแล้วเห็นว่าระบบเปลี่ยนอะไรมาบ้าง:
+10 migration เรียงตามเวลา — อ่านแล้วเห็นว่าระบบเปลี่ยนอะไรมาบ้าง:
 
 | migration | เพิ่ม/แก้อะไร |
 |---|---|
 | `20260709175349_project_end` | สร้างตารางทั้งหมดครั้งแรก |
-| `20260710151958_add_sessions_table` | เพิ่มตาราง sessions |
+| `20260710151958_add_sessions_table` | เพิ่มตาราง sessions (ภายหลังลบทิ้ง) |
 | `20260719122910_add_exam_eligible` | เพิ่ม `students.exam_eligible` |
 | `20260722001256_remove_nursing_council_credentials` | เอาข้อมูลสภาการพยาบาลออก (เลิกใช้) |
 | `20260722223556_add_local_password_auth` | เพิ่ม `password_hash` + `must_change_password` (ย้ายจาก PSU SSO มา login เอง) |
 | `20260801135930_add_round_subject_ids` | เพิ่ม `submission_rounds.subject_ids` |
 | `20260803092859_add_news_image_path` | เพิ่ม `news.image_path` |
+| `20260804045833_add_carried_forward_to_subject_results` | เพิ่ม `subject_results.carried_forward` |
+| `20260809114723_add_notifications` | เพิ่มตาราง `notifications` |
+| `20260810171137_remove_sessions_table` | ลบตาราง `sessions` ที่ไม่ได้ใช้ |
 
 **ขั้นตอนแก้ตาราง**: แก้ `prisma/schema.prisma` → `npx prisma migrate dev --name อธิบายสั้นๆ` → Prisma สร้างโฟลเดอร์ migration ใหม่ + อัปเดต DB + สร้าง client ใหม่ให้อัตโนมัติ.
 **ห้ามแก้ไฟล์ใน `migrations/` ที่รันไปแล้วด้วยมือ** — DB กับประวัติจะไม่ตรงกัน.
@@ -946,6 +950,7 @@ curl -H "Authorization: Bearer <token>" http://localhost:3000/api/subjects/1
 
 | วันที่ | เปลี่ยนอะไร |
 |---|---|
+| 2026-08-10 | **ลบตาราง `sessions`** — เหลือมาจากตอนคิดจะทำ session-based auth ไม่มี code ไหนใช้เลย (auth เป็น JWT ใน httpOnly cookie ล้วน) และไม่มีใน data dictionary ของรายงาน. ลบ `model Session` + relation `sessions` ใน `User` + `prisma.session.deleteMany()` ใน seed, migration `20260810171137_remove_sessions_table` (`schema.prisma`, `prisma/seed.js`) |
 | 2026-08-10 | **ตัดสิทธิ์ executive จากข้อมูลนักศึกษารายบุคคล** — `GET /api/students`, `GET /api/students/:id`, `GET /api/exam-results` และไฟล์ certificate (`serveFile`) เหลือ officer เท่านั้น. ผู้บริหารเห็นได้แค่ตัวเลขรวมที่ `/api/dashboard/stats|history` (data minimization — ผู้บริหารไม่ต้องแตะ PII). **รายงานบทที่ 4.3 ต้องแก้ตาม** เพราะเดิมระบุว่าผู้บริหารมีหน้า "รายละเอียดนักศึกษา" (`students.routes.js`, `examResults.routes.js`, `certificates.controller.js`, `tests/smoke-phase4-6.mjs`). **frontend ต้องซ่อนเมนูของผู้บริหารให้เหลือ Dashboard — แจ้งแก้ม** |
 | 2026-08-10 | **ย้าย JWT จาก localStorage ไป httpOnly cookie** — `login` ตั้ง cookie ด้วย `TOKEN_COOKIE_OPTIONS` (httpOnly + sameSite lax + maxAge 1 วัน) และไม่ส่ง `token` กลับใน body อีก, `authenticate` อ่าน token จาก `req.cookies.token` แทน `Authorization` header, เพิ่ม `POST /api/auth/logout` (public) สั่ง `clearCookie`, `app.js` เพิ่ม `cookieParser()`. เหตุผล: localStorage โดน XSS อ่านได้ httpOnly ไม่ได้. **ต้องเปลี่ยน `secure: false` เป็น `true` ก่อนขึ้น production** (`authController.js`, `middlewares/auth.js`, `app.js`, `auth.routes.js`, `package.json`) |
 | 2026-08-10 | tests ทั้ง 6 ไฟล์: ตัวช่วย `call` ส่ง `Cookie` header แทน `Authorization`, `call` คืน `cookie` ที่แกะจาก `set-cookie` ให้ (ค่าที่ส่งเข้า param `token` ตอนนี้คือข้อความ cookie เต็ม เช่น `token=eyJ...`), เพิ่มเทสต์ logout ใน `smoke-phase1-3.mjs`. **frontend แก้พร้อมกัน** (`api.js`, `login.jsx`, `app.jsx`, `forceChangePassword.jsx`, `reportsReal.jsx`) — ต้องแจ้งแก้ม |
