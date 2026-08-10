@@ -1,81 +1,127 @@
-# ⚡ SyntaxCraft - Interactive Syntax & Logic Labs
+# ระบบบันทึกใบประกอบวิชาชีพ (Nursing License Record System)
 
-แอปพลิเคชันเว็บสำหรับการเรียนรู้และเปรียบเทียบไวยากรณ์ (Syntax) และตรรกะโปรแกรมมิ่ง (Logic/Algorithm) ของ 5 ภาษายอดนิยม: **JavaScript, Python, Java, C, และ C#**
+เว็บแอปสำหรับ **บันทึกและติดตามผลสอบใบประกอบวิชาชีพของนักศึกษาพยาบาล** คณะพยาบาลศาสตร์ มหาวิทยาลัยสงขลานครินทร์
 
-เว็บไซต์ถูกสร้างขึ้นตามกฎโครงสร้างสถาปัตยกรรมแบบ **Static Frontend + PHP REST API** อย่างเคร่งครัด
+โปรเจกต์จบหลักสูตรปริญญาตรี สาขาเทคโนโลยีสารสนเทศ
+
+| | |
+|---|---|
+| **ที่ปรึกษา** | ผศ.ดร.กิตย์ศิริ ช่อเจี้ยง |
+| **Backend + Database** | มังกร (ธัญเทพ) |
+| **Frontend** | แก้ม (ฉันท์ชนก) |
 
 ---
 
-## 📁 โครงสร้างโปรเจกต์ (Project Structure)
+## ระบบทำอะไร
+
+นักศึกษาพยาบาลต้องสอบใบประกอบวิชาชีพ 8 รายวิชา และสอบได้หลายรอบจนกว่าจะผ่านครบ เดิมคณะเก็บผลสอบด้วยเอกสาร/ไฟล์กระจาย ตามผลรายคนยาก สรุปภาพรวมยากกว่า
+
+ระบบนี้ย้ายทั้งกระบวนการมาอยู่ที่เดียว:
+
+- **นักศึกษา** กรอกผลสอบรายวิชา + แนบไฟล์ PDF หลักฐาน แล้วดูสถานะว่าเจ้าหน้าที่ยืนยันหรือตีกลับ
+- **เจ้าหน้าที่คณะ** ตรวจ/ยืนยัน/ตีกลับผลสอบ เปิด-ปิดรอบการกรอก จัดการรายวิชาและผู้ใช้ ออกรายงาน PDF
+- **ผู้บริหารคณะ** ดู Dashboard สรุปภาพรวมและสถิติอัตราผ่าน (อ่านอย่างเดียว ไม่เห็นข้อมูลรายบุคคล)
+
+---
+
+## Tech Stack
+
+| ส่วน | ใช้อะไร |
+|---|---|
+| Frontend | React 19 + Vite |
+| Backend | Node.js + Express 5 |
+| Database | PostgreSQL + Prisma ORM |
+| Auth | Login ด้วยรหัสในระบบ → ออก JWT เก็บใน httpOnly cookie |
+| ไฟล์แนบ | multer เขียนลง disk (DB เก็บแค่ path) |
+| รายงาน PDF | pdfkit |
+
+---
+
+## โครงสร้างโฟลเดอร์
+
 ```
-Js_Syntax/
-│
-├── 📁 frontend/                    # ส่วนการแสดงผล (Static Files)
-│   ├── 📁 pages/                   # หน้าเว็บต่างๆ
-│   │   ├── index.html              # หน้าแรก (เปรียบเทียบไวยากรณ์)
-│   │   ├── visualizer.html         # แอนิเมชันทีละสเต็ปของอัลกอริทึม
-│   │   ├── playground.html         # คลินิกชำแหละโค้ดทีละบรรทัด
-│   │   └── quiz.html               # ควิซวัดความเข้าใจตรรกะ
-│   │
-│   ├── 📁 assets/                  # สไตล์และสคริปต์ควบคุมระบบ
-│   │   ├── 📁 css/
-│   │   │   ├── input.css           # สไตล์หลักก่อนคอมไพล์
-│   │   │   └── main.css            # สไตล์ที่ผ่านการคอมไพล์ด้วย Tailwind CSS
-│   │   └── 📁 js/
-│   │       ├── api-client.js       # ตัวเชื่อมต่อ API (รองรับระบบเซฟ LocalStorage ออฟไลน์อัตโนมัติ)
-│   │       ├── common.js           # ตัวโหลดคอมโพเนนต์ร่วมและนับค่าเลเวล (XP)
-│   │       ├── data.js             # ฐานข้อมูลไวยากรณ์และรายการควิซทั้งหมด
-│   │       ├── index.js            # ควบคุมหน้าเปรียบเทียบ
-│   │       ├── visualizer.js       # ควบคุมแอนิเมชันอัลกอริทึม
-│   │       ├── playground.js       # ควบคุมเครื่องมือชำแหละ
-│   │       └── quiz.js             # ควบคุมเกมตอบคำถาม
-│   │
-│   └── 📁 components/              # คอมโพเนนต์ย่อยที่ถูกโหลดผ่าน JS
-│       ├── navbar.html
-│       └── footer.html
-│
-├── 📁 backend/                     # ส่วนหลังบ้าน (PHP REST API)
-│   ├── 📁 config/
-│   │   └── database.php            # คอนเน็กเตอร์ MySQL PDO
-│   ├── 📁 includes/
-│   │   └── response.php            # ตัวจัดรูปแบบ JSON Response
-│   └── 📁 api/
-│       └── 📁 v1/
-│           ├── score.php           # API บันทึก/ดึงคะแนนสอบ
-│           └── progress.php        # API อัปเดตความคืบหน้าผู้ใช้
-│
-├── .htaccess                       # การอนุญาตสิทธิ์การเข้าถึงข้อมูล CORS
-├── .gitignore
-├── schema.sql                      # คำสั่งสร้างตารางในฐานข้อมูล MySQL
-├── package.json
-└── tailwind.config.js
+backend/            Express + Prisma (มังกรดูแล)
+  prisma/           schema.prisma, migrations, seed
+  src/
+    modules/        แยกตามเรื่อง เช่น students, examResults, dashboard
+                    แต่ละ module = routes → controller → service → repository
+    middlewares/    authenticate, requireRole, upload
+    utils/          ตัวช่วยที่ใช้ร่วมกันหลาย module
+  tests/            smoke test ยิง endpoint จริง (ไม่ใช้ framework)
+
+frontend/           React + Vite (แก้มดูแล)
+  src/design/       หน้าจอจริงทั้งหมด + api.js ที่คุย backend
+  public/design/    prototype HTML ก่อนย้ายมา React (ไว้เทียบดีไซน์)
+
+docs/               เอกสารออกแบบระหว่างทาง
 ```
 
 ---
 
-## 🚀 วิธีการเข้าเรียนรู้และรันระบบ (How to Run)
+## ติดตั้งและรัน
 
-### 1. โหมดใช้งานปกติทันที (Static Mode - แนะนำสำหรับการเริ่มต้น)
-คุณไม่จำเป็นต้องติดตั้งฐานข้อมูลหรือเปิดเซิร์ฟเวอร์ PHP ก็สามารถเรียนรู้ได้ทันที เพราะระบบ **API Client** จะสลับไปใช้งานตัวเก็บข้อมูลภายในเบราว์เซอร์ (**LocalStorage**) โดยอัตโนมัติเมื่อตรวจพบการทำงานออฟไลน์
-- เพียงแค่ดับเบิ้ลคลิกเปิดไฟล์ [index.html](file:///e:/Js_Syntax/frontend/pages/index.html) ในเบราว์เซอร์ของคุณ ก็เริ่มเรียนรู้ได้เลย!
+ต้องมี **Node.js 18+** และ **PostgreSQL** ที่รันอยู่แล้ว
 
-### 2. โหมดใช้งานร่วมกับฐานข้อมูล (Fullstack Mode)
-หากต้องการบันทึกประวัติคะแนนเข้าสู่ฐานข้อมูล MySQL ส่วนกลาง:
-1. สร้างฐานข้อมูล MySQL และติดตั้งตารางจากไฟล์ [schema.sql](file:///e:/Js_Syntax/schema.sql)
-2. คัดลอกและสร้างไฟล์ `.env` ในโฟลเดอร์หลัก และระบุรายละเอียดฐานข้อมูลของคุณ
-3. เปิดรันเว็บเซิร์ฟเวอร์ PHP ของคุณ (เช่น Apache/Nginx หรือ XAMPP) และชี้เป้าโฟลเดอร์หลักไปที่โปรเจกต์นี้
+### 1. Backend
 
----
-
-## 🛠️ วิธีพัฒนาต่อยอดสไตล์การแสดงผล (Tailwind Compilation)
-หากมีการปรับแต่งโค้ดสไตล์ Tailwind CSS สามารถทำการติดตั้งและคอมไพล์ใหม่ได้ผ่านคำสั่ง:
 ```bash
-# ติดตั้ง Tailwind CLI
+cd backend
 npm install
-
-# คอมไพล์ไฟล์ CSS
-npm run build:css
-
-# เฝ้าดูการพิมพ์โค้ดและสร้าง CSS อัตโนมัติขณะพัฒนา (Watch Mode)
-npm run watch:css
 ```
+
+สร้างไฟล์ `backend/.env`:
+
+```
+DATABASE_URL="postgresql://user:password@localhost:5432/ProjectEnd"
+JWT_SECRET="ตั้งข้อความยาว ๆ อะไรก็ได้ ห้ามใช้ค่าเดียวกับตอน deploy จริง"
+PORT=3000
+```
+
+สร้างตารางและใส่ข้อมูลตั้งต้น แล้วรัน:
+
+```bash
+npx prisma migrate dev     # สร้างตารางตาม schema + seed อัตโนมัติ
+npm start                  # http://localhost:3000
+```
+
+### 2. Frontend
+
+เปิด terminal ใหม่ (ปล่อย backend รันค้างไว้):
+
+```bash
+cd frontend
+npm install
+npm run dev                # http://localhost:5174
+```
+
+### บัญชีทดสอบ (มาจาก seed)
+
+| บทบาท | รหัสผู้ใช้ | รหัสผ่าน |
+|---|---|---|
+| นักศึกษา | `6610210631` | `6610210631` |
+| เจ้าหน้าที่ | `456` | `456` |
+| ผู้บริหาร | `789` | `789` |
+
+---
+
+## เทสต์
+
+```bash
+cd backend
+npx prisma migrate reset --force   # ล้าง DB + seed ใหม่ (ต้องทำก่อนรันทุกครั้ง)
+npm start                          # เปิด server ค้างไว้อีก terminal
+npm test                           # ยิง endpoint จริงทั้ง 6 ไฟล์
+```
+
+> เทสต์ยิงผ่าน HTTP จริง ถ้าไม่ reset ก่อนจะเจอ error จากข้อมูลรอบก่อน และถ้า login รัว ๆ จนเจอ `429` ให้รีสตาร์ท server แล้วรันใหม่
+
+---
+
+## เอกสารเพิ่มเติม
+
+| ไฟล์ | เนื้อหา |
+|---|---|
+| [`backend/BACKEND_GUIDE.md`](backend/BACKEND_GUIDE.md) | อธิบาย backend ทั้งหมด — ทุก endpoint, กฎธุรกิจ, โครงสร้าง DB, changelog |
+| [`backend/Backend.md`](backend/Backend.md) | แผนงานแบ่งเป็น phase + สรุป endpoint |
+| [`backend/SYNTAX_NOTES.md`](backend/SYNTAX_NOTES.md) | cheat sheet syntax JS/SQL/Prisma/Git |
+| [`CLAUDE.md`](CLAUDE.md) | ขอบเขตงาน กติกาการแบ่งงาน และ convention ของโปรเจกต์ |
