@@ -63,7 +63,8 @@ model Student {
   room_id                  Int
   exam_results             ExamResult[]
   notifications            Notification[]
-  exam_eligible Boolean @default(false)
+  // เปิดสิทธิ์กรอกผลสอบให้อัตโนมัติตั้งแต่เพิ่มนักศึกษาเข้าระบบ — เจ้าหน้าที่ค่อยกดถอนสิทธิ์เองถ้าไม่ต้องการ
+  exam_eligible Boolean @default(true)
   faculty                  Faculty      @relation(fields: [faculty_id], references: [faculty_id])
   room                     Room         @relation(fields: [room_id], references: [room_id])
   user                     User         @relation(fields: [user_id], references: [user_id])

@@ -146,7 +146,7 @@ const reviewExamResult = async (req, res, next, { staff_status, requireRemark })
     const message =
       staff_status === "approved"
         ? `ผลสอบ${roundLabel}ได้รับการยืนยันแล้ว`
-        : `ผลสอบ${roundLabel}ถูกตีกลับ: ${remark}`;
+        : `ผลสอบ${roundLabel}ถูกตีกลับ: ${remark}\nกรุณากรอกผลสอบของท่านใหม่อีกครั้ง`;
     notifRepo
       .create({ student_id: existing.student_id, type: staff_status, message })
       .catch((e) => console.error("สร้างแจ้งเตือนไม่สำเร็จ:", e.message));
