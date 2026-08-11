@@ -7,7 +7,7 @@
    ============================================================ */
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, Avatar, StatusBadge, Pagination } from './components.jsx';
+import { PageHead, Avatar, StatusBadge, Pagination, Modal } from './components.jsx';
 import { apiFetch, ApiError } from './api.js';
 import { t } from './i18n.js';
 
@@ -32,6 +32,7 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang }) {
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState(() => new Set()); // student_id ที่ติ๊กไว้
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(null); // นักศึกษาที่กำลังจะลบ (รอยืนยันในโมดัล)
   const per = 10;
 
   useEffect(() => {
@@ -125,6 +126,23 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang }) {
       setSaving(false);
     }
   };
+  // ลบนักศึกษาที่ import ผิด/ซ้ำ — ยืนยันก่อนเสมอเพราะลบแล้วกู้คืนไม่ได้
+  const confirmDelete = async () => {
+    if (!deleting) return;
+    setSaving(true);
+    try {
+      await apiFetch(`/students/${deleting.sid}`, { method: 'DELETE' });
+      setStudents(prev => prev.filter(s => s.sid !== deleting.sid));
+      toast?.(tt('officer.students.deletedToast', { name: `${deleting.firstName} ${deleting.lastName}` }));
+      setDeleting(null);
+    } catch (e) {
+      // backend ตอบ 409 พร้อมเหตุผลถ้าคนนี้มีผลสอบแล้ว — โชว์ข้อความนั้นตรงๆ
+      toast?.(e instanceof ApiError ? e.message : tt('officer.students.deleteFailMsg'), 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const setEligibility = (value) => setEligibilityFor([...selected], value);
   const toggleOneEligibility = (s) => {
     setEligibilityFor([s.sid], !s.eligible);
@@ -209,10 +227,18 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang }) {
                     <span className="tnum" style={{ fontWeight: 700, color: s.allPass ? 'var(--pass)' : 'var(--ink-800)' }}>{s.passedCount}/{s.subjectCount}</span>}</td>
                   <td><StatusBadge status={s.status} lang={lang} /></td>
                   <td style={{ color: 'var(--ink-500)', fontSize: 13 }}>{s.submittedAt || '—'}</td>
-                  {!readonly && <td onClick={e => e.stopPropagation()}>
+                  {!readonly && <td onClick={e => e.stopPropagation()} style={{ whiteSpace: 'nowrap' }}>
                     {s.eligible && <button disabled={saving} onClick={() => toggleOneEligibility(s)}
                       className="badge reject" style={{ border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
                       <Icon name="xCircle" size={13} /> {tt('officer.students.revokeBtn')}</button>}
+                    {/* ลบได้เฉพาะคนที่ยังไม่มีผลสอบ — คนที่กรอกแล้วลบไม่ได้ ไม่งั้นสถิติปีนั้นเปลี่ยนย้อนหลัง
+                        backend กันซ้ำอีกชั้น ตรงนี้แค่ไม่โชว์ปุ่มให้กดเปล่าๆ */}
+                    {s.status === 'DRAFT' && (
+                      <button disabled={saving} onClick={() => setDeleting(s)} title={tt('officer.students.deleteHint')}
+                        className="badge" style={{ border: 'none', cursor: 'pointer', fontFamily: 'inherit', marginLeft: 6,
+                          background: 'var(--ink-100)', color: 'var(--ink-600)' }}>
+                        <Icon name="trash" size={13} /> {tt('officer.students.deleteBtn')}</button>
+                    )}
                   </td>}
                   <td style={{ textAlign: 'right' }}><Icon name="chevR" size={18} style={{ color: 'var(--ink-300)' }} /></td>
                 </tr>
@@ -222,6 +248,17 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang }) {
         </div>
         <Pagination page={page} pages={pages} onPage={setPage} lang={lang} />
       </div>
+
+      <Modal open={!!deleting} onClose={() => setDeleting(null)} width={430} title={tt('officer.students.deleteTitle')}
+        footer={<><button className="btn btn-ghost" onClick={() => setDeleting(null)}>{tt('officer.students.cancelBtn')}</button>
+          <button className="btn btn-danger" disabled={saving} onClick={confirmDelete}>
+            {saving ? tt('officer.students.deleting') : tt('officer.students.deleteBtn')}</button></>}>
+        {deleting && (
+          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: 'var(--ink-700)' }}>
+            {tt('officer.students.deleteBody', { name: `${deleting.firstName} ${deleting.lastName}`, sid: deleting.sid })}
+          </p>
+        )}
+      </Modal>
     </div>
   );
 }
