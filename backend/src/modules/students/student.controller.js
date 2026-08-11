@@ -32,6 +32,12 @@ export const getById = async (req, res, next) => {
     }
 
     const student = await studentRepo.findById(req.params.id);
+    // ไม่เจอ = 404 ไม่ใช่ 200 + data:null — ฝั่งหน้าเว็บจะได้รู้ว่าไม่มีคนนี้จริง ไม่ใช่โหลดพลาด
+    if (!student) {
+      const err = new Error("ไม่พบนักศึกษา");
+      err.statusCode = 404;
+      throw err;
+    }
     res.json({ success: true, data: student });
   } catch (err) {
     next(err);
@@ -286,6 +292,37 @@ export const bulkImport = async (req, res, next) => {
         imported,
         skipped,
       },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// เจ้าหน้าที่ลบนักศึกษาที่ import ผิด/ซ้ำ/ไม่ได้อยู่รุ่นนี้
+// ลบได้เฉพาะคนที่ยังไม่มีผลสอบเลย — ถ้ามีแล้วต้องไม่ลบ ไม่งั้นสถิติของปีนั้นเปลี่ยนย้อนหลัง
+// ไม่ตรงกับรายงานที่ส่งสภาการพยาบาลไปแล้ว
+export const remove = async (req, res, next) => {
+  try {
+    const student = await studentRepo.findById(req.params.id);
+    if (!student) {
+      const err = new Error("ไม่พบนักศึกษา");
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const resultCount = await studentRepo.countExamResults(req.params.id);
+    if (resultCount > 0) {
+      const err = new Error(
+        `ลบไม่ได้ นักศึกษาคนนี้มีผลสอบในระบบแล้ว ${resultCount} รอบ — ถ้าข้อมูลไม่ถูกต้องให้ตีกลับผลสอบแทน`,
+      );
+      err.statusCode = 409;
+      throw err;
+    }
+
+    await studentRepo.removeWithUser(req.params.id, student.user_id);
+    res.json({
+      success: true,
+      data: { message: `ลบนักศึกษา ${req.params.id} ออกจากระบบแล้ว` },
     });
   } catch (err) {
     next(err);

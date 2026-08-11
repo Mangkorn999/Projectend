@@ -377,6 +377,136 @@ export const buildHistory = async (yearCount = 3) => {
   return { years: summaries };
 };
 
+/* ---------------------------------------------------------------------------
+   แจ้งเตือนของเจ้าหน้าที่/ผู้บริหาร — คำนวณสดทุกครั้งที่เรียก ไม่เก็บลง DB
+
+   ทำไมไม่เก็บลงตาราง notifications เหมือนของนักศึกษา:
+   เรื่องพวกนี้เป็น "สถานะ ณ ตอนนี้" (เหลือกี่วันปิดรอบ / ค้างตรวจกี่ใบ) ไม่ใช่เหตุการณ์
+   ถ้าเก็บลง DB ต้องมีตัวรันตามเวลามาอัปเดต และจะมีแจ้งเตือนเก่าที่ไม่จริงแล้วค้างอยู่
+   คำนวณสดจึงถูกเสมอและไม่ต้องแก้ schema
+--------------------------------------------------------------------------- */
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// นับวันแบบตัดเวลาออก เทียบ "วัน" ต่อ "วัน"
+// ไม่งั้นรอบที่ปิด 23:59 วันนี้จะกลายเป็นเหลือ 0 วันตั้งแต่เช้า
+const daysUntil = (date) => {
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const startOfTarget = new Date(date);
+  startOfTarget.setHours(0, 0, 0, 0);
+  return Math.round((startOfTarget - startOfToday) / DAY_MS);
+};
+
+const CLOSING_SOON_DAYS = 7; // เตือนล่วงหน้ากี่วันก่อนปิดรอบ
+const RECENTLY_CLOSED_DAYS = 14; // รอบที่เพิ่งปิดภายในกี่วัน ถือว่ายังน่าสนใจ
+
+export const buildAlerts = async (role) => {
+  const rounds = await dashRepo.findRoundsByYears(
+    await dashRepo.findAcademicYears(),
+  );
+  if (rounds.length === 0) return { alerts: [] };
+
+  const alerts = [];
+  const push = (alert) => alerts.push(alert);
+
+  const openRounds = rounds.filter((r) => r.status === "open");
+
+  for (const round of openRounds) {
+    const label = `รอบ ${round.attempt_number}/${round.academic_year}`;
+    const left = daysUntil(round.close_date);
+
+    // --- 1. รอบใกล้ปิด / เลยกำหนดแล้ว ---
+    if (left < 0) {
+      push({
+        key: `round-overdue-${round.round_id}`,
+        type: "round_overdue",
+        tone: "reject",
+        icon: "alert",
+        title: `${label} เลยกำหนดปิดแล้ว`,
+        detail: `ครบกำหนดไปแล้ว ${Math.abs(left)} วัน แต่สถานะยังเป็น "เปิดรับ" — ปิดรอบเพื่อสรุปผล`,
+        round_id: round.round_id,
+      });
+    } else if (left <= CLOSING_SOON_DAYS) {
+      let detail = `เหลืออีก ${left} วัน`;
+      if (left === 0) detail = "วันนี้เป็นวันสุดท้าย";
+      push({
+        key: `round-closing-${round.round_id}`,
+        type: "round_closing",
+        tone: "wait",
+        icon: "calendar",
+        title: `${label} ใกล้ปิดรับ`,
+        detail,
+        round_id: round.round_id,
+      });
+    }
+
+    // --- 2. ยังไม่ส่งผลกี่คน (เตือนเฉพาะตอนใกล้ปิด ไม่งั้นรกตั้งแต่วันเปิดรอบ) ---
+    if (left >= 0 && left <= CLOSING_SOON_DAYS) {
+      const [cohort, results] = await Promise.all([
+        dashRepo.countStudentsByYear(round.academic_year),
+        dashRepo.findResultsByRound(round.round_id),
+      ]);
+      const missing = cohort - onlySent(results).length;
+      if (missing > 0) {
+        push({
+          key: `round-missing-${round.round_id}`,
+          type: "not_submitted",
+          tone: "wait",
+          icon: "users",
+          title: `ยังไม่ส่งผลสอบ ${missing} คน`,
+          detail: `${label} · จากนักศึกษาทั้งรุ่น ${cohort} คน`,
+          round_id: round.round_id,
+          count: missing,
+        });
+      }
+    }
+
+    // --- 3. ใบที่รอตรวจ (เจ้าหน้าที่เท่านั้น ผู้บริหารไม่มีสิทธิ์ตรวจอยู่แล้ว) ---
+    if (role === "officer") {
+      const results = await dashRepo.findResultsByRound(round.round_id);
+      const pending = countByStatus(results).submitted;
+      if (pending > 0) {
+        push({
+          key: `round-pending-${round.round_id}`,
+          type: "pending_review",
+          tone: "navy",
+          icon: "checkCircle",
+          title: `มีผลสอบรอตรวจ ${pending} ใบ`,
+          detail: label,
+          round_id: round.round_id,
+          count: pending,
+        });
+      }
+    }
+  }
+
+  // --- 4. สรุปผลรอบที่เพิ่งปิด ---
+  // เอารอบที่ปิดแล้วซึ่งกำหนดปิดอยู่ในช่วง 14 วันที่ผ่านมา
+  // รวมรอบที่เจ้าหน้าที่กดปิดเองก่อนถึงกำหนด (กำหนดปิดยังอยู่ข้างหน้า = daysUntil เป็นบวก) ด้วย
+  const recentlyClosed = rounds
+    .filter((r) => {
+      if (r.status === "open") return false;
+      return daysUntil(r.close_date) >= -RECENTLY_CLOSED_DAYS;
+    })
+    .sort((a, b) => new Date(b.close_date) - new Date(a.close_date))[0];
+
+  if (recentlyClosed) {
+    const stats = await buildStats(recentlyClosed.round_id);
+    push({
+      key: `round-summary-${recentlyClosed.round_id}`,
+      type: "round_summary",
+      tone: "ok",
+      icon: "report",
+      title: `สรุปรอบ ${recentlyClosed.attempt_number}/${recentlyClosed.academic_year} ที่เพิ่งปิด`,
+      detail: `ส่งผล ${stats.submitted}/${stats.total} คน · ผ่านครบทุกวิชา ${stats.fullyPassed} คน (${stats.fullyPassedRate}% ของรุ่น)`,
+      round_id: recentlyClosed.round_id,
+    });
+  }
+
+  return { alerts };
+};
+
 // รายชื่อนักศึกษาในรอบ — ใช้ทำตารางใน PDF
 export const buildStudentRows = async (roundId) => {
   const [round, allSubjects, results] = await Promise.all([

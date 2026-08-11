@@ -416,10 +416,12 @@ public เพราะหน้าสมัคร/ตั้งรหัสคร
 | POST | `/api/users` | 🧑‍💼 | สร้างบัญชี officer/executive |
 | POST | `/api/users/:id/role` | 🧑‍💼 | เปลี่ยน role |
 | POST | `/api/users/:id/revoke` | 🧑‍💼 | ถอนสิทธิ์ |
+| POST | `/api/users/:id/reset-password` | 🧑‍💼 | รีเซ็ตรหัสให้ไปตั้งใหม่เอง |
 
 **กฎสำคัญ**
 - สร้างได้แค่ `officer` / `executive` (`CREATABLE_ROLES`) — บัญชีนักศึกษาต้องมาทาง import CSV เท่านั้น
-- บัญชีที่สร้างจะถูกตั้ง `must_change_password: true` เสมอ — เจ้าหน้าที่ตั้งรหัสให้ เจ้าตัวต้องเปลี่ยนตอน login ครั้งแรก
+- **`password` ไม่บังคับตอนสร้าง** — ไม่ส่งมา = `password_hash: null` เจ้าตัวไปตั้งรหัสเองที่ `POST /api/auth/first-setup` (flow เดียวกับนักศึกษาที่ import เข้ามา) เจ้าหน้าที่จึงไม่เคยรู้รหัสของใคร
+- `reset-password` ใช้กลไกเดียวกับ `revoke` (ล้าง `password_hash`) ต่างกันที่เจตนา — reset = ลืมรหัส ตั้งใหม่ได้, revoke = ไม่ให้ใช้งานต่อ
 - **ห้ามเปลี่ยน role / ถอนสิทธิ์ตัวเอง** (เช็ค `targetId === req.user.userId`) — กันเจ้าหน้าที่ล็อกตัวเองออกจากระบบจนไม่มีใครเข้าได้
 - **ถอนสิทธิ์ ≠ ลบบัญชี**: `revokeAccess` แค่ล้าง `password_hash` เป็น null → login ไม่ได้ แต่ประวัติที่คนนี้เคยยืนยัน/โพสต์ยังอยู่ครบ (ลบ record จริงจะทำให้ foreign key พัง)
 - `PUBLIC_USER_FIELDS` ใน repository = รายการ field ที่ส่งออกได้ **ไม่มี `password_hash`** — ใช้ `select` แทน `include` เพื่อให้ column ใหม่ที่เพิ่มทีหลังไม่หลุดออกไปเอง
@@ -434,6 +436,7 @@ public เพราะหน้าสมัคร/ตั้งรหัสคร
 | PATCH | `/api/students/bulk-eligible` | 🧑‍💼 | เปิด/ปิดสิทธิ์กรอกผลสอบหลายคนพร้อมกัน |
 | POST | `/api/students/import` | 🧑‍💼 | import CSV |
 | POST | `/api/students/:id/reset-password` | 🧑‍💼 | ล้างรหัสผ่านให้ไปตั้งใหม่ |
+| DELETE | `/api/students/:id` | 🧑‍💼 | ลบนักศึกษา (เฉพาะคนที่ยังไม่มีผลสอบ) |
 
 > **executive เข้าไม่ได้ทั้ง 2 เส้น** — ผู้บริหารดูได้แค่ภาพรวมที่ `/api/dashboard/stats|history` ไม่เห็นข้อมูลนักศึกษารายบุคคล
 
@@ -605,6 +608,7 @@ dashboard นับอัตราผ่านรายวิชาเฉพา�
 
 | Method | URL | สิทธิ์ | ทำอะไร |
 |---|---|---|---|
+| GET | `/api/dashboard/alerts` | 🧑‍💼 👔 | แจ้งเตือนสถานะปัจจุบัน (คำนวณสด ไม่เก็บ DB) |
 | GET | `/api/dashboard/stats?round_id=` | 🧑‍💼 👔 | สถิติของ 1 รอบ |
 | GET | `/api/dashboard/history?years=3` | 🧑‍💼 👔 | สรุปย้อนหลังรายปี |
 | GET | `/api/dashboard/export?round_id=` | 🧑‍💼 | โหลดรายงาน PDF |
@@ -640,6 +644,28 @@ dashboard นับอัตราผ่านรายวิชาเฉพา�
 
 **`buildHistory(yearCount)`** — สรุปรายปีย้อนหลัง (ค่าเริ่มต้น 3 ปี, จำกัด 1–10 ที่ controller)
 **นับเป็น "รายคน" ไม่ใช่ "รายใบ"** ด้วย `Set` ของ `student_id` — คนที่กรอก 2 รอบในปีเดียวต้องนับครั้งเดียว ไม่งั้นตัวเลขเกินจำนวนคนที่มีจริง.
+
+ค่าที่แต่ละปีส่งกลับ (`years[]`):
+
+| field | หมายถึง | สูตร |
+|---|---|---|
+| `submitted` / `fullyPassed` | คนที่ส่ง / ผ่านครบ อย่างน้อย 1 รอบในปีนั้น | นับรายคน (`Set`) |
+| `fillRate` | % คนที่ส่ง | `submitted / eligible` |
+| `passRate` | % ผ่านครบ เทียบกับคนที่ส่ง | `fullyPassed / submitted` |
+| `firstAttempt` | **ร้อยละผ่านครั้งแรก** (ตัวเลขที่คณะส่งสภาการพยาบาล) | `ผ่านครบในรอบ attempt_number = 1 / total` |
+| `firstYear` | **ร้อยละผ่านภายในปีแรก** | `fullyPassed (ทุกรอบของปี) / total` |
+| `byRoom` | ส่ง/ผ่านครบ แยกตามห้องเรียน | นับรายคน |
+| `passDistribution` | ตาราง "ผ่านกี่วิชา" ของรอบแรก แยกห้อง | `buildPassDistribution()` — `null` ถ้าปีนั้นยังไม่มีรอบที่ 1 |
+| `perSubject` | อัตราผ่านรายวิชา รวมทุกรอบของปี | เหมือน `buildStats` |
+
+> **ตัวหารของ `firstAttempt` / `firstYear` คือ `total` (นักศึกษาทั้งรุ่น) ไม่ใช่ `submitted`**
+> เพราะสูตรของคณะหารด้วย "จำนวนผู้สำเร็จการศึกษาในปีนั้น" — คนที่ไม่ส่งผลก็ถือว่ายังสอบไม่ผ่าน ต้องอยู่ในตัวหารด้วย
+> ระบบใช้ `total` แทนได้เพราะเจ้าหน้าที่ import รายชื่อเข้าระบบเฉพาะคนที่จบแล้วเท่านั้น
+> 2 ตัวนี้เป็น % ทศนิยม 2 ตำแหน่ง (`rate2`) ต่างจาก field อื่นที่เป็นจำนวนเต็ม (`percent`)
+
+**`buildPassDistribution(sent, subjectIds)`** — ตารางสรุป "ผ่าน 8 วิชา / 7 วิชา / …" ของ**รอบแรกเท่านั้น**
+นับรายคน 1 คนอยู่ได้แถวเดียว. คืน `{ subject_count, total, rooms[], rows[] }` โดย `rows` ไล่จากผ่านมากไปน้อย
+และคงแถวที่ไม่มีใครไว้เป็น 0 ด้วย (ตารางในรายงานต้องมีครบทุกแถว).
 
 **`dashboard.pdf.js`** — สร้าง PDF ด้วย pdfkit แล้ว `doc.pipe(res)` ส่งเป็น stream ตรงถึงเบราว์เซอร์ ไม่เขียนไฟล์ลง disk.
 ต้อง `registerFont` ฟอนต์ Sarabun จาก `assets/fonts/` ไม่งั้นภาษาไทยกลายเป็นสี่เหลี่ยม □□□.
@@ -950,6 +976,11 @@ curl -H "Authorization: Bearer <token>" http://localhost:3000/api/subjects/1
 
 | วันที่ | เปลี่ยนอะไร |
 |---|---|
+| 2026-08-11 | `/dashboard/history` เพิ่ม 3 ค่าต่อปี: `firstAttempt` (ร้อยละผ่านครั้งแรก = ผ่านครบในรอบ `attempt_number=1` ÷ `total`), `firstYear` (ผ่านครบในรอบไหนก็ได้ของปีนั้น ÷ `total`) และ `passDistribution` (ตารางผ่าน 8/7/6… วิชา ของรอบแรก แยกตามห้องเรียน + คอลัมน์รวม) ตามสูตรที่คณะใช้รายงานสภาการพยาบาล. **ตัวหารเป็น `total` ไม่ใช่ `submitted`** และ 2 ค่านี้เป็น % ทศนิยม 2 ตำแหน่ง (`rate2`) ต่างจาก field เดิมที่ปัดจำนวนเต็ม. ไม่แตะ schema/repository (`dashboard.service.js`) |
+| 2026-08-11 | **สถิติ dashboard ใช้ตัวหารเดียวกันทั้งหมด** = นักศึกษาทั้งรุ่นที่ import (= ผู้สำเร็จการศึกษา ตามสูตรที่ส่งสภาการพยาบาล). `firstYear` นับจากวิชาที่ผ่านสะสมข้ามรอบ ไม่ใช่ดูทีละรอบ, ตารางแจกแจงหารด้วยจำนวนคนทั้งห้อง + มีแถว "ไม่ได้ส่งผล", `findResultsByRound` เลิกกรอง `exam_eligible`, โดนัทบวกกันได้เท่า `total` (`dashboard.service.js`, `dashboard.repository.js`, `smoke-phase12`) |
+| 2026-08-11 | เพิ่ม `GET /api/dashboard/alerts` — แจ้งเตือนเจ้าหน้าที่/ผู้บริหาร 4 แบบ (รอบใกล้ปิด/เลยกำหนด, ยังไม่ส่งผลกี่คน, ใบรอตรวจ, สรุปรอบที่เพิ่งปิด) **คำนวณสดทุกครั้ง ไม่เก็บลง DB** เพราะเป็นสถานะ ณ ตอนนี้ ไม่ใช่เหตุการณ์ — ไม่ต้องแก้ schema และไม่มีแจ้งเตือนเก่าค้าง. executive ไม่ได้รับเรื่อง "ใบรอตรวจ" |
+| 2026-08-11 | บัญชี officer/executive ตั้งรหัสเอง — `POST /api/users` ไม่บังคับ `password`, `first-setup` เปิดให้ทุก role ใช้ (เดิมล็อกเฉพาะ student), เพิ่ม `POST /api/users/:id/reset-password`. ตัดหน้า "ลืมรหัสผ่าน" ฝั่ง frontend ออก เจ้าหน้าที่เป็นคนรีเซ็ตให้ทั้งหมด |
+| 2026-08-11 | เพิ่ม `DELETE /api/students/:id` — ลบได้เฉพาะคนที่ยังไม่มีผลสอบ (มีแล้วตอบ 409) ป้องกันสถิติปีเก่าเปลี่ยนย้อนหลัง. แก้ `GET /api/students/:id` ที่ไม่เจอให้ตอบ 404 แทน 200 + `data:null` |
 | 2026-08-10 | merge `feature/update-app` (งานแก้ม) — `students.exam_eligible` เปลี่ยน default เป็น `true` (migration `20260809152219_eligible_default_true`) เจ้าหน้าที่ค่อยกดถอนสิทธิ์เองแทนกดเปิดทีละคน, `/dashboard/history` เพิ่ม `byRoom` (ผ่านครบ/ส่งแล้ว แยกตามห้องเรียน) ใน `dashboard.service.js` + ดึง `room` มาใน `dashboard.repository.js`, ข้อความแจ้งเตือนตอนตีกลับต่อท้าย `\nกรุณากรอกผลสอบของท่านใหม่อีกครั้ง` (`examResults.controller.js`). **เทสต์ `smoke-phase4-6.mjs` ต้องถอนสิทธิ์ก่อนถึงจะเช็ค 403 ได้** เพราะ default เป็น true แล้ว |
 | 2026-08-10 | **ลบตาราง `sessions`** — เหลือมาจากตอนคิดจะทำ session-based auth ไม่มี code ไหนใช้เลย (auth เป็น JWT ใน httpOnly cookie ล้วน) และไม่มีใน data dictionary ของรายงาน. ลบ `model Session` + relation `sessions` ใน `User` + `prisma.session.deleteMany()` ใน seed, migration `20260810171137_remove_sessions_table` (`schema.prisma`, `prisma/seed.js`) |
 | 2026-08-10 | **ตัดสิทธิ์ executive จากข้อมูลนักศึกษารายบุคคล** — `GET /api/students`, `GET /api/students/:id`, `GET /api/exam-results` และไฟล์ certificate (`serveFile`) เหลือ officer เท่านั้น. ผู้บริหารเห็นได้แค่ตัวเลขรวมที่ `/api/dashboard/stats|history` (data minimization — ผู้บริหารไม่ต้องแตะ PII). **รายงานบทที่ 4.3 ต้องแก้ตาม** เพราะเดิมระบุว่าผู้บริหารมีหน้า "รายละเอียดนักศึกษา" (`students.routes.js`, `examResults.routes.js`, `certificates.controller.js`, `tests/smoke-phase4-6.mjs`). **frontend ต้องซ่อนเมนูของผู้บริหารให้เหลือ Dashboard — แจ้งแก้ม** |

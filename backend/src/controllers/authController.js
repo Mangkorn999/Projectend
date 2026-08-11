@@ -39,8 +39,8 @@ export const firstSetup = async (req, res) => {
       });
     }
 
-    // หา user จาก student_id ที่กรอกมา (student_id ในระบบเราคือ psu_passport_id ของนักศึกษา)
-    // ต้อง include student+role มาด้วยเพื่อเช็คว่าเป็นบัญชีนักศึกษาที่ import มาจริง ไม่ใช่ officer/executive
+    // หา user จากรหัสที่กรอกมา — นักศึกษาใช้รหัสนักศึกษา, officer/executive ใช้รหัสที่เจ้าหน้าที่ตั้งให้
+    // ทั้ง 3 role ใช้หน้านี้ตั้งรหัสครั้งแรกเหมือนกันหมด เจ้าหน้าที่จึงไม่ต้องรู้รหัสของใครเลย
     const user = await prisma.user.findUnique({
       where: { psu_passport_id: student_id },
       include: { student: true, role: true },
@@ -53,9 +53,9 @@ export const firstSetup = async (req, res) => {
         message: "ข้อมูลไม่ตรงกับที่มีในระบบ กรุณาตรวจสอบรหัสนักศึกษาและชื่อ-นามสกุล",
       });
 
-    // ไม่มี user นี้ / ไม่มี student profile (แปลว่าไม่ใช่บัญชีที่ import มา) / ไม่ใช่ role student
-    // → ปฏิเสธเหมือนกันหมด ไม่แยก error กันคนรู้ว่า id นี้มีอยู่ในระบบไหม
-    if (!user || !user.student || user.role.role_name !== "student") {
+    // ไม่มี user นี้ → ปฏิเสธด้วยข้อความเดียวกับกรณีชื่อไม่ตรง
+    // กันคนไล่ยิงรหัสเปล่าๆ เพื่อดูว่า id ไหนมีอยู่ในระบบบ้าง
+    if (!user) {
       return invalid();
     }
     // เช็คชื่อ-นามสกุลต้องตรงกับที่เจ้าหน้าที่ import ไว้เป๊ะ — นี่คือ "รหัสผ่านชั้นที่สอง"

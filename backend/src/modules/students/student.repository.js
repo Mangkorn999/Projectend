@@ -81,3 +81,17 @@ export const resetPassword = (studentId) =>
     where: { psu_passport_id: studentId },
     data: { password_hash: null, must_change_password: true },
   });
+
+// มีใบผลสอบของนักศึกษาคนนี้อยู่กี่ใบ — ใช้กันลบคนที่มีประวัติสอบไปแล้ว
+export const countExamResults = (studentId) =>
+  prisma.examResult.count({ where: { student_id: studentId } });
+
+// ลบนักศึกษา + บัญชี user ของเขา (เรียกได้เฉพาะตอนไม่มีผลสอบเท่านั้น)
+// ลบแจ้งเตือนก่อนเพราะ FK ชี้มาที่ student ถ้าไม่ลบ Prisma จะไม่ยอมลบแถวแม่
+// ใช้ transaction ให้ 3 คำสั่งสำเร็จหรือล้มไปพร้อมกัน จะได้ไม่เหลือ user ค้างที่ไม่มี student
+export const removeWithUser = (studentId, userId) =>
+  prisma.$transaction([
+    prisma.notification.deleteMany({ where: { student_id: studentId } }),
+    prisma.student.delete({ where: { student_id: studentId } }),
+    prisma.user.delete({ where: { user_id: userId } }),
+  ]);

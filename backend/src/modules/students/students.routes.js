@@ -9,6 +9,7 @@ import {
   bulkSetEligible,
   bulkImport,
   resetPassword,
+  remove,
 } from "./student.controller.js";
 
 // เก็บไฟล์ใน memory ไม่เขียนลง disk — ใช้ครั้งเดียวตอน parse แล้วทิ้ง
@@ -44,4 +45,6 @@ router.post(
   requireRole("officer"),
   resetPassword,
 );
+// ลบนักศึกษาที่ import ผิด — controller กันไว้ไม่ให้ลบคนที่มีผลสอบแล้ว
+router.delete("/:id", authenticate, requireRole("officer"), remove);
 export default router;

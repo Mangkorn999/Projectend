@@ -23,6 +23,18 @@ export const getHistory = async (req, res, next) => {
   }
 };
 
+// GET /api/dashboard/alerts — officer, executive
+// แจ้งเตือนสถานะปัจจุบัน (รอบใกล้ปิด / ยังไม่ส่งผล / รอตรวจ / สรุปรอบที่เพิ่งปิด)
+// role อ่านจาก JWT เท่านั้น — ผู้บริหารจะไม่ได้เรื่อง "รอตรวจ" เพราะไม่มีสิทธิ์ตรวจ
+export const getAlerts = async (req, res, next) => {
+  try {
+    const data = await dashService.buildAlerts(req.user.role);
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // GET /api/dashboard/export?round_id= — officer (ตอบกลับเป็นไฟล์ PDF)
 export const exportReport = async (req, res, next) => {
   try {

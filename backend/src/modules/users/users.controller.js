@@ -28,9 +28,10 @@ export const create = async (req, res, next) => {
       phone,
     } = req.body;
 
+    // password ไม่บังคับแล้ว — ไม่ส่งมา = ให้เจ้าตัวไปตั้งรหัสเองที่หน้า "ตั้งรหัสผ่านครั้งแรก"
+    // (flow เดียวกับนักศึกษาที่ import เข้ามา เจ้าหน้าที่ไม่ต้องรู้รหัสของใครเลย)
     if (
       !psu_passport_id ||
-      !password ||
       !role_name ||
       !first_name ||
       !last_name ||
@@ -50,7 +51,7 @@ export const create = async (req, res, next) => {
       throw err;
     }
 
-    if (password.length < MIN_PASSWORD_LENGTH) {
+    if (password && password.length < MIN_PASSWORD_LENGTH) {
       const err = new Error(
         `รหัสผ่านต้องยาวอย่างน้อย ${MIN_PASSWORD_LENGTH} ตัวอักษร`,
       );
@@ -72,11 +73,17 @@ export const create = async (req, res, next) => {
       throw err;
     }
 
+    // ไม่ตั้งรหัสให้ = password_hash เป็น null → login ไม่ได้จนกว่าเจ้าตัวจะไปตั้งเองที่ /api/auth/first-setup
+    let passwordHash = null;
+    if (password) {
+      passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+    }
+
     const user = await UserRepo.create({
       role_id: role.role_id,
       psu_passport_id,
-      password_hash: await bcrypt.hash(password, SALT_ROUNDS),
-      // เจ้าหน้าที่เป็นคนตั้งรหัสให้ — บังคับเปลี่ยนตอน login ครั้งแรก
+      password_hash: passwordHash,
+      // ยังไม่ถือว่าเป็นรหัสของเจ้าตัว — ตั้งเองเสร็จเมื่อไหร่ first-setup จะปลดธงนี้ให้
       must_change_password: true,
       first_name,
       last_name,
@@ -167,6 +174,38 @@ export const revokeAccess = async (req, res, next) => {
 
     const user = await UserRepo.revokeAccess(targetId);
     res.json({ success: true, data: user });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// เจ้าหน้าที่รีเซ็ตรหัสผ่านให้ officer/executive (เจ้าตัวลืมรหัส)
+// กลไกเหมือนรีเซ็ตของนักศึกษาเป๊ะ: ล้าง password_hash แล้วให้ไปตั้งใหม่เองที่หน้าตั้งรหัสครั้งแรก
+// เจ้าหน้าที่จึงไม่เคยรู้รหัสของใครเลย ต่างจาก "ถอนสิทธิ์" ตรงเจตนา — อันนั้นคือไม่ให้ใช้งานต่อ
+export const resetPassword = async (req, res, next) => {
+  try {
+    const targetId = Number(req.params.id);
+    if (!Number.isInteger(targetId)) {
+      const err = new Error("user id ไม่ถูกต้อง");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const target = await UserRepo.findById(targetId);
+    if (!target) {
+      const err = new Error("ไม่พบผู้ใช้");
+      err.statusCode = 404;
+      throw err;
+    }
+
+    await UserRepo.revokeAccess(targetId);
+    res.json({
+      success: true,
+      data: {
+        message:
+          "รีเซ็ตรหัสผ่านแล้ว ผู้ใช้ต้องตั้งรหัสผ่านใหม่ผ่านหน้าตั้งรหัสผ่านครั้งแรก",
+      },
+    });
   } catch (err) {
     next(err);
   }
