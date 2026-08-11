@@ -218,13 +218,26 @@ async function main() {
     const round = roundOf.get(`${spec.year}-${spec.attempt}`);
     const roundSpec = ROUNDS.find((r) => r.year === spec.year && r.attempt === spec.attempt);
 
+    // เทียบวิชาด้วย subject_id เสมอ ห้ามเทียบด้วยสตริงรหัสวิชา
+    // เพราะสเปกข้างบนเขียนเป็น NUR05 แต่รหัสจริงใน DB เป็น 1105 เทียบตรงๆ ไม่มีวันตรงกัน
+    //
     // วิชาที่รอบนี้สอบ — [] แปลว่าครบทุกวิชา
-    const roundCodes = roundSpec.subjects.length
-      ? roundSpec.subjects
-      : subjects.map((s) => s.subject_code);
+    let roundSubjectIds;
+    if (roundSpec.subjects.length > 0) {
+      roundSubjectIds = roundSpec.subjects.map(idOf);
+    } else {
+      roundSubjectIds = subjects.map((s) => s.subject_id);
+    }
+
+    const failedIds = spec.failed.map(idOf);
 
     // รอบแก้ตัว: สอบจริงแค่วิชาใน sat ที่เหลือยกผลผ่านมาจากรอบก่อน
-    const satCodes = spec.retake ? spec.sat : roundCodes;
+    let satIds;
+    if (spec.retake) {
+      satIds = spec.sat.map(idOf);
+    } else {
+      satIds = roundSubjectIds;
+    }
 
     const closeDate = new Date(`${roundSpec.close}T10:00:00`);
     const result = await prisma.examResult.create({
@@ -237,12 +250,12 @@ async function main() {
         submitted_at: closeDate,
         confirmed_at: new Date(closeDate.getTime() + 2 * 24 * 60 * 60 * 1000),
         subject_results: {
-          create: roundCodes.map((code) => ({
-            subject_id: idOf(code),
-            is_passed: !spec.failed.includes(code),
+          create: roundSubjectIds.map((subjectId) => ({
+            subject_id: subjectId,
+            is_passed: !failedIds.includes(subjectId),
             // ไม่ได้สอบวิชานี้ในรอบนี้ = ยกผลผ่านมาจากรอบก่อน
             // สถิติรายวิชาจะข้ามแถวพวกนี้ ไม่งั้นอัตราผ่านจะเด้งเป็น 100%
-            carried_forward: !satCodes.includes(code),
+            carried_forward: !satIds.includes(subjectId),
           })),
         },
       },

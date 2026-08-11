@@ -4,6 +4,13 @@ import { subjectsOfRound } from "../../utils/roundSubjects.js";
 // ปัดเป็น % จำนวนเต็ม กันหารด้วย 0
 const percent = (part, whole) => (whole ? Math.round((part / whole) * 100) : 0);
 
+// % ทศนิยม 2 ตำแหน่ง — ตัวเลขที่คณะส่งสภาการพยาบาลใช้แบบนี้ (71.43 ไม่ใช่ 71)
+// คูณ 10000 แล้วหาร 100 คือวิธีปัดให้เหลือทศนิยม 2 ตำแหน่งใน JS
+function rate2(part, whole) {
+  if (!whole) return 0; // ไม่มีตัวหาร = ยังไม่มีข้อมูล ตอบ 0 ไปก่อน กัน NaN
+  return Math.round((part / whole) * 10000) / 100;
+}
+
 // เก็บเฉพาะคนที่กดส่งแล้ว — draft ยังกรอกไม่เสร็จ เอามาคิด % ไม่ได้
 const onlySent = (results) => results.filter((r) => r.student_status !== "draft");
 
@@ -58,6 +65,83 @@ const buildPerSubject = (sent, subjects) =>
     };
   });
 
+// ตารางสรุป "ผ่านกี่วิชา" ของรอบสอบครั้งแรก แยกตามห้องเรียน
+// เช่น ผ่าน 8 วิชา 146 คน / ผ่าน 7 วิชา 47 คน — ตรงกับตารางที่คณะส่งสภาการพยาบาล
+// นับเป็นรายคน: 1 คน = 1 แถวเดียวเท่านั้น (อยู่ในช่อง "ผ่าน N วิชา" ช่องเดียว)
+//
+// ตัวหารคือ "นักศึกษาทั้งห้อง" (roomTotals จากตาราง students) ไม่ใช่คนที่ส่งผล
+// ต้องเป็นตัวเดียวกับตัวหารของ % ผ่านครั้งแรก ไม่งั้น 2 ตารางบนหน้าเดียวกันหารคนละตัว
+// คนที่ไม่ได้ส่งผลไปรวมอยู่ในแถว "ไม่ได้ส่งผลสอบ" ท้ายตาราง ยอดรวมทุกแถวจึงเท่ากับทั้งรุ่นเสมอ
+function buildPassDistribution(sent, subjectIds, roomTotals) {
+  const rows = new Map(); // จำนวนวิชาที่ผ่าน -> Map(room_id -> จำนวนคน)
+  const submittedByRoom = new Map(); // room_id -> จำนวนคนที่ส่งผลในรอบนี้
+
+  for (const r of sent) {
+    const room = r.student.room;
+
+    let submittedCount = submittedByRoom.get(room.room_id);
+    if (!submittedCount) submittedCount = 0;
+    submittedByRoom.set(room.room_id, submittedCount + 1);
+
+    // นับว่าคนนี้ผ่านกี่วิชา — เทียบเฉพาะวิชาที่รอบนี้สอบ
+    let passedCount = 0;
+    for (const id of subjectIds) {
+      const passedThis = r.subject_results.some(
+        (sr) => sr.subject_id === id && sr.is_passed,
+      );
+      if (passedThis) passedCount += 1;
+    }
+
+    if (!rows.has(passedCount)) rows.set(passedCount, new Map());
+    const byRoom = rows.get(passedCount);
+    let old = byRoom.get(room.room_id);
+    if (!old) old = 0;
+    byRoom.set(room.room_id, old + 1);
+  }
+
+  const roomList = roomTotals;
+  let total = 0;
+  for (const room of roomList) total += room.total;
+
+  // นับคนของแต่ละห้องในหนึ่งแถว แล้วคิด % เทียบกับจำนวนคนทั้งห้อง
+  const buildRow = (label, passed, countOf) => {
+    let rowTotal = 0;
+    const perRoom = roomList.map((room) => {
+      const count = countOf(room.room_id);
+      rowTotal += count;
+      return { room_id: room.room_id, count, rate: rate2(count, room.total) };
+    });
+    return { label, passed, byRoom: perRoom, count: rowTotal, rate: rate2(rowTotal, total) };
+  };
+
+  // ไล่จากผ่านมากไปน้อย (8 → 0) เหมือนตารางในรายงาน
+  // แถวที่ไม่มีใครเลยก็ยังต้องโชว์เป็น 0 ไม่ใช่หายไป
+  const out = [];
+  for (let n = subjectIds.length; n >= 0; n--) {
+    out.push(
+      buildRow(null, n, (roomId) => {
+        const byRoom = rows.get(n);
+        if (!byRoom) return 0;
+        const count = byRoom.get(roomId);
+        if (!count) return 0;
+        return count;
+      }),
+    );
+  }
+
+  // แถวปิดท้าย: คนที่ไม่ได้ส่งผลสอบรอบนี้เลย = คนทั้งห้อง − คนที่ส่ง
+  out.push(
+    buildRow("not_submitted", null, (roomId) => {
+      const room = roomList.find((x) => x.room_id === roomId);
+      let submittedCount = submittedByRoom.get(roomId);
+      if (!submittedCount) submittedCount = 0;
+      return room.total - submittedCount;
+    }),
+  );
+
+  return { subject_count: subjectIds.length, total, rooms: roomList, rows: out };
+}
+
 const notFound = (message) => {
   const err = new Error(message);
   err.statusCode = 404;
@@ -110,15 +194,21 @@ export const buildStats = async (roundId) => {
       attempt_number: round.attempt_number,
       status: round.status,
     },
-    total, // นักศึกษาทั้งรุ่น
-    eligible, // เฉพาะคนที่เปิดสิทธิ์กรอกแล้ว = คนที่กรอกได้จริง
+    total, // นักศึกษาทั้งรุ่นที่ import เข้าระบบ = ตัวหารของทุก % ในหน้านี้
+    eligible, // เปิดสิทธิ์กรอกอยู่กี่คน — ข้อมูลประกอบ ไม่ใช่ตัวหาร
     by: countByStatus(results),
-    not_started: Math.max(eligible - results.length, 0),
+    // ยังไม่มีใบในรอบนี้เลย — ทั้งรุ่นลบคนที่มีใบแล้ว
+    // 5 ช่องนี้ (approved+submitted+rejected+draft+not_started) ต้องบวกกันได้เท่า total พอดี
+    not_started: Math.max(total - results.length, 0),
     submitted,
-    fillRate: percent(submitted, eligible), // หารด้วยคนที่กรอกได้ ไม่ใช่ทั้งรุ่น
+    fillRate: percent(submitted, total),
     fullyPassed,
-    fullyPassedRate: percent(fullyPassed, submitted), // % คนที่ผ่านครบทุกวิชา
+    // % คนที่ผ่านครบทุกวิชาของรอบนี้ เทียบกับทั้งรุ่น (ตัวหารเดียวกับ fillRate)
+    fullyPassedRate: percent(fullyPassed, total),
     subjectPassRate, // % ผลรายวิชาที่ผ่าน รวมทุกวิชา
+    // % ผ่านครบ เทียบเฉพาะ "คนที่ส่งผลรอบนี้" — คนละตัวหารกับ fullyPassedRate ข้างบน
+    // ใช้ตอบคำถาม "คนที่เข้าสอบรอบนี้ ผ่านกี่ %" ต้องติดป้ายให้ชัดทุกที่ที่เอาไปโชว์
+    passRateOfSitters: percent(fullyPassed, submitted),
     overallPassRate: percent(fullyPassed, submitted), // ชื่อเดิม เก็บไว้ไม่ให้หน้าเก่าพัง
     perSubject,
   };
@@ -132,20 +222,26 @@ const buildYearSummary = async (year, allSubjects) => {
     (r) => r.academic_year === year,
   );
 
-  const [total, eligible] = await Promise.all([
+  const [total, eligible, roomTotals] = await Promise.all([
     dashRepo.countStudentsByYear(year),
     dashRepo.countEligibleByYear(year),
+    dashRepo.countStudentsByRoom(year),
   ]);
 
   const everSubmitted = new Set(); // student_id ที่ส่งอย่างน้อย 1 รอบในปีนี้
-  const everFullyPassed = new Set(); // student_id ที่เคยผ่านครบในรอบใดรอบหนึ่ง
   const roundSummaries = [];
   const yearCounted = []; // ผลที่นับได้ (ไม่ถูกตีกลับ) รวมทุกรอบของปีนี้ — ใช้ทำอัตราผ่านรายวิชาย้อนหลัง
 
-  // แยกผ่านครบ/ส่งแล้วตามห้องเรียนด้วย (นับรายคน dedup เหมือนภาพรวม) — key = room_id
-  const roomMeta = new Map(); // room_id -> room_name
-  const roomSubmitted = new Map(); // room_id -> Set(student_id)
-  const roomFullyPassed = new Map(); // room_id -> Set(student_id)
+  // ห้องเรียนของนักศึกษาแต่ละคน — ใช้แยกยอดตามห้องตอนท้าย
+  const roomOfStudent = new Map(); // student_id -> room_id
+  // วิชาที่แต่ละคนสอบผ่านแล้ว รวมทุกรอบของปีนี้ (ยุบซ้ำด้วย Set)
+  // ต้องรวมข้ามรอบ ไม่ใช่ดูทีละรอบ — คนสอบแก้ตัวผ่านครบก็ต่อเมื่อเอาผลรอบก่อนมารวมด้วย
+  const passedByStudent = new Map(); // student_id -> Set(subject_id)
+
+  // ผลของรอบสอบครั้งแรก (attempt_number = 1) เก็บแยกไว้
+  // ใช้ทำ "ร้อยละผ่านครั้งแรก" + ตารางผ่านกี่วิชา ซึ่งนับเฉพาะรอบแรกเท่านั้น
+  let firstRoundSent = null;
+  let firstRoundSubjectIds = [];
 
   for (const round of rounds) {
     const results = await dashRepo.findResultsByRound(round.round_id);
@@ -155,27 +251,23 @@ const buildYearSummary = async (year, allSubjects) => {
       (s) => s.subject_id,
     );
 
-    sent.forEach((r) => {
+    if (round.attempt_number === 1) {
+      firstRoundSent = sent;
+      firstRoundSubjectIds = subjectIds;
+    }
+
+    for (const r of counted) {
       everSubmitted.add(r.student_id);
+      roomOfStudent.set(r.student_id, r.student.room.room_id);
 
-      const room = r.student.room;
-      roomMeta.set(room.room_id, room.room_name);
-      if (!roomSubmitted.has(room.room_id)) roomSubmitted.set(room.room_id, new Set());
-      roomSubmitted.get(room.room_id).add(r.student_id);
-    });
-    sent
-      .filter((r) =>
-        subjectIds.every((id) =>
-          r.subject_results.some((sr) => sr.subject_id === id && sr.is_passed),
-        ),
-      )
-      .forEach((r) => {
-        everFullyPassed.add(r.student_id);
-
-        const room = r.student.room;
-        if (!roomFullyPassed.has(room.room_id)) roomFullyPassed.set(room.room_id, new Set());
-        roomFullyPassed.get(room.room_id).add(r.student_id);
-      });
+      if (!passedByStudent.has(r.student_id)) {
+        passedByStudent.set(r.student_id, new Set());
+      }
+      const passedSet = passedByStudent.get(r.student_id);
+      for (const sr of r.subject_results) {
+        if (sr.is_passed) passedSet.add(sr.subject_id);
+      }
+    }
 
     yearCounted.push(...counted);
     roundSummaries.push({
@@ -188,29 +280,81 @@ const buildYearSummary = async (year, allSubjects) => {
     });
   }
 
-  // เรียงตาม room_id เพื่อให้ลำดับคอลัมน์คงที่ (ปกติ = id เล็กสุด มาก่อนตามลำดับ seed)
-  const byRoom = [...roomMeta.keys()]
-    .sort((a, b) => a - b)
-    .map((room_id) => {
-      const submittedCount = roomSubmitted.get(room_id)?.size ?? 0;
-      const fullyPassedCount = roomFullyPassed.get(room_id)?.size ?? 0;
-      return {
-        room_id,
-        room_name: roomMeta.get(room_id),
-        submitted: submittedCount,
-        fullyPassed: fullyPassedCount,
-        passRate: percent(fullyPassedCount, submittedCount),
-      };
-    });
+  // วิชาที่ต้องผ่านให้ครบถึงจะเรียกว่า "สอบผ่าน" = วิชาของรอบแรก (ปกติครบ 8 วิชา)
+  // ปีที่ยังไม่มีรอบแรกในระบบ ใช้รายวิชาทั้งหมดไปก่อน
+  let requiredSubjectIds = firstRoundSubjectIds;
+  if (requiredSubjectIds.length === 0) {
+    requiredSubjectIds = allSubjects.map((s) => s.subject_id);
+  }
+
+  // ผ่านครบภายในปีนี้ = ผลรวมทุกรอบครอบคลุมวิชาที่ต้องผ่านทั้งหมด
+  const fullyPassedStudents = new Set();
+  for (const [studentId, passedSet] of passedByStudent) {
+    let passedAll = true;
+    for (const id of requiredSubjectIds) {
+      if (!passedSet.has(id)) {
+        passedAll = false;
+        break;
+      }
+    }
+    if (passedAll) fullyPassedStudents.add(studentId);
+  }
+
+  // แยกยอดตามห้องเรียน — ตัวหารคือจำนวนนักศึกษาทั้งห้อง ไม่ใช่คนที่ส่งผล
+  const byRoom = roomTotals.map((room) => {
+    let submittedCount = 0;
+    let fullyPassedCount = 0;
+    for (const [studentId, roomId] of roomOfStudent) {
+      if (roomId !== room.room_id) continue;
+      submittedCount += 1;
+      if (fullyPassedStudents.has(studentId)) fullyPassedCount += 1;
+    }
+    return {
+      room_id: room.room_id,
+      room_name: room.room_name,
+      total: room.total, // นักศึกษาทั้งห้องของรุ่นนี้
+      submitted: submittedCount,
+      fullyPassed: fullyPassedCount,
+      passRate: rate2(fullyPassedCount, room.total),
+    };
+  });
+
+  // 2 สูตรที่คณะใช้รายงานสภาการพยาบาล — ตัวหารคือ "นักศึกษาทั้งรุ่น" (= ผู้สำเร็จการศึกษาปีนั้น)
+  // ไม่ใช่จำนวนคนที่ส่งผล เพราะคนที่ไม่ส่งผลก็ถือว่ายังสอบไม่ผ่านเหมือนกัน
+  //   firstAttempt = ผ่านครบทุกวิชาตั้งแต่รอบสอบครั้งที่ 1
+  //   firstYear    = ผ่านครบทุกวิชา ในรอบไหนก็ได้ของปีนั้น (รอบ 1+2+3 รวมกัน นับคนละครั้ง)
+  let firstAttemptPassed = 0;
+  if (firstRoundSent) {
+    firstAttemptPassed = countFullyPassed(firstRoundSent, firstRoundSubjectIds);
+  }
+
+  let passDistribution = null;
+  if (firstRoundSent) {
+    passDistribution = buildPassDistribution(
+      firstRoundSent,
+      firstRoundSubjectIds,
+      roomTotals,
+    );
+  }
 
   return {
     academic_year: year,
     total,
     eligible,
     submitted: everSubmitted.size,
-    fullyPassed: everFullyPassed.size,
-    fillRate: percent(everSubmitted.size, eligible),
-    passRate: percent(everFullyPassed.size, everSubmitted.size),
+    fullyPassed: fullyPassedStudents.size,
+    // ทุก % ของสถิติชุดนี้หารด้วย total (นักศึกษาทั้งรุ่นที่ import เข้าระบบ) ตัวเดียวกันหมด
+    fillRate: rate2(everSubmitted.size, total),
+    passRate: rate2(fullyPassedStudents.size, total),
+    firstAttempt: {
+      passed: firstAttemptPassed,
+      rate: rate2(firstAttemptPassed, total),
+    },
+    firstYear: {
+      passed: fullyPassedStudents.size,
+      rate: rate2(fullyPassedStudents.size, total),
+    },
+    passDistribution, // null = ปีนั้นยังไม่มีรอบที่ 1 ในระบบ
     rounds: roundSummaries,
     byRoom, // ผ่านครบ/ส่งแล้วแยกตามห้องเรียน (ปกติ/ภาษาอังกฤษ) — ใช้ตารางเทียบย้อนหลัง
     // อัตราผ่านรายวิชา รวมทุกรอบของปีนี้ — ใช้กราฟเทียบอัตราผ่านรายวิชาย้อนหลัง

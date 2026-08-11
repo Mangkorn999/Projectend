@@ -47,20 +47,42 @@ export const countEligibleByYear = (academicYear) =>
     where: { academic_year: academicYear, exam_eligible: true },
   });
 
+// จำนวนนักศึกษาของรุ่นนั้น แยกตามห้องเรียน — ใช้เป็นตัวหารของตารางแยกห้อง
+// นับจากตาราง students ตรงๆ ไม่ใช่นับจากคนที่ส่งผล คนไม่ส่งผลก็ต้องอยู่ในตัวหารด้วย
+export const countStudentsByRoom = async (academicYear) => {
+  const rows = await prisma.student.groupBy({
+    by: ["room_id"],
+    where: { academic_year: academicYear },
+    _count: { student_id: true },
+  });
+
+  const roomIds = rows.map((r) => r.room_id);
+  const rooms = await prisma.room.findMany({
+    where: { room_id: { in: roomIds } },
+    select: { room_id: true, room_name: true },
+  });
+
+  const nameOf = new Map(rooms.map((r) => [r.room_id, r.room_name]));
+  return rows
+    .map((r) => ({
+      room_id: r.room_id,
+      room_name: nameOf.get(r.room_id) || `ห้อง ${r.room_id}`,
+      total: r._count.student_id,
+    }))
+    .sort((a, b) => a.room_id - b.room_id);
+};
+
 // รายวิชาทั้งหมด — เรียงตามรหัสวิชา
 export const findAllSubjects = () =>
   prisma.subject.findMany({ orderBy: { subject_code: "asc" } });
 
 // ผลสอบทั้งหมดในรอบ + ผลรายวิชา (ใช้คำนวณสถิติ)
-// เอาเฉพาะนักศึกษาที่ยังมีสิทธิ์กรอก เพราะตัวหารทุกตัวใน dashboard คือ eligible
-// ถ้าไม่กรอง คนที่ส่งแล้วโดนปิดสิทธิ์ทีหลังจะทำให้ผลรวมเกิน eligible
-// แล้ว Math.max(...) ใน not_started จะตัดเป็น 0 วงกับตัวเลขตรงกลางเลยไม่ตรงกัน
+// ไม่กรอง exam_eligible — ตัวหารของสถิติคือ "นักศึกษาทั้งรุ่นที่ import เข้าระบบ"
+// (= ผู้สำเร็จการศึกษาปีนั้น ตามสูตรที่คณะส่งสภาการพยาบาล) ไม่ใช่คนที่เปิดสิทธิ์อยู่ตอนนี้
+// ถ้ากรอง คนที่ส่งผลไปแล้วแต่โดนถอนสิทธิ์ทีหลังจะหายจากสถิติ ทั้งที่สอบผ่านจริง
 export const findResultsByRound = (roundId) =>
   prisma.examResult.findMany({
-    where: {
-      round_id: Number(roundId),
-      student: { exam_eligible: true },
-    },
+    where: { round_id: Number(roundId) },
     include: {
       subject_results: true,
       student: {

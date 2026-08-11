@@ -210,9 +210,11 @@ const main = async () => {
     });
     const afterRevoke = await call("GET", `/api/dashboard/stats?round_id=${r2}`, { token: oToken });
     const d = afterRevoke.json.data;
-    check("donut segments sum to eligible",
+    // สถิติหารด้วย "นักศึกษาทั้งรุ่นที่ import" ไม่ใช่คนที่เปิดสิทธิ์อยู่
+    // ถอนสิทธิ์ทีหลังต้องไม่ทำให้ผลที่ส่งไปแล้วหายจากโดนัท
+    check("donut segments sum to cohort total",
       d.by.approved + d.by.submitted + d.by.rejected + d.by.draft + d.not_started,
-      d.eligible);
+      d.total);
 
     await call("PATCH", "/api/students/bulk-eligible", {
       token: oToken, body: { student_ids: [STUDENT_ID], exam_eligible: true },
