@@ -405,7 +405,6 @@ const daysUntil = (date) => {
 };
 
 const CLOSING_SOON_DAYS = 7; // เตือนล่วงหน้ากี่วันก่อนปิดรอบ
-const RECENTLY_CLOSED_DAYS = 14; // รอบที่เพิ่งปิดภายในกี่วัน ถือว่ายังน่าสนใจ
 
 export const buildAlerts = async (role) => {
   const rounds = await dashRepo.findRoundsByYears(
@@ -487,29 +486,9 @@ export const buildAlerts = async (role) => {
     }
   }
 
-  // --- 4. สรุปผลรอบที่เพิ่งปิด ---
-  // เอารอบที่ปิดแล้วซึ่งกำหนดปิดอยู่ในช่วง 14 วันที่ผ่านมา
-  // รวมรอบที่เจ้าหน้าที่กดปิดเองก่อนถึงกำหนด (กำหนดปิดยังอยู่ข้างหน้า = daysUntil เป็นบวก) ด้วย
-  const recentlyClosed = rounds
-    .filter((r) => {
-      if (r.status === "open") return false;
-      return daysUntil(r.close_date) >= -RECENTLY_CLOSED_DAYS;
-    })
-    .sort((a, b) => new Date(b.close_date) - new Date(a.close_date))[0];
-
-  if (recentlyClosed) {
-    const stats = await buildStats(recentlyClosed.round_id);
-    push({
-      key: `round-summary-${recentlyClosed.round_id}`,
-      type: "round_summary",
-      tone: "ok",
-      icon: "report",
-      title: `สรุปรอบ ${recentlyClosed.attempt_number}/${recentlyClosed.academic_year} ที่เพิ่งปิด`,
-      detail: `ส่งผล ${stats.submitted}/${stats.total} คน · ผ่านครบทุกวิชา ${stats.fullyPassed} คน (${stats.fullyPassedRate}% ของรุ่น)`,
-      round_id: recentlyClosed.round_id,
-    });
-  }
-
+  // เดิมมีแจ้งเตือน "สรุปรอบที่เพิ่งปิด" ด้วย แต่เอาออกแล้ว —
+  // สรุปผลดูได้จาก dashboard กับหน้ารายงานอยู่แล้ว ไม่ใช่เรื่องที่ต้องลงมือทำ
+  // กล่องนี้จึงเหลือเฉพาะเรื่องที่ต้อง "ทำอะไรสักอย่าง" เท่านั้น
   return { alerts };
 };
 
