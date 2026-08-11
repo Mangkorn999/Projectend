@@ -78,7 +78,8 @@ function CsvImport({ toast, tt }) {
 
   const downloadTemplate = () => {
     // สร้างไฟล์ CSV ตัวอย่างในเบราว์เซอร์ ไม่ต้องพึ่ง backend — ให้เจ้าหน้าที่เอาไปแก้เป็นรายชื่อจริง
-    const blob = new Blob([CSV_TEMPLATE], { type: 'text/csv;charset=utf-8;' });
+    // '﻿' = BOM นำหน้าไฟล์ ไม่งั้น Excel เดา encoding เป็น ANSI/Windows-874 แล้วภาษาไทยเพี้ยน
+    const blob = new Blob(['﻿' + CSV_TEMPLATE], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = 'student_import_template.csv';
