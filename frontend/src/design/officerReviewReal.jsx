@@ -14,7 +14,7 @@ import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
 import { PageHead, Avatar, Empty, Pagination } from './components.jsx';
 import { apiFetch } from './api.js';
-import { t } from './i18n.js';
+import { t, roomName } from './i18n.js';
 
 const STAFF_STATUS_TO_TAB = { pending: 'SUBMITTED', approved: 'CONFIRMED', rejected: 'REJECTED' };
 const TABS = ['SUBMITTED', 'REJECTED', 'CONFIRMED', 'NOT_STARTED'];
@@ -141,7 +141,7 @@ export function OfficerReviewReal({ go, setSel, lang }) {
                         <td><div style={{ display: 'flex', alignItems: 'center', gap: 11 }}><Avatar name={s.user.first_name} size={34} />
                           <div><div style={{ fontWeight: 600, fontSize: 14 }}>{s.user.first_name} {s.user.last_name}</div>
                           <div className="mono" style={{ fontSize: 12, color: 'var(--ink-400)' }}>{s.student_id}</div></div></div></td>
-                        <td><span className="chip" style={{ fontSize: 12 }}>{s.room?.room_name || '-'}</span></td>
+                        <td><span className="chip" style={{ fontSize: 12 }}>{s.room ? roomName(lang, s.room.room_name) : '-'}</span></td>
                         <td className="tnum" style={{ fontSize: 13, color: 'var(--ink-700)' }}>{s.academic_year || '—'}</td>
                       </tr>
                     ))}</tbody>
@@ -153,7 +153,7 @@ export function OfficerReviewReal({ go, setSel, lang }) {
                         <td><div style={{ display: 'flex', alignItems: 'center', gap: 11 }}><Avatar name={s.firstName} size={34} />
                           <div><div style={{ fontWeight: 600, fontSize: 14 }}>{s.firstName} {s.lastName}</div>
                           <div className="mono" style={{ fontSize: 12, color: 'var(--ink-400)' }}>{s.sid}</div></div></div></td>
-                        <td><span className="chip" style={{ fontSize: 12 }}>{s.room}</span></td>
+                        <td><span className="chip" style={{ fontSize: 12 }}>{roomName(lang, s.room)}</span></td>
                         <td className="tnum" style={{ fontWeight: 700, color: s.allPass ? 'var(--pass)' : 'var(--ink-800)' }}>{s.passedCount}/{s.subjectCount}</td>
                         <td>{s.files.length ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--status-reject-fg)', fontSize: 13 }}><Icon name="pdf" size={15} /> {tt('officer.review.filesCount', { n: s.files.length })}</span> : <span style={{ color: 'var(--ink-400)' }}>—</span>}</td>
                         <td style={{ color: 'var(--ink-500)', fontSize: 13 }}>{s.submittedAt}</td>

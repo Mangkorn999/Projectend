@@ -1604,6 +1604,18 @@ export function subjectName(lang, code, fallbackName) {
   return fallbackName;
 }
 
+// ชื่อห้องเรียนมาจาก DB ตรงๆ (room_name) ไม่ผ่าน i18n เลย — key ด้วยชื่อไทยจริงที่ seed ไว้ (ดู backend/prisma/seed.js)
+// ไม่รู้จักชื่อไหน (เผื่อเจ้าหน้าที่เพิ่มห้องใหม่ทีหลัง) ก็คืนชื่อเดิมไป ไม่พังแค่ไม่มี EN ให้
+const ROOM_NAME_EN = {
+  'ห้องเรียนปกติ': 'Normal classroom',
+  'ห้องเรียนอังกฤษ': 'English program classroom',
+};
+
+export function roomName(lang, name) {
+  if (lang === 'EN' && ROOM_NAME_EN[name]) return ROOM_NAME_EN[name];
+  return name;
+}
+
 export function t(lang, key, vars) {
   const s = (DICT[lang] && DICT[lang][key]) ?? DICT.TH[key] ?? key;
   if (!vars) return s;

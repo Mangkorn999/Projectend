@@ -8,7 +8,7 @@ import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
 import { PageHead, StatCard, Donut, BarRow, MultiLineChart, ColumnChart, Modal, Empty } from './components.jsx';
 import { apiFetch } from './api.js';
-import { t, subjectName } from './i18n.js';
+import { t, subjectName, roomName } from './i18n.js';
 
 /* แท็บ "รวมทั้งปี" — ค่าคงที่ตัวเดียวใช้ทั้งไฟล์ จะได้ไม่พิมพ์ string ซ้ำแล้วสะกดต่างกัน */
 const ALL_ROUNDS = 'all';
@@ -218,7 +218,7 @@ export function DashboardReal({ go, readonly, lang }) {
                 : showingRound && <SubjectRateCard perSubject={stats.perSubject} subjectPassRate={stats.subjectPassRate} lang={lang} tt={tt} />
             )}
 
-            {mainTab === 'firstCount' && <PassDistribution year={yearSummary} tt={tt} />}
+            {mainTab === 'firstCount' && <PassDistribution year={yearSummary} lang={lang} tt={tt} />}
 
             {mainTab === 'reports' && (
               <div style={{ marginTop: 4 }}>
@@ -231,7 +231,7 @@ export function DashboardReal({ go, readonly, lang }) {
                 <div key={reportTab} className="blur-in" style={{ marginTop: 14 }}>
                   {reportTab === 'firstRate' && <FirstAttemptPassRate history={reportHistory} tt={tt} wide yearPicker={reportYearPicker} />}
                   {reportTab === 'subjectHistory' && <SubjectHistoryChart history={reportHistory} firstRoundSubjects={firstRoundSubjects} tt={tt} yearPicker={reportYearPicker} />}
-                  {reportTab === 'fullPass' && <YearCompare history={reportHistory} tt={tt} yearPicker={reportYearPicker} />}
+                  {reportTab === 'fullPass' && <YearCompare history={reportHistory} lang={lang} tt={tt} yearPicker={reportYearPicker} />}
                 </div>
               </div>
             )}
@@ -248,13 +248,13 @@ export function DashboardReal({ go, readonly, lang }) {
         <Section title={tt('dashReal.reportSectionTitle')} sub={tt('dashReal.reportSectionSub', { year })}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <FirstAttemptPassRate history={history} tt={tt} wide />
-            <PassDistribution year={yearSummary} tt={tt} />
+            <PassDistribution year={yearSummary} lang={lang} tt={tt} />
             <div className="row wrap-m" style={{ alignItems: 'stretch' }}>
               <div style={{ flex: '1 1 340px', minWidth: 0, display: 'flex' }}>
                 <SubjectHistoryChart history={history} firstRoundSubjects={firstRoundSubjects} tt={tt} />
               </div>
               <div style={{ flex: '1 1 340px', minWidth: 0, display: 'flex' }}>
-                <YearCompare history={history} tt={tt} />
+                <YearCompare history={history} lang={lang} tt={tt} />
               </div>
             </div>
           </div>
@@ -786,7 +786,7 @@ function RoundBar({ round, roundInfo, submitted, eligible, fillRate, total, tt }
 /* ตาราง "ผ่านกี่วิชา" ของการสอบรอบแรก แยกตามห้องเรียน + คอลัมน์รวม
    ข้อมูลจาก history.years[].passDistribution (backend คำนวณให้แล้ว ไม่คำนวณซ้ำฝั่งนี้)
    ปีที่เลือกดูตามปีของรอบที่กำลังแสดงบน dashboard */
-function PassDistribution({ year, tt }) {
+function PassDistribution({ year, lang, tt }) {
   if (!year) return null;
   const dist = year.passDistribution;
 
@@ -811,7 +811,7 @@ function PassDistribution({ year, tt }) {
                 </th>
                 {dist.rooms.map(r => (
                   <th key={r.room_id} colSpan={2} style={{ padding: '8px 10px', borderBottom: '1px solid var(--ink-100)' }}>
-                    {tt('dashReal.distRoomHead', { room: r.room_name, n: r.total })}
+                    {tt('dashReal.distRoomHead', { room: roomName(lang, r.room_name), n: r.total })}
                   </th>
                 ))}
                 <th colSpan={2} style={{ padding: '8px 10px', borderBottom: '1px solid var(--ink-100)', background: 'var(--gold-50)' }}>
@@ -916,7 +916,7 @@ function SubjectHistoryChart({ history, firstRoundSubjects, tt, yearPicker }) {
 
 /* เทียบผลรุ่นต่อรุ่นย้อนหลัง — นับเป็นรายคน คนที่กรอกหลายรอบในปีเดียวนับครั้งเดียว
    ผ่านครบทุกวิชา แยกเป็นคอลัมน์ตามห้องเรียน (ปกติ/ภาษาอังกฤษ) — room_name มาจาก DB ตรงๆ ไม่ hardcode ชื่อห้อง */
-function YearCompare({ history, tt, yearPicker }) {
+function YearCompare({ history, lang, tt, yearPicker }) {
   // รวมรายชื่อห้องจากทุกปีที่ดึงมา (เผื่อบางปีไม่มีคนส่งในบางห้อง) เรียงตาม room_id ให้ลำดับคอลัมน์คงที่
   const rooms = [...new Map(
     history.years.flatMap(y => y.byRoom.map(r => [r.room_id, r]))
@@ -933,7 +933,7 @@ function YearCompare({ history, tt, yearPicker }) {
           <thead>
             <tr style={{ textAlign: 'center', color: 'var(--ink-500)', fontSize: 12.5 }}>
               <th style={{ padding: '8px 10px' }}>{tt('dashReal.colYear')}</th>
-              {rooms.map(r => <th key={r.room_id} style={{ padding: '8px 10px', minWidth: 70 }}>{r.room_name}</th>)}
+              {rooms.map(r => <th key={r.room_id} style={{ padding: '8px 10px', minWidth: 70 }}>{roomName(lang, r.room_name)}</th>)}
             </tr>
           </thead>
           <tbody>
