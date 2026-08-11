@@ -307,7 +307,10 @@ export function MultiLineChart({ series, categories, height=180, suffix='%', yMi
           <text x={0} y={ys(g)+3} textAnchor="start" fontSize="7.5" fill="var(--ink-400)" fontFamily="'LINE Seed Sans TH', sans-serif">{g}{suffix}</text>
         </g>))}
         {series.map((s,si)=>{
-          const path = s.values.map((v,i)=>`${i?'L':'M'}${xs(i)},${ys(v)}`).join(' ');
+          // ค่าเป็น null = ไม่มีข้อมูลจุดนั้น (เช่น ปีนั้นไม่ได้เปิดสอบวิชานี้) — ข้ามไปเลย ไม่วาดจุด ไม่ลากไปหา 0
+          // เส้นจึงต่อตรงจากจุดที่มีข้อมูลไปจุดถัดไปที่มีข้อมูล ข้ามช่องที่ไม่มีไปเฉยๆ
+          const pts = s.values.map((v,i)=> v==null ? null : [xs(i), ys(v), i]).filter(Boolean);
+          const path = pts.map(([x,y],idx)=>`${idx?'L':'M'}${x},${y}`).join(' ');
           // ก่อนวัดความยาวจริงเสร็จ (frame แรกสุด) ต้องใช้เลขที่ใหญ่พอ ไม่ใช่ 0 —
           // เพราะ dasharray:0 = ปิดการทำ dash ไปเลย เส้นจะโผล่เต็มมาแวบหนึ่งก่อนหด กลายเป็นเห็นวิ่งขวาไปซ้ายแล้ววิ่งซ้ายไปขวาซ้ำ
           const len = lengths[si] ?? 2000;
@@ -316,14 +319,14 @@ export function MultiLineChart({ series, categories, height=180, suffix='%', yMi
               strokeLinecap="round" strokeLinejoin="round"
               style={{ strokeDasharray: len, strokeDashoffset: drawn ? 0 : len,
                 transition: 'stroke-dashoffset 1.1s cubic-bezier(.4,0,.2,1)' }} />
-            {s.values.map((v,i)=>(
+            {pts.map(([x,y,i])=>(
               <g key={i}>
-                <circle cx={xs(i)} cy={ys(v)} r="4.5" fill="#fff" stroke={s.color} strokeWidth="2.6"
+                <circle cx={x} cy={y} r="4.5" fill="#fff" stroke={s.color} strokeWidth="2.6"
                   style={{ pointerEvents:'none', opacity: drawn ? 1 : 0,
                     transition: `opacity .3s ease ${(n>1 ? i/(n-1) : 0)*1.1}s` }} />
-                <circle cx={xs(i)} cy={ys(v)} r="11" fill="transparent"
+                <circle cx={x} cy={y} r="11" fill="transparent"
                   style={{ cursor: s.tooltips ? 'pointer' : 'default' }}
-                  onMouseEnter={() => s.tooltips && setHover({ si, i, x: xs(i)/w*100, y: ys(v)/height*100 })}
+                  onMouseEnter={() => s.tooltips && setHover({ si, i, x: x/w*100, y: y/height*100 })}
                   onMouseLeave={() => setHover(h => (h && h.si===si && h.i===i) ? null : h)} />
               </g>
             ))}

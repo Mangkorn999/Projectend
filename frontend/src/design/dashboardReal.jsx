@@ -874,16 +874,24 @@ function SubjectHistoryChart({ history, firstRoundSubjects, tt, yearPicker }) {
 
   if (years.length === 0) return null;
 
-  const categories = firstRoundSubjects[years[years.length - 1].academic_year].map(s => s.subject_code);
+  // แกน x ต้องเป็น union ของวิชาทุกปีที่โชว์ ไม่ใช่แค่ของปีล่าสุด — ถ้ารอบแรกของปีล่าสุดสอบไม่ครบทุกวิชา
+  // (เช่น รอบนั้นข้าม 1102) วิชานั้นจะหายไปจากกราฟทั้งที่ปีอื่นมีข้อมูลอยู่จริง
+  const categories = [...new Set(years.flatMap(y => firstRoundSubjects[y.academic_year].map(s => s.subject_code)))]
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   const series = years.map((y, i) => {
     const perSubject = firstRoundSubjects[y.academic_year];
     return {
       label: String(y.academic_year),
       color: HISTORY_COLORS[i % HISTORY_COLORS.length],
-      values: categories.map(code => perSubject.find(s => s.subject_code === code)?.rate ?? 0),
+      // ปีนั้นไม่ได้เปิดสอบวิชานี้ (ไม่อยู่ใน perSubject เลย) หรือเปิดแต่ไม่มีคนสอบจริง (rate===null) — ทั้งคู่ถือว่า "ไม่มีข้อมูล"
+      // ส่ง null ไป ไม่ใช่ 0 กัน MultiLineChart วาดจุดหลอกว่า "สอบแล้วตกหมด" ทั้งที่จริงๆ ไม่มีใครสอบ
+      values: categories.map(code => {
+        const s = perSubject.find(x => x.subject_code === code);
+        return s && s.rate !== null ? s.rate : null;
+      }),
       tooltips: categories.map(code => {
         const s = perSubject.find(x => x.subject_code === code);
-        if (!s) return '';
+        if (!s || s.rate === null) return '';
         return tt('dashReal.subjectPointTooltip', { year: y.academic_year, code, pass: s.pass, total: s.pass + s.fail, rate: s.rate });
       }),
     };
