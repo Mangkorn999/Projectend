@@ -154,10 +154,10 @@ export function ExamFormReal({ go, toast, lang }) {
             {subjects.map((s, i) => (
               <div key={s.subject_id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px',
                 borderBottom: i < subjects.length - 1 ? '1px solid var(--ink-100)' : 'none',
-                background: (!isMismatchRedo && s.already_passed) ? 'var(--ink-50, #fafafa)' : 'transparent' }}>
+                background: s.already_passed ? 'var(--ink-50, #fafafa)' : 'transparent' }}>
                 <span className="mono" style={{ fontSize: 12, color: 'var(--ink-400)', width: 60, flex: 'none' }}>{s.subject_code}</span>
-                <span style={{ flex: 1, fontSize: 14.5, fontWeight: 500, color: (!isMismatchRedo && s.already_passed) ? 'var(--ink-500)' : 'var(--ink-800)' }}>{subjectName(lang, s.subject_code, s.subject_name)}</span>
-                {(!isMismatchRedo && s.already_passed) ? (
+                <span style={{ flex: 1, fontSize: 14.5, fontWeight: 500, color: s.already_passed ? 'var(--ink-500)' : 'var(--ink-800)' }}>{subjectName(lang, s.subject_code, s.subject_name)}</span>
+                {s.already_passed ? (
                   <span className="badge ok" style={{ flex: 'none' }}><span className="dot" />{tt('examform.alreadyPassedChip')}</span>
                 ) : (
                   <div className="seg">

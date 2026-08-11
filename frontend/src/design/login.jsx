@@ -15,6 +15,8 @@ const universityName_EN = 'Prince of Songkla University';
 const heroTag_EN = 'Faculty Information System';
 const heroTitle_EN = ['Nursing License', 'Record System'];
 const heroDesc_EN = 'Central hub to record, track, verify, and summarize the nursing license examination — for students, faculty officers, and executives.';
+// ตัวเลข 3 ช่องใต้คำโปรย — ฝั่ง EN เคยไม่มีตัวแปรนี้ พอสลับเป็นอังกฤษหน้า login จะพังทั้งหน้า
+const heroStats_EN = [['8', 'Exam subjects'], ['3', 'User roles'], ['100%', 'Auditable history']];
 const footerNote_EN = '© 2026 Faculty of Nursing, PSU · Prototype demo';
 const signinTitle_EN = 'Sign In';
 const signinSub_EN = 'Enter your username and password to sign in';
@@ -30,7 +32,6 @@ const REMEMBER_KEY = 'nurse_remember_username';
 // เข้าใช้งานเว็บเดียวกันสำหรับทุก role — role มาจาก JWT/DB เสมอ ไม่มี login mode แยกอีกแล้ว
 export function Login({ onLogin }) {
   const [showFirstSetup, setShowFirstSetup] = useState(false);
-  const [showForgot, setShowForgot] = useState(false);
   const [loading, setLoading] = useState(false);
   const [lang, setLang] = useState('TH'); // 'TH' | 'EN'
   const isEN = lang==='EN';
@@ -65,7 +66,6 @@ export function Login({ onLogin }) {
   };
 
   if (showFirstSetup) return <FirstSetup onBack={()=>setShowFirstSetup(false)} lang={lang} />;
-  if (showForgot) return <ForgotPassword onBack={()=>setShowForgot(false)} lang={lang} />;
 
   return (
     <div style={{ minHeight:'100vh', display:'flex', position:'relative' }} className="login-wrap">
@@ -107,7 +107,7 @@ export function Login({ onLogin }) {
             ใบประกอบวิชาชีพการพยาบาล — สำหรับนักศึกษา เจ้าหน้าที่ และผู้บริหารคณะ</>}
           </p>
           <div style={{ display:'flex', gap:26, marginTop:34 }}>
-            {(isEN?heroStats_EN:[['8','รายวิชาสอบ'],['4','บทบาทผู้ใช้'],['100%','ตรวจสอบย้อนหลังได้']]).map(([n,l])=>(
+            {(isEN?heroStats_EN:[['8','รายวิชาสอบ'],['3','บทบาทผู้ใช้'],['100%','ตรวจสอบย้อนหลังได้']]).map(([n,l])=>(
               <div key={l}>
                 <div className="tnum" style={{ fontSize:26, fontWeight:800, color:'var(--gold-500)' }}>{n}</div>
                 <div style={{ fontSize:12.5, opacity:.78 }}>{l}</div>
@@ -153,12 +153,14 @@ export function Login({ onLogin }) {
             {isEN?'Remember username':'จดจำรหัสผ่าน'}
           </label>
           {error && <div style={{ color:'var(--reject,#dc2626)', fontSize:13, marginBottom:12 }}>{error}</div>}
+          {/* ลืมรหัสผ่าน = ติดต่อเจ้าหน้าที่ให้กดรีเซ็ตให้ แล้วกลับมาตั้งใหม่ที่ลิงก์นี้
+              ไม่มี self-service reset ในระบบ เลยไม่มีลิงก์ "ลืมรหัสผ่าน" แยกอีกต่อไป */}
           <div style={{ display:'flex', justifyContent:'space-between', gap:12, marginBottom:18, flexWrap:'wrap' }}>
-            <a onClick={()=>setShowForgot(true)} style={{ fontSize:13, cursor:'pointer' }}>
-              {isEN?'Forgot password?':'ลืมรหัสผ่าน?'}
-            </a>
+            <span style={{ fontSize:12.5, color:'var(--ink-500)' }}>
+              {isEN?'Forgot your password? Ask the faculty officer to reset it.':'ลืมรหัสผ่าน? ติดต่อเจ้าหน้าที่คณะเพื่อขอรีเซ็ต'}
+            </span>
             <a onClick={()=>setShowFirstSetup(true)} style={{ fontSize:13, cursor:'pointer' }}>
-              {isEN?'First time? Set your password':'เข้าใช้งานครั้งแรก / ตั้งรหัสผ่าน'}
+              {isEN?'First time / after a reset: set your password':'เข้าใช้งานครั้งแรก หรือหลังรีเซ็ต / ตั้งรหัสผ่าน'}
             </a>
           </div>
 
@@ -172,25 +174,3 @@ export function Login({ onLogin }) {
   );
 }
 
-// ยังไม่มี self-service reset password ใน backend (เจ้าหน้าที่เป็นคนตั้งรหัสผ่านให้ตอน import นักศึกษา)
-// เลยแจ้งให้ติดต่อเจ้าหน้าที่คณะแทน ไม่ใช่ฟอร์มส่งคำขอ reset จริง
-function ForgotPassword({ onBack, lang }) {
-  const isEN = lang==='EN';
-  return (
-    <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'var(--canvas)', padding:24 }}>
-      <div style={{ width:'100%', maxWidth:420 }}>
-        <div style={{ display:'flex', justifyContent:'center', marginBottom:20 }}><Logo size={44} /></div>
-        <div className="card" style={{ padding:28, textAlign:'center' }}>
-          <div style={{ color:'var(--navy-700)', marginBottom:10 }}><Icon name="key" size={40}/></div>
-          <h2 style={{ margin:'0 0 8px', fontSize:20, fontWeight:800 }}>{isEN?'Forgot your password?':'ลืมรหัสผ่าน?'}</h2>
-          <p style={{ color:'var(--ink-500)', fontSize:14, marginBottom:20 }}>
-            {isEN
-              ?'This system does not have self-service password reset yet. Please contact the faculty officer to reset your password.'
-              :'ระบบยังไม่มีการรีเซ็ตรหัสผ่านด้วยตนเอง กรุณาติดต่อเจ้าหน้าที่คณะเพื่อขอรีเซ็ตรหัสผ่าน'}
-          </p>
-          <button className="btn btn-primary btn-block" onClick={onBack}>{isEN?'← Back to sign in':'← กลับไปหน้าเข้าสู่ระบบ'}</button>
-        </div>
-      </div>
-    </div>
-  );
-}

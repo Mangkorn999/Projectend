@@ -134,8 +134,9 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
 
       {tab === 'rounds' && (
         <>
-        <div className="field" style={{ maxWidth: 220, marginBottom: 14 }}>
-          <label>{tt('roundsMgmt.fieldCohort')}</label>
+        {/* ตัวกรองรายการ ไม่ใช่ช่องกรอกในฟอร์ม — ใช้ label คนละอันกับใน modal จะได้ไม่มี * หลอกว่าบังคับกรอก */}
+        <div className="field" style={{ maxWidth: 240, marginBottom: 14 }}>
+          <label>{tt('roundsMgmt.filterCohort')}</label>
           <select className="select" value={yearFilter} onChange={e => setYearFilter(e.target.value)}>
             <option value="open">{tt('roundsMgmt.yearFilterOpen')}</option>
             {cohorts.map(c => <option key={c.year} value={c.year}>{c.year}</option>)}
@@ -240,7 +241,7 @@ function RoundModal({ round, allSubjects, cohorts, onClose, onSave, tt }) {
   const isValid = academicYear && attemptNumber && openDate && closeDate && subjectIds.length > 0;
 
   return (
-    <Modal open={!!round} onClose={onClose} title={isNew ? tt('roundsMgmt.newRoundModalTitle') : tt('roundsMgmt.editRoundModalTitle', { attempt: r.attempt_number, year: r.academic_year })}
+    <Modal open={!!round} onClose={onClose} width={580} title={isNew ? tt('roundsMgmt.newRoundModalTitle') : tt('roundsMgmt.editRoundModalTitle', { attempt: r.attempt_number, year: r.academic_year })}
       footer={<><button className="btn btn-ghost" onClick={onClose}>{tt('roundsMgmt.cancelBtn')}</button>
         <button className="btn btn-primary" disabled={!isValid}
           onClick={() => onSave({

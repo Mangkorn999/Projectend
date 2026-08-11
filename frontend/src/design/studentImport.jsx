@@ -19,13 +19,16 @@ export function StudentImport({ toast, lang }) {
   return (
     <div className="fade-up">
       <PageHead title={tt('importReal.title')} sub={tt('importReal.sub')} />
-      <div style={{ display:'inline-flex', gap:3, padding:4, background:'var(--ink-100)', borderRadius:12, marginBottom:20 }}>
-        <button onClick={()=>setTab('csv')} style={tabBtnStyle(tab==='csv')}>
-          <Icon name="upload" size={15}/> {tt('importReal.tabCsv')}
-        </button>
-        <button onClick={()=>setTab('manual')} style={tabBtnStyle(tab==='manual')}>
-          <Icon name="edit" size={15}/> {tt('importReal.tabManual')}
-        </button>
+      {/* แถบสลับโหมดชิดขวา — ให้หัวเรื่องฝั่งซ้ายเป็นตัวนำสายตา ปุ่มสลับเป็นตัวรอง */}
+      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:20 }}>
+        <div style={{ display:'inline-flex', gap:3, padding:4, background:'var(--ink-100)', borderRadius:12 }}>
+          <button onClick={()=>setTab('csv')} style={tabBtnStyle(tab==='csv')}>
+            <Icon name="upload" size={15}/> {tt('importReal.tabCsv')}
+          </button>
+          <button onClick={()=>setTab('manual')} style={tabBtnStyle(tab==='manual')}>
+            <Icon name="edit" size={15}/> {tt('importReal.tabManual')}
+          </button>
+        </div>
       </div>
       {tab==='csv' ? <CsvImport toast={toast} tt={tt} /> : <ManualAdd toast={toast} tt={tt} />}
     </div>
@@ -322,7 +325,7 @@ function ManualAdd({ toast, tt }) {
   };
 
   return (
-    <div className="card" style={{ padding:0, maxWidth:680, overflow:'hidden' }}>
+    <div className="card" style={{ padding:0, maxWidth:680, margin:'0 auto', overflow:'hidden' }}>
       <div style={{ display:'flex', alignItems:'center', gap:12, padding:'18px 22px',
         borderBottom:'1px solid var(--ink-100)', background:'var(--ink-50)' }}>
         <div style={{ width:38, height:38, borderRadius:10, flex:'none', background:'var(--gold-100)',
