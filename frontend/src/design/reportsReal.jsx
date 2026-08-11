@@ -18,26 +18,58 @@ export function ReportsReal({ toast, readonly, lang }) {
   const tt = (key, vars) => t(lang, key, vars);
 
   // ตัวเลขที่ส่งสภาการพยาบาลเป็นระดับปีการศึกษา ไม่ใช่ระดับรอบ — ต้องดึงสรุปรายปีมาคู่กัน
-  const [yearStats, setYearStats] = useState(null);
+  const [history, setHistory] = useState(null);
+  const [rounds, setRounds] = useState([]);
+  const [year, setYear] = useState(null);
+  const [roundId, setRoundId] = useState(null); // รอบที่รายงานนี้แสดง = รอบที่จะ export
 
+  // โหลดรายการรอบ + สรุปย้อนหลัง แล้วตั้งค่าเริ่มต้นเป็นรอบที่เปิดรับอยู่ (ไม่มีก็รอบล่าสุด)
   useEffect(() => {
-    let roundYear = null;
-    apiFetch('/dashboard/stats')
-      .then(s => {
-        setStats(s);
-        roundYear = s.round.academic_year;
-        return apiFetch('/dashboard/history?years=3');
+    Promise.all([apiFetch('/rounds'), apiFetch('/dashboard/history?years=3')])
+      .then(([roundList, hist]) => {
+        setRounds(roundList);
+        setHistory(hist);
+        if (roundList.length === 0) return;
+        const openRound = roundList.find(r => r.status === 'open');
+        const newest = [...roundList].sort(
+          (a, b) => b.academic_year - a.academic_year || b.attempt_number - a.attempt_number)[0];
+        const picked = openRound || newest;
+        setYear(picked.academic_year);
+        setRoundId(picked.round_id);
       })
-      // ต้องหยิบปีของ "รอบที่รายงานนี้แสดง" ไม่ใช่ปีล่าสุดในลิสต์ ไม่งั้นตัวเลขคนละปีกับหัวรายงาน
-      .then(hist => setYearStats(hist.years.find(y => y.academic_year === roundYear) || null))
       .catch(e => setError(e.message));
   }, []);
+
+  // เปลี่ยนรอบเมื่อไหร่ โหลดตัวเลขของรอบนั้นใหม่
+  useEffect(() => {
+    if (!roundId) return;
+    let dropped = false;
+    apiFetch(`/dashboard/stats?round_id=${roundId}`)
+      .then(s => { if (!dropped) setStats(s); })
+      .catch(e => { if (!dropped) setError(e.message); });
+    return () => { dropped = true; };
+  }, [roundId]);
+
+  const roundsInYear = rounds
+    .filter(r => r.academic_year === year)
+    .sort((a, b) => a.attempt_number - b.attempt_number);
+  const yearOptions = [...new Set(rounds.map(r => r.academic_year))].sort((a, b) => b - a);
+  const yearStats = history?.years.find(y => y.academic_year === year) || null;
+
+  // เปลี่ยนปี = เด้งไปรอบแรกของปีนั้นเสมอ เพราะ round_id ของปีเก่าไม่ได้อยู่ในปีใหม่
+  const changeYear = (nextYear) => {
+    setYear(nextYear);
+    const first = rounds
+      .filter(r => r.academic_year === nextYear)
+      .sort((a, b) => a.attempt_number - b.attempt_number)[0];
+    if (first) setRoundId(first.round_id);
+  };
 
   const downloadPdf = async () => {
     setDownloading(true);
     try {
       // ไฟล์ PDF ต้อง login ก่อน — fetch เป็น blob เองพร้อม credentials แทนใช้ <a href> ตรงๆ
-      const res = await fetch(`http://localhost:3000/api/dashboard/export?round_id=${stats.round.round_id}`, {
+      const res = await fetch(`http://localhost:3000/api/dashboard/export?round_id=${roundId}`, {
         credentials: 'include',
       });
       if (!res.ok) {
@@ -74,10 +106,21 @@ export function ReportsReal({ toast, readonly, lang }) {
   return (
     <div className="fade-up">
       <PageHead title={tt('reports.title')} sub={tt('reportsReal.roundSlash', { attempt: round.attempt_number, year: round.academic_year })}
-        actions={<>
-          <button className="btn btn-ghost no-print" onClick={() => window.print()}><Icon name="printer" size={16} /> {tt('reports.printBtn')}</button>
-          {!readonly && <button className="btn btn-primary no-print" disabled={downloading} onClick={downloadPdf}><Icon name="pdf" size={16} /> {downloading ? tt('reportsReal.generating') : tt('reportsReal.downloadPdfBtn')}</button>}
-        </>} />
+        actions={<div className="no-print" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* เลือกปี + รอบ ที่จะดูและ export — รายงานบนจอกับไฟล์ PDF เป็นรอบเดียวกันเสมอ */}
+          <select className="input" value={year ?? ''} onChange={e => changeYear(Number(e.target.value))}
+            style={{ width: 'auto', padding: '8px 30px 8px 12px', flex: 'none' }} aria-label={tt('reportsReal.pickYear')}>
+            {yearOptions.map(y => <option key={y} value={y}>{tt('dashReal.yearOption', { year: y })}</option>)}
+          </select>
+          <select className="input" value={roundId ?? ''} onChange={e => setRoundId(Number(e.target.value))}
+            style={{ width: 'auto', padding: '8px 30px 8px 12px', flex: 'none' }} aria-label={tt('reportsReal.pickRound')}>
+            {roundsInYear.map(r => (
+              <option key={r.round_id} value={r.round_id}>{tt('dashReal.roundOnlyLabel', { attempt: r.attempt_number })}</option>
+            ))}
+          </select>
+          <button className="btn btn-ghost" onClick={() => window.print()}><Icon name="printer" size={16} /> {tt('reports.printBtn')}</button>
+          {!readonly && <button className="btn btn-primary" disabled={downloading} onClick={downloadPdf}><Icon name="pdf" size={16} /> {downloading ? tt('reportsReal.generating') : tt('reportsReal.downloadPdfBtn')}</button>}
+        </div>} />
 
       <div className="card" style={{ padding: '34px 40px', maxWidth: 900, margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, paddingBottom: 18, borderBottom: '2px solid var(--navy-700)' }}>
