@@ -19,19 +19,30 @@ export function DashboardReal({ go, readonly, lang }) {
   const [history, setHistory] = useState(null);
   const [alerts, setAlerts] = useState([]);
   const [year, setYear] = useState(null); // ปีการศึกษาที่กำลังดู
+  // ปีของโซน "สถิติเชิงรายงาน" แยกอิสระจาก year ด้านบน — ไม่ผูกกับที่เลือกบนสุด/RoundTabs
+  // ติ๊กเลือกได้สูงสุด 3 ปี จากทั้งหมดที่มีจริง (ไม่จำกัดแค่ 3 ปีล่าสุดเหมือน yearOptions ด้านบน)
+  const [reportYears, setReportYears] = useState([]);
   const [tab, setTab] = useState(ALL_ROUNDS); // ALL_ROUNDS = รวมทั้งปี, ไม่งั้นเป็น round_id
+  // แท็บบนสุด 3 อัน แทนที่การเรียง Donut/อัตราผ่านรายวิชา/สถิติเชิงรายงานต่อกันเป็นแถวยาวแบบเดิม
+  const [mainTab, setMainTab] = useState('status'); // 'status' | 'subjects' | 'reports'
+  // แท็บย่อยใน "สถิติเชิงรายงาน" — ไม่ขึ้นกับรอบที่เลือก อิงปีที่เลือกจาก yearPicker เท่านั้น
+  const [reportTab, setReportTab] = useState('firstRate'); // 'firstRate' | 'firstCount' | 'subjectHistory' | 'fullPass'
   const [stats, setStats] = useState(null); // สถิติของรอบที่เลือก (ใช้เฉพาะตอนไม่ใช่ "รวมทั้งปี")
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   // อัตราผ่านรายวิชาย้อนหลัง ต้องใช้แค่ผลรอบแรก (attempt_number=1) ของแต่ละปีเท่านั้น ไม่รวมรอบถัดไป —
   // history.years[].perSubject รวมทุกรอบของปี ใช้ไม่ได้ตรงนี้ เลยต้องยิง /dashboard/stats?round_id= แยกทีละรอบแรกของแต่ละปี
   const [firstRoundSubjects, setFirstRoundSubjects] = useState({}); // { [academic_year]: perSubject[] }
+  // สัดส่วนสถานะรวมทั้งปี (แท็บ "รวมทั้งปี") — ไม่มี endpoint รายปีให้ตรงๆ เลยรวมเองจาก stats ทีละรอบ
+  // นับเป็น "ใบ" เหมือนของรายรอบ (คนส่งหลายรอบในปีเดียวมีได้หลายใบคนละสถานะ นับซ้ำได้ตามจริง)
+  const [yearStatus, setYearStatus] = useState({}); // { [academic_year]: { total, by, not_started } }
 
   // โหลดครั้งแรก — รายการรอบ/สรุปย้อนหลัง/แจ้งเตือน ไม่เปลี่ยนตามรอบที่เลือก โหลดรอบเดียวพอ
   useEffect(() => {
     Promise.all([
       apiFetch('/rounds'),
-      apiFetch('/dashboard/history?years=3'),
+      // ดึงย้อนหลังยาวๆ ไว้ก่อน (เผื่อมีเป็น 10 ปี) จะได้ติ๊กเลือกปีเก่าๆ ในโซนรายงานได้ครบ ไม่ใช่แค่ 3 ปีล่าสุด
+      apiFetch('/dashboard/history?years=20'),
       apiFetch('/dashboard/alerts').catch(() => ({ alerts: [] })),
     ])
       .then(([roundList, hist, alertData]) => {
@@ -45,6 +56,8 @@ export function DashboardReal({ go, readonly, lang }) {
           ? Math.max(...roundList.map(r => r.academic_year))
           : null;
         setYear(openRound ? openRound.academic_year : newestYear);
+        // ค่าเริ่มต้นโซนรายงาน = 3 ปีล่าสุดที่มีข้อมูลจริง (เหมือนเดิมก่อนมีติ๊กเลือก)
+        setReportYears(hist.years.map(y => y.academic_year).sort((a, b) => b - a).slice(0, 3));
 
         // เจ้าหน้าที่เปิดมาเพื่อดูรอบที่กำลังเปิดรับก่อน ผู้บริหารดูภาพรวมทั้งปี
         if (!readonly && openRound) setTab(String(openRound.round_id));
@@ -77,6 +90,32 @@ export function DashboardReal({ go, readonly, lang }) {
     setYear(nextYear);
     setTab(ALL_ROUNDS);
   };
+
+  // รวมสัดส่วนสถานะทุกรอบของปีที่กำลังดู — ยิงทีละรอบผ่าน /dashboard/stats ที่มีอยู่แล้ว ไม่ต้องมี endpoint ใหม่
+  // cache ไว้ต่อปี กันยิงซ้ำทุกครั้งที่สลับแท็บไปมา
+  useEffect(() => {
+    if (year === null || yearStatus[year] || rounds.length === 0) return;
+    const roundsOfYear = rounds.filter(r => r.academic_year === year);
+    if (roundsOfYear.length === 0) return;
+    let dropped = false;
+    Promise.all(roundsOfYear.map(r => apiFetch(`/dashboard/stats?round_id=${r.round_id}`)))
+      .then(list => {
+        if (dropped) return;
+        const total = list[0]?.total ?? 0;
+        const by = { draft: 0, submitted: 0, approved: 0, rejected: 0 };
+        for (const s of list) {
+          by.draft += s.by.draft;
+          by.submitted += s.by.submitted;
+          by.approved += s.by.approved;
+          by.rejected += s.by.rejected;
+        }
+        // ไม่รวม not_started ของแต่ละรอบตรงๆ (จะนับคนเดิมซ้ำถ้ามีหลายรอบ) — ใช้ตัวที่ dedup แล้วจาก history แทน
+        const notStarted = Math.max(total - (yearSummary?.submitted ?? 0), 0);
+        setYearStatus(prev => ({ ...prev, [year]: { total, by, not_started: notStarted } }));
+      })
+      .catch(() => {}); // พลาดก็แค่โชว์ loading ค้าง ไม่ต้อง error ทั้งหน้า
+    return () => { dropped = true; };
+  }, [year, rounds]);
 
   if (error) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--reject,#dc2626)' }}>{tt('statuspage.loadFailPrefix', { msg: error })}</div>;
   if (loading && !history) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
@@ -120,6 +159,15 @@ export function DashboardReal({ go, readonly, lang }) {
     </select>
   );
 
+  // ปีของโซน "สถิติเชิงรายงาน" เท่านั้น — แยกจาก yearPicker บนสุด ไม่กระทบ/ไม่ถูกกระทบจากกัน
+  // ติ๊กเลือกได้จากทุกปีที่มีข้อมูลจริง (ไม่ใช่แค่ 3 ปีล่าสุด) แต่เลือกพร้อมกันได้สูงสุด 3 ปี
+  const allReportYears = [...history.years].map(y => y.academic_year).sort((a, b) => b - a);
+  const reportYearPicker = (
+    <YearMultiPicker years={allReportYears} selected={reportYears} onChange={setReportYears}
+      currentYear={currentYear} tt={tt} max={3} />
+  );
+  const reportHistory = { ...history, years: history.years.filter(y => reportYears.includes(y.academic_year)) };
+
   return (
     <div className="fade-up">
       <PageHead
@@ -127,47 +175,149 @@ export function DashboardReal({ go, readonly, lang }) {
         sub={yearSummary ? tt('dashReal.subInfo', { year, total: yearSummary.total, eligible: yearSummary.eligible }) : null}
         actions={yearPicker} />
 
-      {/* ─── โซน 1: เรื่องที่ต้องรู้ตอนนี้ ─────────────────────────────
-          แจ้งเตือนคำนวณสดจาก backend ไม่ใช่ของค้างเก่า ว่างก็ยังมีการ์ดบอกว่าไม่มีอะไรค้าง
-          จะได้ไม่เจอหน้าโล่งจนไม่รู้ว่าโหลดไม่ขึ้นหรือไม่มีงานจริง */}
+      {/* ─── โซน 1: "เรื่องที่ต้องดำเนินการ" — เอาออกก่อน (คอมเมนต์พักไว้ ยังไม่ลบ) ───
       <AlertPanel alerts={alerts} go={go} readonly={readonly} tt={tt} />
+      */}
 
       {/* ─── โซน 2: ผลการกรอกของรอบที่เลือก ─────────────────────────
-          เจ้าหน้าที่เท่านั้น — ผู้บริหารดูภาพรวมทั้งปีอย่างเดียว ไม่ต้องไล่ทีละรอบ */}
+          เจ้าหน้าที่เท่านั้น — ผู้บริหารดูภาพรวมทั้งปีอย่างเดียว ไม่ต้องไล่ทีละรอบ
+          RoundTabs ยังคุมว่าดูรอบไหน/รวมทั้งปี — StatCard+RoundBar ผูกกับรอบที่เลือกเหมือนเดิม
+          ส่วน Donut/อัตราผ่านรายวิชา/สถิติเชิงรายงาน ย้ายไปอยู่ใต้แท็บบนสุด 3 อันแทนเรียงเป็นแถวยาว */}
       {!readonly && (
         <Section title={tt('dashReal.zoneRound')} sub={tt('dashReal.zoneRoundSub')}>
           <RoundTabs rounds={roundsInYear} value={tab} onChange={setTab} tt={tt} />
 
-          {tab === ALL_ROUNDS
-            ? <YearRoundsView year={yearSummary} rounds={roundsInYear} lang={lang} tt={tt} />
-            : showingRound
-              ? <RoundView stats={stats} roundInfo={rounds.find(r => String(r.round_id) === tab)}
-                  go={go} lang={lang} tt={tt} />
-              : <div style={{ padding: '28px 0', textAlign: 'center', color: 'var(--ink-500)', fontSize: 13.5 }}>{tt('common.loading')}</div>}
+          <div key={tab} className="blur-in">
+            {tab === ALL_ROUNDS
+              ? <YearRoundsView year={yearSummary} rounds={roundsInYear} lang={lang} tt={tt} statCardsOnly />
+              : showingRound
+                ? <RoundView stats={stats} roundInfo={rounds.find(r => String(r.round_id) === tab)}
+                    go={go} lang={lang} tt={tt} statCardsOnly />
+                : <div style={{ padding: '28px 0', textAlign: 'center', color: 'var(--ink-500)', fontSize: 13.5 }}>{tt('common.loading')}</div>}
+          </div>
+
+          <MainTabs value={mainTab} onChange={setMainTab} tt={tt} items={[
+            { key: 'status', label: tt('dashReal.statusBreakdownTitle') },
+            { key: 'subjects', label: tt('dashReal.subjectRateTitle') },
+            { key: 'firstCount', label: tt('dashReal.distTitle') },
+            { key: 'reports', label: tt('dashReal.reportSectionTitle') },
+          ]} />
+
+          <div key={mainTab} className="blur-in">
+            {mainTab === 'status' && (
+              tab === ALL_ROUNDS
+                ? (yearStatus[year]
+                    ? <StatusDonut total={yearStatus[year].total} by={yearStatus[year].by} not_started={yearStatus[year].not_started} tt={tt} />
+                    : <div style={{ padding: '28px 0', textAlign: 'center', color: 'var(--ink-500)', fontSize: 13.5 }}>{tt('common.loading')}</div>)
+                : showingRound && <RoundView stats={stats} roundInfo={rounds.find(r => String(r.round_id) === tab)} go={go} lang={lang} tt={tt} statusOnly />
+            )}
+
+            {mainTab === 'subjects' && (
+              tab === ALL_ROUNDS
+                ? <SubjectRateCard perSubject={yearSummary?.perSubject || []} lang={lang} tt={tt} title={tt('dashReal.subjectRateYearTitle')} />
+                : showingRound && <SubjectRateCard perSubject={stats.perSubject} subjectPassRate={stats.subjectPassRate} lang={lang} tt={tt} />
+            )}
+
+            {mainTab === 'firstCount' && <PassDistribution year={yearSummary} tt={tt} />}
+
+            {mainTab === 'reports' && (
+              <div style={{ marginTop: 4 }}>
+                <p style={{ margin: '0 0 14px', color: 'var(--ink-500)', fontSize: 13 }}>{tt('dashReal.reportSectionMultiYearSub')}</p>
+                <MainTabs value={reportTab} onChange={setReportTab} tt={tt} items={[
+                  { key: 'firstRate', label: tt('dashReal.firstAttemptTitle') },
+                  { key: 'subjectHistory', label: tt('dashReal.subjectHistoryTitle') },
+                  { key: 'fullPass', label: tt('dashReal.colFullPass') },
+                ]} />
+                <div key={reportTab} className="blur-in" style={{ marginTop: 14 }}>
+                  {reportTab === 'firstRate' && <FirstAttemptPassRate history={reportHistory} tt={tt} wide yearPicker={reportYearPicker} />}
+                  {reportTab === 'subjectHistory' && <SubjectHistoryChart history={reportHistory} firstRoundSubjects={firstRoundSubjects} tt={tt} yearPicker={reportYearPicker} />}
+                  {reportTab === 'fullPass' && <YearCompare history={reportHistory} tt={tt} yearPicker={reportYearPicker} />}
+                </div>
+              </div>
+            )}
+          </div>
         </Section>
       )}
 
-      {/* ─── โซนผู้บริหาร: ตัวเลขทางการของปีที่เลือก ─────────────── */}
+      {/* ─── โซนผู้บริหาร: ตัวเลขทางการของปีที่เลือก (ยังไม่แตะ ตามที่ตกลง — ทำแค่ role เจ้าหน้าที่ก่อน) ─── */}
       {readonly && yearSummary && (
         <ExecutiveOverview year={yearSummary} history={history}
           perSubject={firstRoundSubjects[year] || yearSummary.perSubject} lang={lang} tt={tt} />
       )}
-
-      {/* ─── โซน 3: สถิติเชิงรายงาน (รายปี ไม่ขึ้นกับรอบที่เลือก) ─── */}
-      <Section title={tt('dashReal.reportSectionTitle')} sub={tt('dashReal.reportSectionSub', { year })}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <FirstAttemptPassRate history={history} tt={tt} wide />
-          <PassDistribution year={yearSummary} tt={tt} />
-          <div className="row wrap-m" style={{ alignItems: 'stretch' }}>
-            <div style={{ flex: '1 1 340px', minWidth: 0, display: 'flex' }}>
-              <SubjectHistoryChart history={history} firstRoundSubjects={firstRoundSubjects} tt={tt} />
-            </div>
-            <div style={{ flex: '1 1 340px', minWidth: 0, display: 'flex' }}>
-              <YearCompare history={history} tt={tt} />
+      {readonly && (
+        <Section title={tt('dashReal.reportSectionTitle')} sub={tt('dashReal.reportSectionSub', { year })}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <FirstAttemptPassRate history={history} tt={tt} wide />
+            <PassDistribution year={yearSummary} tt={tt} />
+            <div className="row wrap-m" style={{ alignItems: 'stretch' }}>
+              <div style={{ flex: '1 1 340px', minWidth: 0, display: 'flex' }}>
+                <SubjectHistoryChart history={history} firstRoundSubjects={firstRoundSubjects} tt={tt} />
+              </div>
+              <div style={{ flex: '1 1 340px', minWidth: 0, display: 'flex' }}>
+                <YearCompare history={history} tt={tt} />
+              </div>
             </div>
           </div>
+        </Section>
+      )}
+    </div>
+  );
+}
+
+/* แท็บทั่วไป ใช้ได้ทั้งแท็บบนสุด 3 อันและแท็บย่อยใน "สถิติเชิงรายงาน" — ต่างจาก RoundTabs ตรงไม่มี dot สถานะเปิด/ปิด */
+function MainTabs({ items, value, onChange }) {
+  return (
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '16px 0' }}>
+      {items.map(item => {
+        const active = value === item.key;
+        return (
+          <button key={item.key} onClick={() => onChange(item.key)} className="btn btn-sm"
+            style={{ fontFamily: 'inherit', fontWeight: 700, padding: '7px 14px',
+              background: active ? 'var(--navy-700)' : '#fff',
+              color: active ? '#fff' : 'var(--ink-700)',
+              border: `1px solid ${active ? 'var(--navy-700)' : 'var(--ink-200)'}` }}>
+            {item.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ติ๊กเลือกปีที่จะดูได้หลายปี (สูงสุด max ปี) จากทุกปีที่มีข้อมูลจริง — ไม่ใช่ dropdown เลือกทีละปีแบบ yearPicker บนสุด
+   ปุ่มโชว์สรุปจำนวนที่เลือก กดแล้วเปิด popover ให้ติ๊ก, ติ๊กครบ max แล้วช่องที่เหลือจะกดไม่ได้จนกว่าจะติ๊กออกก่อน */
+function YearMultiPicker({ years, selected, onChange, currentYear, tt, max = 3 }) {
+  const [open, setOpen] = useState(false);
+  const toggle = (y) => {
+    if (selected.includes(y)) onChange(selected.filter(x => x !== y));
+    else if (selected.length < max) onChange([...selected, y].sort((a, b) => b - a));
+  };
+  return (
+    <div style={{ position: 'relative' }}>
+      <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOpen(o => !o)}
+        style={{ border: '1px solid var(--ink-200)', padding: '7px 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
+        {[...selected].sort((a, b) => b - a).join(' / ') || tt('dashReal.yearPickerSummary', { n: 0 })}
+        <Icon name="chevD" size={14} />
+      </button>
+      {open && <>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 50 }} onClick={() => setOpen(false)}></div>
+        <div className="card fade-up" style={{ position: 'absolute', right: 0, top: 'calc(100% + 6px)', width: 200,
+          zIndex: 51, boxShadow: 'var(--sh-lg)', padding: 10 }}>
+          <div style={{ fontSize: 11.5, color: 'var(--ink-500)', padding: '2px 6px 8px' }}>{tt('dashReal.yearPickerMax', { max })}</div>
+          {years.map(y => {
+            const checked = selected.includes(y);
+            const disabled = !checked && selected.length >= max;
+            return (
+              <label key={y} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '7px 6px', borderRadius: 8,
+                cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? .45 : 1, fontSize: 13.5 }}>
+                <input type="checkbox" checked={checked} disabled={disabled} onChange={() => toggle(y)}
+                  style={{ accentColor: 'var(--navy-700)' }} />
+                {y === currentYear ? tt('dashReal.currentYearOption', { year: y }) : tt('dashReal.yearOption', { year: y })}
+              </label>
+            );
+          })}
         </div>
-      </Section>
+      </>}
     </div>
   );
 }
@@ -272,11 +422,40 @@ function RoundTabs({ rounds, value, onChange, tt }) {
 }
 
 /* มุมมองรอบเดียว — ตัวเลขทุกตัวเป็นของรอบนั้นล้วน ไม่มีของปีอื่นปน */
-function RoundView({ stats, roundInfo, go, lang, tt }) {
+// statCardsOnly = แค่แถบวันปิดรับ+การ์ดตัวเลข 5 ใบ (โชว์เสมอไม่ว่าอยู่แท็บไหน)
+// statusOnly = แค่การ์ด Donut สัดส่วนสถานะ (ใช้ตอนอยู่แท็บ "สัดส่วนสถานะการตรวจสอบ")
+// ไม่ส่ง flag ไหนมาเลย = คืน null (เรียกแบบไม่ระบุจะไม่ได้อะไร กันเรียกผิดเงียบๆ)
+function RoundView({ stats, roundInfo, go, lang, tt, statCardsOnly, statusOnly }) {
   const { round, total, eligible, by, not_started, submitted, fillRate,
-          fullyPassed, fullyPassedRate, subjectPassRate, perSubject } = stats;
+          fullyPassed, fullyPassedRate } = stats;
 
-  // 5 ช่องนี้ backend การันตีว่าบวกกันได้เท่า total พอดี เลขตรงกลางวงจึงเป็น total
+  if (statCardsOnly) {
+    return (
+      <>
+        <RoundBar round={round} roundInfo={roundInfo} submitted={submitted}
+          eligible={eligible} fillRate={fillRate} total={total} tt={tt} />
+
+        <div className="grid g-5" style={{ marginBottom: 20 }}>
+          <StatCard icon="users" label={tt('dashReal.eligibleStatLabel')} value={eligible} sub={tt('dashReal.eligibleStatSub', { total })} tone="navy" accent onClick={() => go('students')} />
+          <StatCard icon="edit" label={tt('dashReal.submittedStatLabel')} value={submitted} sub={tt('dashReal.submittedStatSub', { rate: fillRate })} tone="blue" accent onClick={() => go('students')} />
+          <StatCard icon="clock" label={tt('status.SUBMITTED')} value={by.submitted} sub={tt('dashReal.pendingSub')} tone="wait" accent onClick={() => go('review')} />
+          <StatCard icon="checkCircle" label={tt('status.CONFIRMED')} value={by.approved} sub={tt('dashReal.confirmedSub', { n: fullyPassed, rate: fullyPassedRate })} tone="ok" accent />
+          <StatCard icon="xCircle" label={tt('status.REJECTED')} value={by.rejected} sub={tt('dashReal.rejectedSub')} tone="reject" accent onClick={() => go('review')} />
+        </div>
+      </>
+    );
+  }
+
+  if (statusOnly) return <StatusDonut total={total} by={by} not_started={not_started} tt={tt} />;
+
+  return null;
+}
+
+/* การ์ด Donut สัดส่วนสถานะ — ใช้ทั้งมุมมองรอบเดียว (RoundView) และรวมทั้งปี (ยอดรวมจาก yearStatus)
+   ต่างกันแค่ที่มาของ total/by/not_started เท่านั้น หน้าตาเหมือนกันทุกอย่าง */
+function StatusDonut({ total, by, not_started, tt }) {
+  // 5 ช่องนี้ตอนดูรอบเดียว backend การันตีว่าบวกกันได้เท่า total พอดี — ตอนรวมทั้งปี (หลายรอบ) อาจเกิน total ได้
+  // เพราะนับเป็น "ใบ" คนส่งหลายรอบมีได้หลายใบคนละสถานะ
   const segs = [
     { key: 'CONFIRMED', label: tt('status.CONFIRMED'), value: by.approved, color: 'var(--status-ok-dot)' },
     { key: 'SUBMITTED', label: tt('status.SUBMITTED'), value: by.submitted, color: 'var(--status-wait-dot)' },
@@ -286,45 +465,31 @@ function RoundView({ stats, roundInfo, go, lang, tt }) {
   ].filter(s => s.value > 0 || s.key !== 'DRAFT');
 
   return (
-    <>
-      <RoundBar round={round} roundInfo={roundInfo} submitted={submitted}
-        eligible={eligible} fillRate={fillRate} total={total} tt={tt} />
-
-      <div className="grid g-5" style={{ marginBottom: 20 }}>
-        <StatCard icon="users" label={tt('dashReal.eligibleStatLabel')} value={eligible} sub={tt('dashReal.eligibleStatSub', { total })} tone="navy" accent onClick={() => go('students')} />
-        <StatCard icon="edit" label={tt('dashReal.submittedStatLabel')} value={submitted} sub={tt('dashReal.submittedStatSub', { rate: fillRate })} tone="blue" accent onClick={() => go('students')} />
-        <StatCard icon="clock" label={tt('status.SUBMITTED')} value={by.submitted} sub={tt('dashReal.pendingSub')} tone="wait" accent onClick={() => go('review')} />
-        <StatCard icon="checkCircle" label={tt('status.CONFIRMED')} value={by.approved} sub={tt('dashReal.confirmedSub', { n: fullyPassed, rate: fullyPassedRate })} tone="ok" accent />
-        <StatCard icon="xCircle" label={tt('status.REJECTED')} value={by.rejected} sub={tt('dashReal.rejectedSub')} tone="reject" accent onClick={() => go('review')} />
-      </div>
-
-      <div className="row wrap-m" style={{ alignItems: 'flex-start' }}>
-        <div className="card card-pad" style={{ flex: '1 1 320px', minWidth: 0 }}>
-          <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 800 }}>{tt('dashReal.statusBreakdownTitle')}</h3>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
-            <Donut segments={segs} center={<><div className="tnum" style={{ fontSize: 26, fontWeight: 800 }}>{total}</div><div style={{ fontSize: 11.5, color: 'var(--ink-500)' }}>{tt('dashReal.eligibleLabel')}</div></>} />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-              {segs.map(s => (
-                <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5 }}>
-                  <span style={{ width: 10, height: 10, borderRadius: 3, background: s.color, flex: 'none' }}></span>
-                  <span style={{ flex: 1, color: 'var(--ink-700)' }}>{s.label}</span>
-                  <span className="tnum" style={{ fontWeight: 700 }}>{s.value}</span>
-                </div>
-              ))}
+    <div className="card card-pad">
+      <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 800 }}>{tt('dashReal.statusBreakdownTitle')}</h3>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+        <Donut segments={segs} center={<><div className="tnum" style={{ fontSize: 26, fontWeight: 800 }}>{total}</div><div style={{ fontSize: 11.5, color: 'var(--ink-500)' }}>{tt('dashReal.eligibleLabel')}</div></>} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+          {segs.map(s => (
+            <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5 }}>
+              <span style={{ width: 10, height: 10, borderRadius: 3, background: s.color, flex: 'none' }}></span>
+              <span style={{ flex: 1, color: 'var(--ink-700)' }}>{s.label}</span>
+              <span className="tnum" style={{ fontWeight: 700 }}>{s.value}</span>
             </div>
-          </div>
+          ))}
         </div>
-
-        <SubjectRateCard perSubject={perSubject} subjectPassRate={subjectPassRate} lang={lang} tt={tt} />
       </div>
-    </>
+    </div>
   );
 }
 
 /* มุมมองรวมทั้งปี — นับเป็นรายคน คนที่กรอกหลายรอบในปีเดียวนับครั้งเดียว
    ไม่มีโดนัทสถานะเพราะสถานะเป็นของ "ใบ" ไม่ใช่ของ "ปี" (คนเดียวมีได้หลายใบคนละสถานะ) */
-function YearRoundsView({ year, rounds, lang, tt }) {
+// statCardsOnly = แค่การ์ดตัวเลข 4 ใบ + ตารางแยกตามรอบ (โชว์เสมอไม่ว่าอยู่แท็บไหน)
+// อัตราผ่านรายวิชารวมทั้งปี ย้ายไปแท็บ "อัตราผ่านรายวิชา" แทน (เรียก SubjectRateCard ตรงจาก DashboardReal เลย)
+function YearRoundsView({ year, rounds, tt, statCardsOnly }) {
   if (!year) return <div style={{ padding: '28px 0', textAlign: 'center', color: 'var(--ink-500)', fontSize: 13.5 }}>{tt('dashReal.distEmpty')}</div>;
+  if (!statCardsOnly) return null;
 
   const roundOf = (rid) => rounds.find(r => r.round_id === rid);
 
@@ -337,43 +502,38 @@ function YearRoundsView({ year, rounds, lang, tt }) {
         <StatCard icon="calendar" label={tt('dashReal.yearRoundsLabel')} value={year.rounds.length} sub={tt('dashReal.yearRoundsSub')} tone="gold" />
       </div>
 
-      <div className="row wrap-m" style={{ alignItems: 'flex-start' }}>
-        <div className="card card-pad" style={{ flex: '1 1 320px', minWidth: 0 }}>
-          <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800 }}>{tt('dashReal.roundBreakdownTitle')}</h3>
-          <p style={{ margin: '0 0 14px', color: 'var(--ink-500)', fontSize: 13 }}>{tt('dashReal.roundBreakdownSub')}</p>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead>
-                <tr style={{ color: 'var(--ink-500)', fontSize: 12.5, textAlign: 'left' }}>
-                  <th style={{ padding: '8px 10px' }}>{tt('dashReal.colRound')}</th>
-                  <th style={{ padding: '8px 10px', textAlign: 'center' }}>{tt('dashReal.colSubjects')}</th>
-                  <th style={{ padding: '8px 10px', textAlign: 'center' }}>{tt('dashReal.colSubmitted')}</th>
-                  <th style={{ padding: '8px 10px', textAlign: 'center' }}>{tt('dashReal.colPassedAll')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...year.rounds].sort((a, b) => a.attempt_number - b.attempt_number).map(r => {
-                  const info = roundOf(r.round_id);
-                  return (
-                    <tr key={r.round_id} style={{ borderTop: '1px solid var(--ink-100)' }}>
-                      <td style={{ padding: '10px', fontWeight: 700 }}>
-                        {tt('dashReal.roundOnlyLabel', { attempt: r.attempt_number })}
-                        {info && info.status === 'open' && <span className="badge ok" style={{ marginLeft: 8 }}><span className="dot" />{tt('dashReal.roundOpenLabel')}</span>}
-                      </td>
-                      <td className="tnum" style={{ padding: '10px', textAlign: 'center' }}>{r.subject_count}</td>
-                      <td className="tnum" style={{ padding: '10px', textAlign: 'center' }}>{r.submitted}</td>
-                      <td className="tnum" style={{ padding: '10px', textAlign: 'center', fontWeight: 700, color: 'var(--status-ok-fg)' }}>{r.fullyPassed}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--ink-500)' }}>{tt('dashReal.roundBreakdownNote')}</p>
+      <div className="card card-pad">
+        <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800 }}>{tt('dashReal.roundBreakdownTitle')}</h3>
+        <p style={{ margin: '0 0 14px', color: 'var(--ink-500)', fontSize: 13 }}>{tt('dashReal.roundBreakdownSub')}</p>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ color: 'var(--ink-500)', fontSize: 12.5, textAlign: 'left' }}>
+                <th style={{ padding: '8px 10px' }}>{tt('dashReal.colRound')}</th>
+                <th style={{ padding: '8px 10px', textAlign: 'center' }}>{tt('dashReal.colSubjects')}</th>
+                <th style={{ padding: '8px 10px', textAlign: 'center' }}>{tt('dashReal.colSubmitted')}</th>
+                <th style={{ padding: '8px 10px', textAlign: 'center' }}>{tt('dashReal.colPassedAll')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...year.rounds].sort((a, b) => a.attempt_number - b.attempt_number).map(r => {
+                const info = roundOf(r.round_id);
+                return (
+                  <tr key={r.round_id} style={{ borderTop: '1px solid var(--ink-100)' }}>
+                    <td style={{ padding: '10px', fontWeight: 700 }}>
+                      {tt('dashReal.roundOnlyLabel', { attempt: r.attempt_number })}
+                      {info && info.status === 'open' && <span className="badge ok" style={{ marginLeft: 8 }}><span className="dot" />{tt('dashReal.roundOpenLabel')}</span>}
+                    </td>
+                    <td className="tnum" style={{ padding: '10px', textAlign: 'center' }}>{r.subject_count}</td>
+                    <td className="tnum" style={{ padding: '10px', textAlign: 'center' }}>{r.submitted}</td>
+                    <td className="tnum" style={{ padding: '10px', textAlign: 'center', fontWeight: 700, color: 'var(--status-ok-fg)' }}>{r.fullyPassed}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-
-        <SubjectRateCard perSubject={year.perSubject} lang={lang} tt={tt}
-          title={tt('dashReal.subjectRateYearTitle')} />
+        <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--ink-500)' }}>{tt('dashReal.roundBreakdownNote')}</p>
       </div>
     </>
   );
@@ -705,7 +865,7 @@ function PassDistribution({ year, tt }) {
 const HISTORY_COLORS = ['var(--navy-600)', 'var(--blue-600)', 'var(--ink-300)', '#c9971f', '#8b5e34'];
 
 // อัตราผ่านรายวิชาย้อนหลัง 3 ปี — เส้นละปี, แกน x = รหัสวิชา, ข้อมูลอัปเดตตาม /dashboard/history อัตโนมัติเมื่อมีรอบ/ปีใหม่เข้ามา
-function SubjectHistoryChart({ history, firstRoundSubjects, tt }) {
+function SubjectHistoryChart({ history, firstRoundSubjects, tt, yearPicker }) {
   const [expanded, setExpanded] = useState(false);
   // ใช้แค่ผลรอบแรก (attempt_number=1) ของแต่ละปี ไม่รวมรอบถัดไป — ดึงจาก firstRoundSubjects ไม่ใช่ y.perSubject (นั่นรวมทุกรอบ)
   const years = [...history.years]
@@ -736,9 +896,12 @@ function SubjectHistoryChart({ history, firstRoundSubjects, tt }) {
           <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800 }}>{tt('dashReal.subjectHistoryTitle')}</h3>
           <p style={{ margin: 0, color: 'var(--ink-500)', fontSize: 13 }}>{tt('dashReal.subjectHistorySub')}</p>
         </div>
-        <button className="btn btn-ghost btn-sm" style={{ padding: 7, flex: 'none' }} title={tt('dashReal.expandChart')} onClick={() => setExpanded(true)}>
-          <Icon name="expand" size={16} />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 'none' }}>
+          {yearPicker}
+          <button className="btn btn-ghost btn-sm" style={{ padding: 7, flex: 'none' }} title={tt('dashReal.expandChart')} onClick={() => setExpanded(true)}>
+            <Icon name="expand" size={16} />
+          </button>
+        </div>
       </div>
       <div style={{ marginTop: 16 }}>
         <MultiLineChart categories={categories} series={series} height={220} width={640} />
@@ -753,7 +916,7 @@ function SubjectHistoryChart({ history, firstRoundSubjects, tt }) {
 
 /* เทียบผลรุ่นต่อรุ่นย้อนหลัง — นับเป็นรายคน คนที่กรอกหลายรอบในปีเดียวนับครั้งเดียว
    ผ่านครบทุกวิชา แยกเป็นคอลัมน์ตามห้องเรียน (ปกติ/ภาษาอังกฤษ) — room_name มาจาก DB ตรงๆ ไม่ hardcode ชื่อห้อง */
-function YearCompare({ history, tt }) {
+function YearCompare({ history, tt, yearPicker }) {
   // รวมรายชื่อห้องจากทุกปีที่ดึงมา (เผื่อบางปีไม่มีคนส่งในบางห้อง) เรียงตาม room_id ให้ลำดับคอลัมน์คงที่
   const rooms = [...new Map(
     history.years.flatMap(y => y.byRoom.map(r => [r.room_id, r]))
@@ -761,7 +924,10 @@ function YearCompare({ history, tt }) {
 
   return (
     <div className="card card-pad">
-      <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 800 }}>{tt('dashReal.colFullPass')}</h3>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>{tt('dashReal.colFullPass')}</h3>
+        {yearPicker}
+      </div>
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', minWidth: 100 + rooms.length * 80, borderCollapse: 'collapse' }}>
           <thead>
@@ -796,7 +962,7 @@ function YearCompare({ history, tt }) {
 /* ร้อยละคนที่สอบผ่านครบทุกวิชาตั้งแต่ "รอบแรก" (attempt_number=1) ของแต่ละปี เทียบกับจำนวนนักศึกษาทั้งรุ่น
    แสดงเก่าไปใหม่ (ซ้ายไปขวา) พร้อมส่วนต่างเทียบปีก่อนหน้า
    การ์ดจริงแคบ (อยู่คอลัมน์เดียวกับ donut/ผ่านครบทุกวิชา) เลยเรียงเป็นแถวแนวตั้ง — กดขยายดูแบบเทียบข้างกันครบทุกปีในโมดัลแทน */
-function FirstAttemptPassRate({ history, tt, wide }) {
+function FirstAttemptPassRate({ history, tt, wide, yearPicker }) {
   const [expanded, setExpanded] = useState(false);
   const yearsOldToNew = [...history.years].reverse();
   // 2 ตัวเลขนี้ backend คำนวณมาให้แล้ว (ตัวหาร = นักศึกษาทั้งรุ่น = ผู้สำเร็จการศึกษาปีนั้น)
@@ -838,10 +1004,13 @@ function FirstAttemptPassRate({ history, tt, wide }) {
           <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800 }}>{tt('dashReal.firstAttemptTitle')}</h3>
           <p style={{ margin: 0, color: 'var(--ink-500)', fontSize: 13 }}>{tt('dashReal.firstAttemptSubtitle')}</p>
         </div>
-        {/* โหมดกว้างเรียงปีข้างกันอยู่แล้ว ไม่ต้องมีปุ่มขยาย */}
-        {!wide && <button className="btn btn-ghost btn-sm" style={{ padding: 7, flex: 'none' }} title={tt('dashReal.expandChart')} onClick={() => setExpanded(true)}>
-          <Icon name="expand" size={16} />
-        </button>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 'none' }}>
+          {yearPicker}
+          {/* โหมดกว้างเรียงปีข้างกันอยู่แล้ว ไม่ต้องมีปุ่มขยาย */}
+          {!wide && <button className="btn btn-ghost btn-sm" style={{ padding: 7, flex: 'none' }} title={tt('dashReal.expandChart')} onClick={() => setExpanded(true)}>
+            <Icon name="expand" size={16} />
+          </button>}
+        </div>
       </div>
       {/* wide = การ์ดอยู่เต็มความกว้าง เรียงปีข้างกันได้ / ไม่ wide = อยู่คอลัมน์แคบ ต้องเรียงลงล่าง */}
       <div style={{ marginTop: 16, display: 'flex', flexWrap: 'wrap', gap: 0 }}>

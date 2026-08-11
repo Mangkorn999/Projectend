@@ -1,7 +1,7 @@
 /* ============================================================
    Shared UI components
    ============================================================ */
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { STATUS, Icon } from './data.jsx';
 import { Logo } from './logos.jsx';
@@ -182,7 +182,7 @@ export function Donut({ segments, size=180, thickness=26, center }) {
   const R = (size-thickness)/2; const C = 2*Math.PI*R; let off = 0;
   return (
     <div style={{ position:'relative', width:size, height:size }}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform:'rotate(-90deg)' }}>
+      <svg className="donut-spin-in" width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <circle cx={size/2} cy={size/2} r={R} fill="none" stroke="var(--ink-100)" strokeWidth={thickness} />
         {segments.map((s,i)=>{
           const len = s.value/total*C;
@@ -205,14 +205,26 @@ export function Donut({ segments, size=180, thickness=26, center }) {
 // อัตราผ่านส่งสีแดงมา ส่วนที่เหลือจะได้อ่านออกว่า "ไม่ผ่าน" — ไม่งั้น 0% จะเป็นรางเปล่า
 // หน้าตาเหมือนกรณี "ไม่มีข้อมูล" จนแยกไม่ออก
 export function BarRow({ label, value, max=100, color='var(--navy-600)', track, right, sub }) {
+  const pct = value / max * 100;
+  const failPct = 100 - pct;
+  // เปิดหน้ามาแท่งค่อยๆ ไล่จาก 0 ไปค่าจริง — เขียวไล่จากซ้าย, แดง (track) ไล่จากขวา พร้อมกัน มาบรรจบกันตรงกลางพอดี
+  // รอให้ animation เบลอเข้าของการ์ด (.blur-in ~.55s) จบก่อน ค่อยเริ่มไล่แท่ง ไม่งั้นไล่ทับตอนจอยังเบลออยู่ดูรีบ
+  const [w, setW] = useState(0); // เขียว: 0 -> pct
+  const [fw, setFw] = useState(0); // แดง (track): 0 -> failPct
+  useEffect(() => {
+    const id = setTimeout(() => { setW(pct); setFw(failPct); }, 600);
+    return () => clearTimeout(id);
+  }, [pct, failPct]);
+
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:10 }}>
         <span style={{ fontSize:13.5, color:'var(--ink-900)', fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{label}</span>
         <span className="tnum" style={{ fontSize:13.5, fontWeight:700, color:'var(--ink-900)', flex:'none' }}>{right}</span>
       </div>
-      <div className="pbar" style={{ height:9, background: track || undefined }}>
-        <i style={{ width:(value/max*100)+'%', background:color }}></i>
+      <div className="pbar" style={{ height:9, position:'relative' }}>
+        {track && <i style={{ position:'absolute', right:0, top:0, height:'100%', width:fw+'%', background:track }}></i>}
+        <i style={{ position:'relative', width:w+'%', background:color }}></i>
       </div>
       {sub && <div style={{ fontSize:11.5, color:'var(--ink-400)' }}>{sub}</div>}
     </div>
@@ -266,10 +278,26 @@ export function LineChart({ points, height=150, color='var(--navy-600)', suffix=
 /* ---- Multi-series line chart (compare series over categories) ---- */
 export function MultiLineChart({ series, categories, height=180, suffix='%', yMin=0, yMax=100, width=340, legendSize=9 }) {
   const [hover, setHover] = useState(null); // { si, i, x, y } — x/y เป็น % ของกล่อง ใช้จัดตำแหน่ง tooltip
+  // เส้นค่อยๆ เลื้อยจากซ้ายไปขวา (วิชาที่ 1 → 8) แทนโผล่มาเต็มเส้นทันที
+  // ใช้ stroke-dasharray/dashoffset ตามความยาวเส้นจริง (getTotalLength) ถึงจะไล่ตามรูปเส้นได้แม่นยำ ไม่ใช่แค่กว้างตาม x
+  const [drawn, setDrawn] = useState(false);
+  const [lengths, setLengths] = useState([]); // ความยาวเส้นจริงของแต่ละ series
+  const pathRefs = useRef([]);
   const w=width, padL=26, padR=10, padT=14, padB=26;
   const n = categories.length;
   const xs = i => padL + (n===1?0:i*(w-padL-padR)/(n-1));
   const ys = v => padT + (1-(v-yMin)/(yMax-yMin))*(height-padT-padB);
+
+  // ทำครั้งเดียวตอน mount เท่านั้น (deps ว่าง) — series/categories ที่ parent ส่งมาสร้างใหม่ทุก render (.map() สดๆ)
+  // ถ้าผูก deps ไว้ animation จะรีเซ็ตกลับไปเริ่มใหม่ทุกครั้งที่ parent re-render เฉยๆ เลื้อยไม่จบซะที
+  useEffect(() => {
+    setLengths(pathRefs.current.map(p => p ? p.getTotalLength() : 0));
+    // รอเบลอเข้าของการ์ด (.blur-in ~.55s) จบก่อน ค่อยเริ่มเลื้อย เหมือน BarRow
+    const id = setTimeout(() => setDrawn(true), 600);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div>
     <div style={{ position:'relative' }}>
@@ -280,11 +308,19 @@ export function MultiLineChart({ series, categories, height=180, suffix='%', yMi
         </g>))}
         {series.map((s,si)=>{
           const path = s.values.map((v,i)=>`${i?'L':'M'}${xs(i)},${ys(v)}`).join(' ');
+          // ก่อนวัดความยาวจริงเสร็จ (frame แรกสุด) ต้องใช้เลขที่ใหญ่พอ ไม่ใช่ 0 —
+          // เพราะ dasharray:0 = ปิดการทำ dash ไปเลย เส้นจะโผล่เต็มมาแวบหนึ่งก่อนหด กลายเป็นเห็นวิ่งขวาไปซ้ายแล้ววิ่งซ้ายไปขวาซ้ำ
+          const len = lengths[si] ?? 2000;
           return <g key={si}>
-            <path d={path} fill="none" stroke={s.color} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+            <path ref={el => pathRefs.current[si] = el} d={path} fill="none" stroke={s.color} strokeWidth="2.6"
+              strokeLinecap="round" strokeLinejoin="round"
+              style={{ strokeDasharray: len, strokeDashoffset: drawn ? 0 : len,
+                transition: 'stroke-dashoffset 1.1s cubic-bezier(.4,0,.2,1)' }} />
             {s.values.map((v,i)=>(
               <g key={i}>
-                <circle cx={xs(i)} cy={ys(v)} r="4.5" fill="#fff" stroke={s.color} strokeWidth="2.6" style={{ pointerEvents:'none' }} />
+                <circle cx={xs(i)} cy={ys(v)} r="4.5" fill="#fff" stroke={s.color} strokeWidth="2.6"
+                  style={{ pointerEvents:'none', opacity: drawn ? 1 : 0,
+                    transition: `opacity .3s ease ${(n>1 ? i/(n-1) : 0)*1.1}s` }} />
                 <circle cx={xs(i)} cy={ys(v)} r="11" fill="transparent"
                   style={{ cursor: s.tooltips ? 'pointer' : 'default' }}
                   onMouseEnter={() => s.tooltips && setHover({ si, i, x: xs(i)/w*100, y: ys(v)/height*100 })}
