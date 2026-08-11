@@ -205,17 +205,15 @@ function AlertPanel({ alerts, go, readonly, tt }) {
     return null;
   };
 
+  // ไม่มีอะไรค้าง = บรรทัดเดียวพอ ไม่ต้องกินพื้นที่เท่าการ์ดเต็ม
+  // แต่ต้องมีอยู่ ไม่งั้นพื้นที่ว่างเปล่าดูไม่ออกว่าระบบเช็คแล้วหรือโหลดไม่ขึ้น
   if (alerts.length === 0) {
     return (
-      <div className="card" style={{ padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ width: 34, height: 34, borderRadius: 10, flex: 'none', display: 'flex', alignItems: 'center',
-          justifyContent: 'center', background: 'var(--status-ok-bg)', color: 'var(--status-ok-fg)' }}>
-          <Icon name="checkCircle" size={18} />
-        </span>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: 14.5 }}>{tt('dashReal.alertsEmptyTitle')}</div>
-          <div style={{ fontSize: 12.5, color: 'var(--ink-500)' }}>{tt('dashReal.alertsEmptySub')}</div>
-        </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 2px 0',
+        fontSize: 13, color: 'var(--ink-500)' }}>
+        <Icon name="checkCircle" size={15} style={{ color: 'var(--status-ok-dot)', flex: 'none' }} />
+        <span>{tt('dashReal.alertsEmptyTitle')}</span>
+        <span style={{ color: 'var(--ink-400)' }}>· {tt('dashReal.alertsEmptySub')}</span>
       </div>
     );
   }
