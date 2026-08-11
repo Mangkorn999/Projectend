@@ -52,14 +52,10 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
   useEffect(() => {
     loadRounds(); loadSubs();
     // รุ่นนักศึกษาที่มีอยู่จริง — เอาไว้ช่วยเลือกกลุ่มเป้าหมายของรอบ กันพิมพ์ปีผิดเป็นรุ่นที่ไม่มีใครอยู่
+    // เอาเฉพาะปีที่มีนักศึกษา import เข้ามาแล้วจริงๆ ไม่เดาปีปัจจุบันให้ — รุ่นที่ยังไม่ import ใช้ "กรอกเอง" ในฟอร์มแทน
     apiFetch('/students').then(list => {
       const byYear = new Map();
       for (const s of list) byYear.set(s.academic_year, (byYear.get(s.academic_year) || 0) + 1);
-      // เผื่อรุ่นล่าสุดยังไม่มีนักศึกษาในระบบเลย ก็ให้เลือกได้อยู่ดี — โชว์ปีปัจจุบัน (พ.ศ.) ย้อนหลัง 3 ปีเสมอ
-      const currentBEYear = new Date().getFullYear() + 543;
-      for (const year of [currentBEYear, currentBEYear - 1, currentBEYear - 2]) {
-        if (!byYear.has(year)) byYear.set(year, 0);
-      }
       setCohorts([...byYear.entries()].map(([year, count]) => ({ year, count })).sort((a, b) => b.year - a.year));
     }).catch(() => {});
   }, []);
@@ -123,6 +119,9 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
 
   if (!rounds || !subs) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
 
+  // ปีในตัวกรอง = ปีที่ "มีรอบอยู่จริง" ไม่ใช่รุ่นนักศึกษาทั้งหมด — เลือกปีที่ไม่มีรอบแล้วได้หน้าว่างเปล่า
+  const filterYears = [...new Set(rounds.map(r => r.academic_year))].sort((a, b) => b - a);
+
   return (
     <div className="fade-up">
       <PageHead title={tt('roundsMgmt.title')}
@@ -146,7 +145,7 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
           <select className="select" value={yearFilter} onChange={e => setYearFilter(e.target.value)}>
             <option value="open">{tt('roundsMgmt.yearFilterOpen')}</option>
             <option value="all">{tt('roundsMgmt.yearFilterAll')}</option>
-            {cohorts.map(c => <option key={c.year} value={c.year}>{c.year}</option>)}
+            {filterYears.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
         </div>
         <div className="grid g-3">
