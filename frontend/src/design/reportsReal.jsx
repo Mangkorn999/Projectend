@@ -17,8 +17,20 @@ export function ReportsReal({ toast, readonly, lang }) {
   const [downloading, setDownloading] = useState(false);
   const tt = (key, vars) => t(lang, key, vars);
 
+  // ตัวเลขที่ส่งสภาการพยาบาลเป็นระดับปีการศึกษา ไม่ใช่ระดับรอบ — ต้องดึงสรุปรายปีมาคู่กัน
+  const [yearStats, setYearStats] = useState(null);
+
   useEffect(() => {
-    apiFetch('/dashboard/stats').then(setStats).catch(e => setError(e.message));
+    let roundYear = null;
+    apiFetch('/dashboard/stats')
+      .then(s => {
+        setStats(s);
+        roundYear = s.round.academic_year;
+        return apiFetch('/dashboard/history?years=3');
+      })
+      // ต้องหยิบปีของ "รอบที่รายงานนี้แสดง" ไม่ใช่ปีล่าสุดในลิสต์ ไม่งั้นตัวเลขคนละปีกับหัวรายงาน
+      .then(hist => setYearStats(hist.years.find(y => y.academic_year === roundYear) || null))
+      .catch(e => setError(e.message));
   }, []);
 
   const downloadPdf = async () => {
@@ -88,6 +100,37 @@ export function ReportsReal({ toast, readonly, lang }) {
           ))}
         </div>
 
+        {/* ตัวเลข 2 ตัวที่คณะส่งสภาการพยาบาล — เป็นตัวเลขระดับปี ไม่ใช่ระดับรอบ
+            วางไว้ต่อจากสรุปภาพรวมเพราะเป็นตัวเลขหลักที่คนอ่านรายงานมองหาก่อน */}
+        {yearStats && (
+          <>
+            <div className="sec-title" style={{ margin: '26px 0 12px', color: 'var(--ink-900)' }}>{tt('reportsReal.councilSection')}</div>
+            <div style={{ border: '1px solid var(--ink-200)', borderRadius: 11, overflow: 'hidden' }}>
+              <div style={{ padding: '10px 16px', background: 'var(--ink-50, #fafafa)', fontSize: 12.5, color: 'var(--ink-600)' }}>
+                {tt('reportsReal.councilDenominator', { year: yearStats.academic_year, total: yearStats.total })}
+              </div>
+              {[
+                [tt('reportsReal.councilFirstAttempt'), yearStats.firstAttempt, tt('reportsReal.councilFirstAttemptNote')],
+                [tt('reportsReal.councilFirstYear'), yearStats.firstYear, tt('reportsReal.councilFirstYearNote')],
+              ].map(([label, val, note], i) => (
+                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 16px',
+                  borderTop: i === 0 ? '1px solid var(--ink-200)' : '1px solid var(--ink-100)' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700 }}>{label}</div>
+                    <div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 2 }}>{note}</div>
+                  </div>
+                  <div className="tnum" style={{ fontSize: 13, color: 'var(--ink-600)', flex: 'none' }}>
+                    {val.passed} / {yearStats.total}
+                  </div>
+                  <div className="tnum" style={{ fontSize: 24, fontWeight: 800, flex: 'none', minWidth: 96, textAlign: 'right' }}>
+                    {val.rate.toFixed(2)}%
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
         <div className="sec-title" style={{ margin: '26px 0 12px', color: 'var(--ink-900)' }}>{tt('reports.section2')}</div>
         <table className="tbl" style={{ border: '1px solid var(--ink-200)', borderRadius: 10, overflow: 'hidden' }}>
           <thead><tr><th>{tt('reports.colStatus')}</th><th style={{ textAlign: 'right' }}>{tt('reports.colCount')}</th><th style={{ textAlign: 'right' }}>{tt('reports.colPercent')}</th></tr></thead>
@@ -106,9 +149,42 @@ export function ReportsReal({ toast, readonly, lang }) {
               <td style={{ fontWeight: 500 }}>{subjectName(lang, s.subject_code, s.subject_name)}</td>
               <td className="tnum" style={{ textAlign: 'right', color: 'var(--pass)', fontWeight: 700 }}>{s.pass}</td>
               <td className="tnum" style={{ textAlign: 'right', color: 'var(--fail)', fontWeight: 700 }}>{s.fail}</td>
-              <td style={{ textAlign: 'right' }}><span className="badge" style={{ background: s.rate >= 80 ? 'var(--status-ok-bg)' : s.rate >= 60 ? 'var(--gold-50)' : 'var(--status-reject-bg)', color: s.rate >= 80 ? 'var(--status-ok-fg)' : s.rate >= 60 ? '#3a2c05' : 'var(--status-reject-fg)' }}>{s.rate}%</span></td></tr>
+              {/* rate = null คือไม่มีใครสอบวิชานี้ในรอบนี้ ต้องขึ้นขีด ไม่ใช่ 0% ที่แปลว่าสอบแล้วตกหมด */}
+              <td style={{ textAlign: 'right' }}>{s.rate === null
+                ? <span className="badge" style={{ background: 'var(--ink-100)', color: 'var(--ink-500)' }}>—</span>
+                : <span className="badge" style={{ background: s.rate >= 80 ? 'var(--status-ok-bg)' : s.rate >= 60 ? 'var(--gold-50)' : 'var(--status-reject-bg)', color: s.rate >= 80 ? 'var(--status-ok-fg)' : s.rate >= 60 ? '#3a2c05' : 'var(--status-reject-fg)' }}>{s.rate}%</span>}</td></tr>
           ))}</tbody>
         </table>
+
+        {/* ตารางจำแนกจำนวนวิชาที่ผ่าน — รูปแบบเดียวกับที่คณะส่งสภาการพยาบาล */}
+        {yearStats?.passDistribution?.total > 0 && (
+          <>
+            <div className="sec-title" style={{ margin: '26px 0 12px', color: 'var(--ink-900)' }}>{tt('reportsReal.distSection')}</div>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="tbl" style={{ border: '1px solid var(--ink-200)', borderRadius: 10, overflow: 'hidden' }}>
+                <thead><tr>
+                  <th>{tt('dashReal.distColResult')}</th>
+                  {yearStats.passDistribution.rooms.map(r => (
+                    <th key={r.room_id} style={{ textAlign: 'right' }}>{r.room_name} ({r.total})</th>
+                  ))}
+                  <th style={{ textAlign: 'right' }}>{tt('dashReal.distColTotal')} ({yearStats.passDistribution.total})</th>
+                </tr></thead>
+                <tbody>{yearStats.passDistribution.rows.filter(r => r.count > 0).map(row => (
+                  <tr key={row.label === 'not_submitted' ? 'ns' : row.passed}>
+                    <td style={{ fontWeight: 600, color: row.label === 'not_submitted' ? 'var(--ink-500)' : 'inherit' }}>
+                      {row.label === 'not_submitted' ? tt('dashReal.distRowNotSubmitted') : tt('dashReal.distRowLabel', { n: row.passed })}
+                    </td>
+                    {row.byRoom.map(c => (
+                      <td key={c.room_id} className="tnum" style={{ textAlign: 'right' }}>{c.count} <span style={{ color: 'var(--ink-500)' }}>({c.rate.toFixed(2)}%)</span></td>
+                    ))}
+                    <td className="tnum" style={{ textAlign: 'right', fontWeight: 700 }}>{row.count} <span style={{ color: 'var(--ink-500)', fontWeight: 400 }}>({row.rate.toFixed(2)}%)</span></td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+            <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--ink-500)' }}>{tt('dashReal.distFootnote', { total: yearStats.passDistribution.total })}</p>
+          </>
+        )}
       </div>
     </div>
   );

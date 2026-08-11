@@ -362,6 +362,12 @@ const buildYearSummary = async (year, allSubjects) => {
   };
 };
 
+// สรุปของปีเดียว — ใช้ตอนออกรายงาน PDF ที่ต้องมีตัวเลขระดับปีคู่กับตัวเลขระดับรอบ
+export const buildYearStats = async (year) => {
+  const allSubjects = await dashRepo.findAllSubjects();
+  return buildYearSummary(year, allSubjects);
+};
+
 // ปีล่าสุดกี่ปีก็ได้ ค่าเริ่มต้น 3 ปี — ใช้ทำกราฟเทียบรุ่นต่อรุ่น
 export const buildHistory = async (yearCount = 3) => {
   const [years, allSubjects] = await Promise.all([

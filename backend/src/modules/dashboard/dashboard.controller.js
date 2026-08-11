@@ -39,13 +39,18 @@ export const getAlerts = async (req, res, next) => {
 export const exportReport = async (req, res, next) => {
   try {
     const stats = await dashService.buildStats(req.query.round_id);
-    const rows = await dashService.buildStudentRows(stats.round.round_id);
+    // ตัวเลขที่คณะส่งสภาการพยาบาลเป็นตัวเลขระดับ "ปีการศึกษา" ไม่ใช่ระดับรอบ
+    // เลยต้องดึงสรุปรายปีของรอบนั้นมาด้วย ไม่งั้นรายงานขาดตัวเลขหลักที่เอาไปใช้จริง
+    const [rows, yearStats] = await Promise.all([
+      dashService.buildStudentRows(stats.round.round_id),
+      dashService.buildYearStats(stats.round.academic_year),
+    ]);
 
     const fileName = `exam-report-${stats.round.attempt_number}-${stats.round.academic_year}.pdf`;
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
 
-    buildReportPdf(stats, rows, res);
+    buildReportPdf(stats, rows, res, yearStats);
   } catch (err) {
     next(err);
   }
