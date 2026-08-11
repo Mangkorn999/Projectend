@@ -44,7 +44,8 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
   const [subjectModal, setSubjectModal] = useState(null); // {} (new) | subject | null
   const [deleteRound, setDeleteRound] = useState(null); // รอบที่กำลังจะลบ (ยืนยันก่อน)
   const [cohorts, setCohorts] = useState([]); // [{ year, count }] รุ่นนักศึกษาที่มีจริงในระบบ
-  const [yearFilter, setYearFilter] = useState('open'); // กรองรายการรอบ — 'open' = เฉพาะรอบที่ยังเปิดอยู่, หรือเลือกปีเจาะจง
+  // กรองรายการรอบ — 'open' = เฉพาะรอบที่ยังเปิดรับ, 'all' = ทุกรอบ, หรือเลือกปีเจาะจง
+  const [yearFilter, setYearFilter] = useState('open');
 
   const loadRounds = () => apiFetch('/rounds').then(setRounds).catch(e => toast(e.message, 'error'));
   const loadSubs = () => apiFetch('/subjects').then(setSubs).catch(e => toast(e.message, 'error'));
@@ -71,6 +72,11 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
       } else {
         await apiFetch(`/rounds/${roundModal.round_id}`, { method: 'PUT', body: form });
         toast(tt('roundsMgmt.savedToast'));
+      }
+      // ปิดรอบทั้งที่ตัวกรองเป็น "เฉพาะรอบที่เปิดรับ" → การ์ดจะหลุดจากตัวกรองแล้วดูเหมือนหายไป
+      // ทั้งที่ยังอยู่ครบ เลยสลับตัวกรองไปที่รุ่นของรอบนั้นให้เอง จะได้เห็นผลลัพธ์ที่เพิ่งบันทึก
+      if (yearFilter === 'open' && form.status !== 'open') {
+        setYearFilter(String(form.academic_year));
       }
       setRoundModal(null);
       loadRounds();
@@ -139,13 +145,19 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
           <label>{tt('roundsMgmt.filterCohort')}</label>
           <select className="select" value={yearFilter} onChange={e => setYearFilter(e.target.value)}>
             <option value="open">{tt('roundsMgmt.yearFilterOpen')}</option>
+            <option value="all">{tt('roundsMgmt.yearFilterAll')}</option>
             {cohorts.map(c => <option key={c.year} value={c.year}>{c.year}</option>)}
           </select>
         </div>
         <div className="grid g-3">
           {rounds
             .map(r => ({ ...r, isEffectivelyOpen: r.status === 'open' && new Date(r.close_date) >= new Date() }))
-            .filter(r => yearFilter === 'open' ? r.isEffectivelyOpen : String(r.academic_year) === String(yearFilter))
+            .filter(r => {
+              if (yearFilter === 'open') return r.isEffectivelyOpen;
+              if (yearFilter === 'all') return true;
+              return String(r.academic_year) === String(yearFilter);
+            })
+            .sort((a, b) => b.academic_year - a.academic_year || b.attempt_number - a.attempt_number)
             .map(r => {
             const { isEffectivelyOpen } = r;
             return (
