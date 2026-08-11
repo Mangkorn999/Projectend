@@ -40,6 +40,20 @@ export const upload = async (req, res, next) => {
       throw httpError("ไม่มีสิทธิ์อัปโหลดเอกสารของผลสอบนี้", 403);
     }
 
+    // อัปโหลดเอกสารประเภทเดิมซ้ำ = แทนที่ใบเก่า ไม่ใช่เพิ่มใบที่สอง
+    // เคสที่เกิดจริง: ถูกตีกลับแล้วส่งใหม่ — resubmit ใช้ result_id เดิม ใบเก่าเลยยังผูกอยู่
+    // ถ้าไม่ลบ เจ้าหน้าที่จะเห็นเอกสาร 2 ใบในผลสอบเดียว แล้วไม่รู้ว่าใบไหนคือใบล่าสุด
+    const previous = await certRepo.findByResultAndType(
+      examResult.result_id,
+      certificate_type,
+    );
+    for (const old of previous) {
+      await certRepo.removeById(old.certificate_id);
+      // ลบไฟล์ที่ disk ด้วย ไม่งั้นไฟล์ที่ไม่มีใครอ้างถึงจะค้างสะสมไปเรื่อยๆ
+      // force: true = ไฟล์หายไปแล้วก็ไม่ต้อง error
+      await fs.rm(path.resolve(old.file_path), { force: true });
+    }
+
     const certificate = await certRepo.create({
       result_id: examResult.result_id,
       certificate_type,

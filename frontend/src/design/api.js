@@ -76,12 +76,16 @@ export async function apiFetch(path, { method = 'GET', body, auth = true } = {})
   // backend ตอบ { success, data } เสมอตอนสำเร็จ, { success:false, message } ตอน error
   const json = await res.json().catch(() => ({}));
   if (!res.ok || json.success === false) {
-    // token หมดอายุ/ไม่ถูกต้อง — เคลียร์ session แล้วเด้งกลับหน้า login แทนค้าง error ทิ้งไว้
-    if (res.status === 401) forceLogout();
+    // เด้งกลับหน้า login เฉพาะตอน "cookie ใช้ไม่ได้แล้ว" ซึ่ง backend ติด code: 'auth_required' มาให้
+    // 401 จากการเช็ครหัสผ่าน (login ผิด / รหัสเดิมผิด) ไม่มี code นี้ — ต้องปล่อยให้หน้าโชว์ error เอง
+    // ไม่งั้นกรอกรหัสผิดทีเดียวหน้าจะ reload ทิ้งข้อความ error ที่เพิ่งขึ้น
+    if (res.status === 401 && json.code === 'auth_required') forceLogout();
     throw new ApiError(json.message || `Request failed (${res.status})`, res.status);
   }
   // backend ส่วนใหญ่ห่อคำตอบไว้ใน .data แต่บางตัว (เช่น /auth/login) ส่งมาแบนๆ
-  if (json.data === undefined || json.data === null) return json;
+  // เช็คว่า "มี key ชื่อ data ไหม" ไม่ใช่ "data มีค่าไหม" — data: null คือคำตอบที่ตั้งใจส่งมา
+  // (เช่น /rounds/active ตอนไม่มีรอบเปิด) ต้องคืน null ออกไป ไม่ใช่คืนทั้งก้อนซึ่งเป็น truthy
+  if (!('data' in json)) return json;
   return json.data;
 }
 

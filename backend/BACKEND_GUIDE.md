@@ -656,6 +656,8 @@ dashboard นับอัตราผ่านรายวิชาเฉพา�
 | `firstYear` | **ร้อยละผ่านภายในปีแรก** | `fullyPassed (ทุกรอบของปี) / total` |
 | `byRoom` | ส่ง/ผ่านครบ แยกตามห้องเรียน | นับรายคน |
 | `passDistribution` | ตาราง "ผ่านกี่วิชา" ของรอบแรก แยกห้อง | `buildPassDistribution()` — `null` ถ้าปีนั้นยังไม่มีรอบที่ 1 |
+| `firstAttemptBySubject` | ตารางผลรายวิชาของรอบแรก **ตัวหาร = นักศึกษาทั้งรุ่น** | `buildFirstAttemptBySubject()` — `null` ถ้าไม่มีรอบที่ 1 หรือ `total = 0` |
+| `started` | คนที่มีใบในปีนี้กี่คน (รวม `draft`) | นับรายคน (`Set`) — `total − started` = ยังไม่เริ่มกรอก |
 | `perSubject` | อัตราผ่านรายวิชา รวมทุกรอบของปี | เหมือน `buildStats` |
 
 > **ตัวหารของ `firstAttempt` / `firstYear` คือ `total` (นักศึกษาทั้งรุ่น) ไม่ใช่ `submitted`**
@@ -666,6 +668,24 @@ dashboard นับอัตราผ่านรายวิชาเฉพา�
 **`buildPassDistribution(sent, subjectIds)`** — ตารางสรุป "ผ่าน 8 วิชา / 7 วิชา / …" ของ**รอบแรกเท่านั้น**
 นับรายคน 1 คนอยู่ได้แถวเดียว. คืน `{ subject_count, total, rooms[], rows[] }` โดย `rows` ไล่จากผ่านมากไปน้อย
 และคงแถวที่ไม่มีใครไว้เป็น 0 ด้วย (ตารางในรายงานต้องมีครบทุกแถว).
+
+**`buildFirstAttemptBySubject(sent, subjects, cohortTotal)`** — ตารางผลรายวิชาของ**รอบแรกเท่านั้น**
+รูปแบบเดียวกับตารางที่คณะส่งสภาการพยาบาล คืน
+`{ cohort_total, submitted, average_pass_rate, subjects[] }` โดยแต่ละวิชามี
+`pass / pass_rate / fail / fail_rate / not_submitted / not_submitted_rate / sat`
+
+| จุดต่าง | `buildPerSubject` | `buildFirstAttemptBySubject` |
+|---|---|---|
+| ตัวหาร | คนที่สอบวิชานั้นจริง | **นักศึกษาทั้งรุ่น** (`total`) |
+| ทศนิยม | จำนวนเต็ม (`percent`) | 2 ตำแหน่ง (`rate2`) |
+| ขอบเขต | รอบที่เลือก / ทุกรอบของปี | รอบ `attempt_number = 1` เท่านั้น |
+
+- 3 ช่องต่อวิชา (`pass` / `fail` / `not_submitted`) บวกกันได้เท่า `cohort_total` เสมอ
+  และ 3 rate รวมกันได้ `100.00` เป๊ะ — เศษจากการปัดยกไปไว้ที่ `not_submitted_rate`
+- `fail` นับ**เฉพาะคนที่กรอกมาว่าตกจริง** ไม่กลืนคนที่ยังไม่ส่งผลเข้ามา
+  (เอกสารของสภารวม 2 อย่างนี้เป็นช่องเดียว ตอนทำ PDF ต้องบวก `fail + not_submitted` กลับ)
+- `sat = 0` แปลว่าไม่มีใครสอบวิชานั้นเลย หน้าจอต้องขึ้น `—` ไม่ใช่ `0.00%`
+- `average_pass_rate` เฉลี่ยเฉพาะวิชาที่ `sat > 0` — หน้าจอใช้เป็นเส้นอ้างอิงว่าวิชาไหนต้องเฝ้าระวัง
 
 **`dashboard.pdf.js`** — สร้าง PDF ด้วย pdfkit แล้ว `doc.pipe(res)` ส่งเป็น stream ตรงถึงเบราว์เซอร์ ไม่เขียนไฟล์ลง disk.
 ต้อง `registerFont` ฟอนต์ Sarabun จาก `assets/fonts/` ไม่งั้นภาษาไทยกลายเป็นสี่เหลี่ยม □□□.
@@ -976,6 +996,9 @@ curl -H "Authorization: Bearer <token>" http://localhost:3000/api/subjects/1
 
 | วันที่ | เปลี่ยนอะไร |
 |---|---|
+| 2026-08-12 | อัปโหลดเอกสารประเภทเดิมซ้ำ = **แทนที่ใบเก่า** ไม่ใช่เพิ่มใบที่สอง — ลบทั้งแถวใน DB และไฟล์บน disk ก่อนสร้างใบใหม่. เดิมนักศึกษาที่ถูกตีกลับแล้วส่งใหม่จะเหลือเอกสาร 2 ใบในผลสอบเดียว (resubmit ใช้ `result_id` เดิม) เจ้าหน้าที่แยกไม่ออกว่าใบไหนล่าสุด (`certificates.controller.js`, `certificates.repository.js` — เพิ่ม `findByResultAndType`, `removeById`) |
+| 2026-08-12 | 401 ที่แปลว่า "ต้อง login ใหม่" ติด `code: "auth_required"` มาด้วย (`middlewares/auth.js` ทั้ง 3 จุด, `middlewares/requireRole.js`) — frontend เดิมเจอ 401 ทุกกรณีแล้ว `window.location.reload()` ทำให้กรอกรหัสผิดตอน login แล้วหน้ารีทิ้ง error ที่เพิ่งขึ้น และกรอกรหัสเดิมผิดตอนเปลี่ยนรหัสแล้วโดนเตะออก. 401 จากการเช็ครหัสผ่าน (`authController.js`) **ต้องไม่มี code นี้**. **frontend แก้พร้อมกัน** (`api.js`) — ต้องแจ้งแก้ม |
+| 2026-08-12 | `/dashboard/history` เพิ่ม 2 ค่าต่อปี: `firstAttemptBySubject` (ตารางผลรายวิชาของรอบแรก รูปแบบเดียวกับที่คณะส่งสภาการพยาบาล — **ตัวหารเป็นนักศึกษาทั้งรุ่น** ทศนิยม 2 ตำแหน่ง แยกช่อง `not_submitted` ออกจาก `fail` ให้เห็นตามจริง) และ `started` (คนที่มีใบในปีนี้ รวม `draft` — ใช้หา "ยังไม่เริ่มกรอก" โดยไม่นับคนที่กรอกค้างซ้ำสองช่อง) ไม่แตะ schema/repository (`dashboard.service.js`) |
 | 2026-08-11 | `/dashboard/history` เพิ่ม 3 ค่าต่อปี: `firstAttempt` (ร้อยละผ่านครั้งแรก = ผ่านครบในรอบ `attempt_number=1` ÷ `total`), `firstYear` (ผ่านครบในรอบไหนก็ได้ของปีนั้น ÷ `total`) และ `passDistribution` (ตารางผ่าน 8/7/6… วิชา ของรอบแรก แยกตามห้องเรียน + คอลัมน์รวม) ตามสูตรที่คณะใช้รายงานสภาการพยาบาล. **ตัวหารเป็น `total` ไม่ใช่ `submitted`** และ 2 ค่านี้เป็น % ทศนิยม 2 ตำแหน่ง (`rate2`) ต่างจาก field เดิมที่ปัดจำนวนเต็ม. ไม่แตะ schema/repository (`dashboard.service.js`) |
 | 2026-08-11 | **สถิติ dashboard ใช้ตัวหารเดียวกันทั้งหมด** = นักศึกษาทั้งรุ่นที่ import (= ผู้สำเร็จการศึกษา ตามสูตรที่ส่งสภาการพยาบาล). `firstYear` นับจากวิชาที่ผ่านสะสมข้ามรอบ ไม่ใช่ดูทีละรอบ, ตารางแจกแจงหารด้วยจำนวนคนทั้งห้อง + มีแถว "ไม่ได้ส่งผล", `findResultsByRound` เลิกกรอง `exam_eligible`, โดนัทบวกกันได้เท่า `total` (`dashboard.service.js`, `dashboard.repository.js`, `smoke-phase12`) |
 | 2026-08-11 | ตัดแจ้งเตือน "สรุปรอบที่เพิ่งปิด" ออกจาก `/api/dashboard/alerts` — สรุปผลดูได้จาก dashboard และหน้ารายงานอยู่แล้ว ไม่ใช่เรื่องที่ต้องลงมือทำ กล่องแจ้งเตือนเหลือเฉพาะงานที่ต้องทำจริง 3 แบบ |

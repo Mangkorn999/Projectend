@@ -11,7 +11,12 @@
 export const requireRole = (...allowedRoles) => {
   return (req, res, next) => {
     if (!req.user) {
-      return res.status(401).json({ success: false, message: "ยังไม่ได้ login" });
+      // code เดียวกับ authenticate — frontend เห็นแล้วเด้งกลับหน้า login
+      return res.status(401).json({
+        success: false,
+        code: "auth_required",
+        message: "ยังไม่ได้ login",
+      });
     }
 
     if (!allowedRoles.includes(req.user.role)) {

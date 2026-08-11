@@ -19,10 +19,14 @@ export const authenticate = async (req, res, next) => {
     token = req.cookies.token;
   }
 
+  // code: "auth_required" = "cookie ใช้ไม่ได้ ต้อง login ใหม่" — frontend ใช้ code นี้ตัดสินใจว่าจะเด้งกลับหน้า login ไหม
+  // 401 ที่มาจากการเช็ครหัสผ่าน (login ผิด / รหัสเดิมผิด) ต้องไม่มี code นี้ ไม่งั้นกรอกผิดทีเดียวหน้าจะ reload ทิ้ง
   if (!token) {
-    return res
-      .status(401)
-      .json({ success: false, message: "กรุณาเข้าสู่ระบบก่อน" });
+    return res.status(401).json({
+      success: false,
+      code: "auth_required",
+      message: "กรุณาเข้าสู่ระบบก่อน",
+    });
   }
 
   let decoded;
@@ -30,9 +34,11 @@ export const authenticate = async (req, res, next) => {
     decoded = jwt.verify(token, process.env.JWT_SECRET);
   } catch (err) {
     console.error("JWT verify error:", err.message);
-    return res
-      .status(401)
-      .json({ success: false, message: "Token ไม่ถูกต้องหรือหมดอายุ" });
+    return res.status(401).json({
+      success: false,
+      code: "auth_required",
+      message: "Token ไม่ถูกต้องหรือหมดอายุ",
+    });
   }
 
   try {
@@ -57,6 +63,7 @@ export const authenticate = async (req, res, next) => {
     if (!user || !user.password_hash) {
       return res.status(401).json({
         success: false,
+        code: "auth_required",
         message: "บัญชีนี้ใช้งานไม่ได้แล้ว กรุณาเข้าสู่ระบบใหม่",
       });
     }
