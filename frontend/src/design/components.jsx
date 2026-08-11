@@ -5,7 +5,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { STATUS, Icon } from './data.jsx';
 import { Logo } from './logos.jsx';
-import { t } from './i18n.js';
+import { t, subjectName } from './i18n.js';
 
 /* ---- Status badge ---- */
 export function StatusBadge({ status, size, lang='TH' }) {
@@ -177,17 +177,22 @@ export function StatCard({ icon, label, value, sub, tone='navy', onClick, accent
 }
 
 /* ---- Donut chart (SVG) ---- */
-export function Donut({ segments, size=180, thickness=26, center }) {
+export function Donut({ segments, size=180, thickness=26, center, gap=2 }) {
   const total = segments.reduce((a,s)=>a+s.value,0) || 1;
   const R = (size-thickness)/2; const C = 2*Math.PI*R; let off = 0;
+  // เว้นช่องว่างระหว่างชิ้น ไม่งั้นสีสองชิ้นที่ใกล้กันติดกันจนดูเป็นชิ้นเดียว
+  // ชิ้นเดียวเต็มวง (หรือชิ้นสั้นกว่าช่องว่าง) ไม่ต้องเว้น ไม่งั้นจะเห็นเป็นรอยบากเปล่าๆ
+  const drawn = segments.filter(s => s.value > 0).length;
+  const pad = drawn > 1 ? gap : 0;
   return (
     <div style={{ position:'relative', width:size, height:size }}>
       <svg className="donut-spin-in" width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <circle cx={size/2} cy={size/2} r={R} fill="none" stroke="var(--ink-100)" strokeWidth={thickness} />
         {segments.map((s,i)=>{
           const len = s.value/total*C;
+          const shown = len > pad ? len - pad : len;
           const el = <circle key={i} cx={size/2} cy={size/2} r={R} fill="none" stroke={s.color}
-            strokeWidth={thickness} strokeDasharray={`${len} ${C-len}`} strokeDashoffset={-off}
+            strokeWidth={thickness} strokeDasharray={`${shown} ${C-shown}`} strokeDashoffset={-off}
             strokeLinecap="butt" style={{ transition:'stroke-dasharray .6s' }} />;
           off += len; return el;
         })}
@@ -227,6 +232,172 @@ export function BarRow({ label, value, max=100, color='var(--navy-600)', track, 
         <i style={{ position:'relative', width:w+'%', background:color }}></i>
       </div>
       {sub && <div style={{ fontSize:11.5, color:'var(--ink-400)' }}>{sub}</div>}
+    </div>
+  );
+}
+
+/* ---- ตารางผลสอบผ่านครั้งแรก จำแนกรายวิชา ----
+   รูปแบบเดียวกับตารางที่คณะส่งสภาการพยาบาล แต่แยกช่อง "ยังไม่ส่งผล" ออกมาให้เห็นตามจริง
+   ตัวเลขทุกตัวมาจาก backend (firstAttemptBySubject) ตรงๆ ฝั่งนี้ไม่คิด % เอง
+   ยกเว้นแถวรวมท้ายตารางที่เป็นการบวกคอลัมน์ธรรมดา */
+export function FirstAttemptSubjectTable({ data, year, lang='TH' }) {
+  const tt = (key, vars) => t(lang, key, vars);
+  const [sortBy, setSortBy] = useState('code'); // 'code' = ตรงกับเอกสาร, 'rate' = หาวิชาที่ต้องแก้
+  const [hoverRow, setHoverRow] = useState(null);
+
+  if (!data || !data.cohort_total || data.subjects.length === 0) {
+    return <div className="card card-pad"><Empty icon="doc" title={tt('firstBySubject.empty')} /></div>;
+  }
+
+  const { cohort_total: cohort, submitted, average_pass_rate: avg, subjects } = data;
+  const rows = sortBy === 'rate'
+    ? [...subjects].sort((a, b) => a.pass_rate - b.pass_rate)
+    : [...subjects].sort((a, b) => a.subject_code.localeCompare(b.subject_code));
+
+  // แถวรวม = บวกคอลัมน์ตรงๆ ตัวหารเป็นทั้งรุ่นคูณจำนวนวิชา
+  const sum = (pick) => subjects.reduce((acc, s) => acc + pick(s), 0);
+  const totals = { pass: sum(s => s.pass), fail: sum(s => s.fail), ns: sum(s => s.not_submitted) };
+  const totalCells = cohort * subjects.length;
+  const pctOfAll = (n) => (totalCells ? Math.round((n / totalCells) * 10000) / 100 : 0);
+
+  const HEAD = { padding: '7px 10px', fontWeight: 600, color: 'var(--ink-500)', fontSize: 12 };
+  const NUM = { padding: '9px 10px', textAlign: 'right', whiteSpace: 'nowrap' };
+
+  // ช่องจำนวน+ร้อยละคู่กัน — วิชาที่ไม่มีใครสอบขึ้นขีดแทน 0.00% (0% แปลว่าสอบแล้วตกหมด คนละเรื่อง)
+  const Cell = ({ count, rate, color, muted, dash }) => (
+    <>
+      <td className="tnum" style={{ ...NUM, fontWeight: 700, color: muted ? 'var(--ink-400)' : color }}>
+        {dash ? '—' : count}
+      </td>
+      <td className="tnum" style={{ ...NUM, color: 'var(--ink-500)' }}>
+        {dash ? '—' : rate.toFixed(2)}
+      </td>
+    </>
+  );
+
+  return (
+    <div className="card card-pad">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800 }}>{tt('firstBySubject.title')}</h3>
+          <p style={{ margin: 0, color: 'var(--ink-500)', fontSize: 13 }}>
+            {tt('firstBySubject.sub', { year, total: cohort })}
+          </p>
+        </div>
+        {/* สลับการเรียง — ค่าเริ่มต้นตรงกับเอกสาร กดทีเดียวได้มุมมอง "วิชาไหนแย่สุด" */}
+        <button type="button" className="btn btn-ghost btn-sm"
+          onClick={() => setSortBy(s => (s === 'code' ? 'rate' : 'code'))}
+          style={{ border: '1px solid var(--ink-200)', display: 'flex', alignItems: 'center', gap: 6, flex: 'none' }}>
+          <Icon name="chevD" size={14} />
+          {sortBy === 'code' ? tt('firstBySubject.sortByCode') : tt('firstBySubject.sortByRate')}
+        </button>
+      </div>
+
+      <div style={{ overflowX: 'auto', marginTop: 16 }}>
+        <table style={{ width: '100%', minWidth: 780, borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr>
+              <th rowSpan={2} style={{ ...HEAD, textAlign: 'left', borderBottom: '1px solid var(--ink-100)' }}>{tt('firstBySubject.colSubject')}</th>
+              <th rowSpan={2} style={{ ...HEAD, textAlign: 'right', borderBottom: '1px solid var(--ink-100)' }}>{tt('firstBySubject.colCohort')}</th>
+              <th colSpan={2} style={{ ...HEAD, borderBottom: '1px solid var(--ink-100)', color: 'var(--status-ok-fg)' }}>{tt('firstBySubject.colPass')}</th>
+              <th colSpan={2} style={{ ...HEAD, borderBottom: '1px solid var(--ink-100)', color: 'var(--status-reject-fg)' }}>{tt('firstBySubject.colFail')}</th>
+              <th colSpan={2} style={{ ...HEAD, borderBottom: '1px solid var(--ink-100)' }}>{tt('firstBySubject.colNotSubmitted')}</th>
+              <th rowSpan={2} style={{ ...HEAD, borderBottom: '1px solid var(--ink-100)', minWidth: 150 }}>{tt('firstBySubject.colChart')}</th>
+            </tr>
+            <tr>
+              {[0, 1, 2].map(i => (
+                <React.Fragment key={i}>
+                  <th style={{ ...HEAD, textAlign: 'right', fontWeight: 500, fontSize: 11.5, borderBottom: '1px solid var(--ink-100)' }}>{tt('firstBySubject.colCount')}</th>
+                  <th style={{ ...HEAD, textAlign: 'right', fontWeight: 500, fontSize: 11.5, borderBottom: '1px solid var(--ink-100)' }}>{tt('firstBySubject.colRate')}</th>
+                </React.Fragment>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(s => {
+              const noSat = s.sat === 0;           // ไม่มีใครสอบวิชานี้เลย
+              const below = !noSat && s.pass_rate < avg; // ต่ำกว่าค่าเฉลี่ยของปีนี้ = ต้องเฝ้าระวัง
+              const hot = hoverRow === s.subject_id;
+              return (
+                <tr key={s.subject_id}
+                  onMouseEnter={() => setHoverRow(s.subject_id)}
+                  onMouseLeave={() => setHoverRow(null)}
+                  style={{ borderTop: '1px solid var(--ink-100)',
+                    background: hot ? 'var(--ink-50)' : below ? 'rgba(224,73,59,.05)' : 'transparent',
+                    transition: 'background .12s' }}>
+                  <td style={{ padding: '9px 10px' }}>
+                    <span className="mono" style={{ color: 'var(--ink-500)', marginRight: 8 }}>{s.subject_code}</span>
+                    {subjectName(lang, s.subject_code, s.subject_name)}
+                    {below && <span className="chip" style={{ marginLeft: 8, background: 'var(--status-reject-bg)', color: 'var(--status-reject-fg)', fontSize: 11 }}>{tt('firstBySubject.belowAvg')}</span>}
+                  </td>
+                  <td className="tnum" style={{ ...NUM, color: 'var(--ink-600)' }}>{cohort}</td>
+                  <Cell count={s.pass} rate={s.pass_rate} color="var(--status-ok-fg)" dash={noSat} />
+                  <Cell count={s.fail} rate={s.fail_rate} color="var(--status-reject-fg)" dash={noSat} />
+                  <Cell count={s.not_submitted} rate={s.not_submitted_rate} color="var(--ink-600)" muted />
+                  <td style={{ padding: '9px 10px' }}>
+                    <ShareBar pass={s.pass_rate} fail={s.fail_rate} ns={s.not_submitted_rate} avg={avg}
+                      title={noSat ? tt('firstBySubject.noSat')
+                        : tt('firstBySubject.tooltip', { pass: s.pass, fail: s.fail, ns: s.not_submitted, total: cohort })} />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr style={{ borderTop: '2px solid var(--ink-200)', background: 'var(--gold-50)' }}>
+              <td style={{ padding: '10px', fontWeight: 800 }}>{tt('firstBySubject.rowTotal')}</td>
+              <td className="tnum" style={{ ...NUM, fontWeight: 700 }}>{totalCells}</td>
+              <Cell count={totals.pass} rate={pctOfAll(totals.pass)} color="var(--status-ok-fg)" />
+              <Cell count={totals.fail} rate={pctOfAll(totals.fail)} color="var(--status-reject-fg)" />
+              <Cell count={totals.ns} rate={pctOfAll(totals.ns)} color="var(--ink-600)" muted />
+              <td style={{ padding: '9px 10px' }}>
+                <ShareBar pass={pctOfAll(totals.pass)} fail={pctOfAll(totals.fail)} ns={pctOfAll(totals.ns)} />
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      {/* ป้ายสี + ตัวหาร — ไม่งั้นคนอ่านไม่รู้ว่า % คิดจากอะไร แล้วเทียบกับการ์ดอื่นบนหน้าเดียวกันไม่ถูก */}
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', marginTop: 14, fontSize: 12 }}>
+        {[['var(--pass)', tt('firstBySubject.colPass')],
+          ['var(--fail)', tt('firstBySubject.colFail')],
+          ['var(--ink-200)', tt('firstBySubject.colNotSubmitted')]].map(([c, label]) => (
+          <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--ink-600)' }}>
+            <span style={{ width: 10, height: 10, borderRadius: 3, background: c }} />{label}
+          </span>
+        ))}
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--ink-500)' }}>
+          <span style={{ width: 2, height: 12, background: 'var(--navy-700)' }} />{tt('firstBySubject.avgLine', { rate: avg.toFixed(2) })}
+        </span>
+      </div>
+      <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--ink-500)' }}>
+        {tt('firstBySubject.footnote', { submitted, total: cohort })}
+      </p>
+      <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--ink-400)' }}>
+        {tt('firstBySubject.councilNote')}
+      </p>
+    </div>
+  );
+}
+
+/* แถบสัดส่วน 3 ท่อนของ 1 รายวิชา — เต็มความกว้าง = ผู้สมัครสอบทั้งหมด เริ่มที่ 0 เสมอ ไม่ตัดฐาน
+   เว้น 2px ระหว่างท่อน ไม่งั้นสีติดกันจนแยกไม่ออกตอนท่อนใดท่อนหนึ่งบางมาก
+   avg = ขีดอ้างอิงค่าเฉลี่ยผ่านของทั้งปี เห็นทันทีว่าวิชานี้อยู่เหนือหรือใต้เส้น */
+function ShareBar({ pass, fail, ns, avg, title }) {
+  // flexGrow ตามสัดส่วน ไม่ใช่ width % — ช่องว่าง 2px จะถูกหักจากท่อนให้เองพอดี
+  // ถ้าใช้ % ตรงๆ ผลรวมจะเป็น 100% + ช่องว่าง แล้วท่อนสุดท้ายโดนตัดหาย
+  const seg = (w, bg) => (w > 0 ? <i style={{ flex: `${w} 1 0`, background: bg, height: '100%', display: 'block' }} /> : null);
+  return (
+    <div title={title} style={{ position: 'relative', display: 'flex', gap: 2, height: 10, width: '100%',
+      background: 'var(--ink-100)', borderRadius: 999, overflow: 'hidden' }}>
+      {seg(pass, 'var(--pass)')}
+      {seg(fail, 'var(--fail)')}
+      {seg(ns, 'var(--ink-200)')}
+      {avg !== undefined && (
+        <span style={{ position: 'absolute', left: `${avg}%`, top: -2, bottom: -2, width: 2,
+          background: 'var(--navy-700)', opacity: .7 }} />
+      )}
     </div>
   );
 }

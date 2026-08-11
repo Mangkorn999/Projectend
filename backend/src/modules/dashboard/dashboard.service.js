@@ -142,6 +142,67 @@ function buildPassDistribution(sent, subjectIds, roomTotals) {
   return { subject_count: subjectIds.length, total, rooms: roomList, rows: out };
 }
 
+// ตารางผลรายวิชาของ "การสอบรอบแรก" — รูปแบบเดียวกับตารางที่คณะส่งสภาการพยาบาล
+//
+// ต่างจาก buildPerSubject ตรงตัวหาร:
+//   buildPerSubject          หารด้วย "คนที่สอบวิชานั้นจริง"   → ตอบว่าคนที่เข้าสอบผ่านกี่ %
+//   buildFirstAttemptBySubject หารด้วย "นักศึกษาทั้งรุ่น"     → ตัวเลขที่ส่งสภาการพยาบาลใช้แบบนี้
+//
+// 3 ช่องต่อวิชา (ผ่าน / ไม่ผ่าน / ยังไม่ส่งผล) บวกกันได้เท่าทั้งรุ่นเสมอ
+// "ไม่ผ่าน" นับเฉพาะคนที่กรอกมาว่าตกจริง ไม่กลืนคนที่ยังไม่ส่งผลเข้ามา
+// (เอกสารของสภารวม 2 อย่างนี้เป็นช่องเดียว ตอนทำ PDF ค่อยบวกกลับ)
+function buildFirstAttemptBySubject(sent, subjects, cohortTotal) {
+  if (!cohortTotal) return null; // ยังไม่ import นักศึกษา — ไม่มีตัวหาร ไม่ต้องคำนวณ
+
+  const counted = notRejected(sent); // ใบที่ถูกตีกลับเชื่อไม่ได้ ใช้กฎเดียวกับสถิติตัวอื่นในไฟล์นี้
+
+  const rows = subjects.map((sub) => {
+    let pass = 0;
+    let fail = 0;
+    for (const r of counted) {
+      const mark = r.subject_results.find(
+        (x) => x.subject_id === sub.subject_id,
+      );
+      // carried_forward = ยกผลผ่านมาจากรอบก่อน ไม่ได้สอบวิชานี้จริง ไม่นับเป็นผู้เข้าสอบ
+      if (!mark || mark.carried_forward) continue;
+      if (mark.is_passed) pass += 1;
+      else fail += 1;
+    }
+
+    const passRate = rate2(pass, cohortTotal);
+    const failRate = rate2(fail, cohortTotal);
+    // ยกเศษจากการปัดทศนิยมมาไว้ช่องสุดท้าย ผลรวม 3 ช่องจะได้เป็น 100.00 เป๊ะทุกแถว
+    // (ถ้าคิด rate2(notSubmitted, cohortTotal) ตรงๆ บางแถวจะรวมได้ 99.99 หรือ 100.01)
+    const notSubmittedRate = Math.round((100 - passRate - failRate) * 100) / 100;
+
+    return {
+      subject_id: sub.subject_id,
+      subject_code: sub.subject_code,
+      subject_name: sub.subject_name,
+      pass,
+      pass_rate: passRate,
+      fail,
+      fail_rate: failRate,
+      not_submitted: cohortTotal - pass - fail,
+      not_submitted_rate: notSubmittedRate,
+      sat: pass + fail, // 0 = ไม่มีใครสอบวิชานี้เลย ฝั่งหน้าจอต้องขึ้นขีด ไม่ใช่ 0.00%
+    };
+  });
+
+  // เฉลี่ยเฉพาะวิชาที่มีคนสอบจริง — วิชาที่ไม่มีใครสอบจะลากค่าเฉลี่ยลงทั้งที่ไม่มีข้อมูล
+  const sat = rows.filter((r) => r.sat > 0);
+  let sum = 0;
+  for (const r of sat) sum += r.pass_rate;
+  const average = sat.length ? Math.round((sum / sat.length) * 100) / 100 : 0;
+
+  return {
+    cohort_total: cohortTotal, // คอลัมน์ "จำนวนผู้สมัครสอบ" = ตัวหารของทุก % ในตารางนี้
+    submitted: counted.length, // ส่งผลรอบแรกแล้วกี่คน (ไม่รวมใบที่ถูกตีกลับ)
+    average_pass_rate: average, // เส้นอ้างอิงของหน้าจอ: วิชาไหนต่ำกว่าค่านี้ = ต้องเฝ้าระวัง
+    subjects: rows,
+  };
+}
+
 const notFound = (message) => {
   const err = new Error(message);
   err.statusCode = 404;
@@ -229,6 +290,10 @@ const buildYearSummary = async (year, allSubjects) => {
   ]);
 
   const everSubmitted = new Set(); // student_id ที่ส่งอย่างน้อย 1 รอบในปีนี้
+  // student_id ที่ "มีใบในปีนี้" ทุกสถานะ รวม draft ที่ยังกรอกไม่เสร็จด้วย
+  // ต่างจาก everSubmitted ตรงนับคนที่เริ่มกรอกแต่ยังไม่กดส่ง — ใช้หา "ยังไม่เริ่มกรอก" ให้ไม่นับซ้ำ
+  // (ถ้าใช้ total − everSubmitted คนที่ค้าง draft จะโดนนับทั้งช่อง draft และช่องยังไม่เริ่ม)
+  const everStarted = new Set();
   const roundSummaries = [];
   const yearCounted = []; // ผลที่นับได้ (ไม่ถูกตีกลับ) รวมทุกรอบของปีนี้ — ใช้ทำอัตราผ่านรายวิชาย้อนหลัง
 
@@ -242,18 +307,21 @@ const buildYearSummary = async (year, allSubjects) => {
   // ใช้ทำ "ร้อยละผ่านครั้งแรก" + ตารางผ่านกี่วิชา ซึ่งนับเฉพาะรอบแรกเท่านั้น
   let firstRoundSent = null;
   let firstRoundSubjectIds = [];
+  let firstRoundSubjects = []; // ตัว object เต็ม (มีรหัส/ชื่อวิชา) ไว้ทำตารางรายวิชา
 
   for (const round of rounds) {
     const results = await dashRepo.findResultsByRound(round.round_id);
     const sent = onlySent(results);
     const counted = notRejected(sent);
-    const subjectIds = subjectsOfRound(round, allSubjects).map(
-      (s) => s.subject_id,
-    );
+    const roundSubjects = subjectsOfRound(round, allSubjects);
+    const subjectIds = roundSubjects.map((s) => s.subject_id);
+
+    for (const r of results) everStarted.add(r.student_id);
 
     if (round.attempt_number === 1) {
       firstRoundSent = sent;
       firstRoundSubjectIds = subjectIds;
+      firstRoundSubjects = roundSubjects;
     }
 
     for (const r of counted) {
@@ -329,11 +397,17 @@ const buildYearSummary = async (year, allSubjects) => {
   }
 
   let passDistribution = null;
+  let firstAttemptBySubject = null;
   if (firstRoundSent) {
     passDistribution = buildPassDistribution(
       firstRoundSent,
       firstRoundSubjectIds,
       roomTotals,
+    );
+    firstAttemptBySubject = buildFirstAttemptBySubject(
+      firstRoundSent,
+      firstRoundSubjects,
+      total,
     );
   }
 
@@ -342,6 +416,7 @@ const buildYearSummary = async (year, allSubjects) => {
     total,
     eligible,
     submitted: everSubmitted.size,
+    started: everStarted.size, // มีใบในปีนี้กี่คน (รวม draft) — total − started = ยังไม่เริ่มกรอก
     fullyPassed: fullyPassedStudents.size,
     // ทุก % ของสถิติชุดนี้หารด้วย total (นักศึกษาทั้งรุ่นที่ import เข้าระบบ) ตัวเดียวกันหมด
     fillRate: rate2(everSubmitted.size, total),
@@ -355,6 +430,8 @@ const buildYearSummary = async (year, allSubjects) => {
       rate: rate2(fullyPassedStudents.size, total),
     },
     passDistribution, // null = ปีนั้นยังไม่มีรอบที่ 1 ในระบบ
+    // ตารางรายวิชาของรอบแรก ตัวหาร = นักศึกษาทั้งรุ่น (null = ยังไม่มีรอบที่ 1 หรือยังไม่ import นักศึกษา)
+    firstAttemptBySubject,
     rounds: roundSummaries,
     byRoom, // ผ่านครบ/ส่งแล้วแยกตามห้องเรียน (ปกติ/ภาษาอังกฤษ) — ใช้ตารางเทียบย้อนหลัง
     // อัตราผ่านรายวิชา รวมทุกรอบของปีนี้ — ใช้กราฟเทียบอัตราผ่านรายวิชาย้อนหลัง

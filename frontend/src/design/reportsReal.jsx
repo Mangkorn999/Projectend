@@ -6,7 +6,7 @@
    ============================================================ */
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, StatusBadge } from './components.jsx';
+import { PageHead, StatusBadge, FirstAttemptSubjectTable } from './components.jsx';
 import { Logo } from './logos.jsx';
 import { apiFetch } from './api.js';
 import { t, subjectName, roomName } from './i18n.js';
@@ -198,6 +198,14 @@ export function ReportsReal({ toast, readonly, lang }) {
                 : <span className="badge" style={{ background: s.rate >= 80 ? 'var(--status-ok-bg)' : s.rate >= 60 ? 'var(--gold-50)' : 'var(--status-reject-bg)', color: s.rate >= 80 ? 'var(--status-ok-fg)' : s.rate >= 60 ? '#3a2c05' : 'var(--status-reject-fg)' }}>{s.rate}%</span>}</td></tr>
           ))}</tbody>
         </table>
+
+        {/* ตารางรายวิชาของการสอบรอบแรก — ตัวหารเป็นนักศึกษาทั้งรุ่น คนละตัวกับตารางด้านบน
+            ตารางด้านบนเป็นระดับ "รอบที่เลือก" ตารางนี้เป็นระดับ "ปี/รอบแรก" จึงต้องอยู่แยกกัน ไม่ใช่แก้ของเดิม */}
+        {yearStats?.firstAttemptBySubject && (
+          <div style={{ marginTop: 26 }}>
+            <FirstAttemptSubjectTable data={yearStats.firstAttemptBySubject} year={year} lang={lang} />
+          </div>
+        )}
 
         {/* ตารางจำแนกจำนวนวิชาที่ผ่าน — รูปแบบเดียวกับที่คณะส่งสภาการพยาบาล */}
         {yearStats?.passDistribution?.total > 0 && (
