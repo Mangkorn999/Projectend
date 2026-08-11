@@ -512,7 +512,6 @@ const DICT = {
     'dashReal.avgAllSubjects': 'เฉลี่ยทุกวิชา {rate}%',
     'dashReal.passFailSub': 'ผ่าน {pass} / ไม่ผ่าน {fail}',
     'dashReal.noExamThisRound': 'ไม่มีผู้สอบวิชานี้ในรอบนี้',
-    'dashReal.yearCompareTitle': 'เปรียบเทียบย้อนหลัง {n} ปีการศึกษา',
     'dashReal.yearCompareSub': 'รวมทุกรอบในปีนั้นเข้าด้วยกัน นับเป็นรายคน — คนที่กรอกหลายรอบนับครั้งเดียว',
     'dashReal.colYear': 'ปีการศึกษา',
     'dashReal.colRounds': 'จำนวนรอบ',
@@ -527,6 +526,8 @@ const DICT = {
     'dashReal.roundBarClose': 'ปิดรับ {date}',
     'dashReal.roundBarDaysLeft': 'เหลืออีก {n} วัน',
     'dashReal.roundBarLastDay': 'วันนี้วันสุดท้าย',
+    'dashReal.roundFullyPassedCount': 'ผ่านครบ {pass} คน',
+    'dashReal.roundSatTotal': 'จากผู้เข้าสอบ {total} คน',
     'dashReal.roundBarEnded': 'เลยกำหนดปิดรับแล้ว',
     'dashReal.roundBarProgress': 'กรอกแล้ว {submitted}/{total} คนของรุ่น ({rate}%)',
     'dashReal.taskPendingLabel': 'รอตรวจสอบ',
@@ -552,8 +553,23 @@ const DICT = {
     'dashReal.zoneRound': 'ผลการกรอกตามรอบ',
     'dashReal.zoneRoundSub': 'เลือกดูทีละรอบ หรือรวมทั้งปี',
     'dashReal.reportSectionSub': 'ตัวเลขระดับปีการศึกษา {year} ไม่ขึ้นกับรอบที่เลือกด้านบน',
+    'dashReal.reportSectionMultiYearSub': 'ตัวเลขระดับปีการศึกษา ไม่ขึ้นกับรอบที่เลือกด้านบน — ติ๊กเลือกปีที่จะดูได้สูงสุด 3 ปีในแต่ละกล่อง',
+    'dashReal.yearPickerMax': 'เลือกได้สูงสุด {max} ปี',
+    'dashReal.yearPickerSummary': 'เลือกแล้ว {n} ปี',
+    'dashReal.yearPickerLabel': 'เลือกปีที่จะดู',
     'dashReal.tabAllRounds': 'รวมทั้งปี',
     'dashReal.alertsTitle': 'เรื่องที่ต้องดำเนินการ',
+    'dashReal.alertOverdueTitle': 'รอบ {attempt}/{year} เลยกำหนดปิดแล้ว',
+    'dashReal.alertOverdueDetail': 'ครบกำหนดไปแล้ว {days} วัน แต่สถานะยังเป็น "เปิดรับ" — ปิดรอบเพื่อสรุปผล',
+    'dashReal.alertClosingTitle': 'รอบ {attempt}/{year} ใกล้ปิดรับ',
+    'dashReal.alertClosingToday': 'วันนี้เป็นวันสุดท้าย',
+    'dashReal.alertClosingDays': 'เหลืออีก {days} วัน',
+    'dashReal.alertMissingTitle': 'ยังไม่ส่งผลสอบ {n} คน',
+    'dashReal.alertMissingDetail': 'รอบ {attempt}/{year} · จากนักศึกษาทั้งรุ่น {cohort} คน',
+    'dashReal.alertPendingTitle': 'มีผลสอบรอตรวจ {n} ใบ',
+    'dashReal.alertPendingDetail': 'รอบ {attempt}/{year}',
+    'dashReal.alertSummaryTitle': 'สรุปรอบ {attempt}/{year} ที่เพิ่งปิด',
+    'dashReal.alertSummaryDetail': 'ส่งผล {submitted}/{total} คน · ผ่านครบทุกวิชา {passed} คน ({rate}% ของรุ่น)',
     'dashReal.yearTotalLabel': 'นักศึกษาทั้งรุ่น',
     'dashReal.yearTotalSub': 'ที่นำเข้าระบบในปี {year}',
     'dashReal.yearSubmittedLabel': 'ส่งผลแล้ว (รายคน)',
@@ -593,9 +609,6 @@ const DICT = {
     'dashReal.perAttemptSub': 'ปีการศึกษา {year} · ผ่านครบวิชาที่เปิดสอบรอบนั้น ÷ ผู้ส่งผลรอบนั้น (คนละตัวหารกับ 2 ตัวเลขด้านบน)',
     'dashReal.attemptLabel': 'ครั้งที่ {n}',
     'dashReal.unitPeople': 'คน',
-    'dashReal.compareSub': 'สอบผ่านครั้งแรก เทียบกับผ่านสะสมภายในปีแรก',
-    'dashReal.seriesFirst': 'สอบผ่านครั้งแรก',
-    'dashReal.seriesCumulative': 'ผ่านสะสม',
     'detailReal.actionFailMsg': 'ทำรายการไม่สำเร็จ',
     'detailReal.notFilledYet': 'นักศึกษายังไม่ได้กรอกผลสอบ',
 
@@ -1294,7 +1307,6 @@ const DICT = {
     'dashReal.avgAllSubjects': 'All-subject average {rate}%',
     'dashReal.passFailSub': 'Pass {pass} / Fail {fail}',
     'dashReal.noExamThisRound': 'No one sat this subject this round',
-    'dashReal.yearCompareTitle': 'Comparing the last {n} academic years',
     'dashReal.yearCompareSub': 'Combines all rounds within a year, counted per student — students with multiple submissions counted once',
     'dashReal.colYear': 'Academic Year',
     'dashReal.colRounds': 'Rounds',
@@ -1309,6 +1321,8 @@ const DICT = {
     'dashReal.roundBarClose': 'Closes {date}',
     'dashReal.roundBarDaysLeft': '{n} days left',
     'dashReal.roundBarLastDay': 'Last day today',
+    'dashReal.roundFullyPassedCount': 'Passed {pass}',
+    'dashReal.roundSatTotal': 'out of {total} who sat this round',
     'dashReal.roundBarEnded': 'Past the closing date',
     'dashReal.roundBarProgress': 'Submitted {submitted}/{total} in cohort ({rate}%)',
     'dashReal.taskPendingLabel': 'Awaiting review',
@@ -1334,6 +1348,10 @@ const DICT = {
     'dashReal.zoneRound': 'Submissions by round',
     'dashReal.zoneRoundSub': 'View one round at a time, or the whole year',
     'dashReal.reportSectionSub': 'Academic year {year} figures, independent of the round selected above',
+    'dashReal.reportSectionMultiYearSub': 'Academic year figures, independent of the round selected above — tick up to 3 years to view in each box',
+    'dashReal.yearPickerMax': 'Select up to {max} years',
+    'dashReal.yearPickerSummary': '{n} years selected',
+    'dashReal.yearPickerLabel': 'Select years to view',
     'dashReal.tabAllRounds': 'Whole year',
     'dashReal.alertsTitle': 'Needs attention',
     'dashReal.yearTotalLabel': 'Students in cohort',
@@ -1585,6 +1603,18 @@ const SUBJECT_NAME_EN = {
 export function subjectName(lang, code, fallbackName) {
   if (lang === 'EN' && SUBJECT_NAME_EN[code]) return SUBJECT_NAME_EN[code];
   return fallbackName;
+}
+
+// ชื่อห้องเรียนมาจาก DB ตรงๆ (room_name) ไม่ผ่าน i18n เลย — key ด้วยชื่อไทยจริงที่ seed ไว้ (ดู backend/prisma/seed.js)
+// ไม่รู้จักชื่อไหน (เผื่อเจ้าหน้าที่เพิ่มห้องใหม่ทีหลัง) ก็คืนชื่อเดิมไป ไม่พังแค่ไม่มี EN ให้
+const ROOM_NAME_EN = {
+  'ห้องเรียนปกติ': 'Normal classroom',
+  'ห้องเรียนอังกฤษ': 'English program classroom',
+};
+
+export function roomName(lang, name) {
+  if (lang === 'EN' && ROOM_NAME_EN[name]) return ROOM_NAME_EN[name];
+  return name;
 }
 
 export function t(lang, key, vars) {

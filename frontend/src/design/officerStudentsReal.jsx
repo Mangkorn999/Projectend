@@ -9,7 +9,7 @@ import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
 import { PageHead, Avatar, StatusBadge, Pagination, Modal } from './components.jsx';
 import { apiFetch, ApiError } from './api.js';
-import { t } from './i18n.js';
+import { t, roomName } from './i18n.js';
 
 // แปลง staff_status จาก backend (pending/approved/rejected) → status key ที่ StatusBadge เข้าใจ
 const STAFF_STATUS_TO_BADGE = {
@@ -165,7 +165,7 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang }) {
           <option value="CONFIRMED">{tt('status.CONFIRMED')}</option><option value="REJECTED">{tt('status.REJECTED')}</option><option value="DRAFT">{tt('status.DRAFT')}</option>
         </select>
         <select className="select" style={{ width: 'auto', minWidth: 120 }} value={room} onChange={e => setRoom(e.target.value)}>
-          <option value="ALL">{tt('officer.students.allRoom')}</option>{rooms.map(r => <option key={r} value={r}>{r}</option>)}
+          <option value="ALL">{tt('officer.students.allRoom')}</option>{rooms.map(r => <option key={r} value={r}>{roomName(lang, r)}</option>)}
         </select>
         <select className="select" style={{ width: 'auto', minWidth: 130 }} value={year} onChange={e => setYear(e.target.value)}>
           <option value="ALL">{tt('officer.students.allYear')}</option>{years.map(y => <option key={y} value={String(y)}>{tt('officer.students.yearOpt', { year: y })}</option>)}
@@ -219,7 +219,7 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang }) {
                   <td><div style={{ display: 'flex', alignItems: 'center', gap: 11 }}><Avatar name={s.firstName} size={34} />
                     <div><div style={{ fontWeight: 600, fontSize: 14 }}>{s.firstName} {s.lastName}</div>
                     <div className="mono" style={{ fontSize: 12, color: 'var(--ink-400)' }}>{s.sid}</div></div></div></td>
-                  <td><span className="chip" style={{ fontSize: 12 }}>{s.room}</span></td>
+                  <td><span className="chip" style={{ fontSize: 12 }}>{roomName(lang, s.room)}</span></td>
                   <td className="tnum" style={{ fontSize: 13, color: 'var(--ink-700)' }}>{s.year || '—'}</td>
                   <td><span className={'badge ' + (s.eligible ? 'ok' : 'draft')}><span className="dot"></span>
                     {s.eligible ? tt('officer.students.eligibleYes') : tt('officer.students.eligibleNo')}</span></td>

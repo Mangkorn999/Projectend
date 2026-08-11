@@ -9,7 +9,7 @@ import { Icon } from './data.jsx';
 import { PageHead, StatusBadge } from './components.jsx';
 import { Logo } from './logos.jsx';
 import { apiFetch } from './api.js';
-import { t, subjectName } from './i18n.js';
+import { t, subjectName, roomName } from './i18n.js';
 
 export function ReportsReal({ toast, readonly, lang }) {
   const [stats, setStats] = useState(null);
@@ -208,7 +208,7 @@ export function ReportsReal({ toast, readonly, lang }) {
                 <thead><tr>
                   <th>{tt('dashReal.distColResult')}</th>
                   {yearStats.passDistribution.rooms.map(r => (
-                    <th key={r.room_id} style={{ textAlign: 'right' }}>{r.room_name} ({r.total})</th>
+                    <th key={r.room_id} style={{ textAlign: 'right' }}>{roomName(lang, r.room_name)} ({r.total})</th>
                   ))}
                   <th style={{ textAlign: 'right' }}>{tt('dashReal.distColTotal')} ({yearStats.passDistribution.total})</th>
                 </tr></thead>
