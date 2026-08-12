@@ -92,15 +92,23 @@ export function ReportsReal({ toast, readonly, lang }) {
   if (error) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--reject,#dc2626)' }}>{tt('statuspage.loadFailPrefix', { msg: error })}</div>;
   if (!stats) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
 
-  const { round, total, by, not_started, submitted, fullyPassed, overallPassRate, perSubject } = stats;
+  const { round, total, canSubmit, by, not_started, submitted, fillRate,
+          fullyPassed, fullyPassedRate, passRateOfSitters, perSubject } = stats;
+  // ทุกใบหารด้วย total เหมือนกันหมด ยกเว้นใบสุดท้ายที่ติดป้ายบอกตัวหารไว้ในชื่อแล้ว
   const summaryCards = [
-    [tt('reports.totalStudents'), total, 'navy'],
-    [tt('reports.submitted'), submitted, 'blue'],
-    [tt('reports.fullyPassed'), fullyPassed, 'ok'],
-    [tt('reports.overallRate'), overallPassRate + '%', 'gold'],
+    [tt('reports.totalStudents'), total, tt('reportsReal.cardTotalSub', { canSubmit }), 'navy'],
+    [tt('reports.submitted'), submitted, tt('reportsReal.cardOfCohort', { rate: fillRate }), 'blue'],
+    [tt('reports.fullyPassed'), fullyPassed, tt('reportsReal.cardOfCohort', { rate: fullyPassedRate }), 'ok'],
+    [tt('reportsReal.cardSitterRate'), passRateOfSitters + '%', tt('reportsReal.cardSitterRateSub', { n: submitted }), 'gold'],
   ];
+  // 5 แถวนี้บวกกันได้เท่า total พอดี — เดิมมี 4 แถวและแถวสุดท้ายติดป้าย "ร่าง"
+  // แต่ใส่ค่า not_started (ยังไม่เริ่มกรอก) ซึ่งคนละเรื่องกัน ส่วน by.draft หายไปทั้งตัว
   const byStatus = [
-    ['CONFIRMED', by.approved], ['SUBMITTED', by.submitted], ['REJECTED', by.rejected], ['DRAFT', not_started],
+    ['CONFIRMED', tt('status.CONFIRMED'), by.approved],
+    ['SUBMITTED', tt('status.SUBMITTED'), by.submitted],
+    ['REJECTED', tt('status.REJECTED'), by.rejected],
+    ['DRAFT', tt('dashReal.draftLabel'), by.draft],
+    ['NONE', tt('dashReal.notStartedLabel'), not_started],
   ];
 
   return (
@@ -134,11 +142,13 @@ export function ReportsReal({ toast, readonly, lang }) {
 
         <div className="sec-title" style={{ margin: '24px 0 12px', color: 'var(--ink-900)' }}>{tt('reports.section1')}</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
-          {summaryCards.map(([label, v, tone]) => (
+          {summaryCards.map(([label, v, sub, tone]) => (
             <div key={label} style={{ padding: '14px 16px 14px 22px', background: '#fff', borderRadius: 11, border: '1px solid var(--ink-200)', borderLeft: '6px solid ' +
               ({ navy: 'var(--navy-700)', blue: 'var(--blue-600)', ok: 'var(--pass)', gold: 'var(--gold-500)' }[tone]) }}>
               <div style={{ fontSize: 12.5, color: 'var(--ink-500)', fontWeight: 600 }}>{label}</div>
               <div className="tnum" style={{ fontSize: 26, fontWeight: 800, marginTop: 4 }}>{v}</div>
+              {/* บอกตัวหารไว้ใต้ตัวเลขทุกใบ — ไม่งั้น % 2 ตัวที่หารคนละฐานดูเหมือนเทียบกันได้ */}
+              <div style={{ fontSize: 11.5, color: 'var(--ink-500)', marginTop: 3, lineHeight: 1.45 }}>{sub}</div>
             </div>
           ))}
         </div>
@@ -177,10 +187,12 @@ export function ReportsReal({ toast, readonly, lang }) {
         <div className="sec-title" style={{ margin: '26px 0 12px', color: 'var(--ink-900)' }}>{tt('reports.section2')}</div>
         <table className="tbl" style={{ border: '1px solid var(--ink-200)', borderRadius: 10, overflow: 'hidden' }}>
           <thead><tr><th>{tt('reports.colStatus')}</th><th style={{ textAlign: 'right' }}>{tt('reports.colCount')}</th><th style={{ textAlign: 'right' }}>{tt('reports.colPercent')}</th></tr></thead>
-          <tbody>{byStatus.map(([k, n]) => (
-            <tr key={k}><td><StatusBadge status={k} lang={lang} /></td>
+          <tbody>{byStatus.map(([k, label, n]) => (
+            <tr key={k}>
+              {/* "ยังไม่เริ่มกรอก" ไม่ใช่สถานะของใบผลสอบ (ยังไม่มีใบ) เลยไม่มี badge ให้ใช้ */}
+              <td>{k === 'NONE' ? <span style={{ color: 'var(--ink-500)' }}>{label}</span> : <StatusBadge status={k} lang={lang} />}</td>
               <td className="tnum" style={{ textAlign: 'right', fontWeight: 700 }}>{n}</td>
-              <td className="tnum" style={{ textAlign: 'right', color: 'var(--ink-600)' }}>{total ? Math.round(n / total * 100) : 0}%</td></tr>
+              <td className="tnum" style={{ textAlign: 'right', color: 'var(--ink-600)' }}>{total ? (Math.round(n / total * 10000) / 100).toFixed(2) : '0.00'}%</td></tr>
           ))}</tbody>
         </table>
 
