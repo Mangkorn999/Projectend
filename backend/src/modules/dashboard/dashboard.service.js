@@ -218,12 +218,17 @@ export const buildStats = async (roundId) => {
 
   if (!round) throw notFound("ไม่พบรอบการกรอกผลสอบ");
 
-  const [total, eligible, allSubjects, results] = await Promise.all([
-    dashRepo.countStudentsByYear(round.academic_year),
-    dashRepo.countEligibleByYear(round.academic_year),
-    dashRepo.findAllSubjects(),
-    dashRepo.findResultsByRound(round.round_id),
-  ]);
+  const [total, eligible, allSubjects, results, eligibleStudents] =
+    await Promise.all([
+      dashRepo.countStudentsByYear(round.academic_year),
+      dashRepo.countEligibleByYear(round.academic_year),
+      dashRepo.findAllSubjects(),
+      dashRepo.findResultsByRound(round.round_id),
+      dashRepo.findEligibleWithPassedSubjects(
+        round.academic_year,
+        round.round_id,
+      ),
+    ]);
 
   // นับเฉพาะวิชาที่รอบนี้สอบจริง — รอบที่สอบ 3 วิชาไม่ควรโชว์อีก 5 วิชาเป็น 0%
   const subjects = subjectsOfRound(round, allSubjects);
@@ -248,6 +253,17 @@ export const buildStats = async (roundId) => {
   }
   const subjectPassRate = percent(totalPass, totalMarks);
 
+  // "รอบนี้กรอกฟอร์มได้กี่คน" — เปิดสิทธิ์อยู่ และยังผ่านวิชาของรอบนี้ไม่ครบ
+  // ตัวเลขนี้ลดลงทุกรอบ: รอบ 1 คือทุกคนที่เปิดสิทธิ์ พอรอบ 2 เหลือเฉพาะคนที่ยังสอบไม่ผ่าน
+  // ต่างจาก eligible ข้างล่างที่เป็นยอดทั้งรุ่น ไม่ว่าดูรอบไหนก็เท่าเดิม
+  let canSubmit = 0;
+  for (const s of eligibleStudents) {
+    const passedAll = subjectIds.every((id) =>
+      s.passed_subject_ids.includes(id),
+    );
+    if (!passedAll) canSubmit += 1;
+  }
+
   return {
     round: {
       round_id: round.round_id,
@@ -257,6 +273,7 @@ export const buildStats = async (roundId) => {
     },
     total, // นักศึกษาทั้งรุ่นที่ import เข้าระบบ = ตัวหารของทุก % ในหน้านี้
     eligible, // เปิดสิทธิ์กรอกอยู่กี่คน — ข้อมูลประกอบ ไม่ใช่ตัวหาร
+    canSubmit, // รอบนี้เปิดฟอร์มให้กรอกได้กี่คน (ยังผ่านไม่ครบ) — ข้อมูลประกอบ ไม่ใช่ตัวหาร
     by: countByStatus(results),
     // ยังไม่มีใบในรอบนี้เลย — ทั้งรุ่นลบคนที่มีใบแล้ว
     // 5 ช่องนี้ (approved+submitted+rejected+draft+not_started) ต้องบวกกันได้เท่า total พอดี

@@ -76,6 +76,48 @@ export const countStudentsByRoom = async (academicYear) => {
 export const findAllSubjects = () =>
   prisma.subject.findMany({ orderBy: { subject_code: "asc" } });
 
+// นักศึกษาที่เปิดสิทธิ์กรอกของรุ่นนั้น พร้อมวิชาที่แต่ละคนผ่านไปแล้วจากรอบอื่น
+// ใช้หา "รอบนี้ยังมีสิทธิ์กรอกกี่คน" — คนที่ผ่านครบทุกวิชาของรอบแล้วเปิดฟอร์มไม่ได้อีก
+// เงื่อนไข "ผ่านแล้ว" ต้องตรงกับ findPassedSubjectIds ใน examResults ทุกข้อ
+// ไม่งั้นตัวเลขบน dashboard จะไม่ตรงกับคนที่กรอกฟอร์มได้จริง:
+//   - ตัดใบที่ถูกตีกลับออก (ผลในใบนั้นเชื่อไม่ได้)
+//   - ไม่จำกัดปีการศึกษา (วิชาที่ผ่านแล้วผ่านเลย ข้ามปีก็ยังผ่าน)
+//   - ไม่นับใบของรอบที่กำลังดูอยู่ (excludeRoundId)
+export const findEligibleWithPassedSubjects = async (
+  academicYear,
+  excludeRoundId,
+) => {
+  const students = await prisma.student.findMany({
+    where: { academic_year: academicYear, exam_eligible: true },
+    select: { student_id: true },
+  });
+  if (students.length === 0) return [];
+
+  const rows = await prisma.subjectResult.findMany({
+    where: {
+      is_passed: true,
+      exam_result: {
+        student_id: { in: students.map((s) => s.student_id) },
+        staff_status: { not: "rejected" },
+        round_id: { not: Number(excludeRoundId) },
+      },
+    },
+    select: { subject_id: true, exam_result: { select: { student_id: true } } },
+  });
+
+  const passedBy = new Map(); // student_id -> Set(subject_id)
+  for (const row of rows) {
+    const id = row.exam_result.student_id;
+    if (!passedBy.has(id)) passedBy.set(id, new Set());
+    passedBy.get(id).add(row.subject_id);
+  }
+
+  return students.map((s) => ({
+    student_id: s.student_id,
+    passed_subject_ids: [...(passedBy.get(s.student_id) ?? [])],
+  }));
+};
+
 // ผลสอบทั้งหมดในรอบ + ผลรายวิชา (ใช้คำนวณสถิติ)
 // ไม่กรอง exam_eligible — ตัวหารของสถิติคือ "นักศึกษาทั้งรุ่นที่ import เข้าระบบ"
 // (= ผู้สำเร็จการศึกษาปีนั้น ตามสูตรที่คณะส่งสภาการพยาบาล) ไม่ใช่คนที่เปิดสิทธิ์อยู่ตอนนี้

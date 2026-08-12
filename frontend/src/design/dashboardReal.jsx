@@ -439,7 +439,7 @@ function RoundTabs({ rounds, value, onChange, tt }) {
 // statusOnly = แค่การ์ด Donut สัดส่วนสถานะ (ใช้ตอนอยู่แท็บ "สัดส่วนสถานะการตรวจสอบ")
 // ไม่ส่ง flag ไหนมาเลย = คืน null (เรียกแบบไม่ระบุจะไม่ได้อะไร กันเรียกผิดเงียบๆ)
 function RoundView({ stats, roundInfo, go, lang, tt, statCardsOnly, statusOnly }) {
-  const { round, total, eligible, by, not_started, submitted, fillRate,
+  const { round, total, eligible, canSubmit, by, not_started, submitted, fillRate,
           fullyPassed, fullyPassedRate } = stats;
 
   if (statCardsOnly) {
@@ -449,7 +449,9 @@ function RoundView({ stats, roundInfo, go, lang, tt, statCardsOnly, statusOnly }
           eligible={eligible} fillRate={fillRate} total={total} tt={tt} />
 
         <div className="grid g-5" style={{ marginBottom: 20 }}>
-          <StatCard icon="users" label={tt('dashReal.eligibleStatLabel')} value={eligible} sub={tt('dashReal.eligibleStatSub', { total })} tone="navy" accent onClick={() => go('students')} />
+          {/* ยอดของ "รอบนี้" ล้วน — คนที่ผ่านครบทุกวิชาไปแล้วเปิดฟอร์มรอบนี้ไม่ได้ ตัวเลขเลยลดลงทุกรอบ
+              ต่างจากการ์ดใบแรกของมุมมองทั้งปีที่เป็นยอดทั้งรุ่น ตำแหน่ง/หน้าตาการ์ดเหมือนกันทั้ง 2 มุมมอง */}
+          <StatCard icon="users" label={tt('dashReal.canSubmitStatLabel')} value={canSubmit} sub={tt('dashReal.canSubmitStatSub', { total })} tone="navy" accent onClick={() => go('students')} />
           <StatCard icon="edit" label={tt('dashReal.submittedStatLabel')} value={submitted} sub={tt('dashReal.submittedStatSub', { rate: fillRate })} tone="blue" accent onClick={() => go('students')} />
           <StatCard icon="clock" label={tt('status.SUBMITTED')} value={by.submitted} sub={tt('dashReal.pendingSub')} tone="wait" accent onClick={() => go('review')} />
           <StatCard icon="checkCircle" label={tt('status.CONFIRMED')} value={by.approved} sub={tt('dashReal.confirmedSub', { n: fullyPassed, rate: fullyPassedRate })} tone="ok" accent />
@@ -539,9 +541,11 @@ function YearRoundsView({ year, rounds, tt, statCardsOnly }) {
 
   return (
     <>
-      <div className="grid g-4" style={{ marginBottom: 20 }}>
+      {/* 5 ใบเท่ามุมมองรอบเดียว ใบแรกเป็นยอดคนเหมือนกัน — สลับแท็บไปมาแล้วการ์ดไม่ขยับ/ไม่เปลี่ยนขนาด */}
+      <div className="grid g-5" style={{ marginBottom: 20 }}>
         <StatCard icon="users" label={tt('dashReal.yearTotalLabel')} value={year.total} sub={tt('dashReal.yearTotalSub', { year: year.academic_year })} tone="navy" />
-        <StatCard icon="edit" label={tt('dashReal.yearSubmittedLabel')} value={year.submitted} sub={tt('dashReal.yearSubmittedSub', { rate: year.fillRate })} tone="blue" />
+        <StatCard icon="shield" label={tt('dashReal.yearEligibleLabel')} value={year.eligible} sub={tt('dashReal.yearEligibleSub')} tone="blue" />
+        <StatCard icon="edit" label={tt('dashReal.yearSubmittedLabel')} value={year.submitted} sub={tt('dashReal.yearSubmittedSub', { rate: year.fillRate })} tone="wait" />
         <StatCard icon="checkCircle" label={tt('dashReal.yearPassedLabel')} value={year.fullyPassed} sub={tt('dashReal.yearPassedSub', { rate: year.passRate })} tone="ok" />
         <StatCard icon="calendar" label={tt('dashReal.yearRoundsLabel')} value={year.rounds.length} sub={tt('dashReal.yearRoundsSub')} tone="gold" />
       </div>
