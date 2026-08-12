@@ -14,6 +14,9 @@ import { t, subjectName, roomName } from './i18n.js';
 /* แท็บ "รวมทั้งปี" — ค่าคงที่ตัวเดียวใช้ทั้งไฟล์ จะได้ไม่พิมพ์ string ซ้ำแล้วสะกดต่างกัน */
 const ALL_ROUNDS = 'all';
 
+/* แท็บที่ตัวเลขเป็นระดับ "ทั้งรุ่น/รอบแรก" ไม่ได้ผูกกับรอบที่เลือก — มีให้กดเฉพาะตอน "รวมทั้งปี" */
+const YEAR_ONLY_TABS = ['firstBySubject', 'firstCount'];
+
 export function DashboardReal({ go, readonly, lang }) {
   const tt = (key, vars) => t(lang, key, vars);
   const [rounds, setRounds] = useState([]);
@@ -97,6 +100,13 @@ export function DashboardReal({ go, readonly, lang }) {
   const changeYear = (nextYear) => {
     setYear(nextYear);
     setTab(ALL_ROUNDS);
+  };
+
+  // เลือกรอบเดียวขณะเปิดแท็บที่มีเฉพาะ "รวมทั้งปี" อยู่ ต้องเด้งกลับแท็บแรก
+  // ไม่งั้นปุ่มหายไปแต่ mainTab ยังค้างค่าเดิม เนื้อหาข้างล่างเลยว่างเปล่า
+  const changeRoundTab = (nextTab) => {
+    setTab(nextTab);
+    if (nextTab !== ALL_ROUNDS && YEAR_ONLY_TABS.includes(mainTab)) setMainTab('status');
   };
 
   // รวมสัดส่วนสถานะทุกรอบของปีที่กำลังดู — ยิงทีละรอบผ่าน /dashboard/stats ที่มีอยู่แล้ว ไม่ต้องมี endpoint ใหม่
@@ -198,7 +208,7 @@ export function DashboardReal({ go, readonly, lang }) {
           ส่วน Donut/อัตราผ่านรายวิชา/สถิติเชิงรายงาน ย้ายไปอยู่ใต้แท็บบนสุด 3 อันแทนเรียงเป็นแถวยาว */}
       {!readonly && (
         <Section title={tt('dashReal.zoneRound')} sub={tt('dashReal.zoneRoundSub')}>
-          <RoundTabs rounds={roundsInYear} value={tab} onChange={setTab} tt={tt} />
+          <RoundTabs rounds={roundsInYear} value={tab} onChange={changeRoundTab} tt={tt} />
 
           <div key={tab} className="blur-in">
             {tab === ALL_ROUNDS
@@ -209,11 +219,11 @@ export function DashboardReal({ go, readonly, lang }) {
                 : <div style={{ padding: '28px 0', textAlign: 'center', color: 'var(--ink-500)', fontSize: 13.5 }}>{tt('common.loading')}</div>}
           </div>
 
+          {/* 2 แท็บกลางเป็นตัวเลข "รอบแรกของทั้งรุ่น" ไม่ได้ผูกกับรอบที่เลือกเลย
+              โผล่ตอนดูรอบเดียวจะหลอกตา (กดรอบ 2 อยู่ แต่ตัวเลขเป็นของรอบแรก) เลยให้ขึ้นเฉพาะแท็บ "รวมทั้งปี" */}
           <MainTabs value={mainTab} onChange={setMainTab} tt={tt} items={[
             { key: 'status', label: tt('dashReal.statusBreakdownTitle') },
             { key: 'subjects', label: tt('dashReal.subjectRateTitle') },
-            // 2 tab นี้เป็นสรุประดับปี (มาจากผลรอบแรกของปีเสมอ) ไม่มีมุมมองรายรอบ — ไม่ใช่แค่ซ่อนเนื้อหา
-            // แต่เอาตัวเลือกออกจากแท็บไปเลยตอนเลือกรอบใดรอบหนึ่ง กันงงว่าทำไมกดแล้วไม่มีอะไรขึ้น
             ...(tab === ALL_ROUNDS ? [
               { key: 'firstBySubject', label: tt('firstBySubject.title') },
               { key: 'firstCount', label: tt('dashReal.distTitle') },

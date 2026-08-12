@@ -29,6 +29,18 @@ export const findActive = (academicYear) => {
   });
 };
 
+// หารอบของปีการศึกษานั้น + ครั้งที่นั้น — ใช้กันสร้าง/แก้เป็นรอบซ้ำ
+// findUnique ได้เพราะ schema ประกาศ @@unique([academic_year, attempt_number]) ไว้
+export const findByYearAndAttempt = (academicYear, attemptNumber) =>
+  prisma.submissionRound.findUnique({
+    where: {
+      academic_year_attempt_number: {
+        academic_year: academicYear,
+        attempt_number: attemptNumber,
+      },
+    },
+  });
+
 export const create = (data) => prisma.submissionRound.create({ data });
 
 // จำนวนผลสอบที่ผูกกับรอบนี้ — ใช้กันลบรอบที่นักศึกษากรอกไปแล้ว

@@ -55,7 +55,9 @@ export function OfficerReviewReal({ go, setSel, lang }) {
     setLoading(true);
     Promise.all([
       apiFetch(`/exam-results?round_id=${roundId}`),
-      apiFetch(`/dashboard/stats?round_id=${roundId}`),
+      // stats เป็นของเสริม (ใช้ตัดชื่อคนที่ผ่านครบแล้วออกเท่านั้น) ล้มก็ต้องไม่ทำให้คิวตรวจทั้งหน้าดับ
+      // ถ้าปล่อยให้ throw จะไปโดน .catch ข้างล่างแล้ว setError ทับทั้งหน้า เจ้าหน้าที่ตรวจงานไม่ได้เลย
+      apiFetch(`/dashboard/stats?round_id=${roundId}`).catch(() => ({})),
     ])
       .then(([resultList, stats]) => {
         setResults(resultList);
@@ -128,7 +130,9 @@ export function OfficerReviewReal({ go, setSel, lang }) {
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
         {TABS.map(k => (
-          <button key={k} onClick={() => selectTab(k)} className="btn" style={{
+          // แท็บ "ยังไม่กรอก" นับไม่เท่ากับการ์ดชื่อเดียวกันบน Dashboard (ตรงนั้นนับทั้งรุ่น) ติด tooltip อธิบายไว้
+          <button key={k} onClick={() => selectTab(k)} className="btn"
+            title={k === 'NOT_STARTED' ? tt('officer.review.tabNotStartedHint') : undefined} style={{
             background: tab === k ? 'var(--navy-700)' : '#fff', color: tab === k ? '#fff' : 'var(--ink-900)',
             border: '1px solid ' + (tab === k ? 'var(--navy-700)' : 'var(--ink-200)') }}>
             {k === 'NOT_STARTED' ? tt('officer.review.tabNotStarted') : tt('status.' + k)}

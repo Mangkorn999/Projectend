@@ -63,6 +63,72 @@ const NAV = (lang, pendingCount)=>({
 });
 const DEFAULT_PAGE = { student:'news', officer:'dashboard', executive:'dashboard' };
 
+/* ============================================================
+   URL ของแต่ละหน้า
+   ------------------------------------------------------------
+   แอปนี้ไม่ได้ใช้ react-router — หน้าปัจจุบันเก็บเป็น state ชื่อ `page`
+   ตารางข้างล่างคือตัวเชื่อม `page` เข้ากับ URL จริง เพื่อให้:
+     - รีเฟรชแล้วอยู่หน้าเดิม (ไม่เด้งกลับหน้าแรก)
+     - ปุ่ม back/forward ของ browser ใช้ได้
+     - ก๊อป URL ส่งให้กันได้
+   ============================================================ */
+const LOGIN_PATH = '/login';
+const CHANGE_PASSWORD_PATH = '/change-password';
+
+// key ต้องตรงกับค่าใน `page` ทุกตัวที่ render() รู้จัก ไม่งั้นหน้านั้นจะไม่มี URL
+const PAGE_PATH = {
+  news: '/news',
+  formIntro: '/exam',
+  form: '/exam/form',
+  status: '/status',
+  history: '/history',
+  dashboard: '/dashboard',
+  review: '/review',
+  students: '/students',
+  import: '/import',
+  detail: '/students/detail',
+  rounds: '/rounds',
+  usermgmt: '/users',
+  newsmgmt: '/news-manage',
+  reports: '/reports',
+};
+const PATH_PAGE = Object.fromEntries(
+  Object.entries(PAGE_PATH).map(([page, path]) => [path, page]),
+);
+
+// role ไหนเข้าหน้าไหนได้ — ต้องตรงกับเงื่อนไขใน render() เป๊ะ
+// ไม่งั้นพิมพ์ URL ของ role อื่นเข้ามาแล้วจะเห็นหน้าเปล่าแทนที่จะถูกพากลับหน้าเริ่มต้น
+// (นี่เป็นแค่ UX ฝั่งหน้าจอ ตัวจริงที่กันข้อมูลคือ requireRole ฝั่ง backend)
+const ROLE_PAGES = {
+  student: ['news', 'formIntro', 'form', 'status', 'history'],
+  officer: ['dashboard', 'review', 'students', 'import', 'detail', 'rounds', 'usermgmt', 'newsmgmt', 'reports'],
+  executive: ['dashboard', 'reports'],
+};
+
+// หน้าที่ต้องมีข้อมูลที่เลือกไว้ใน state ก่อน (`sel`) ซึ่งหายไปตอนรีเฟรช
+// เปิดจาก URL ตรงๆ จะได้หน้าพังเพราะไม่มีนักศึกษาให้แสดง เลยพากลับหน้าเริ่มต้นแทน
+const NEEDS_SELECTION = ['detail'];
+
+// แปลง URL เป็นชื่อหน้า — ไม่รู้จัก / ไม่ใช่ของ role นี้ / ต้องมี selection → หน้าเริ่มต้นของ role
+const pageFromPath = (role, rawPath) => {
+  const path = rawPath.replace(/\/+$/, '') || '/'; // ตัด / ท้าย: /news/ กับ /news คือหน้าเดียวกัน
+  const page = PATH_PAGE[path];
+  if (!page || !ROLE_PAGES[role].includes(page) || NEEDS_SELECTION.includes(page)) {
+    return DEFAULT_PAGE[role];
+  }
+  return page;
+};
+
+// เขียน URL โดยไม่ให้ browser โหลดหน้าใหม่
+// เช็ค pathname ก่อนทุกครั้ง — กดเมนูหน้าเดิมซ้ำจะได้ไม่กอง history จนปุ่ม back กดไม่ออก
+const pushUrl = (path) => {
+  if (window.location.pathname !== path) window.history.pushState({}, '', path);
+};
+// replace = ทับรายการปัจจุบัน ใช้ตอน login/logout/รีเฟรช ไม่ให้ back ย้อนกลับไปหน้าที่ออกมาแล้ว
+const replaceUrl = (path) => {
+  if (window.location.pathname !== path) window.history.replaceState({}, '', path);
+};
+
 export function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const [role, setRole] = useState(null);
@@ -71,6 +137,9 @@ export function App() {
   // บัญชีที่เจ้าหน้าที่สร้างให้ยังใช้รหัสชั่วคราวอยู่ — บล็อกทั้งแอปจนกว่าจะเปลี่ยนรหัสสำเร็จ
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [page, setPage] = useState('news');
+  // path ที่ผู้ใช้เปิดเข้ามาครั้งแรก — ต้องจำไว้ก่อน เพราะกว่า /auth/me จะตอบกลับมา
+  // อาจมีการเขียน URL ทับไปแล้ว อ่านจาก window.location ตอนนั้นจะได้ค่าผิด
+  const [bootPath] = useState(() => window.location.pathname);
   const [sel, setSel] = useState(null);
   const [sbOpen, setSbOpen] = useState(false);
   const [toast, showToast] = useToast();
@@ -167,38 +236,62 @@ export function App() {
   // ต้องยิง /auth/me ถาม backend ว่า cookie ยังใช้ได้ไหม ถ้าไม่ได้ apiFetch จะเคลียร์ + reload ให้เอง
   useEffect(()=>{
     const stored = getStoredUser();
-    if (!stored) return;
+    if (!stored) { replaceUrl(LOGIN_PATH); return; }
 
-    if (stored.mustChangePassword) { setMustChangePassword(true); return; }
+    if (stored.mustChangePassword) { setMustChangePassword(true); replaceUrl(CHANGE_PASSWORD_PATH); return; }
 
     const verifyCookie = async ()=>{
       try {
         await apiFetch('/auth/me');
-        setCurrentUser(stored); setRole(stored.role); setPage(DEFAULT_PAGE[stored.role]);
+        // กลับมาที่หน้าเดิมตาม URL ที่เปิดเข้ามา ไม่ใช่เด้งไปหน้าเริ่มต้นทุกครั้ง
+        // URL ที่ใช้ไม่ได้ (ของ role อื่น / พิมพ์มั่ว / ต้องมี selection) pageFromPath พากลับหน้าเริ่มต้นให้เอง
+        const p = pageFromPath(stored.role, bootPath);
+        setCurrentUser(stored); setRole(stored.role); setPage(p);
+        replaceUrl(PAGE_PATH[p]);
       } catch (err) {
         // 401 = cookie หมดอายุ apiFetch จัดการเด้งออกให้แล้ว ที่นี่ไม่ต้องทำอะไรเพิ่ม
         console.error('session check failed:', err);
       }
     };
     verifyCookie();
-  }, []);
+  }, [bootPath]);
+
+  // ปุ่ม back / forward ของ browser — browser เปลี่ยน URL ให้แล้ว เราแค่เปลี่ยนหน้าตาม
+  // ต้องอยู่เหนือ early return ข้างล่าง (hook ต้องถูกเรียกทุกรอบ render ห้ามข้าม)
+  useEffect(()=>{
+    if (!role) return;
+    const onPop = ()=>{
+      const p = pageFromPath(role, window.location.pathname);
+      setPage(p);
+      // URL ที่ย้อนไปอาจเป็นหน้าที่เข้าไม่ได้แล้ว ดึง URL ให้ตรงกับหน้าที่แสดงจริง
+      replaceUrl(PAGE_PATH[p]);
+    };
+    window.addEventListener('popstate', onPop);
+    return ()=> window.removeEventListener('popstate', onPop);
+  }, [role]);
 
   const handleLogin = (user, mustChange)=>{
     setLoggingOut(false); // เผื่อ login กลับมาหลัง logout ค้าง state เบลอไว้จากรอบก่อน
-    if (mustChange) { setMustChangePassword(true); return; }
+    if (mustChange) { setMustChangePassword(true); replaceUrl(CHANGE_PASSWORD_PATH); return; }
     setCurrentUser(user);
     setRole(user.role);
-    setPage(DEFAULT_PAGE[user.role]);
+    const p = DEFAULT_PAGE[user.role];
+    setPage(p);
+    // replace ไม่ใช่ push — กด back หลัง login ต้องไม่ย้อนกลับไปหน้า login อีก
+    replaceUrl(PAGE_PATH[p]);
   };
 
   // เปลี่ยนรหัสสำเร็จแล้ว — token เดิมใช้ต่อไม่ได้ (mustChangePassword ฝังใน JWT) ต้อง login ใหม่
-  const handlePasswordChanged = ()=>{ setMustChangePassword(false); setRole(null); setCurrentUser(null); };
+  const handlePasswordChanged = ()=>{
+    setMustChangePassword(false); setRole(null); setCurrentUser(null);
+    replaceUrl(LOGIN_PATH);
+  };
 
   if (mustChangePassword) return <ForceChangePassword onDone={handlePasswordChanged} />;
   if(!role) return <Login onLogin={handleLogin} />;
 
   const nav = role==='student' ? navStudent(lang, rejectedCount) : NAV(lang, pendingCount)[role];
-  const go = (p, step=0)=>{ setPage(p); setFormStep(step); window.scrollTo(0,0); };
+  const go = (p, step=0)=>{ setPage(p); setFormStep(step); pushUrl(PAGE_PATH[p] || '/'); window.scrollTo(0,0); };
   // ไม่มีสลับ role ปลอมอีกแล้ว — 'logout' คือทางเดียวที่เหลือ
   // เบลอหน้าจอ 280ms เหมือนตอนสลับภาษา ระหว่างนั้นยิง POST /auth/logout ให้ backend ลบ cookie
   // (clearSession() อย่างเดียวไม่พอ — cookie เป็น httpOnly ฝั่ง JS ลบเองไม่ได้)
@@ -208,6 +301,7 @@ export function App() {
       await logout();
       setRole(null);
       setCurrentUser(null);
+      replaceUrl(LOGIN_PATH);
     }
   };
 
