@@ -1,5 +1,8 @@
-// Targeted test: one academic year cannot have two rounds with the same attempt_number.
+// Targeted test for the two round rules:
+//   1. one academic year cannot have two rounds with the same attempt_number
+//   2. only one round system-wide may sit at status "open"
 // Uses far-future years (2501+) with past dates so nothing here can become the active round.
+// Any round that was already open gets parked and reopened at the end.
 const BASE = "http://localhost:3000";
 let failures = 0;
 
@@ -71,8 +74,37 @@ const main = async () => {
   });
   check("update round to its own year/attempt -> 200", self.status, 200);
 
+  // ---- rule 2: only one round may be open at a time ----
+  // park whatever is already open so this section starts from a known state
+  const allRounds = (await call("GET", "/api/rounds", { token })).json.data || [];
+  const parked = allRounds.filter(r => r.status === 'open').map(r => r.round_id);
+  for (const id of parked) await call("PUT", `/api/rounds/${id}`, { token, body: { status: 'closed' } });
+
+  const openA = await call("PUT", `/api/rounds/${first.json.data?.round_id}`, { token, body: { status: 'open' } });
+  check("open the first round -> 200", openA.status, 200);
+
+  const openB = await call("PUT", `/api/rounds/${second.json.data?.round_id}`, { token, body: { status: 'open' } });
+  check("open a second round -> 400", openB.status, 400);
+
+  const createOpen = await call("POST", "/api/rounds", {
+    token, body: { academic_year: 2503, attempt_number: 1, ...PAST, status: 'open' },
+  });
+  check("create a round already set to open -> 400", createOpen.status, 400);
+  if (createOpen.json.data) created.push(createOpen.json.data.round_id);
+
+  // editing the open round itself must still work — it is not "a second open round"
+  const selfEdit = await call("PUT", `/api/rounds/${first.json.data?.round_id}`, { token, body: { status: 'open', attempt_number: 1 } });
+  check("re-saving the open round with status open -> 200", selfEdit.status, 200);
+
+  // close it and the other one becomes openable
+  await call("PUT", `/api/rounds/${first.json.data?.round_id}`, { token, body: { status: 'closed' } });
+  const openBAgain = await call("PUT", `/api/rounds/${second.json.data?.round_id}`, { token, body: { status: 'open' } });
+  check("open the second round after closing the first -> 200", openBAgain.status, 200);
+  await call("PUT", `/api/rounds/${second.json.data?.round_id}`, { token, body: { status: 'closed' } });
+
   // cleanup so repeat runs start clean
   for (const id of created) await call("DELETE", `/api/rounds/${id}`, { token });
+  for (const id of parked) await call("PUT", `/api/rounds/${id}`, { token, body: { status: 'open' } });
 
   console.log(failures ? `\n${failures} FAILED` : "\nALL PASSED");
   process.exit(failures ? 1 : 0);

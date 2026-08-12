@@ -164,6 +164,19 @@ const ensureNotDuplicate = async (academicYear, attemptNumber, exceptRoundId) =>
   }
 };
 
+// เปิดรับได้ทีละรอบเดียวทั้งระบบ — นักศึกษาคนหนึ่งเห็นรอบที่เปิดของรุ่นตัวเองเพียงรอบเดียวเสมอ
+// (เดิม findActive หยิบ attempt_number สูงสุดมาให้ ถ้าเผลอเปิดค้างไว้หลายรอบ นักศึกษาจะได้รอบที่ไม่ตั้งใจ)
+// exceptRoundId = รอบที่กำลังแก้อยู่ ต้องข้ามไป ไม่งั้นกดบันทึกรอบที่เปิดอยู่แล้วจะบล็อกตัวเอง
+const ensureNoOtherOpenRound = async (exceptRoundId) => {
+  const open = await roundsRepo.findOpen();
+  if (open && open.round_id !== exceptRoundId) {
+    throw httpError(
+      `รอบครั้งที่ ${open.attempt_number} ปีการศึกษา ${open.academic_year} เปิดรับอยู่ ต้องปิดรอบนั้นก่อนถึงจะเปิดรอบใหม่ได้`,
+      400,
+    );
+  }
+};
+
 // Prisma โยน P2002 ตอนชน unique index — เกิดได้ถ้ามีคนกดสร้างรอบเดียวกันพร้อมกันสองหน้าจอ
 // แปลงเป็น 400 ข้อความไทย ไม่งั้น errorHandler จะตอบ 500 ที่ผู้ใช้อ่านไม่รู้เรื่อง
 const asDuplicateRoundError = (err) =>
@@ -188,6 +201,7 @@ export const create = async (req, res, next) => {
     }
 
     await ensureNotDuplicate(Number(academic_year), Number(attempt_number));
+    if (status === "open") await ensureNoOtherOpenRound();
 
     // ไม่ส่ง subject_ids มา = ใช้ทุกวิชาที่มีในระบบ (พฤติกรรมเดิมก่อนมี field นี้)
     const subjectIds =
@@ -248,6 +262,9 @@ export const update = async (req, res, next) => {
     if (open_date !== undefined) data.open_date = parseOpenDate(open_date, "วันที่เปิดรับ");
     if (close_date !== undefined) data.close_date = parseCloseDate(close_date, "วันที่ปิดรับ");
     if (status !== undefined) data.status = status;
+
+    // กดเปิดรอบนี้ ต้องไม่มีรอบอื่นเปิดค้างอยู่ (รอบนี้เปิดอยู่แล้วแล้วกดบันทึกซ้ำ ไม่นับ)
+    if (status === "open") await ensureNoOtherOpenRound(current.round_id);
 
     const round = await roundsRepo.update(req.params.id, data);
     res.json({ success: true, data: round });

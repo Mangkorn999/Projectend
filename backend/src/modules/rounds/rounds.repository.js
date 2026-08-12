@@ -41,6 +41,11 @@ export const findByYearAndAttempt = (academicYear, attemptNumber) =>
     },
   });
 
+// รอบที่ status = "open" อยู่ตอนนี้ (ทั้งระบบ ไม่แยกรุ่น) — ใช้กันเปิดรอบที่ 2 พร้อมกัน
+// ไม่ดูวันที่ ดูแค่ status เพราะเจ้าหน้าที่เป็นคนกดเปิด/ปิดเอง วันที่เป็นแค่ช่วงรับผล
+export const findOpen = () =>
+  prisma.submissionRound.findFirst({ where: { status: "open" } });
+
 export const create = (data) => prisma.submissionRound.create({ data });
 
 // จำนวนผลสอบที่ผูกกับรอบนี้ — ใช้กันลบรอบที่นักศึกษากรอกไปแล้ว

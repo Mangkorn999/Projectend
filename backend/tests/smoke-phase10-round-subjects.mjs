@@ -45,6 +45,12 @@ const main = async () => {
   const ids = subs.json.data.map((s) => s.subject_id);
   console.log(`   subjects in db: ${ids.length}`);
 
+  // Only one round system-wide may be open, and step 5 needs to open one of ours.
+  // Park anything already open and put it back at the end.
+  const allRounds = (await call("GET", "/api/rounds", { token })).json.data || [];
+  const parked = allRounds.filter((r) => r.status === "open").map((r) => r.round_id);
+  for (const id of parked) await call("PUT", `/api/rounds/${id}`, { token, body: { status: "closed" } });
+
   // 1. no subject_ids -> defaults to all subjects (old behaviour still works)
   const a = await call("POST", "/api/rounds", {
     token,
@@ -97,6 +103,13 @@ const main = async () => {
 
   const missing = await call("PUT", "/api/rounds/999999", { token, body: { subject_ids: ids } });
   check("update subject_ids on missing round -> 404", missing.status, 404);
+
+  // delete the rounds this run created and reopen whatever was open before,
+  // so a repeat run starts from the same state and the db keeps no test rounds
+  for (const r of [a, b]) {
+    if (r.json.data) await call("DELETE", `/api/rounds/${r.json.data.round_id}`, { token });
+  }
+  for (const id of parked) await call("PUT", `/api/rounds/${id}`, { token, body: { status: "open" } });
 
   console.log(failures ? `\n${failures} FAILED` : "\nALL PASSED");
   process.exit(failures ? 1 : 0);
