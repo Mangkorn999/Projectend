@@ -149,6 +149,26 @@ const validateSubjectIds = async (rawIds) => {
   return unique;
 };
 
+// หนึ่งปีการศึกษามี "ครั้งที่ n" ได้รอบเดียว — เช็คก่อนบันทึกเพื่อให้ได้ 400 พร้อมข้อความที่อ่านรู้เรื่อง
+// exceptRoundId = รอบที่กำลังแก้อยู่ ต้องข้ามไป ไม่งั้นแก้รอบเป็นค่าเดิมของตัวเองจะโดนบล็อก
+const ensureNotDuplicate = async (academicYear, attemptNumber, exceptRoundId) => {
+  const existing = await roundsRepo.findByYearAndAttempt(
+    academicYear,
+    attemptNumber,
+  );
+  if (existing && existing.round_id !== exceptRoundId) {
+    throw httpError(
+      `ปีการศึกษา ${academicYear} มีรอบครั้งที่ ${attemptNumber} อยู่แล้ว`,
+      400,
+    );
+  }
+};
+
+// Prisma โยน P2002 ตอนชน unique index — เกิดได้ถ้ามีคนกดสร้างรอบเดียวกันพร้อมกันสองหน้าจอ
+// แปลงเป็น 400 ข้อความไทย ไม่งั้น errorHandler จะตอบ 500 ที่ผู้ใช้อ่านไม่รู้เรื่อง
+const asDuplicateRoundError = (err) =>
+  err.code === "P2002" ? httpError("ปีการศึกษานี้มีรอบครั้งที่นี้อยู่แล้ว", 400) : err;
+
 export const create = async (req, res, next) => {
   try {
     const {
@@ -167,6 +187,8 @@ export const create = async (req, res, next) => {
       );
     }
 
+    await ensureNotDuplicate(Number(academic_year), Number(attempt_number));
+
     // ไม่ส่ง subject_ids มา = ใช้ทุกวิชาที่มีในระบบ (พฤติกรรมเดิมก่อนมี field นี้)
     const subjectIds =
       subject_ids === undefined
@@ -184,7 +206,7 @@ export const create = async (req, res, next) => {
     });
     res.json({ success: true, data: round });
   } catch (err) {
-    next(err);
+    next(asDuplicateRoundError(err));
   }
 };
 
@@ -200,9 +222,10 @@ export const update = async (req, res, next) => {
     } = req.body;
     const data = {};
 
+    const current = await roundsRepo.findById(req.params.id);
+    if (!current) throw httpError("ไม่พบรอบการกรอกนี้", 404);
+
     if (subject_ids !== undefined) {
-      const current = await roundsRepo.findById(req.params.id);
-      if (!current) throw httpError("ไม่พบรอบการกรอกนี้", 404);
       // เปิดรอบไปแล้วห้ามเปลี่ยนวิชา — นักศึกษาอาจกรอกไปแล้วตามรายการเดิม
       if (current.status === "open") {
         throw httpError("รอบนี้เปิดให้กรอกแล้ว แก้ไขรายวิชาไม่ได้ ต้องปิดรอบก่อน", 400);
@@ -213,6 +236,15 @@ export const update = async (req, res, next) => {
     if (academic_year !== undefined) data.academic_year = Number(academic_year);
     if (attempt_number !== undefined)
       data.attempt_number = Number(attempt_number);
+
+    // แก้ปี/ครั้งที่ ต้องไม่ไปชนรอบอื่นที่มีอยู่ — ค่าที่ไม่ได้ส่งมาให้ใช้ของเดิม
+    if (academic_year !== undefined || attempt_number !== undefined) {
+      await ensureNotDuplicate(
+        data.academic_year ?? current.academic_year,
+        data.attempt_number ?? current.attempt_number,
+        current.round_id,
+      );
+    }
     if (open_date !== undefined) data.open_date = parseOpenDate(open_date, "วันที่เปิดรับ");
     if (close_date !== undefined) data.close_date = parseCloseDate(close_date, "วันที่ปิดรับ");
     if (status !== undefined) data.status = status;
@@ -220,7 +252,7 @@ export const update = async (req, res, next) => {
     const round = await roundsRepo.update(req.params.id, data);
     res.json({ success: true, data: round });
   } catch (err) {
-    next(err);
+    next(asDuplicateRoundError(err));
   }
 };
 

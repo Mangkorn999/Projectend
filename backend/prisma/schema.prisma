@@ -95,6 +95,8 @@ model SubmissionRound {
   news           News[]
   creator        User         @relation("UserToRound", fields: [created_by], references: [user_id])
 
+  // หนึ่งรุ่นมีสอบครั้งที่ n ได้ครั้งเดียว — กันรอบซ้ำที่ระดับ DB ไม่ใช่แค่ที่ controller
+  @@unique([academic_year, attempt_number])
   @@map("submission_rounds")
 }
 

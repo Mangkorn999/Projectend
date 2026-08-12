@@ -491,6 +491,9 @@ status: "open"  และ  open_date <= ตอนนี้  และ  close_dat
 - วันที่ผ่าน `parseDate` — `new Date("อะไรก็ไม่รู้")` ได้ `Invalid Date` ซึ่งดูเหมือน Date ปกติแต่พังตอนลง DB จึงต้องเช็ค `isNaN(date.getTime())` ก่อน
 - `created_by: req.user.userId` — เอาจาก JWT เท่านั้น ไม่เชื่อ body
 - **รอบที่ `status === "open"` แล้ว ห้ามแก้รายวิชา** — นักศึกษาอาจกรอกไปแล้วตามรายการเดิม ต้องปิดรอบก่อน
+- **หนึ่งปีการศึกษามี "ครั้งที่ n" ได้รอบเดียว** — `ensureNotDuplicate()` เช็คทั้งตอน `create` และ `update` (ตอน update ข้ามรอบตัวเองด้วย `exceptRoundId` ไม่งั้นกดบันทึกค่าเดิมจะโดนบล็อก) ตอบ 400 พร้อมข้อความว่าปีไหนครั้งที่เท่าไรที่ชนอยู่
+  กันซ้ำอีกชั้นที่ DB ด้วย `@@unique([academic_year, attempt_number])` — เผื่อกดสร้างพร้อมกันสองหน้าจอ แล้วแปลง Prisma `P2002` เป็น 400 ผ่าน `asDuplicateRoundError()` ไม่งั้นจะเด้ง 500
+- `update` ดึงรอบเดิมมาก่อนเสมอ ไม่เจอ = 404 (เดิมดึงเฉพาะตอนส่ง `subject_ids` มา กรณีอื่นจะพังเป็น 500 ที่ Prisma)
 
 **`remove`** ลบได้เฉพาะรอบที่ยังไม่มีใครใช้ เช็ค 3 อย่าง: ไม่ได้เปิดอยู่ → ไม่มีผลสอบผูก → ไม่มีประกาศผูก (foreign key กันให้อยู่แล้ว แต่ error ดิบอ่านไม่รู้เรื่อง จึงเช็คเองเพื่อบอกสาเหตุชัดๆ)
 
@@ -762,6 +765,7 @@ User ──1:M── SubmissionRound (creator, ผ่าน created_by)
 | `20260804045833_add_carried_forward_to_subject_results` | เพิ่ม `subject_results.carried_forward` |
 | `20260809114723_add_notifications` | เพิ่มตาราง `notifications` |
 | `20260810171137_remove_sessions_table` | ลบตาราง `sessions` ที่ไม่ได้ใช้ |
+| `20260812000000_add_unique_round_year_attempt` | unique `submission_rounds(academic_year, attempt_number)` — กันรอบซ้ำ |
 
 **ขั้นตอนแก้ตาราง**: แก้ `prisma/schema.prisma` → `npx prisma migrate dev --name อธิบายสั้นๆ` → Prisma สร้างโฟลเดอร์ migration ใหม่ + อัปเดต DB + สร้าง client ใหม่ให้อัตโนมัติ.
 **ห้ามแก้ไฟล์ใน `migrations/` ที่รันไปแล้วด้วยมือ** — DB กับประวัติจะไม่ตรงกัน.
@@ -928,6 +932,8 @@ npx prisma db seed && npm test
 | `smoke-phase9-import.mjs` | import CSV |
 | `smoke-phase10-round-subjects.mjs` | รอบที่เลือกเฉพาะบางวิชา |
 | `smoke-phase11-carry-forward.mjs` | วิชาที่เคยผ่านแล้วไม่ต้องกรอกซ้ำ |
+| `smoke-phase12-reject-edit.mjs` | ตีกลับแล้วนักศึกษาแก้ใบเดิม |
+| `smoke-phase13-duplicate-round.mjs` | ปีเดียวกัน + ครั้งที่เดียวกัน สร้างซ้ำไม่ได้ (ลบรอบที่สร้างทิ้งเองตอนจบ) |
 
 **ต้องรัน server ค้างไว้ก่อน** แล้วค่อยรันเทสอีกหน้าต่าง.
 
@@ -996,6 +1002,7 @@ curl -H "Authorization: Bearer <token>" http://localhost:3000/api/subjects/1
 
 | วันที่ | เปลี่ยนอะไร |
 |---|---|
+| 2026-08-12 | **กันสร้างรอบซ้ำ** — เดิมสร้าง "ปี 2569 ครั้งที่ 1" กี่รอบก็ได้ ไม่มีอะไรกันเลยทั้งใน controller และ DB ทำให้ `findActive` เจอสองรอบแล้วเลือกมาแค่รอบเดียว ผลสอบเลยกระจายไปคนละรอบ. เพิ่ม `ensureNotDuplicate()` ใน `create`+`update` (update ข้ามรอบตัวเองด้วย `exceptRoundId`), `findByYearAndAttempt()` ใน repository, unique index ที่ DB (`@@unique([academic_year, attempt_number])`, migration `20260812000000_add_unique_round_year_attempt`) และแปลง `P2002` เป็น 400 ด้วย `asDuplicateRoundError()`. `update` ดึงรอบเดิมมาก่อนเสมอ → ไม่เจอตอบ 404 แทน 500 (`rounds.controller.js`, `rounds.repository.js`, `schema.prisma`, `tests/smoke-phase13-duplicate-round.mjs`) |
 | 2026-08-12 | **แก้ `canSubmit` นับผิด** — เดิมตัดออกแค่รอบที่กำลังดู เลยนับผลของ "รอบที่มาทีหลัง" เข้ามาด้วย คนที่ผ่านครบตอนรอบ 2 ถูกมองว่าผ่านครบตั้งแต่ตอนคำนวณรอบ 1 ทำให้รอบ 1 มีคนกรอกได้ **น้อยกว่า** รอบ 2 ซึ่งเป็นไปไม่ได้. ตอนนี้กรองด้วยลำดับเวลา (ปีเก่ากว่า หรือปีเดียวกันแต่ `attempt_number` น้อยกว่า) — `findEligibleWithPassedSubjects(round)` รับ round object แทน `(year, roundId)`. **`findPassedSubjectIds` ฝั่ง examResults ไม่ต้องแก้** เพราะตอนนักศึกษากดส่ง รอบถัดไปยังไม่เกิด (`dashboard.repository.js`, `dashboard.service.js`) |
 | 2026-08-12 | PDF เพิ่มตาราง "สรุปผลสอบผ่านครั้งแรก จำแนกรายวิชา" (จาก `yearStats.firstAttemptBySubject`) — ตารางนี้เดิมมีแต่บนหน้าจอ ไฟล์ที่ export ออกไปไม่มี ทั้งที่เป็นตัวเลขที่ส่งสภาการพยาบาล. มีแถวรวมทุกวิชา + หมายเหตุยอด "ไม่ผ่าน + ไม่ส่งผล" รวมกัน (เอกสารของสภานับ 2 อย่างนี้เป็นช่องเดียว) (`dashboard.pdf.js`) |
 | 2026-08-12 | **เขียน `dashboard.pdf.js` ใหม่ทั้งไฟล์** — เพิ่ม `drawTable()` ที่จัดการขึ้นหน้าใหม่ + วาดหัวตารางซ้ำเองทุกหน้า. แก้ 5 อาการ: ชื่อวิชายาวเคย wrap ลงบรรทัด 2 แล้วทับแถวถัดไป (ตอนนี้ `lineBreak:false` + `ellipsis:true`), หน้าแรกไม่เคยเช็คกระดาษเต็มจนตารางทะลุขอบ, ตารางข้ามหน้าแล้วหัวตารางหาย, ตัวเลขชิดซ้ายเทียบหลักไม่ได้ (มี `aligns` ต่อคอลัมน์แล้ว), ไม่มีเลขหน้า (ใช้ `bufferPages: true` + `bufferedPageRange()`). เพิ่มช่องลงนาม 2 ช่อง + บรรทัด `canSubmit` ในสรุปภาพรวม. **เนื้อหาหยุดที่ y=770 ไม่ใช่ขอบล่างจริง 801.89** — เขียนชิดกว่านี้ pdfkit จะแถมหน้าเปล่าท้ายไฟล์ |
