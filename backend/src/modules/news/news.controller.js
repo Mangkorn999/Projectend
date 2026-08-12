@@ -2,6 +2,7 @@
 import fs from "fs/promises";
 import path from "path";
 import * as newsRepo from "./news.repository.js";
+import * as studentRepo from "../students/student.repository.js";
 
 // helper สร้าง error ให้ errorHandler จัดการต่อ
 const httpError = (message, statusCode) => {
@@ -10,10 +11,19 @@ const httpError = (message, statusCode) => {
   return err;
 };
 
-// GET /api/news — ทุก role ดูได้
+// GET /api/news — ทุก role ดูได้ แต่เห็นไม่เท่ากัน
+// นักศึกษา: เฉพาะประกาศของรุ่นตัวเอง — ประกาศผูกกับรอบ และรอบเป็นของรุ่นใดรุ่นหนึ่ง
+//           ประกาศของรุ่นอื่นไม่เกี่ยวกับเขา ขึ้นมาก็สับสนว่าต้องไปกรอกด้วยหรือเปล่า
+// เจ้าหน้าที่/ผู้บริหาร: เห็นครบทุกรุ่น เพราะเป็นคนโพสต์และดูภาพรวม
 export const getAll = async (req, res, next) => {
   try {
-    const news = await newsRepo.findAll();
+    let academicYear; // undefined = ไม่กรอง
+    if (req.user.role === "student") {
+      const student = await studentRepo.findById(req.user.studentId);
+      if (!student) throw httpError("ไม่พบข้อมูลนักศึกษา", 404);
+      academicYear = student.academic_year;
+    }
+    const news = await newsRepo.findAll(academicYear);
     res.json({ success: true, data: news });
   } catch (err) {
     next(err);

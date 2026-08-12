@@ -594,7 +594,7 @@ dashboard นับอัตราผ่านรายวิชาเฉพา�
 
 | Method | URL | สิทธิ์ | ทำอะไร |
 |---|---|---|---|
-| GET | `/api/news` | 🔑 | ข่าวทั้งหมด (ใหม่→เก่า) |
+| GET | `/api/news` | 🔑 | ข่าว (ใหม่→เก่า) — **นักศึกษาเห็นเฉพาะของรุ่นตัวเอง** |
 | POST | `/api/news` | 🧑‍💼 | โพสต์ |
 | PUT | `/api/news/:id` | 🧑‍💼 | แก้ไข |
 | DELETE | `/api/news/:id` | 🧑‍💼 | ลบ |
@@ -603,6 +603,11 @@ dashboard นับอัตราผ่านรายวิชาเฉพา�
 | DELETE | `/api/news/:id/image` | 🧑‍💼 | เอารูปออก |
 
 - ต้องมี `title` + `content` + `round_id` ครบ. `posted_by` มาจาก JWT
+- **`getAll` กรองตามรุ่นให้นักศึกษา** — ประกาศผูกกับ `round_id` และรอบเป็นของรุ่นใดรุ่นหนึ่ง จึงรู้ปีอยู่แล้ว
+  นักศึกษาได้เฉพาะประกาศที่ `round.academic_year` ตรงกับรุ่นตัวเอง / เจ้าหน้าที่+ผู้บริหารได้ครบทุกรุ่น (`findAll(academicYear)` ไม่ส่ง = ไม่กรอง)
+  **ผลข้างเคียง:** รุ่นที่ยังไม่มีรอบสอบเลย จะไม่เห็นประกาศอะไรเลย และ**ยังไม่มีวิธีโพสต์ "ประกาศถึงทุกรุ่น"** เพราะ `round_id` เป็น NOT NULL
+  ถ้าจะทำ ต้องเปลี่ยน `news.round_id` เป็น nullable แล้วให้ `null` = ประกาศกลาง (ยังไม่ได้ทำ รอเจ้าของ repo ตัดสินใจ)
+- แจ้งเตือนฝั่งนักศึกษา (`buildNotifications` ที่ frontend) อ่านจาก endpoint เดียวกัน จึงถูกกรองตามรุ่นไปด้วยเอง
 - **1 ประกาศ = 1 รูป** เปลี่ยนรูปใหม่ → ลบไฟล์เก่าที่ disk ทิ้งทันที. ลบประกาศ → ลบรูปตามไปด้วย (`removeImageFile`) ไม่ให้เหลือไฟล์กำพร้า
 - `update` ใช้ท่า partial update: ส่ง field ไหนมาก็แก้เฉพาะ field นั้น
   ```js
@@ -969,7 +974,8 @@ npx prisma db seed && npm test
 | `smoke-phase10-round-subjects.mjs` | รอบที่เลือกเฉพาะบางวิชา |
 | `smoke-phase11-carry-forward.mjs` | วิชาที่เคยผ่านแล้วไม่ต้องกรอกซ้ำ |
 | `smoke-phase12-reject-edit.mjs` | ตีกลับแล้วนักศึกษาแก้ใบเดิม |
-| `smoke-phase13-duplicate-round.mjs` | ปีเดียวกัน + ครั้งที่เดียวกัน สร้างซ้ำไม่ได้ (ลบรอบที่สร้างทิ้งเองตอนจบ) |
+| `smoke-phase13-duplicate-round.mjs` | ปีเดียวกัน + ครั้งที่เดียวกัน สร้างซ้ำไม่ได้ + เปิดรอบได้ทีละรอบเดียว (ลบของที่สร้างทิ้งเองตอนจบ) |
+| `smoke-phase14-news-scope.mjs` | นักศึกษาเห็นประกาศเฉพาะรุ่นตัวเอง เจ้าหน้าที่เห็นครบ (ลบของที่สร้างทิ้งเองตอนจบ) |
 
 **ต้องรัน server ค้างไว้ก่อน** แล้วค่อยรันเทสอีกหน้าต่าง.
 
@@ -1038,6 +1044,7 @@ curl -H "Authorization: Bearer <token>" http://localhost:3000/api/subjects/1
 
 | วันที่ | เปลี่ยนอะไร |
 |---|---|
+| 2026-08-12 | **`GET /api/news` กรองตามรุ่นให้นักศึกษา** — เดิม `findAll()` คืนทุกประกาศให้ทุกคน นักศึกษารุ่น 2570 จึงเห็นประกาศของรุ่น 2565–2569 ปนมาหมด ทั้งที่ไม่เกี่ยวกับตัวเอง. ประกาศผูกกับ `round_id` อยู่แล้วจึงกรองด้วย `round.academic_year` ได้เลย ไม่ต้องแก้ schema. เจ้าหน้าที่/ผู้บริหารยังเห็นครบ. **ยังโพสต์ "ประกาศถึงทุกรุ่น" ไม่ได้** เพราะ `round_id` เป็น NOT NULL (`news.controller.js`, `news.repository.js`, `tests/smoke-phase14-news-scope.mjs`) |
 | 2026-08-12 | เพิ่ม `prisma/seedDemoYears.js` + npm script `seed:demo-years` — ข้อมูลจำลอง 5 รุ่น รุ่นละ 150–200 คน (~900 คน, ผลรายวิชา ~9,000 แถว) มีรอบ 2–3 รอบต่อปีและรุ่นล่าสุดค้างกลางคัน ไว้ทดสอบ dashboard/PDF กับข้อมูลขนาดจริง. ไม่แตะ roles/faculties/rooms/subjects/บัญชีเจ้าหน้าที่ (`prisma/seedDemoYears.js`, `package.json`) |
 | 2026-08-12 | **เปิดรอบได้ทีละรอบเดียวทั้งระบบ** — เดิมกดเปิดกี่รอบก็ได้ พอเปิดค้างหลายรอบในรุ่นเดียว `findActive` หยิบ `attempt_number` สูงสุดมาให้ นักศึกษาเลยเจอรอบที่ไม่ตั้งใจ (โค้ดเดิมรู้ปัญหานี้ เขียนคอมเมนต์ไว้ว่า "ไม่ควรเกิด" แต่ไม่เคยกัน). เพิ่ม `findOpen()` + `ensureNoOtherOpenRound()` เช็คทั้ง create/update ตอบ 400 บอกรอบที่เปิดค้าง. **แลกมาด้วย:** รุ่นเก่าสอบแก้ตัวพร้อมรุ่นใหม่ไม่ได้ (`rounds.controller.js`, `rounds.repository.js`, `smoke-phase13`, `smoke-phase10` ต้องเพิ่ม park/restore) |
 | 2026-08-12 | **ใบที่ถูกตีกลับเคยถูกนับว่า "ผ่าน"** — `countFullyPassed`/`buildPassDistribution` รับ `sent` (ตัดแค่ draft) ทั้งที่ `buildPerSubject`/`buildFirstAttemptBySubject` ใช้ `counted` (ตัดใบตีกลับ) มาตลอด. เจ้าหน้าที่ตีกลับใบที่กรอกว่าผ่านครบ แล้ว dashboard ยังนับให้ผ่าน กระทบ `fullyPassed`, `fullyPassedRate`, `passRateOfSitters`, `years[].rounds[].fullyPassed` และ **`firstAttempt` % ที่ส่งสภาการพยาบาล**. เปลี่ยนเป็น `counted` ทั้ง 4 จุด + เพิ่ม `firstRoundCounted` คู่กับ `firstRoundSent`. คนที่ใบถูกตีกลับจะไปอยู่แถว "ไม่ได้ส่งผล" ตรงกับที่ `firstAttemptBySubject` นับอยู่แล้ว (`dashboard.service.js`) |
