@@ -18,7 +18,8 @@ export function DashboardReal({ go, readonly, lang }) {
   const tt = (key, vars) => t(lang, key, vars);
   const [rounds, setRounds] = useState([]);
   const [history, setHistory] = useState(null);
-  const [alerts, setAlerts] = useState([]);
+  // เอา state ของ alerts ออกแล้ว — AlertPanel ถูกคอมเมนต์ไว้ตั้งแต่รอบก่อน
+  // ถ้าจะเปิดกลับมาใช้ ต้องเอา apiFetch('/dashboard/alerts') กลับเข้า Promise.all ด้านล่างด้วย
   const [year, setYear] = useState(null); // ปีการศึกษาที่กำลังดู
   // ปีของโซน "สถิติเชิงรายงาน" แยกอิสระจาก year ด้านบน — ไม่ผูกกับที่เลือกบนสุด/RoundTabs
   // ติ๊กเลือกได้สูงสุด 3 ปี จากทั้งหมดที่มีจริง (ไม่จำกัดแค่ 3 ปีล่าสุดเหมือน yearOptions ด้านบน)
@@ -44,12 +45,10 @@ export function DashboardReal({ go, readonly, lang }) {
       apiFetch('/rounds'),
       // ดึงย้อนหลังยาวๆ ไว้ก่อน (เผื่อมีเป็น 10 ปี) จะได้ติ๊กเลือกปีเก่าๆ ในโซนรายงานได้ครบ ไม่ใช่แค่ 3 ปีล่าสุด
       apiFetch('/dashboard/history?years=20'),
-      apiFetch('/dashboard/alerts').catch(() => ({ alerts: [] })),
     ])
-      .then(([roundList, hist, alertData]) => {
+      .then(([roundList, hist]) => {
         setRounds(roundList);
         setHistory(hist);
-        setAlerts(alertData.alerts || []);
 
         // ปีตั้งต้น = ปีของรอบที่เปิดรับอยู่ ไม่มีก็ปีล่าสุดที่มีรอบ
         const openRound = roundList.find(r => r.status === 'open');
@@ -95,6 +94,8 @@ export function DashboardReal({ go, readonly, lang }) {
   // รวมสัดส่วนสถานะทุกรอบของปีที่กำลังดู — ยิงทีละรอบผ่าน /dashboard/stats ที่มีอยู่แล้ว ไม่ต้องมี endpoint ใหม่
   // cache ไว้ต่อปี กันยิงซ้ำทุกครั้งที่สลับแท็บไปมา
   useEffect(() => {
+    // ผู้บริหารไม่มีโซนนี้บนหน้าจอ (อยู่ใน !readonly ทั้งก้อน) — ยิงไปก็ทิ้ง เปลืองคำขอตามจำนวนรอบของปี
+    if (readonly) return;
     if (year === null || yearStatus[year] || rounds.length === 0) return;
     const roundsOfYear = rounds.filter(r => r.academic_year === year);
     if (roundsOfYear.length === 0) return;
@@ -119,7 +120,7 @@ export function DashboardReal({ go, readonly, lang }) {
       })
       .catch(() => {}); // พลาดก็แค่โชว์ loading ค้าง ไม่ต้อง error ทั้งหน้า
     return () => { dropped = true; };
-  }, [year, rounds]);
+  }, [year, rounds, readonly]);
 
   if (error) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--reject,#dc2626)' }}>{tt('statuspage.loadFailPrefix', { msg: error })}</div>;
   if (loading && !history) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;

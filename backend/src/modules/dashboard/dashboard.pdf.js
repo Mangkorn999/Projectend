@@ -194,6 +194,97 @@ export const buildReportPdf = (stats, rows, res, yearStats) => {
     doc.moveDown(1);
   }
 
+  // ── ตารางผลรายวิชาของการสอบรอบแรก (ระดับปี) ──
+  // ตารางเดียวกับแท็บ "สรุปผลสอบผ่านครั้งแรก จำแนกรายวิชา" บนหน้าจอ
+  // ตัวหารคือนักศึกษาทั้งรุ่น ไม่ใช่คนที่สอบวิชานั้น — คนละตัวกับตาราง "อัตราผ่านรายวิชา" ท้ายรายงาน
+  const bySubject = yearStats?.firstAttemptBySubject;
+  if (bySubject && bySubject.subjects.length > 0) {
+    section(doc, "สรุปผลสอบผ่านครั้งแรก จำแนกรายวิชา");
+    doc.font("th").fontSize(9);
+    doc.text(
+      `จำนวนผู้สมัครสอบ = นักศึกษาทั้งรุ่นปีการศึกษา ${yearStats.academic_year} จำนวน ${bySubject.cohort_total} คน · ส่งผลการสอบรอบแรกแล้ว ${bySubject.submitted} คน`,
+      LEFT,
+      doc.y,
+      { width: CONTENT_WIDTH },
+    );
+    doc.moveDown(0.4);
+
+    const bsWidths = [155, 50, 45, 50, 45, 50, 45, 60];
+    const bsAligns = [
+      "left",
+      "right",
+      "right",
+      "right",
+      "right",
+      "right",
+      "right",
+      "right",
+    ];
+
+    // sat = 0 คือไม่มีใครสอบวิชานี้เลย ต้องขึ้นขีด ไม่ใช่ 0.00% ที่แปลว่าสอบแล้วตกหมด
+    const cell = (n, rate, noSat) => (noSat ? ["—", "—"] : [n, rate.toFixed(2)]);
+    const bsRows = bySubject.subjects.map((s) => {
+      const noSat = s.sat === 0;
+      return [
+        `${s.subject_code} ${s.subject_name}`,
+        bySubject.cohort_total,
+        ...cell(s.pass, s.pass_rate, noSat),
+        ...cell(s.fail, s.fail_rate, noSat),
+        s.not_submitted,
+        s.not_submitted_rate.toFixed(2),
+      ];
+    });
+
+    // แถวรวมท้ายตาราง — บวกคอลัมน์ตรงๆ ตัวหารเป็นทั้งรุ่นคูณจำนวนวิชา (เหมือนแถวรวมบนหน้าจอ)
+    const sumOf = (pick) => bySubject.subjects.reduce((a, s) => a + pick(s), 0);
+    const totalPassN = sumOf((s) => s.pass);
+    const totalFailN = sumOf((s) => s.fail);
+    const totalNsN = sumOf((s) => s.not_submitted);
+    const cells = bySubject.cohort_total * bySubject.subjects.length;
+    const pctOfAll = (n) =>
+      cells ? (Math.round((n / cells) * 10000) / 100).toFixed(2) : "0.00";
+    bsRows.push([
+      "รวมทุกวิชา",
+      cells,
+      totalPassN,
+      pctOfAll(totalPassN),
+      totalFailN,
+      pctOfAll(totalFailN),
+      totalNsN,
+      pctOfAll(totalNsN),
+    ]);
+
+    const bsEndY = drawTable(doc, {
+      y: doc.y,
+      widths: bsWidths,
+      aligns: bsAligns,
+      header: [
+        "รายวิชา",
+        "ผู้สมัคร",
+        "ผ่าน",
+        "ร้อยละ",
+        "ไม่ผ่าน",
+        "ร้อยละ",
+        "ไม่ส่งผล",
+        "ร้อยละ",
+      ],
+      rows: bsRows,
+    });
+
+    doc.y = bsEndY;
+    doc.moveDown(0.5);
+    doc
+      .font("th")
+      .fontSize(9)
+      .text(
+        `อัตราผ่านเฉลี่ยของวิชาที่มีผู้เข้าสอบ ${bySubject.average_pass_rate}% · เอกสารของสภาการพยาบาลรวม "ไม่ผ่าน" กับ "ไม่ส่งผล" เป็นช่องเดียว = ${totalFailN + totalNsN} รายการ`,
+        LEFT,
+        doc.y,
+        { width: CONTENT_WIDTH },
+      );
+    doc.moveDown(1);
+  }
+
   // ── ตารางจำแนกตามจำนวนวิชาที่สอบผ่าน (การสอบรอบแรก แยกตามห้องเรียน) ──
   const dist = yearStats?.passDistribution;
   if (dist && dist.total > 0) {
