@@ -76,19 +76,19 @@ export const countStudentsByRoom = async (academicYear) => {
 export const findAllSubjects = () =>
   prisma.subject.findMany({ orderBy: { subject_code: "asc" } });
 
-// นักศึกษาที่เปิดสิทธิ์กรอกของรุ่นนั้น พร้อมวิชาที่แต่ละคนผ่านไปแล้วจากรอบอื่น
+// นักศึกษาที่เปิดสิทธิ์กรอกของรุ่นนั้น พร้อมวิชาที่แต่ละคนผ่านไปแล้ว "ก่อนถึงรอบนี้"
 // ใช้หา "รอบนี้ยังมีสิทธิ์กรอกกี่คน" — คนที่ผ่านครบทุกวิชาของรอบแล้วเปิดฟอร์มไม่ได้อีก
-// เงื่อนไข "ผ่านแล้ว" ต้องตรงกับ findPassedSubjectIds ใน examResults ทุกข้อ
-// ไม่งั้นตัวเลขบน dashboard จะไม่ตรงกับคนที่กรอกฟอร์มได้จริง:
-//   - ตัดใบที่ถูกตีกลับออก (ผลในใบนั้นเชื่อไม่ได้)
-//   - ไม่จำกัดปีการศึกษา (วิชาที่ผ่านแล้วผ่านเลย ข้ามปีก็ยังผ่าน)
-//   - ไม่นับใบของรอบที่กำลังดูอยู่ (excludeRoundId)
-export const findEligibleWithPassedSubjects = async (
-  academicYear,
-  excludeRoundId,
-) => {
+//
+// นับเฉพาะรอบที่มาก่อนรอบนี้จริงๆ (ปีเก่ากว่า หรือปีเดียวกันแต่ครั้งที่สอบน้อยกว่า)
+// ห้ามนับรอบที่มาทีหลัง ไม่งั้นจะเอาผลอนาคตมาตัดสินอดีต: คนที่ผ่านครบตอนรอบ 2
+// จะถูกมองว่า "ผ่านครบแล้ว" ตั้งแต่ตอนคำนวณรอบ 1 ทำให้รอบ 1 มีคนกรอกได้น้อยกว่ารอบ 2
+// (findPassedSubjectIds ฝั่ง examResults ตัดแค่รอบปัจจุบันพอ เพราะตอนนักศึกษากดส่ง
+//  รอบถัดไปยังไม่เกิดขึ้น — แต่ dashboard ย้อนดูรอบเก่าได้ เลยต้องกรองด้วยลำดับเวลา)
+//
+// เงื่อนไขอื่นตรงกับ findPassedSubjectIds: ตัดใบที่ถูกตีกลับ, วิชาที่ผ่านแล้วผ่านข้ามปีได้
+export const findEligibleWithPassedSubjects = async (round) => {
   const students = await prisma.student.findMany({
-    where: { academic_year: academicYear, exam_eligible: true },
+    where: { academic_year: round.academic_year, exam_eligible: true },
     select: { student_id: true },
   });
   if (students.length === 0) return [];
@@ -99,7 +99,15 @@ export const findEligibleWithPassedSubjects = async (
       exam_result: {
         student_id: { in: students.map((s) => s.student_id) },
         staff_status: { not: "rejected" },
-        round_id: { not: Number(excludeRoundId) },
+        round: {
+          OR: [
+            { academic_year: { lt: round.academic_year } },
+            {
+              academic_year: round.academic_year,
+              attempt_number: { lt: round.attempt_number },
+            },
+          ],
+        },
       },
     },
     select: { subject_id: true, exam_result: { select: { student_id: true } } },

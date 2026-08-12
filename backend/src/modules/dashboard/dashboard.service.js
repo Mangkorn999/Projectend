@@ -224,10 +224,7 @@ export const buildStats = async (roundId) => {
       dashRepo.countEligibleByYear(round.academic_year),
       dashRepo.findAllSubjects(),
       dashRepo.findResultsByRound(round.round_id),
-      dashRepo.findEligibleWithPassedSubjects(
-        round.academic_year,
-        round.round_id,
-      ),
+      dashRepo.findEligibleWithPassedSubjects(round),
     ]);
 
   // นับเฉพาะวิชาที่รอบนี้สอบจริง — รอบที่สอบ 3 วิชาไม่ควรโชว์อีก 5 วิชาเป็น 0%
