@@ -2,6 +2,8 @@
 // again in the next round, and the backend stores it as passed anyway.
 // This test needs an OPEN round to exist, so it opens rounds one at a time and
 // closes them again at the end -- run it after the other smoke tests.
+import { cleanupYears } from "./cleanupYears.mjs";
+
 const BASE = "http://localhost:3000";
 let failures = 0;
 
@@ -258,10 +260,14 @@ const main = async () => {
     const active3 = await call("GET", "/api/rounds/active", { token: sToken });
     check("round3 all_passed true", active3.json.data?.all_passed, true);
   } finally {
-    // leave no open round behind, then put the DB back the way we found it
+    // Put the db back the way we found it. Students and rounds left behind turn
+    // into fake academic years on the dashboard and crowd the real ones out of
+    // the year list, so wipe them — via prisma, since the api refuses to delete
+    // a student or a round that already has exam results attached.
     for (const id of created) {
       await call("PUT", `/api/rounds/${id}`, { token: oToken, body: { status: "closed" } });
     }
+    await cleanupYears([YEAR, OTHER_YEAR]);
     for (const id of parked) {
       await call("PUT", `/api/rounds/${id}`, { token: oToken, body: { status: "open" } });
     }

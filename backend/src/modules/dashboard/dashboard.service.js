@@ -195,10 +195,25 @@ function buildFirstAttemptBySubject(sent, subjects, cohortTotal) {
   for (const r of sat) sum += r.pass_rate;
   const average = sat.length ? Math.round((sum / sat.length) * 100) / 100 : 0;
 
+  // แถว "รวมทุกวิชา" ท้ายตาราง — **นับเป็นคน** ไม่ใช่บวกคอลัมน์รายวิชา
+  // บวกคอลัมน์จะได้ตัวหาร cohortTotal × จำนวนวิชา (เช่น 156×8 = 1248) ซึ่งไม่ใช่จำนวนคน
+  // แล้วไปโผล่ใต้หัวคอลัมน์ "ผู้สมัครสอบ" คนอ่านจะเข้าใจว่ามีผู้สมัคร 1,248 คน
+  //   passed_all = ผ่านครบทุกวิชาของรอบแรก · failed_any = ส่งผลแล้วแต่ตกอย่างน้อย 1 วิชา
+  //   คนที่ไม่ได้ส่งผลไม่อยู่ในทั้งสองช่อง (เหมือนแถวรายวิชา) → 2 ช่องรวมกันไม่ถึง 100%
+  const passedAll = counted.filter((r) =>
+    subjects.every((sub) =>
+      r.subject_results.some((x) => x.subject_id === sub.subject_id && x.is_passed),
+    ),
+  ).length;
+
   return {
     cohort_total: cohortTotal, // คอลัมน์ "จำนวนผู้สมัครสอบ" = ตัวหารของทุก % ในตารางนี้
     submitted: counted.length, // ส่งผลรอบแรกแล้วกี่คน (ไม่รวมใบที่ถูกตีกลับ)
     average_pass_rate: average, // เส้นอ้างอิงของหน้าจอ: วิชาไหนต่ำกว่าค่านี้ = ต้องเฝ้าระวัง
+    passed_all: passedAll,
+    passed_all_rate: rate2(passedAll, cohortTotal),
+    failed_any: counted.length - passedAll,
+    failed_any_rate: rate2(counted.length - passedAll, cohortTotal),
     subjects: rows,
   };
 }
@@ -323,6 +338,8 @@ const buildYearSummary = async (year, allSubjects) => {
   // วิชาที่แต่ละคนสอบผ่านแล้ว รวมทุกรอบของปีนี้ (ยุบซ้ำด้วย Set)
   // ต้องรวมข้ามรอบ ไม่ใช่ดูทีละรอบ — คนสอบแก้ตัวผ่านครบก็ต่อเมื่อเอาผลรอบก่อนมารวมด้วย
   const passedByStudent = new Map(); // student_id -> Set(subject_id)
+  // ใบล่าสุดของแต่ละคน ใช้ทำ statusByStudent ท้ายฟังก์ชัน
+  const latestPaperOf = new Map(); // student_id -> examResult
 
   // ผลของรอบสอบครั้งแรก (attempt_number = 1) เก็บแยกไว้
   // ใช้ทำ "ร้อยละผ่านครั้งแรก" + ตารางผ่านกี่วิชา ซึ่งนับเฉพาะรอบแรกเท่านั้น
@@ -340,6 +357,12 @@ const buildYearSummary = async (year, allSubjects) => {
     const subjectIds = roundSubjects.map((s) => s.subject_id);
 
     for (const r of results) everStarted.add(r.student_id);
+
+    // ใบล่าสุดของแต่ละคนในปีนี้ — rounds เรียงใหม่→เก่า ใบแรกที่เจอจึงเป็นใบล่าสุด
+    // ใช้ทำสัดส่วนสถานะ "รายคน": คนที่กรอกหลายรอบต้องนับครั้งเดียว ตามสถานะปัจจุบันของเขา
+    for (const r of results) {
+      if (!latestPaperOf.has(r.student_id)) latestPaperOf.set(r.student_id, r);
+    }
 
     if (round.attempt_number === 1) {
       firstRoundSent = sent;
@@ -441,12 +464,20 @@ const buildYearSummary = async (year, allSubjects) => {
     );
   }
 
+  // สัดส่วนสถานะระดับปี — **นับเป็นคน** ถือใบล่าสุดของแต่ละคนเป็นสถานะปัจจุบันของเขา
+  // ห้ามเอา by ของแต่ละรอบมาบวกกัน: นั่นเป็นจำนวน "ใบ" คนที่กรอก 2 รอบจะถูกนับ 2 ครั้ง
+  // แล้วพอเอาไปหารด้วย total (จำนวนคน) จะได้เกิน 100%
+  // 5 ช่องนี้บวกกันได้เท่า total พอดีเสมอ เพราะนักศึกษาคนหนึ่งอยู่ได้ช่องเดียว
+  const statusByStudent = countByStatus([...latestPaperOf.values()]);
+  statusByStudent.not_started = Math.max(total - latestPaperOf.size, 0);
+
   return {
     academic_year: year,
     total,
     eligible,
     submitted: everSubmitted.size,
     started: everStarted.size, // มีใบในปีนี้กี่คน (รวม draft) — total − started = ยังไม่เริ่มกรอก
+    statusByStudent, // { draft, submitted, approved, rejected, not_started } รวมกัน = total
     fullyPassed: fullyPassedStudents.size,
     // ทุก % ของสถิติชุดนี้หารด้วย total (นักศึกษาทั้งรุ่นที่ import เข้าระบบ) ตัวเดียวกันหมด
     fillRate: rate2(everSubmitted.size, total),

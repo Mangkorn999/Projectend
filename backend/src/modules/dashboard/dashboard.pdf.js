@@ -254,21 +254,18 @@ export const buildReportPdf = (stats, rows, res, yearStats) => {
       ];
     });
 
-    // แถวรวมท้ายตาราง — บวกคอลัมน์ตรงๆ ตัวหารเป็นทั้งรุ่นคูณจำนวนวิชา (เหมือนแถวรวมบนหน้าจอ)
-    const sumOf = (pick) => bySubject.subjects.reduce((a, s) => a + pick(s), 0);
-    const totalPassN = sumOf((s) => s.pass);
-    const totalFailN = sumOf((s) => s.fail);
-    const totalNsN = sumOf((s) => s.not_submitted);
-    const cells = bySubject.cohort_total * bySubject.subjects.length;
-    const pctOfAll = (n) =>
-      cells ? (Math.round((n / cells) * 10000) / 100).toFixed(2) : "0.00";
+    // แถวรวมท้ายตาราง — **นับเป็นคน** ไม่ใช่บวกคอลัมน์รายวิชา (เหมือนแถวรวมบนหน้าจอ)
+    // บวกคอลัมน์จะได้ตัวหาร cohort × จำนวนวิชา ซึ่งไม่ใช่จำนวนคน แล้วไปโผล่ใต้หัว "ผู้สมัครสอบ"
+    // ยอดรวมระดับ "ผลรายวิชา" — ใช้เฉพาะในหมายเหตุใต้ตาราง ไม่ได้อยู่ในตัวตารางแล้ว
+    const totalNsN = bySubject.subjects.reduce((a, s) => a + s.not_submitted, 0);
+    const totalFailN = bySubject.subjects.reduce((a, s) => a + s.fail, 0);
     bsRows.push([
-      "รวมทุกวิชา",
-      cells,
-      totalPassN,
-      pctOfAll(totalPassN),
-      totalFailN,
-      pctOfAll(totalFailN),
+      "รวมทุกวิชา (นับเป็นคน)",
+      bySubject.cohort_total,
+      bySubject.passed_all,
+      bySubject.passed_all_rate.toFixed(2),
+      bySubject.failed_any,
+      bySubject.failed_any_rate.toFixed(2),
     ]);
 
     const bsEndY = drawTable(doc, {

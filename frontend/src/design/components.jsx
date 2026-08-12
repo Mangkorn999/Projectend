@@ -250,14 +250,10 @@ export function FirstAttemptSubjectTable({ data, year, lang='TH' }) {
     return <div className="card card-pad"><Empty icon="doc" title={tt('firstBySubject.empty')} /></div>;
   }
 
-  const { cohort_total: cohort, submitted, subjects } = data;
+  const { cohort_total: cohort, submitted, subjects,
+    passed_all: passedAll, passed_all_rate: passedAllRate,
+    failed_any: failedAny, failed_any_rate: failedAnyRate } = data;
   const rows = [...subjects].sort((a, b) => a.subject_code.localeCompare(b.subject_code));
-
-  // แถวรวม = บวกคอลัมน์ตรงๆ ตัวหารเป็นทั้งรุ่นคูณจำนวนวิชา
-  const sum = (pick) => subjects.reduce((acc, s) => acc + pick(s), 0);
-  const totals = { pass: sum(s => s.pass), fail: sum(s => s.fail) };
-  const totalCells = cohort * subjects.length;
-  const pctOfAll = (n) => (totalCells ? Math.round((n / totalCells) * 10000) / 100 : 0);
 
   const BORDER = '1px solid var(--ink-200)';
   const HEAD = { padding: '7px 10px', fontWeight: 600, color: 'var(--ink-700)', fontSize: 12, border: BORDER };
@@ -319,12 +315,14 @@ export function FirstAttemptSubjectTable({ data, year, lang='TH' }) {
             })}
           </tbody>
           <tfoot>
-            {/* แถวรวม — ตัวหนาพอให้แยกออกจากแถวปกติ ไม่ใส่สีพื้นหลัง */}
+            {/* แถวรวม — นับเป็น "คน" ไม่ใช่บวกคอลัมน์รายวิชา (backend คำนวณมาให้)
+                ผ่าน = ผ่านครบทุกวิชา · ไม่ผ่าน = ส่งผลแล้วแต่ตกอย่างน้อย 1 วิชา
+                ตัวหนาพอให้แยกออกจากแถวปกติ ไม่ใส่สีพื้นหลัง */}
             <tr>
               <td style={{ padding: '10px', fontWeight: 700, border: BORDER }}>{tt('firstBySubject.rowTotal')}</td>
-              <td className="tnum" style={{ ...NUM, fontWeight: 700, color: 'var(--ink-900)' }}>{totalCells}</td>
-              <Cell count={totals.pass} rate={pctOfAll(totals.pass)} bold />
-              <Cell count={totals.fail} rate={pctOfAll(totals.fail)} bold />
+              <td className="tnum" style={{ ...NUM, fontWeight: 700, color: 'var(--ink-900)' }}>{cohort}</td>
+              <Cell count={passedAll} rate={passedAllRate} bold />
+              <Cell count={failedAny} rate={failedAnyRate} bold />
             </tr>
           </tfoot>
         </table>

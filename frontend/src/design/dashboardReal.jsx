@@ -38,9 +38,6 @@ export function DashboardReal({ go, readonly, lang }) {
   // อัตราผ่านรายวิชาย้อนหลัง ต้องใช้แค่ผลรอบแรก (attempt_number=1) ของแต่ละปีเท่านั้น ไม่รวมรอบถัดไป —
   // history.years[].perSubject รวมทุกรอบของปี ใช้ไม่ได้ตรงนี้ เลยต้องยิง /dashboard/stats?round_id= แยกทีละรอบแรกของแต่ละปี
   const [firstRoundSubjects, setFirstRoundSubjects] = useState({}); // { [academic_year]: perSubject[] }
-  // สัดส่วนสถานะรวมทั้งปี (แท็บ "รวมทั้งปี") — ไม่มี endpoint รายปีให้ตรงๆ เลยรวมเองจาก stats ทีละรอบ
-  // นับเป็น "ใบ" เหมือนของรายรอบ (คนส่งหลายรอบในปีเดียวมีได้หลายใบคนละสถานะ นับซ้ำได้ตามจริง)
-  const [yearStatus, setYearStatus] = useState({}); // { [academic_year]: { total, by, not_started } }
 
   // โหลดครั้งแรก — รายการรอบ/สรุปย้อนหลัง/แจ้งเตือน ไม่เปลี่ยนตามรอบที่เลือก โหลดรอบเดียวพอ
   useEffect(() => {
@@ -100,37 +97,6 @@ export function DashboardReal({ go, readonly, lang }) {
     setTab(nextTab);
     if (nextTab !== ALL_ROUNDS && YEAR_ONLY_TABS.includes(mainTab)) setMainTab('status');
   };
-
-  // รวมสัดส่วนสถานะทุกรอบของปีที่กำลังดู — ยิงทีละรอบผ่าน /dashboard/stats ที่มีอยู่แล้ว ไม่ต้องมี endpoint ใหม่
-  // cache ไว้ต่อปี กันยิงซ้ำทุกครั้งที่สลับแท็บไปมา
-  useEffect(() => {
-    // ผู้บริหารไม่มีโซนนี้บนหน้าจอ (อยู่ใน !readonly ทั้งก้อน) — ยิงไปก็ทิ้ง เปลืองคำขอตามจำนวนรอบของปี
-    if (readonly) return;
-    if (year === null || yearStatus[year] || rounds.length === 0) return;
-    const roundsOfYear = rounds.filter(r => r.academic_year === year);
-    if (roundsOfYear.length === 0) return;
-    let dropped = false;
-    Promise.all(roundsOfYear.map(r => apiFetch(`/dashboard/stats?round_id=${r.round_id}`)))
-      .then(list => {
-        if (dropped) return;
-        const total = list[0]?.total ?? 0;
-        const by = { draft: 0, submitted: 0, approved: 0, rejected: 0 };
-        for (const s of list) {
-          by.draft += s.by.draft;
-          by.submitted += s.by.submitted;
-          by.approved += s.by.approved;
-          by.rejected += s.by.rejected;
-        }
-        // ไม่รวม not_started ของแต่ละรอบตรงๆ (จะนับคนเดิมซ้ำถ้ามีหลายรอบ) — ใช้ตัวที่ dedup แล้วจาก history แทน
-        // ต้องหักด้วย started (คนที่มีใบแล้ว รวม draft) ไม่ใช่ submitted —
-        // ไม่งั้นคนที่กรอกค้างไว้จะถูกนับทั้งช่อง "กรอกค้างไว้" และช่อง "ยังไม่เริ่มกรอก" พร้อมกัน
-        const started = yearSummary?.started ?? yearSummary?.submitted ?? 0;
-        const notStarted = Math.max(total - started, 0);
-        setYearStatus(prev => ({ ...prev, [year]: { total, by, not_started: notStarted } }));
-      })
-      .catch(() => {}); // พลาดก็แค่โชว์ loading ค้าง ไม่ต้อง error ทั้งหน้า
-    return () => { dropped = true; };
-  }, [year, rounds, readonly]);
 
   if (error) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--reject,#dc2626)' }}>{tt('statuspage.loadFailPrefix', { msg: error })}</div>;
   if (loading && !history) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
@@ -226,8 +192,11 @@ export function DashboardReal({ go, readonly, lang }) {
           <div key={mainTab} className="blur-in">
             {mainTab === 'status' && (
               tab === ALL_ROUNDS
-                ? (yearStatus[year]
-                    ? <StatusDonut total={yearStatus[year].total} by={yearStatus[year].by} not_started={yearStatus[year].not_started} tt={tt} />
+                ? (yearSummary?.statusByStudent
+                    // มุมมองรวมทั้งปีนับเป็น "คน" (ใบล่าสุดของแต่ละคน) backend คำนวณมาให้แล้ว
+                    // เอา by ของแต่ละรอบมาบวกกันเองไม่ได้ นั่นเป็นจำนวนใบ คนที่กรอก 2 รอบจะถูกนับซ้ำจนเกิน 100%
+                    ? <StatusDonut total={yearSummary.total} by={yearSummary.statusByStudent}
+                        not_started={yearSummary.statusByStudent.not_started} perStudent tt={tt} />
                     : <div style={{ padding: '28px 0', textAlign: 'center', color: 'var(--ink-500)', fontSize: 13.5 }}>{tt('common.loading')}</div>)
                 : showingRound && <RoundView stats={stats} roundInfo={rounds.find(r => String(r.round_id) === tab)} go={go} lang={lang} tt={tt} statusOnly />
             )}
@@ -484,11 +453,10 @@ function RoundView({ stats, roundInfo, go, lang, tt, statCardsOnly, statusOnly }
   return null;
 }
 
-/* การ์ด Donut สัดส่วนสถานะ — ใช้ทั้งมุมมองรอบเดียว (RoundView) และรวมทั้งปี (ยอดรวมจาก yearStatus)
-   ต่างกันแค่ที่มาของ total/by/not_started เท่านั้น หน้าตาเหมือนกันทุกอย่าง */
-function StatusDonut({ total, by, not_started, tt }) {
-  // 5 ช่องนี้ตอนดูรอบเดียว backend การันตีว่าบวกกันได้เท่า total พอดี — ตอนรวมทั้งปี (หลายรอบ) อาจเกิน total ได้
-  // เพราะนับเป็น "ใบ" คนส่งหลายรอบมีได้หลายใบคนละสถานะ
+/* การ์ด Donut สัดส่วนสถานะ — ใช้ทั้งมุมมองรอบเดียว (RoundView) และรวมทั้งปี
+   perStudent = ตัวเลขที่ส่งมาเป็น "คน" (ใบล่าสุดของแต่ละคน) ไม่ใช่ "ใบ" — ต่างกันแค่ป้ายกำกับ
+   ทั้งสองแบบ 5 ช่องบวกกันได้เท่า total พอดี % จึงไม่มีทางเกิน 100 */
+function StatusDonut({ total, by, not_started, perStudent, tt }) {
   const segs = [
     { key: 'CONFIRMED', label: tt('status.CONFIRMED'), value: by.approved, color: 'var(--status-ok-dot)' },
     { key: 'SUBMITTED', label: tt('status.SUBMITTED'), value: by.submitted, color: 'var(--status-wait-dot)' },
@@ -506,7 +474,9 @@ function StatusDonut({ total, by, not_started, tt }) {
     <div className="card card-pad">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
         <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>{tt('dashReal.statusBreakdownTitle')}</h3>
-        <span style={{ fontSize: 12, color: 'var(--ink-400)' }}>{tt('dashReal.statusOfPapers')}</span>
+        <span style={{ fontSize: 12, color: 'var(--ink-400)' }}>
+          {perStudent ? tt('dashReal.statusOfStudents') : tt('dashReal.statusOfPapers')}
+        </span>
       </div>
 
       {/* donut ซ้าย + รายการสถานะขวาแบบเต็มความกว้าง — เดิมรายการชิดซ้ายจนเหลือที่ว่างครึ่งการ์ด
@@ -536,7 +506,9 @@ function StatusDonut({ total, by, not_started, tt }) {
           <>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 7 }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink-700)' }}>{tt('dashReal.statusProgressLabel')}</span>
-              <span style={{ fontSize: 12.5, color: 'var(--ink-500)', flex: 1 }}>{tt('dashReal.statusProgressSub', { done: reviewed, total: papers })}</span>
+              <span style={{ fontSize: 12.5, color: 'var(--ink-500)', flex: 1 }}>
+                {tt(perStudent ? 'dashReal.statusProgressSubStudents' : 'dashReal.statusProgressSub', { done: reviewed, total: papers })}
+              </span>
               <span className="tnum" style={{ fontWeight: 800 }}>{reviewRate.toFixed(2)}%</span>
             </div>
             <div className="pbar" style={{ height: 8 }}><i style={{ width: `${reviewRate}%`, background: 'var(--navy-600)' }} /></div>

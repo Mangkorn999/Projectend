@@ -2,6 +2,8 @@
 // every subject of that round again, including the ones they had marked passed.
 // A result belonging to the round being filled is not a "previous round".
 // Needs the backend running on localhost:3000.
+import { cleanupYears } from "./cleanupYears.mjs";
+
 const BASE = "http://localhost:3000";
 let failures = 0;
 
@@ -204,6 +206,16 @@ const main = async () => {
       stats.json.data?.perSubject?.filter((s) => s.rate === null).every((s) => s.pass === 0 && s.fail === 0), true);
     check("  fullyPassed still counts carry-forward", stats.json.data?.fullyPassed, 1);
 
+    // the first-attempt table's total row counts students, not the sum of the
+    // subject columns — the columns would total cohort x subjects, which is not
+    // a headcount and sits under a "candidates" heading on screen and in the pdf
+    const hist = await call("GET", "/api/dashboard/history?years=10", { token: oToken });
+    const fa = hist.json.data?.years?.find((y) => y.academic_year === YEAR)?.firstAttemptBySubject;
+    check("firstAttemptBySubject has a per-student total", fa?.passed_all !== undefined, true);
+    check("  passed_all + failed_any never exceeds the cohort",
+      fa ? fa.passed_all + fa.failed_any <= fa.cohort_total : false, true);
+    check("  and equals the students whose papers count", fa?.passed_all + fa?.failed_any, fa?.submitted);
+
     // ---- revoking eligibility must not break the donut arithmetic ----
     await call("PATCH", "/api/students/bulk-eligible", {
       token: oToken, body: { student_ids: [STUDENT_ID], exam_eligible: false },
@@ -220,10 +232,14 @@ const main = async () => {
       token: oToken, body: { student_ids: [STUDENT_ID], exam_eligible: true },
     });
   } finally {
-    // leave no open round behind, then put the DB back the way we found it
+    // Put the db back the way we found it. Students and rounds left behind turn
+    // into fake academic years on the dashboard and crowd the real ones out of
+    // the year list, so wipe them — via prisma, since the api refuses to delete
+    // a student or a round that already has exam results attached.
     for (const id of created) {
       await call("PUT", `/api/rounds/${id}`, { token: oToken, body: { status: "closed" } });
     }
+    await cleanupYears([YEAR]);
     for (const id of parked) {
       await call("PUT", `/api/rounds/${id}`, { token: oToken, body: { status: "open" } });
     }
