@@ -624,6 +624,8 @@ dashboard นับอัตราผ่านรายวิชาเฉพา�
 |---|---|---|
 | `total` | นักศึกษาทั้งรุ่น | นับจาก `academic_year` ของรอบ |
 | `eligible` | คนที่เปิดสิทธิ์กรอกแล้ว | `exam_eligible = true` |
+| `canSubmit` | รอบนี้กรอกฟอร์มได้กี่คน | เปิดสิทธิ์ **และ** ยังผ่านวิชาของรอบนี้ไม่ครบ — ลดลงทุกรอบ |
+| `alreadyPassedStudentIds` | `student_id[]` ของคนที่ผ่านครบไปแล้วตั้งแต่รอบก่อน | อีกครึ่งของ loop เดียวกับ `canSubmit` (คนที่ `passedAll`) |
 | `by` | แยกตามสถานะ | `{ draft, submitted, approved, rejected }` |
 | `not_started` | ยังไม่กรอกเลย | `eligible − จำนวนใบในรอบ` |
 | `fillRate` | % คนที่ส่งแล้ว | `submitted / eligible` ← **หารด้วย eligible ไม่ใช่ total** |
@@ -634,7 +636,7 @@ dashboard นับอัตราผ่านรายวิชาเฉพา�
 
 > `fullyPassedRate` (รายคน) กับ `subjectPassRate` (รายวิชา) **คนละตัวกัน** — 20 คนสอบ 8 วิชา ผ่านคนละ 7 วิชา จะได้ subjectPassRate 87.5% แต่ fullyPassedRate 0%.
 
-**2 กติกาที่ต้องไม่ลืม:**
+**3 กติกาที่ต้องไม่ลืม:**
 
 1. **สถิติทุกตัวนับเฉพาะนักศึกษาที่ `exam_eligible = true`** — `findResultsByRound` กรองที่ repository เลย
    รับประกันว่า `by.approved + by.submitted + by.rejected + by.draft + not_started === eligible` เสมอ
@@ -644,6 +646,11 @@ dashboard นับอัตราผ่านรายวิชาเฉพา�
    `null` = "ไม่มีข้อมูล" คนละเรื่องกับ `0` = "สอบแล้วตกหมด" — หน้าเว็บต้องแสดง `—` ไม่ใช่ 0%
    `subjectPassRate` ก็ข้ามวิชาพวกนี้ ไม่เอามาเป็นตัวหาร
    `fullyPassed` **ไม่**ตัด carry-forward ออก เพราะผ่านวิชานั้นตั้งแต่รอบก่อนก็นับว่าผ่านครบจริง
+
+3. **`not_started` กับแท็บ "ยังไม่กรอก" ในหน้าคิวตรวจ ตั้งใจให้ไม่เท่ากัน**
+   `not_started` ที่นี่ต้องรวมคนที่ผ่านครบไปแล้วด้วย ไม่งั้น 5 ช่องบวกกันไม่เท่า `total` (กติกาข้อ 1)
+   ส่วนหน้าคิวตรวจตอบคำถาม "เหลืองานต้องตาม **กี่คน**" เลยเอา `alreadyPassedStudentIds` ไปลบออก
+   → รอบ 2 เป็นต้นไป เลขสองที่จะต่างกัน **อย่าไปแก้ให้เท่ากัน** มันคนละคำถาม (frontend ติด tooltip อธิบายไว้ที่แท็บแล้ว)
 
 **`buildHistory(yearCount)`** — สรุปรายปีย้อนหลัง (ค่าเริ่มต้น 3 ปี, จำกัด 1–10 ที่ controller)
 **นับเป็น "รายคน" ไม่ใช่ "รายใบ"** ด้วย `Set` ของ `student_id` — คนที่กรอก 2 รอบในปีเดียวต้องนับครั้งเดียว ไม่งั้นตัวเลขเกินจำนวนคนที่มีจริง.
@@ -1002,6 +1009,7 @@ curl -H "Authorization: Bearer <token>" http://localhost:3000/api/subjects/1
 
 | วันที่ | เปลี่ยนอะไร |
 |---|---|
+| 2026-08-12 | `/dashboard/stats` เพิ่ม `alreadyPassedStudentIds` (งานแก้ม — merge จาก `feature/update-app`) — คนที่ผ่านครบทุกวิชาไปแล้วตั้งแต่รอบก่อน ไม่มีแถวใน `exam_results` ของรอบถัดไป เลยค้างโชว์ในแท็บ "ยังไม่กรอก" ของหน้าคิวตรวจทุกรอบ ทั้งที่ไม่มีอะไรต้องทำแล้ว. ได้มาจาก loop เดิมของ `canSubmit` (เก็บอีกครึ่งที่ `passedAll`) ไม่มี query เพิ่ม. **`not_started` ไม่แก้** — ต้องคงผลรวมให้เท่า `total` (ดูกติกาข้อ 3 หัวข้อ 7.10) (`dashboard.service.js`, `officerReviewReal.jsx`, `i18n.js`) |
 | 2026-08-12 | **กันสร้างรอบซ้ำ** — เดิมสร้าง "ปี 2569 ครั้งที่ 1" กี่รอบก็ได้ ไม่มีอะไรกันเลยทั้งใน controller และ DB ทำให้ `findActive` เจอสองรอบแล้วเลือกมาแค่รอบเดียว ผลสอบเลยกระจายไปคนละรอบ. เพิ่ม `ensureNotDuplicate()` ใน `create`+`update` (update ข้ามรอบตัวเองด้วย `exceptRoundId`), `findByYearAndAttempt()` ใน repository, unique index ที่ DB (`@@unique([academic_year, attempt_number])`, migration `20260812000000_add_unique_round_year_attempt`) และแปลง `P2002` เป็น 400 ด้วย `asDuplicateRoundError()`. `update` ดึงรอบเดิมมาก่อนเสมอ → ไม่เจอตอบ 404 แทน 500 (`rounds.controller.js`, `rounds.repository.js`, `schema.prisma`, `tests/smoke-phase13-duplicate-round.mjs`) |
 | 2026-08-12 | **แก้ `canSubmit` นับผิด** — เดิมตัดออกแค่รอบที่กำลังดู เลยนับผลของ "รอบที่มาทีหลัง" เข้ามาด้วย คนที่ผ่านครบตอนรอบ 2 ถูกมองว่าผ่านครบตั้งแต่ตอนคำนวณรอบ 1 ทำให้รอบ 1 มีคนกรอกได้ **น้อยกว่า** รอบ 2 ซึ่งเป็นไปไม่ได้. ตอนนี้กรองด้วยลำดับเวลา (ปีเก่ากว่า หรือปีเดียวกันแต่ `attempt_number` น้อยกว่า) — `findEligibleWithPassedSubjects(round)` รับ round object แทน `(year, roundId)`. **`findPassedSubjectIds` ฝั่ง examResults ไม่ต้องแก้** เพราะตอนนักศึกษากดส่ง รอบถัดไปยังไม่เกิด (`dashboard.repository.js`, `dashboard.service.js`) |
 | 2026-08-12 | PDF เพิ่มตาราง "สรุปผลสอบผ่านครั้งแรก จำแนกรายวิชา" (จาก `yearStats.firstAttemptBySubject`) — ตารางนี้เดิมมีแต่บนหน้าจอ ไฟล์ที่ export ออกไปไม่มี ทั้งที่เป็นตัวเลขที่ส่งสภาการพยาบาล. มีแถวรวมทุกวิชา + หมายเหตุยอด "ไม่ผ่าน + ไม่ส่งผล" รวมกัน (เอกสารของสภานับ 2 อย่างนี้เป็นช่องเดียว) (`dashboard.pdf.js`) |
