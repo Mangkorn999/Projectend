@@ -42,14 +42,6 @@ export function DashboardReal({ go, readonly, lang }) {
   // นับเป็น "ใบ" เหมือนของรายรอบ (คนส่งหลายรอบในปีเดียวมีได้หลายใบคนละสถานะ นับซ้ำได้ตามจริง)
   const [yearStatus, setYearStatus] = useState({}); // { [academic_year]: { total, by, not_started } }
 
-  // แท็บ firstBySubject/firstCount หายไปจากแถบตอนเลือกรอบเฉพาะ (ดู items ของ MainTabs ด้านล่าง) —
-  // ถ้าเผลอค้างอยู่แท็บนั้นตอนสลับรอบ พื้นที่เนื้อหาจะว่างเปล่า เลยต้องสลับกลับ 'status' ให้เอง
-  useEffect(() => {
-    if (tab !== ALL_ROUNDS && (mainTab === 'firstBySubject' || mainTab === 'firstCount')) {
-      setMainTab('status');
-    }
-  }, [tab]);
-
   // โหลดครั้งแรก — รายการรอบ/สรุปย้อนหลัง/แจ้งเตือน ไม่เปลี่ยนตามรอบที่เลือก โหลดรอบเดียวพอ
   useEffect(() => {
     Promise.all([
@@ -246,11 +238,14 @@ export function DashboardReal({ go, readonly, lang }) {
                 : showingRound && <SubjectRateCard perSubject={stats.perSubject} subjectPassRate={stats.subjectPassRate} lang={lang} tt={tt} />
             )}
 
-            {mainTab === 'firstBySubject' && tab === ALL_ROUNDS && (
+            {/* 2 แท็บนี้มีให้กดเฉพาะตอน "รวมทั้งปี" (ดู items ของ MainTabs ข้างบน)
+                และ changeRoundTab เด้งกลับ 'status' ให้เองถ้าสลับไปดูรอบเดียวขณะเปิดค้างอยู่
+                จึงไม่ต้องเช็ค tab ซ้ำตรงนี้อีก */}
+            {mainTab === 'firstBySubject' && (
               <FirstAttemptSubjectTable data={yearSummary?.firstAttemptBySubject} year={year} lang={lang} />
             )}
 
-            {mainTab === 'firstCount' && tab === ALL_ROUNDS && <PassDistribution year={yearSummary} lang={lang} tt={tt} />}
+            {mainTab === 'firstCount' && <PassDistribution year={yearSummary} lang={lang} tt={tt} />}
 
             {mainTab === 'reports' && (
               <div style={{ marginTop: 4 }}>
