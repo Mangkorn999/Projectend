@@ -26,7 +26,7 @@ export function DashboardReal({ go, readonly, lang }) {
   const [reportYears, setReportYears] = useState([]);
   const [tab, setTab] = useState(ALL_ROUNDS); // ALL_ROUNDS = รวมทั้งปี, ไม่งั้นเป็น round_id
   // แท็บบนสุด 3 อัน แทนที่การเรียง Donut/อัตราผ่านรายวิชา/สถิติเชิงรายงานต่อกันเป็นแถวยาวแบบเดิม
-  const [mainTab, setMainTab] = useState('status'); // 'status' | 'subjects' | 'reports'
+  const [mainTab, setMainTab] = useState('status'); // 'status' | 'subjects' | 'firstBySubject' | 'firstCount' | 'reports'
   // แท็บย่อยใน "สถิติเชิงรายงาน" — ไม่ขึ้นกับรอบที่เลือก อิงปีที่เลือกจาก yearPicker เท่านั้น
   const [reportTab, setReportTab] = useState('firstRate'); // 'firstRate' | 'firstCount' | 'subjectHistory' | 'fullPass'
   const [stats, setStats] = useState(null); // สถิติของรอบที่เลือก (ใช้เฉพาะตอนไม่ใช่ "รวมทั้งปี")
@@ -38,6 +38,14 @@ export function DashboardReal({ go, readonly, lang }) {
   // สัดส่วนสถานะรวมทั้งปี (แท็บ "รวมทั้งปี") — ไม่มี endpoint รายปีให้ตรงๆ เลยรวมเองจาก stats ทีละรอบ
   // นับเป็น "ใบ" เหมือนของรายรอบ (คนส่งหลายรอบในปีเดียวมีได้หลายใบคนละสถานะ นับซ้ำได้ตามจริง)
   const [yearStatus, setYearStatus] = useState({}); // { [academic_year]: { total, by, not_started } }
+
+  // แท็บ firstBySubject/firstCount หายไปจากแถบตอนเลือกรอบเฉพาะ (ดู items ของ MainTabs ด้านล่าง) —
+  // ถ้าเผลอค้างอยู่แท็บนั้นตอนสลับรอบ พื้นที่เนื้อหาจะว่างเปล่า เลยต้องสลับกลับ 'status' ให้เอง
+  useEffect(() => {
+    if (tab !== ALL_ROUNDS && (mainTab === 'firstBySubject' || mainTab === 'firstCount')) {
+      setMainTab('status');
+    }
+  }, [tab]);
 
   // โหลดครั้งแรก — รายการรอบ/สรุปย้อนหลัง/แจ้งเตือน ไม่เปลี่ยนตามรอบที่เลือก โหลดรอบเดียวพอ
   useEffect(() => {
@@ -204,8 +212,12 @@ export function DashboardReal({ go, readonly, lang }) {
           <MainTabs value={mainTab} onChange={setMainTab} tt={tt} items={[
             { key: 'status', label: tt('dashReal.statusBreakdownTitle') },
             { key: 'subjects', label: tt('dashReal.subjectRateTitle') },
-            { key: 'firstBySubject', label: tt('firstBySubject.title') },
-            { key: 'firstCount', label: tt('dashReal.distTitle') },
+            // 2 tab นี้เป็นสรุประดับปี (มาจากผลรอบแรกของปีเสมอ) ไม่มีมุมมองรายรอบ — ไม่ใช่แค่ซ่อนเนื้อหา
+            // แต่เอาตัวเลือกออกจากแท็บไปเลยตอนเลือกรอบใดรอบหนึ่ง กันงงว่าทำไมกดแล้วไม่มีอะไรขึ้น
+            ...(tab === ALL_ROUNDS ? [
+              { key: 'firstBySubject', label: tt('firstBySubject.title') },
+              { key: 'firstCount', label: tt('dashReal.distTitle') },
+            ] : []),
             { key: 'reports', label: tt('dashReal.reportSectionTitle') },
           ]} />
 
@@ -224,11 +236,11 @@ export function DashboardReal({ go, readonly, lang }) {
                 : showingRound && <SubjectRateCard perSubject={stats.perSubject} subjectPassRate={stats.subjectPassRate} lang={lang} tt={tt} />
             )}
 
-            {mainTab === 'firstBySubject' && (
+            {mainTab === 'firstBySubject' && tab === ALL_ROUNDS && (
               <FirstAttemptSubjectTable data={yearSummary?.firstAttemptBySubject} year={year} lang={lang} />
             )}
 
-            {mainTab === 'firstCount' && <PassDistribution year={yearSummary} lang={lang} tt={tt} />}
+            {mainTab === 'firstCount' && tab === ALL_ROUNDS && <PassDistribution year={yearSummary} lang={lang} tt={tt} />}
 
             {mainTab === 'reports' && (
               <div style={{ marginTop: 4 }}>
