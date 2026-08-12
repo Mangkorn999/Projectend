@@ -33,6 +33,7 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang }) {
   const [selected, setSelected] = useState(() => new Set()); // student_id ที่ติ๊กไว้
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(null); // นักศึกษาที่กำลังจะลบ (รอยืนยันในโมดัล)
+  const [resetting, setResetting] = useState(null); // นักศึกษาที่กำลังจะรีเซ็ตรหัส (รอยืนยันในโมดัล)
   const per = 10;
 
   useEffect(() => {
@@ -49,6 +50,7 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang }) {
           const passedCount = latest ? latest.subject_results.filter(sr => sr.is_passed).length : 0;
           return {
             sid: s.student_id,
+            userId: s.user.user_id,
             prefix: '',
             firstName: s.user.first_name,
             lastName: s.user.last_name,
@@ -143,6 +145,22 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang }) {
     }
   };
 
+  // รีเซ็ตรหัสผ่าน — endpoint เดียวกับที่หน้าจัดการผู้ใช้ใช้ (POST /users/:id/reset-password ไม่จำกัด role ปลายทาง)
+  // ล้าง password_hash ให้ต้องไปตั้งใหม่ที่หน้า "ตั้งรหัสผ่านครั้งแรก" — เจ้าหน้าที่ไม่เคยเห็นรหัสจริง
+  const confirmReset = async () => {
+    if (!resetting) return;
+    setSaving(true);
+    try {
+      await apiFetch(`/users/${resetting.userId}/reset-password`, { method: 'POST' });
+      toast?.(tt('usersMgmt.resetToast', { name: resetting.firstName }));
+      setResetting(null);
+    } catch (e) {
+      toast?.(e instanceof ApiError ? e.message : tt('detailReal.actionFailMsg'), 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const setEligibility = (value) => setEligibilityFor([...selected], value);
   const toggleOneEligibility = (s) => {
     setEligibilityFor([s.sid], !s.eligible);
@@ -228,6 +246,9 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang }) {
                   <td><StatusBadge status={s.status} lang={lang} /></td>
                   <td style={{ color: 'var(--ink-500)', fontSize: 13 }}>{s.submittedAt || '—'}</td>
                   {!readonly && <td onClick={e => e.stopPropagation()} style={{ whiteSpace: 'nowrap' }}>
+                    <button disabled={saving} onClick={() => setResetting(s)} title={tt('usersMgmt.resetHint')}
+                      className="btn btn-ghost btn-sm" style={{ marginRight: 6 }}>
+                      <Icon name="key" size={15} /> {tt('usersMgmt.resetBtn')}</button>
                     {s.eligible && <button disabled={saving} onClick={() => toggleOneEligibility(s)}
                       className="badge reject" style={{ border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
                       <Icon name="xCircle" size={13} /> {tt('officer.students.revokeBtn')}</button>}
@@ -257,6 +278,14 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang }) {
           <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: 'var(--ink-700)' }}>
             {tt('officer.students.deleteBody', { name: `${deleting.firstName} ${deleting.lastName}`, sid: deleting.sid })}
           </p>
+        )}
+      </Modal>
+
+      <Modal open={!!resetting} onClose={() => setResetting(null)} width={430} title={tt('usersMgmt.resetBtn')}
+        footer={<><button className="btn btn-ghost" onClick={() => setResetting(null)}>{tt('officer.students.cancelBtn')}</button>
+          <button className="btn btn-primary" disabled={saving} onClick={confirmReset}>{tt('usersMgmt.resetBtn')}</button></>}>
+        {resetting && (
+          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: 'var(--ink-700)' }}>{tt('usersMgmt.resetHint')}</p>
         )}
       </Modal>
     </div>
