@@ -931,8 +931,8 @@ function SubjectHistoryChart({ history, firstRoundSubjects, tt, yearPicker }) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 'none' }}>
           {yearPicker}
-          <button className="btn btn-ghost btn-sm" style={{ padding: 7, flex: 'none' }} title={tt('dashReal.expandChart')} onClick={() => setExpanded(true)}>
-            <Icon name="expand" size={16} />
+          <button className="btn btn-ghost btn-sm" style={{ padding: 12, flex: 'none' }} title={tt('dashReal.expandChart')} onClick={() => setExpanded(true)}>
+            <Icon name="expand" size={26} />
           </button>
         </div>
       </div>
@@ -940,8 +940,8 @@ function SubjectHistoryChart({ history, firstRoundSubjects, tt, yearPicker }) {
         <MultiLineChart categories={categories} series={series} height={220} width={640} />
       </div>
 
-      <Modal open={expanded} onClose={() => setExpanded(false)} title={tt('dashReal.subjectHistoryTitle')} width={860}>
-        <MultiLineChart categories={categories} series={series} height={380} width={800} legendSize={13} />
+      <Modal open={expanded} onClose={() => setExpanded(false)} title={tt('dashReal.subjectHistoryTitle')} width={1200}>
+        <MultiLineChart categories={categories} series={series} height={540} width={1140} legendSize={14} />
       </Modal>
     </div>
   );
@@ -1047,8 +1047,8 @@ function FirstAttemptPassRate({ history, tt, wide, yearPicker }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 'none' }}>
           {yearPicker}
           {/* โหมดกว้างเรียงปีข้างกันอยู่แล้ว ไม่ต้องมีปุ่มขยาย */}
-          {!wide && <button className="btn btn-ghost btn-sm" style={{ padding: 7, flex: 'none' }} title={tt('dashReal.expandChart')} onClick={() => setExpanded(true)}>
-            <Icon name="expand" size={16} />
+          {!wide && <button className="btn btn-ghost btn-sm" style={{ padding: 12, flex: 'none' }} title={tt('dashReal.expandChart')} onClick={() => setExpanded(true)}>
+            <Icon name="expand" size={26} />
           </button>}
         </div>
       </div>
