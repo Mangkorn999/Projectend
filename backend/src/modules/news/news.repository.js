@@ -1,9 +1,15 @@
 import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
-// ดึงข่าวทั้งหมด — ข่าวใหม่สุดขึ้นก่อน
-export const findAll = () =>
+// ดึงข่าว — ข่าวใหม่สุดขึ้นก่อน
+// ส่ง academicYear มา = เอาเฉพาะประกาศของรุ่นนั้น (ข่าวผูกกับรอบ รอบผูกกับรุ่น)
+// ไม่ส่งมา = ทุกประกาศ (เจ้าหน้าที่/ผู้บริหารต้องเห็นครบเพื่อจัดการ)
+export const findAll = (academicYear) =>
   prisma.news.findMany({
+    where:
+      academicYear === undefined
+        ? undefined
+        : { round: { academic_year: academicYear } },
     orderBy: { posted_at: "desc" },
     include: {
       poster: { select: { user_id: true, first_name: true, last_name: true } },

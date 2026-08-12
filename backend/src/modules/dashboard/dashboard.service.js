@@ -235,7 +235,9 @@ export const buildStats = async (roundId) => {
   const submitted = sent.length;
   const counted = notRejected(sent);
   const perSubject = buildPerSubject(counted, subjects);
-  const fullyPassed = countFullyPassed(sent, subjectIds);
+  // ใช้ counted ไม่ใช่ sent — ใบที่เจ้าหน้าที่ตีกลับเชื่อไม่ได้ ต้องไม่นับเป็น "ผ่านครบ"
+  // (กฎเดียวกับ buildPerSubject/buildFirstAttemptBySubject ในไฟล์นี้ เดิมตรงนี้หลุดไปใช้ sent)
+  const fullyPassed = countFullyPassed(counted, subjectIds);
 
   // เฉลี่ยอัตราผ่านของทุกวิชา — คนละตัวกับ fullyPassedRate ที่นับเป็นรายคน
   // ข้ามวิชาที่ไม่มีใครสอบจริง ไม่งั้นตัวหารจะรวมวิชาที่ไม่มีข้อมูลเข้ามาด้วย
@@ -324,7 +326,9 @@ const buildYearSummary = async (year, allSubjects) => {
 
   // ผลของรอบสอบครั้งแรก (attempt_number = 1) เก็บแยกไว้
   // ใช้ทำ "ร้อยละผ่านครั้งแรก" + ตารางผ่านกี่วิชา ซึ่งนับเฉพาะรอบแรกเท่านั้น
+  // เก็บ 2 ชุด: Sent = ส่งมาแล้วทุกใบ, Counted = ตัดใบที่ถูกตีกลับออก (ใช้กับทุกตัวที่แปลว่า "ผ่าน")
   let firstRoundSent = null;
+  let firstRoundCounted = null;
   let firstRoundSubjectIds = [];
   let firstRoundSubjects = []; // ตัว object เต็ม (มีรหัส/ชื่อวิชา) ไว้ทำตารางรายวิชา
 
@@ -339,6 +343,7 @@ const buildYearSummary = async (year, allSubjects) => {
 
     if (round.attempt_number === 1) {
       firstRoundSent = sent;
+      firstRoundCounted = counted;
       firstRoundSubjectIds = subjectIds;
       firstRoundSubjects = roundSubjects;
     }
@@ -362,8 +367,9 @@ const buildYearSummary = async (year, allSubjects) => {
       attempt_number: round.attempt_number,
       status: round.status,
       subject_count: subjectIds.length,
+      // submitted นับใบที่ถูกตีกลับด้วย (ส่งมาแล้วจริง) แต่ fullyPassed ต้องไม่นับ — ใบนั้นยังเชื่อไม่ได้
       submitted: sent.length,
-      fullyPassed: countFullyPassed(sent, subjectIds),
+      fullyPassed: countFullyPassed(counted, subjectIds),
     });
   }
 
@@ -411,15 +417,20 @@ const buildYearSummary = async (year, allSubjects) => {
   //   firstAttempt = ผ่านครบทุกวิชาตั้งแต่รอบสอบครั้งที่ 1
   //   firstYear    = ผ่านครบทุกวิชา ในรอบไหนก็ได้ของปีนั้น (รอบ 1+2+3 รวมกัน นับคนละครั้ง)
   let firstAttemptPassed = 0;
-  if (firstRoundSent) {
-    firstAttemptPassed = countFullyPassed(firstRoundSent, firstRoundSubjectIds);
+  if (firstRoundCounted) {
+    firstAttemptPassed = countFullyPassed(
+      firstRoundCounted,
+      firstRoundSubjectIds,
+    );
   }
 
   let passDistribution = null;
   let firstAttemptBySubject = null;
   if (firstRoundSent) {
+    // ตารางแจกแจง "ผ่านกี่วิชา" ใช้ Counted เหมือนกัน — คนที่ใบถูกตีกลับจะไปตกแถว "ไม่ได้ส่งผลสอบ"
+    // ตรงกับตาราง firstAttemptBySubject ที่นับคนกลุ่มนี้เป็น not_submitted อยู่แล้ว
     passDistribution = buildPassDistribution(
-      firstRoundSent,
+      firstRoundCounted,
       firstRoundSubjectIds,
       roomTotals,
     );
