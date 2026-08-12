@@ -700,6 +700,11 @@ dashboard นับอัตราผ่านรายวิชาเฉพา�
 **`dashboard.pdf.js`** — สร้าง PDF ด้วย pdfkit แล้ว `doc.pipe(res)` ส่งเป็น stream ตรงถึงเบราว์เซอร์ ไม่เขียนไฟล์ลง disk.
 ต้อง `registerFont` ฟอนต์ Sarabun จาก `assets/fonts/` ไม่งั้นภาษาไทยกลายเป็นสี่เหลี่ยม □□□.
 
+`drawTable({ y, widths, aligns, header, rows, groups })` — 2 กติกาของทุกตารางในไฟล์นี้:
+- **ผลรวมของ `widths` ต้องเท่า `CONTENT_WIDTH` (500) พอดี** เกินแล้วตารางล้นขอบขวากระดาษ A4
+- `groups` (ไม่บังคับ) = หัวตารางชั้นบนแบบ merge cell เช่น `[{label:"",span:2},{label:"สอบผ่าน",span:2}]`
+  ผลรวมของ `span` ต้องเท่าจำนวนคอลัมน์ ไม่งั้นหัวเลื่อนไม่ตรงช่อง — กลุ่มที่ `label` ว่างคือคอลัมน์ที่ไม่มีหัวชั้นบน
+
 ---
 
 ## 8. ฐานข้อมูล
@@ -1009,6 +1014,7 @@ curl -H "Authorization: Bearer <token>" http://localhost:3000/api/subjects/1
 
 | วันที่ | เปลี่ยนอะไร |
 |---|---|
+| 2026-08-12 | ตาราง "สรุปผลสอบผ่านครั้งแรก จำแนกรายวิชา" ใน PDF ตัดคอลัมน์ "ไม่ส่งผล" ออก + หัวตาราง 2 ชั้นแบบ merge cell ให้ตรงกับตารางบนหน้าจอที่รื้อใหม่. `drawTable()` รับ `groups` เพิ่ม (หัวชั้นบน) — ตารางอื่นไม่ส่งมาก็ทำงานเหมือนเดิม. **ร้อยละผ่าน + ไม่ผ่าน ไม่ครบ 100% แล้ว** ส่วนที่ขาดคือคนไม่ส่งผล เขียนบอกไว้ใต้ตารางพร้อมยอดรวมแบบสภาการพยาบาล (`dashboard.pdf.js`) |
 | 2026-08-12 | `/dashboard/stats` เพิ่ม `alreadyPassedStudentIds` (งานแก้ม — merge จาก `feature/update-app`) — คนที่ผ่านครบทุกวิชาไปแล้วตั้งแต่รอบก่อน ไม่มีแถวใน `exam_results` ของรอบถัดไป เลยค้างโชว์ในแท็บ "ยังไม่กรอก" ของหน้าคิวตรวจทุกรอบ ทั้งที่ไม่มีอะไรต้องทำแล้ว. ได้มาจาก loop เดิมของ `canSubmit` (เก็บอีกครึ่งที่ `passedAll`) ไม่มี query เพิ่ม. **`not_started` ไม่แก้** — ต้องคงผลรวมให้เท่า `total` (ดูกติกาข้อ 3 หัวข้อ 7.10) (`dashboard.service.js`, `officerReviewReal.jsx`, `i18n.js`) |
 | 2026-08-12 | **กันสร้างรอบซ้ำ** — เดิมสร้าง "ปี 2569 ครั้งที่ 1" กี่รอบก็ได้ ไม่มีอะไรกันเลยทั้งใน controller และ DB ทำให้ `findActive` เจอสองรอบแล้วเลือกมาแค่รอบเดียว ผลสอบเลยกระจายไปคนละรอบ. เพิ่ม `ensureNotDuplicate()` ใน `create`+`update` (update ข้ามรอบตัวเองด้วย `exceptRoundId`), `findByYearAndAttempt()` ใน repository, unique index ที่ DB (`@@unique([academic_year, attempt_number])`, migration `20260812000000_add_unique_round_year_attempt`) และแปลง `P2002` เป็น 400 ด้วย `asDuplicateRoundError()`. `update` ดึงรอบเดิมมาก่อนเสมอ → ไม่เจอตอบ 404 แทน 500 (`rounds.controller.js`, `rounds.repository.js`, `schema.prisma`, `tests/smoke-phase13-duplicate-round.mjs`) |
 | 2026-08-12 | **แก้ `canSubmit` นับผิด** — เดิมตัดออกแค่รอบที่กำลังดู เลยนับผลของ "รอบที่มาทีหลัง" เข้ามาด้วย คนที่ผ่านครบตอนรอบ 2 ถูกมองว่าผ่านครบตั้งแต่ตอนคำนวณรอบ 1 ทำให้รอบ 1 มีคนกรอกได้ **น้อยกว่า** รอบ 2 ซึ่งเป็นไปไม่ได้. ตอนนี้กรองด้วยลำดับเวลา (ปีเก่ากว่า หรือปีเดียวกันแต่ `attempt_number` น้อยกว่า) — `findEligibleWithPassedSubjects(round)` รับ round object แทน `(year, roundId)`. **`findPassedSubjectIds` ฝั่ง examResults ไม่ต้องแก้** เพราะตอนนักศึกษากดส่ง รอบถัดไปยังไม่เกิด (`dashboard.repository.js`, `dashboard.service.js`) |

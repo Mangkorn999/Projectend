@@ -61,19 +61,47 @@ const rule = (doc, y, width, color = "#d4d4d4") => {
  *
  * header  = ชื่อคอลัมน์ (วาดซ้ำทุกครั้งที่ขึ้นหน้าใหม่ ไม่งั้นหน้า 2 เป็นตัวเลขลอยๆ อ่านไม่รู้เรื่อง)
  * aligns  = การจัดวางต่อคอลัมน์ เช่น ["left","right","right"] — ตัวเลขต้องชิดขวาถึงจะเทียบหลักกันได้
+ * groups  = (ไม่บังคับ) หัวตารางชั้นบนแบบ merge cell เช่น [{label:"",span:2},{label:"สอบผ่าน",span:2}]
+ *           ผลรวมของ span ต้องเท่าจำนวนคอลัมน์พอดี ไม่งั้นหัวจะเลื่อนไม่ตรงช่อง
  * คืนค่า y ล่าสุดหลังวาดเสร็จ ให้ผู้เรียกเขียนต่อจากตรงนั้น
  */
-function drawTable(doc, { y, widths, aligns, header, rows }) {
+function drawTable(doc, { y, widths, aligns, header, rows, groups }) {
   const width = widths.reduce((sum, w) => sum + w, 0);
   const ROW_H = 18;
   const HEAD_H = 20;
 
-  const drawHeader = (top) => {
+  // หัวชั้นบน — วาดทีละกลุ่ม กว้างเท่าผลรวมของคอลัมน์ที่มันคลุม
+  // ขีดเส้นแบ่งใต้เฉพาะกลุ่มที่มีชื่อ กลุ่มเปล่า (คอลัมน์ที่ merge ลงมาชั้นล่าง) ปล่อยว่างไว้
+  const drawGroups = (top) => {
     doc.save().rect(LEFT, top, width, HEAD_H).fill("#f0f0f0").restore();
     doc.font("th-bold").fontSize(10).fillColor("#000");
-    drawRow(doc, top, header, widths, aligns);
-    rule(doc, top + HEAD_H, width, "#9a9a9a");
+    let x = LEFT;
+    let col = 0;
+    for (const g of groups) {
+      const span = widths.slice(col, col + g.span).reduce((s, w) => s + w, 0);
+      if (g.label) {
+        doc.text(g.label, x + 5, top + 5, {
+          width: span - 10,
+          align: "center",
+          lineBreak: false,
+          ellipsis: true,
+        });
+        doc.save().moveTo(x, top + HEAD_H).lineTo(x + span, top + HEAD_H)
+          .lineWidth(0.5).strokeColor("#9a9a9a").stroke().restore();
+      }
+      x += span;
+      col += g.span;
+    }
     return top + HEAD_H;
+  };
+
+  const drawHeader = (top) => {
+    const headTop = groups ? drawGroups(top) : top;
+    doc.save().rect(LEFT, headTop, width, HEAD_H).fill("#f0f0f0").restore();
+    doc.font("th-bold").fontSize(10).fillColor("#000");
+    drawRow(doc, headTop, header, widths, aligns);
+    rule(doc, headTop + HEAD_H, width, "#9a9a9a");
+    return headTop + HEAD_H;
   };
 
   let cursor = drawHeader(y);
@@ -209,17 +237,10 @@ export const buildReportPdf = (stats, rows, res, yearStats) => {
     );
     doc.moveDown(0.4);
 
-    const bsWidths = [155, 50, 45, 50, 45, 50, 45, 60];
-    const bsAligns = [
-      "left",
-      "right",
-      "right",
-      "right",
-      "right",
-      "right",
-      "right",
-      "right",
-    ];
+    // ไม่มีคอลัมน์ "ไม่ส่งผล" แล้ว ให้ตรงกับตารางบนหน้าจอ (แท็บ "สรุปผลสอบผ่านครั้งแรก จำแนกรายวิชา")
+    // ผลคือ ร้อยละผ่าน + ร้อยละไม่ผ่าน ของแต่ละวิชาไม่ครบ 100% — อธิบายไว้ใต้ตารางแล้ว
+    const bsWidths = [210, 70, 55, 55, 55, 55]; // รวม = CONTENT_WIDTH (500) พอดี ห้ามเกิน ไม่งั้นตารางล้นขอบขวา
+    const bsAligns = ["left", "right", "right", "right", "right", "right"];
 
     // sat = 0 คือไม่มีใครสอบวิชานี้เลย ต้องขึ้นขีด ไม่ใช่ 0.00% ที่แปลว่าสอบแล้วตกหมด
     const cell = (n, rate, noSat) => (noSat ? ["—", "—"] : [n, rate.toFixed(2)]);
@@ -230,8 +251,6 @@ export const buildReportPdf = (stats, rows, res, yearStats) => {
         bySubject.cohort_total,
         ...cell(s.pass, s.pass_rate, noSat),
         ...cell(s.fail, s.fail_rate, noSat),
-        s.not_submitted,
-        s.not_submitted_rate.toFixed(2),
       ];
     });
 
@@ -250,22 +269,24 @@ export const buildReportPdf = (stats, rows, res, yearStats) => {
       pctOfAll(totalPassN),
       totalFailN,
       pctOfAll(totalFailN),
-      totalNsN,
-      pctOfAll(totalNsN),
     ]);
 
     const bsEndY = drawTable(doc, {
       y: doc.y,
       widths: bsWidths,
       aligns: bsAligns,
+      // หัว 2 ชั้นเหมือนบนหน้าจอ — ชั้นบนคลุมกลุ่ม ชั้นล่างแยกจำนวน/ร้อยละ
+      groups: [
+        { label: "", span: 2 },
+        { label: "สอบผ่าน", span: 2 },
+        { label: "สอบไม่ผ่าน", span: 2 },
+      ],
       header: [
         "รายวิชา",
-        "ผู้สมัคร",
-        "ผ่าน",
+        "ผู้สมัครสอบ",
+        "จำนวน (คน)",
         "ร้อยละ",
-        "ไม่ผ่าน",
-        "ร้อยละ",
-        "ไม่ส่งผล",
+        "จำนวน (คน)",
         "ร้อยละ",
       ],
       rows: bsRows,
@@ -277,7 +298,7 @@ export const buildReportPdf = (stats, rows, res, yearStats) => {
       .font("th")
       .fontSize(9)
       .text(
-        `อัตราผ่านเฉลี่ยของวิชาที่มีผู้เข้าสอบ ${bySubject.average_pass_rate}% · เอกสารของสภาการพยาบาลรวม "ไม่ผ่าน" กับ "ไม่ส่งผล" เป็นช่องเดียว = ${totalFailN + totalNsN} รายการ`,
+        `อัตราผ่านเฉลี่ยของวิชาที่มีผู้เข้าสอบ ${bySubject.average_pass_rate}% · ตารางนี้ไม่มีช่อง "ไม่ส่งผล" (${totalNsN} รายการ) ร้อยละสอบผ่าน + สอบไม่ผ่าน ของแต่ละวิชาจึงไม่ครบ 100% · เอกสารของสภาการพยาบาลนับ "ไม่ผ่าน" กับ "ไม่ส่งผล" รวมเป็นช่องเดียว = ${totalFailN + totalNsN} รายการ`,
         LEFT,
         doc.y,
         { width: CONTENT_WIDTH },
