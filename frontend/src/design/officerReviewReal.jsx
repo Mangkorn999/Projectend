@@ -30,6 +30,7 @@ export function OfficerReviewReal({ go, setSel, lang }) {
   const [rounds, setRounds] = useState(null);
   const [roundId, setRoundId] = useState('');
   const [results, setResults] = useState(null);
+  const [alreadyPassedIds, setAlreadyPassedIds] = useState([]); // ผ่านครบทุกวิชาไปแล้วตั้งแต่ก่อนรอบนี้ — ไม่ต้องมาโผล่ "ยังไม่กรอก"
   const [students, setStudents] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -48,11 +49,18 @@ export function OfficerReviewReal({ go, setSel, lang }) {
   }, []);
 
   // ผลสอบดึงเฉพาะรอบที่เลือก — ให้ backend กรองให้ ไม่ดึงทุกรอบมากรองเองฝั่ง client
+  // ดึง /dashboard/stats คู่กันเพื่อเอา alreadyPassedStudentIds (backend คำนวณย้อนรอบก่อนหน้าให้แล้ว)
   useEffect(() => {
     if (!roundId) return;
     setLoading(true);
-    apiFetch(`/exam-results?round_id=${roundId}`)
-      .then(setResults)
+    Promise.all([
+      apiFetch(`/exam-results?round_id=${roundId}`),
+      apiFetch(`/dashboard/stats?round_id=${roundId}`),
+    ])
+      .then(([resultList, stats]) => {
+        setResults(resultList);
+        setAlreadyPassedIds(stats.alreadyPassedStudentIds || []);
+      })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, [roundId]);
@@ -73,10 +81,13 @@ export function OfficerReviewReal({ go, setSel, lang }) {
   const roundSubjectIds = round?.subject_ids?.length ? round.subject_ids : subjects.map(s => s.subject_id);
   const subjectCount = roundSubjectIds.length;
 
-  // ยังไม่กรอก = นักศึกษารุ่นเดียวกับรอบ + เปิดสิทธิ์แล้ว + ไม่มีผลสอบในรอบนี้
+  // ยังไม่กรอก = นักศึกษารุ่นเดียวกับรอบ + เปิดสิทธิ์แล้ว + ไม่มีผลสอบในรอบนี้ + ยังไม่เคยผ่านครบทุกวิชามาก่อน
+  // (ผ่านครบตั้งแต่รอบไหนก็ตาม ไม่มีอะไรต้องทำในรอบถัดไปอีกแล้ว ไม่ควรค้างโชว์เป็น "ยังไม่กรอก")
   const submittedIds = new Set(results.map(r => r.student_id));
+  const alreadyPassedSet = new Set(alreadyPassedIds);
   const notStarted = students.filter(s =>
-    s.academic_year === round?.academic_year && s.exam_eligible && !submittedIds.has(s.student_id));
+    s.academic_year === round?.academic_year && s.exam_eligible
+    && !submittedIds.has(s.student_id) && !alreadyPassedSet.has(s.student_id));
 
   const counts = {
     SUBMITTED: results.filter(r => r.staff_status === 'pending').length,
