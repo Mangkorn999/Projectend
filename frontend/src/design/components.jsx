@@ -387,6 +387,8 @@ export function LineChart({ points, height=150, color='var(--navy-600)', suffix=
 /* ---- Multi-series line chart (compare series over categories) ---- */
 export function MultiLineChart({ series, categories, height=180, suffix='%', yMin=0, yMax=100, width=340, legendSize=9 }) {
   const [hover, setHover] = useState(null); // { si, i, x, y } — x/y เป็น % ของกล่อง ใช้จัดตำแหน่ง tooltip
+  // กดปีในตำนานด้านล่าง — ดันเส้นปีนั้นไปวาดทีหลังสุด (SVG วาดทับกันตามลำดับใน DOM หลังสุด = อยู่บนสุด)
+  const [front, setFront] = useState(null); // index ใน series ที่ถูกดันขึ้นบน หรือ null = ไม่มี
   // เส้นค่อยๆ เลื้อยจากซ้ายไปขวา (วิชาที่ 1 → 8) แทนโผล่มาเต็มเส้นทันที
   // ใช้ stroke-dasharray/dashoffset ตามความยาวเส้นจริง (getTotalLength) ถึงจะไล่ตามรูปเส้นได้แม่นยำ ไม่ใช่แค่กว้างตาม x
   const [drawn, setDrawn] = useState(false);
@@ -415,7 +417,10 @@ export function MultiLineChart({ series, categories, height=180, suffix='%', yMi
           <line x1={padL} x2={w-padR} y1={ys(g)} y2={ys(g)} stroke="var(--ink-100)" strokeWidth="1" />
           <text x={0} y={ys(g)+3} textAnchor="start" fontSize="7.5" fill="var(--ink-400)" fontFamily="'LINE Seed Sans TH', sans-serif">{g}{suffix}</text>
         </g>))}
-        {series.map((s,si)=>{
+        {/* วาดตามลำดับ order ไม่ใช่ลำดับ series ตรงๆ — ตัวที่ถูกกด (front) ย้ายไปวาดหลังสุดเสมอ
+            เก็บ si เดิมไว้ (ไม่ใช่ index ใหม่) เพราะ pathRefs/lengths/hover ผูกกับ index เดิมของ series อยู่ */}
+        {[...series.keys()].sort((a,b) => (a===front?1:0) - (b===front?1:0)).map(si=>{
+          const s = series[si];
           // ค่าเป็น null = ไม่มีข้อมูลจุดนั้น (เช่น ปีนั้นไม่ได้เปิดสอบวิชานี้) — ข้ามไปเลย ไม่วาดจุด ไม่ลากไปหา 0
           // เส้นจึงต่อตรงจากจุดที่มีข้อมูลไปจุดถัดไปที่มีข้อมูล ข้ามช่องที่ไม่มีไปเฉยๆ
           const pts = s.values.map((v,i)=> v==null ? null : [xs(i), ys(v), i]).filter(Boolean);
@@ -423,11 +428,13 @@ export function MultiLineChart({ series, categories, height=180, suffix='%', yMi
           // ก่อนวัดความยาวจริงเสร็จ (frame แรกสุด) ต้องใช้เลขที่ใหญ่พอ ไม่ใช่ 0 —
           // เพราะ dasharray:0 = ปิดการทำ dash ไปเลย เส้นจะโผล่เต็มมาแวบหนึ่งก่อนหด กลายเป็นเห็นวิ่งขวาไปซ้ายแล้ววิ่งซ้ายไปขวาซ้ำ
           const len = lengths[si] ?? 2000;
+          // เส้นที่ถูกดันขึ้นบน เน้นหนาขึ้นนิดหน่อยให้เห็นชัดว่ากำลังโฟกัสอันไหนอยู่
+          const isFront = si === front;
           return <g key={si}>
-            <path ref={el => pathRefs.current[si] = el} d={path} fill="none" stroke={s.color} strokeWidth="2.6"
+            <path ref={el => pathRefs.current[si] = el} d={path} fill="none" stroke={s.color} strokeWidth={isFront ? 4 : 2.6}
               strokeLinecap="round" strokeLinejoin="round"
               style={{ strokeDasharray: len, strokeDashoffset: drawn ? 0 : len,
-                transition: 'stroke-dashoffset 1.1s cubic-bezier(.4,0,.2,1)' }} />
+                transition: 'stroke-dashoffset 1.1s cubic-bezier(.4,0,.2,1), stroke-width .2s' }} />
             {pts.map(([x,y,i])=>(
               <g key={i}>
                 <circle cx={x} cy={y} r="4.5" fill="#fff" stroke={s.color} strokeWidth="2.6"
@@ -453,8 +460,14 @@ export function MultiLineChart({ series, categories, height=180, suffix='%', yMi
       )}
     </div>
     <div style={{ display:'flex', flexWrap:'wrap', gap:'6px 18px', justifyContent:'center', marginTop:8 }}>
-        {series.map((s,i)=>(<div key={i} style={{ display:'flex', alignItems:'center', gap:7, fontSize:legendSize, color:'var(--ink-600)' }}>
-          <span style={{ width:14, height:3, borderRadius:2, background:s.color }}></span>{s.label}</div>))}
+        {series.map((s,i)=>(
+          <button key={i} type="button" onClick={() => setFront(f => f===i ? null : i)}
+            style={{ display:'flex', alignItems:'center', gap:7, fontSize:legendSize, fontFamily:'inherit',
+              color: i===front ? 'var(--ink-900)' : 'var(--ink-600)', fontWeight: i===front ? 700 : 400,
+              background:'transparent', border:'none', padding:0, cursor:'pointer' }}>
+            <span style={{ width:14, height:3, borderRadius:2, background:s.color }}></span>{s.label}
+          </button>
+        ))}
       </div>
     </div>
   );
