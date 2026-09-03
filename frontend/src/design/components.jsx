@@ -505,6 +505,47 @@ export function useToast(){
   return [toast,show];
 }
 
+/* ---- Notification popup (มุมขวาบน ใต้กระดิ่ง) ----
+   ต่างจาก Toast ด้านบน: อันนี้เด้งหลายอันซ้อนกันได้ (แจ้งเตือนเข้ามาพร้อมกันหลายรายการ)
+   กดที่การ์ด = ไปหน้าที่เกี่ยวข้อง, ไม่กด = หายเองใน 30 วิ (ยังนับว่ายังไม่อ่าน) */
+export function useNotifToasts(){
+  const [items,setItems]=useState([]);
+  const push=(notifs)=>{
+    const withId = notifs.map(n=>({ ...n, _toastId: n.key+':'+Date.now() }));
+    setItems(cur=>[...cur, ...withId]);
+    withId.forEach(n=>{
+      setTimeout(()=>setItems(cur=>cur.filter(x=>x._toastId!==n._toastId)), 30000);
+    });
+  };
+  return [items,push,setItems];
+}
+
+export function NotifToastStack({ items=[], onGo, onDismiss, lang='TH' }) {
+  if(!items.length) return null;
+  return (
+    <div style={{ position:'fixed', top:'calc(var(--header-h) + 10px)', right:16, zIndex:250,
+      display:'flex', flexDirection:'column', gap:9, width:320, maxWidth:'92vw' }}>
+      {items.map(n=>(
+        <button key={n._toastId} className="fade-up" onClick={()=>{ onDismiss?.(n._toastId); onGo?.(n.page); }}
+          style={{ display:'flex', alignItems:'flex-start', gap:11, padding:'12px 13px', width:'100%',
+            border:'1px solid var(--navy-800)', borderRadius:12, textAlign:'left', cursor:'pointer', fontFamily:'inherit',
+            background:'var(--navy-800)', boxShadow:'0 0 10px 2px rgba(232,114,15,.5), var(--sh-lg)' }}>
+          <div style={{ width:34, height:34, borderRadius:9, flex:'none', display:'flex', alignItems:'center', justifyContent:'center',
+            background:'rgba(255,255,255,.22)', color:'#fff' }}><Icon name={n.icon} size={16}/></div>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:13.5, fontWeight:700, color:'#fff' }}>{n.title}</div>
+            {n.sub && <div style={{ fontSize:12, fontWeight:400, color:'rgba(255,255,255,.85)', marginTop:2 }}>{n.sub}</div>}
+          </div>
+          <button onClick={(e)=>{ e.stopPropagation(); onDismiss?.(n._toastId); }}
+            style={{ border:'none', background:'transparent', padding:2, flex:'none', cursor:'pointer', color:'rgba(255,255,255,.85)' }}>
+            <Icon name="x" size={14} />
+          </button>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /* ---- Modal ---- */
 export function Modal({ open, onClose, title, children, footer, width=480, tone }) {
   if(!open) return null;

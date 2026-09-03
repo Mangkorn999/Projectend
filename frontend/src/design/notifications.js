@@ -15,6 +15,7 @@
 import { t } from './i18n.js';
 
 const READ_PREFIX = 'notif_read_';
+const TOAST_PREFIX = 'notif_toasted_'; // sessionStorage — กันเด้ง popup ซ้ำแจ้งเตือนเดิมระหว่าง session นี้
 const NEWS_LIMIT = 5;
 
 // ใส่สถานะไว้ใน key ด้วย เพื่อให้ ตีกลับ → แก้ → ยืนยัน ขึ้นเป็นแจ้งเตือน "ใหม่"
@@ -34,6 +35,21 @@ export function markAllRead(userId, keys) {
   const merged = [...new Set([...readKeys(userId), ...keys])];
   // เก็บแค่ 200 อันล่าสุดพอ ไม่ให้ localStorage โตไม่จำกัด
   localStorage.setItem(READ_PREFIX + userId, JSON.stringify(merged.slice(-200)));
+}
+
+// เหมือน readKeys/markAllRead แต่เก็บที่ sessionStorage — เคลียร์เองตอนปิดแท็บ
+// ใช้แยกจาก "อ่านแล้ว" เพราะ toast เด้งครั้งเดียวพอ แม้ผู้ใช้ยังไม่กดเข้าไปดู (ยังนับ unread อยู่)
+export function toastedKeys(userId) {
+  try {
+    return JSON.parse(sessionStorage.getItem(TOAST_PREFIX + userId) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+export function markToasted(userId, keys) {
+  const merged = [...new Set([...toastedKeys(userId), ...keys])];
+  sessionStorage.setItem(TOAST_PREFIX + userId, JSON.stringify(merged.slice(-200)));
 }
 
 // หน้าตาของแจ้งเตือนแต่ละ type ที่ backend ส่งมา (คอลัมน์ notifications.type)

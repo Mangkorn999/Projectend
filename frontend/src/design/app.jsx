@@ -3,13 +3,13 @@
    Main app — role routing, shell, tweaks
    ============================================================ */
 import { useState, useEffect } from 'react';
-import { TopBar, Sidebar, Toast, useToast, Empty } from './components.jsx';
+import { TopBar, Sidebar, Toast, useToast, Empty, NotifToastStack, useNotifToasts } from './components.jsx';
 import { t as translate } from './i18n.js';
 import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakToggle, TweakColor } from './tweaks-panel.jsx';
 import { Login } from './login.jsx';
 import { ForceChangePassword } from './forceChangePassword.jsx';
 import { getStoredUser, logout, apiFetch } from './api.js';
-import { buildNotifications, fromServer, sortByNewest, countUnread, readKeys, markAllRead } from './notifications.js';
+import { buildNotifications, fromServer, sortByNewest, countUnread, readKeys, markAllRead, toastedKeys, markToasted } from './notifications.js';
 import { FormIntro } from './student.jsx';
 import { StudentImport } from './studentImport.jsx';
 import { OfficerStudentsReal } from './officerStudentsReal.jsx';
@@ -159,14 +159,15 @@ export function App() {
   const [rejectedCount, setRejectedCount] = useState(0); // เลขบน badge เตือนนักศึกษาว่ามีใบถูกตีกลับ
   const [notifications, setNotifications] = useState([]);
   const [unread, setUnread] = useState(0);
+  const [notifToasts, pushNotifToasts, setNotifToasts] = useNotifToasts();
 
-  // แจ้งเตือน — ดึงใหม่ทุกครั้งที่เปลี่ยนหน้า
+  // แจ้งเตือน — ดึงใหม่ทุกครั้งที่เปลี่ยนหน้า + poll ทุก 30 วิระหว่างอยู่หน้าเดิม
   // นักศึกษา: ของจริงจากตาราง notifications + ประกาศ
   // role อื่น: ประกาศอย่างเดียว (ยังไม่มีแจ้งเตือนใน DB ให้)
   useEffect(()=>{
     if (!role || !currentUser) { setNotifications([]); setUnread(0); return; }
     let dropped = false;
-    (async () => {
+    const fetchNotifs = async () => {
       const news = await apiFetch('/news').catch(()=>[]);
       const rows = role === 'student'
         ? await apiFetch('/notifications/me').catch(()=>[])
@@ -179,9 +180,23 @@ export function App() {
       ]);
       setNotifications(items);
       setUnread(countUnread(items, readKeys(currentUser.id)));
-    })();
-    return () => { dropped = true; };
+
+      // ยังไม่อ่าน + ยังไม่เคยเด้ง popup ใน session นี้ → เด้ง แล้วจำไว้ว่าเด้งแล้ว
+      const seenReadKeys = readKeys(currentUser.id);
+      const seenToastKeys = toastedKeys(currentUser.id);
+      const isUnread = (n) => n.is_read === undefined ? !seenReadKeys.includes(n.key) : !n.is_read;
+      const toShow = items.filter(n => isUnread(n) && !seenToastKeys.includes(n.key));
+      if (toShow.length) {
+        pushNotifToasts(toShow);
+        markToasted(currentUser.id, toShow.map(n => n.key));
+      }
+    };
+    fetchNotifs();
+    const iv = setInterval(fetchNotifs, 30000);
+    return () => { dropped = true; clearInterval(iv); };
   }, [role, currentUser, page, lang]);
+
+  const dismissNotifToast = (toastId) => setNotifToasts(cur => cur.filter(x => x._toastId !== toastId));
 
   // เปิดกระดิ่ง = อ่านหมดแล้ว ต้องเคลียร์ทั้ง 2 ที่
   // ประกาศเก็บที่ localStorage, แจ้งเตือนของนักศึกษาเก็บที่ DB
@@ -350,6 +365,8 @@ export function App() {
         </main>
       </div>
       <Toast toast={toast} />
+      <NotifToastStack items={notifToasts} lang={lang}
+        onGo={(p)=>{ go(p); }} onDismiss={dismissNotifToast} />
     </div>
   );
 }
