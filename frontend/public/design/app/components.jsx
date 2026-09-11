@@ -39,7 +39,7 @@ function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notif=3 }) {
       </button>
       <div className="only-desktop"><Logo /></div>
       <div className="only-desktop" style={{ flexDirection:'column', justifyContent:'center', lineHeight:1.15, whiteSpace:'nowrap' }}>
-        <div style={{ fontWeight:800, fontSize:14.5, color:'var(--navy-700)' }}>ระบบบันทึกใบประกอบวิชาชีพ</div>
+        <div style={{ fontWeight:800, fontSize:14.5, color:'var(--navy-700)' }}>ระบบบันทึกใบอนุญาตประกอบวิชาชีพ</div>
         <div style={{ fontSize:11.5, color:'var(--ink-500)', fontWeight:500 }}>คณะพยาบาลศาสตร์ · มหาวิทยาลัยสงขลานครินทร์</div>
       </div>
       <div style={{ flex:1 }}></div>

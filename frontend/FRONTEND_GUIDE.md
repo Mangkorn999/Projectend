@@ -1,4 +1,4 @@
-# Frontend Guide — ระบบบันทึกใบประกอบวิชาชีพ
+# Frontend Guide — ระบบบันทึกใบอนุญาตประกอบวิชาชีพ
 
 คู่มืออธิบาย frontend ทั้งหมด แบบลึกถึงระดับไฟล์ ใช้คู่กับ [`backend/BACKEND_GUIDE.md`](../backend/BACKEND_GUIDE.md)
 (README.md/.env.example ที่ root โปรเจกต์เป็นของเก่า SyntaxCraft — ไม่เกี่ยวกับที่นี่)

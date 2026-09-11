@@ -13,7 +13,7 @@ const DICT = {
     'pass.false': 'ไม่ผ่าน',
     'pass.none': '—',
 
-    'topbar.title': 'ระบบบันทึกใบประกอบวิชาชีพ',
+    'topbar.title': 'ระบบบันทึกใบอนุญาตประกอบวิชาชีพ',
     'topbar.subtitle': 'คณะพยาบาลศาสตร์ · มหาวิทยาลัยสงขลานครินทร์',
     'topbar.notifTitle': 'การแจ้งเตือน',
     'topbar.notifEmptyTitle': 'ยังไม่มีการแจ้งเตือน',
@@ -387,7 +387,7 @@ const DICT = {
     'reports.colPass': 'ผ่าน',
     'reports.colFail': 'ไม่ผ่าน',
     'reports.colPassRate': 'อัตราผ่าน',
-    'reports.footerOrg': 'ระบบบันทึกใบประกอบวิชาชีพ · คณะพยาบาลศาสตร์ มอ.',
+    'reports.footerOrg': 'ระบบบันทึกใบอนุญาตประกอบวิชาชีพ · คณะพยาบาลศาสตร์ มอ.',
     'reports.pageOf': 'หน้า 1/1',
 
     'admin.dashboard.title': 'ศูนย์ควบคุมระบบ',

@@ -33,7 +33,7 @@ function Login({ onLogin }) {
             <Icon name="shield" size={15} /> ระบบสารสนเทศคณะ
           </div>
           <h1 style={{ fontSize:38, fontWeight:800, margin:'0 0 16px', lineHeight:1.18, letterSpacing:'-.01em' }}>
-            ระบบบันทึก<br/>ใบประกอบวิชาชีพ
+            ระบบบันทึก<br/>ใบอนุญาตประกอบวิชาชีพ
           </h1>
           <p style={{ fontSize:15.5, opacity:.85, maxWidth:380, lineHeight:1.6, margin:0 }}>
             ศูนย์กลางบันทึก ติดตาม ตรวจสอบ และสรุปผลการสอบความรู้เพื่อขึ้นทะเบียน

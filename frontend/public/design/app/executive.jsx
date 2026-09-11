@@ -196,7 +196,7 @@ function Reports({ toast }) {
         </table>
 
         <div style={{ marginTop:24, paddingTop:16, borderTop:'1px solid var(--ink-200)', display:'flex', justifyContent:'space-between', fontSize:12, color:'var(--ink-400)' }}>
-          <span>ระบบบันทึกใบประกอบวิชาชีพ · คณะพยาบาลศาสตร์ มอ.</span>
+          <span>ระบบบันทึกใบอนุญาตประกอบวิชาชีพ · คณะพยาบาลศาสตร์ มอ.</span>
           <span>หน้า 1/1</span>
         </div>
       </div>

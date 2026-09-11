@@ -1,4 +1,4 @@
-# 📋 แผนพัฒนา Backend — ระบบบันทึกใบประกอบวิชาชีพ
+# 📋 แผนพัฒนา Backend — ระบบบันทึกใบอนุญาตประกอบวิชาชีพ
 **Stack:** Node.js + Express.js + PostgreSQL + Prisma ORM  
 **Auth:** PSU One Passport → JWT  
 
