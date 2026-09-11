@@ -72,10 +72,10 @@ export function Login({ onLogin }) {
       {/* language toggle — top right, above everything */}
       <div style={{ position:'absolute', top:18, right:22, zIndex:10, display:'inline-flex',
         background:'rgba(255,255,255,.9)', borderRadius:999, padding:3, gap:3, boxShadow:'var(--sh-sm)' }}>
-        <button onClick={()=>setLang('TH')} style={{ border:'none', padding:'6px 14px', borderRadius:999, fontSize:12.5, fontWeight:700,
+        <button onClick={()=>setLang('TH')} style={{ border:'none', padding:'6px 14px', borderRadius:999, fontSize:14.5, fontWeight:700,
           fontFamily:'inherit', cursor:'pointer', transition:'.13s',
           background: !isEN?'var(--navy-700)':'transparent', color: !isEN?'#fff':'var(--ink-500)' }}>TH</button>
-        <button onClick={()=>setLang('EN')} style={{ border:'none', padding:'6px 14px', borderRadius:999, fontSize:12.5, fontWeight:700,
+        <button onClick={()=>setLang('EN')} style={{ border:'none', padding:'6px 14px', borderRadius:999, fontSize:14.5, fontWeight:700,
           fontFamily:'inherit', cursor:'pointer', transition:'.13s',
           background: isEN?'var(--navy-700)':'transparent', color: isEN?'#fff':'var(--ink-500)' }}>EN</button>
       </div>
@@ -91,31 +91,31 @@ export function Login({ onLogin }) {
         <div style={{ display:'flex', alignItems:'center', gap:13, position:'relative' }}>
           <Logo size={46} light />
           <div style={{ lineHeight:1.3 }}>
-            <div style={{ fontWeight:800, fontSize:16, whiteSpace:'nowrap' }}>{isEN?facultyName_EN:'คณะพยาบาลศาสตร์'}</div>
-            <div style={{ fontSize:12.5, opacity:.8, whiteSpace:'nowrap' }}>{isEN?universityName_EN:'มหาวิทยาลัยสงขลานครินทร์'}</div>
+            <div style={{ fontWeight:800, fontSize:18, whiteSpace:'nowrap' }}>{isEN?facultyName_EN:'คณะพยาบาลศาสตร์'}</div>
+            <div style={{ fontSize:14.5, opacity:.8, whiteSpace:'nowrap' }}>{isEN?universityName_EN:'มหาวิทยาลัยสงขลานครินทร์'}</div>
           </div>
         </div>
         <div style={{ margin:'auto 0', position:'relative' }}>
           <div className="chip" style={{ alignSelf:'flex-start', background:'rgba(255,255,255,.12)', color:'var(--gold-500)', fontWeight:700, marginBottom:20 }}>
             <Icon name="shield" size={15} /> {isEN?heroTag_EN:'ระบบสารสนเทศคณะ'}
           </div>
-          <h1 style={{ fontSize:38, fontWeight:800, margin:'0 0 16px', lineHeight:1.18, letterSpacing:'-.01em', color:'#fff' }}>
+          <h1 style={{ fontSize:40, fontWeight:800, margin:'0 0 16px', lineHeight:1.18, letterSpacing:'-.01em', color:'#fff' }}>
             {isEN ? <>{heroTitle_EN[0]}<br/>{heroTitle_EN[1]}</> : <>ระบบบันทึก<br/>ใบอนุญาตประกอบวิชาชีพ</>}
           </h1>
-          <p style={{ fontSize:15.5, opacity:.85, maxWidth:380, lineHeight:1.6, margin:0 }}>
+          <p style={{ fontSize:17.5, opacity:.85, maxWidth:380, lineHeight:1.6, margin:0 }}>
             {isEN ? heroDesc_EN : <>ศูนย์กลางบันทึก ติดตาม ตรวจสอบ และสรุปผลการสอบความรู้เพื่อขึ้นทะเบียน
             ใบประกอบวิชาชีพการพยาบาล — สำหรับนักศึกษา เจ้าหน้าที่ และผู้บริหารคณะ</>}
           </p>
           <div style={{ display:'flex', gap:26, marginTop:34 }}>
             {(isEN?heroStats_EN:[['8','รายวิชาสอบ'],['3','บทบาทผู้ใช้'],['100%','ตรวจสอบย้อนหลังได้']]).map(([n,l])=>(
               <div key={l}>
-                <div className="tnum" style={{ fontSize:26, fontWeight:800, color:'var(--gold-500)' }}>{n}</div>
-                <div style={{ fontSize:12.5, opacity:.78 }}>{l}</div>
+                <div className="tnum" style={{ fontSize:28, fontWeight:800, color:'var(--gold-500)' }}>{n}</div>
+                <div style={{ fontSize:14.5, opacity:.78 }}>{l}</div>
               </div>
             ))}
           </div>
         </div>
-        <div style={{ fontSize:12, opacity:.6, position:'relative' }}>{isEN?footerNote_EN:'© 2569 Faculty of Nursing, PSU · เดโมต้นแบบ'}</div>
+        <div style={{ fontSize:14, opacity:.6, position:'relative' }}>{isEN?footerNote_EN:'© 2569 Faculty of Nursing, PSU · เดโมต้นแบบ'}</div>
       </div>
 
       {/* right form */}
@@ -124,8 +124,8 @@ export function Login({ onLogin }) {
         <div style={{ width:'100%', maxWidth:404 }}>
           <div className="only-mobile" style={{ marginBottom:24, justifyContent:'center' }}><Logo size={44} /></div>
 
-          <h2 style={{ margin:'0 0 6px', fontSize:24, fontWeight:800, color:'var(--ink-900)' }}>{isEN?signinTitle_EN:'เข้าสู่ระบบ'}</h2>
-          <p style={{ margin:'0 0 20px', color:'var(--ink-500)', fontSize:14.5 }}>
+          <h2 style={{ margin:'0 0 6px', fontSize:26, fontWeight:800, color:'var(--ink-900)' }}>{isEN?signinTitle_EN:'เข้าสู่ระบบ'}</h2>
+          <p style={{ margin:'0 0 20px', color:'var(--ink-500)', fontSize:16.5 }}>
             {isEN?signinSub_EN:'กรอกรหัสผู้ใช้และรหัสผ่านเพื่อเข้าสู่ระบบ'}
           </p>
 
@@ -148,18 +148,18 @@ export function Login({ onLogin }) {
               </button>
             </div>
           </div>
-          <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, cursor:'pointer', marginBottom:8 }}>
+          <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:15, cursor:'pointer', marginBottom:8 }}>
             <input type="checkbox" checked={rememberMe} onChange={e=>setRememberMe(e.target.checked)} style={{ accentColor:'var(--navy-700)' }} />
             {isEN?'Remember username':'จดจำรหัสผ่าน'}
           </label>
-          {error && <div style={{ color:'var(--reject,#dc2626)', fontSize:13, marginBottom:12 }}>{error}</div>}
+          {error && <div style={{ color:'var(--reject,#dc2626)', fontSize:15, marginBottom:12 }}>{error}</div>}
           {/* ลืมรหัสผ่าน = ติดต่อเจ้าหน้าที่ให้กดรีเซ็ตให้ แล้วกลับมาตั้งใหม่ที่ลิงก์นี้
               ไม่มี self-service reset ในระบบ เลยไม่มีลิงก์ "ลืมรหัสผ่าน" แยกอีกต่อไป */}
           <div style={{ display:'flex', justifyContent:'space-between', gap:12, marginBottom:18, flexWrap:'wrap' }}>
-            <span style={{ fontSize:12.5, color:'var(--ink-500)' }}>
+            <span style={{ fontSize:14.5, color:'var(--ink-500)' }}>
               {isEN?'Forgot your password? Ask the faculty officer to reset it.':'ลืมรหัสผ่าน? ติดต่อเจ้าหน้าที่คณะเพื่อขอรีเซ็ต'}
             </span>
-            <a onClick={()=>setShowFirstSetup(true)} style={{ fontSize:13, cursor:'pointer' }}>
+            <a onClick={()=>setShowFirstSetup(true)} style={{ fontSize:15, cursor:'pointer' }}>
               {isEN?'First time / after a reset: set your password':'เข้าใช้งานครั้งแรก หรือหลังรีเซ็ต / ตั้งรหัสผ่าน'}
             </a>
           </div>

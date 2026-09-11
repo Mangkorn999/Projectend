@@ -38,7 +38,7 @@ export function StudentImport({ toast, lang }) {
 function tabBtnStyle(active) {
   return {
     display:'inline-flex', alignItems:'center', gap:7, border:'none', cursor:'pointer',
-    padding:'9px 16px', borderRadius:9, fontSize:13.5, fontWeight:700, fontFamily:'inherit',
+    padding:'9px 16px', borderRadius:9, fontSize:15.5, fontWeight:700, fontFamily:'inherit',
     transition:'.15s', background: active ? '#fff' : 'transparent',
     color: active ? 'var(--navy-800)' : 'var(--ink-500)',
     boxShadow: active ? 'var(--sh-xs)' : 'none',
@@ -120,8 +120,8 @@ function CsvImport({ toast, tt }) {
         <div style={{ display:'flex', gap:12, alignItems:'flex-start', marginBottom:16,
           background:'var(--blue-50)', border:'1px solid var(--blue-100)', borderRadius:12, padding:14 }}>
           <Icon name="info" size={17} style={{ color:'var(--blue-600)', flex:'none', marginTop:1 }} />
-          <div style={{ fontSize:13, color:'var(--ink-700)', lineHeight:1.7 }}>
-            {tt('importReal.csvColumnsNote').replace('{cols}', '')}<span className="mono" style={{ fontSize:12 }}>student_id, first_name, last_name, email, phone, room_name, academic_year</span><br/>
+          <div style={{ fontSize:15, color:'var(--ink-700)', lineHeight:1.7 }}>
+            {tt('importReal.csvColumnsNote').replace('{cols}', '')}<span className="mono" style={{ fontSize:14 }}>student_id, first_name, last_name, email, phone, room_name, academic_year</span><br/>
             <b>{tt('importReal.roomNameNote')}</b>{' '}
             {rooms.length > 0
               ? rooms.map(r => <span key={r.room_id} className="chip" style={{ marginRight:6 }}>{r.room_name}</span>)
@@ -134,7 +134,7 @@ function CsvImport({ toast, tt }) {
           <button className="btn btn-ghost" onClick={downloadTemplate}><Icon name="download" size={16}/> {tt('importReal.downloadTemplateBtn')}</button>
           {file ? (
             <div style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'8px 8px 8px 14px',
-              borderRadius:9, border:'1px solid var(--ink-200)', fontSize:13.5 }}>
+              borderRadius:9, border:'1px solid var(--ink-200)', fontSize:15.5 }}>
               <Icon name="doc" size={15} style={{ color:'var(--ink-500)', flex:'none' }} />
               <span style={{ maxWidth:220, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{file.name}</span>
               <button type="button" aria-label={tt('importReal.removeFileLabel')} onClick={()=>{ setFile(null); setResult(null); setError(''); }}
@@ -156,7 +156,7 @@ function CsvImport({ toast, tt }) {
         </div>
         {error && (
           <div role="alert" style={{ display:'flex', gap:10, alignItems:'flex-start', color:'var(--status-reject-fg)',
-            background:'var(--status-reject-bg)', borderRadius:9, padding:'11px 14px', fontSize:13, marginTop:14 }}>
+            background:'var(--status-reject-bg)', borderRadius:9, padding:'11px 14px', fontSize:15, marginTop:14 }}>
             <Icon name="xCircle" size={16} style={{ flex:'none', marginTop:1 }} />
             <span>{error}</span>
           </div>
@@ -252,15 +252,15 @@ function StatToggle({ active, onClick, icon, tone, count, label, disabled, tt })
     >
       <Icon name={icon} size={19} style={{ color:`var(--${tone})`, flex:'none' }} />
       <div style={{ textAlign:'left' }}>
-        <div className="tnum" style={{ fontSize:24, fontWeight:800, color:`var(--${tone})`, lineHeight:1.1 }}>{count}</div>
-        <div style={{ fontSize:12.5, color:'var(--ink-500)' }}>{label}{!disabled && tt('importReal.viewListSuffix')}</div>
+        <div className="tnum" style={{ fontSize:26, fontWeight:800, color:`var(--${tone})`, lineHeight:1.1 }}>{count}</div>
+        <div style={{ fontSize:14.5, color:'var(--ink-500)' }}>{label}{!disabled && tt('importReal.viewListSuffix')}</div>
       </div>
     </button>
   );
 }
 
 function EmptyRows({ text }) {
-  return <div style={{ padding:'32px 20px', textAlign:'center', color:'var(--ink-500)', fontSize:13.5 }}>{text}</div>;
+  return <div style={{ padding:'32px 20px', textAlign:'center', color:'var(--ink-500)', fontSize:15.5 }}>{text}</div>;
 }
 
 // สรุปสถานะรวมแบบเห็นปุ๊บรู้ปั๊บ — โทนสีเปลี่ยนตามผลจริง ไม่ใช่ตอบเขียวทุกครั้งที่กดสำเร็จ (success ≠ ไม่มีปัญหาเสมอไป)
@@ -279,7 +279,7 @@ function ResultBanner({ result, tt }) {
   }
   return (
     <div style={{ display:'flex', gap:10, alignItems:'center', padding:'12px 16px', borderRadius:12, marginBottom:14,
-      background:`var(--status-${tone}-bg)`, color:`var(--status-${tone}-fg)`, fontSize:13.5, fontWeight:600 }}>
+      background:`var(--status-${tone}-bg)`, color:`var(--status-${tone}-fg)`, fontSize:15.5, fontWeight:600 }}>
       <Icon name={icon} size={18} style={{ flex:'none' }} />
       <span>{message}</span>
     </div>
@@ -334,8 +334,8 @@ function ManualAdd({ toast, tt }) {
           <Icon name="user" size={18} />
         </div>
         <div>
-          <div style={{ fontWeight:700, fontSize:14.5, color:'var(--ink-900)' }}>{tt('importReal.addOneTitle')}</div>
-          <div style={{ fontSize:12.5, color:'var(--ink-500)' }}>{tt('importReal.addOneSub')}</div>
+          <div style={{ fontWeight:700, fontSize:16.5, color:'var(--ink-900)' }}>{tt('importReal.addOneTitle')}</div>
+          <div style={{ fontSize:14.5, color:'var(--ink-500)' }}>{tt('importReal.addOneSub')}</div>
         </div>
       </div>
 
@@ -390,7 +390,7 @@ function ManualAdd({ toast, tt }) {
 
         {error && (
           <div role="alert" style={{ display:'flex', gap:9, alignItems:'flex-start', color:'var(--status-reject-fg)',
-            background:'var(--status-reject-bg)', borderRadius:9, padding:'10px 13px', fontSize:13, marginBottom:16 }}>
+            background:'var(--status-reject-bg)', borderRadius:9, padding:'10px 13px', fontSize:15, marginBottom:16 }}>
             <Icon name="xCircle" size={16} style={{ flex:'none', marginTop:1 }} />
             <span>{error}</span>
           </div>
@@ -399,7 +399,7 @@ function ManualAdd({ toast, tt }) {
 
       <div style={{ display:'flex', gap:10, justifyContent:'flex-end', alignItems:'center', padding:'14px 24px',
         borderTop:'1px solid var(--ink-100)', background:'var(--ink-50)' }}>
-        <span style={{ marginRight:'auto', fontSize:12.5, color:'var(--ink-500)' }}><Req /> {tt('importReal.requiredHint')}</span>
+        <span style={{ marginRight:'auto', fontSize:14.5, color:'var(--ink-500)' }}><Req /> {tt('importReal.requiredHint')}</span>
         <button className="btn btn-ghost" onClick={()=>{ setForm(EMPTY_FORM); setError(''); }} disabled={saving}>{tt('importReal.resetBtn')}</button>
         <button className="btn btn-primary" onClick={submit} disabled={saving}>
           <Icon name="plus" size={16} /> {saving ? tt('importReal.saving') : tt('importReal.addBtn')}
@@ -415,7 +415,7 @@ const Req = () => <span style={{ color:'var(--status-reject-fg)' }} aria-hidden=
 function FormSection({ title, children }) {
   return (
     <div style={{ marginBottom:18 }}>
-      <div style={{ fontSize:12, fontWeight:700, letterSpacing:'.04em', textTransform:'uppercase',
+      <div style={{ fontSize:14, fontWeight:700, letterSpacing:'.04em', textTransform:'uppercase',
         color:'var(--ink-500)', marginBottom:10 }}>{title}</div>
       <div style={{ display:'flex', flexDirection:'column', gap:14 }}>{children}</div>
     </div>

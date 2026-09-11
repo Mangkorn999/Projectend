@@ -134,10 +134,10 @@ export function ReportsReal({ toast, readonly, lang }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, paddingBottom: 18, borderBottom: '2px solid var(--navy-700)' }}>
           <Logo size={48} />
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy-700)' }}>{tt('reports.headerTitle')}</div>
-            <div style={{ fontSize: 13, color: 'var(--ink-500)' }}>{tt('reportsReal.roundSlash', { attempt: round.attempt_number, year: round.academic_year })}</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--navy-700)' }}>{tt('reports.headerTitle')}</div>
+            <div style={{ fontSize: 15, color: 'var(--ink-500)' }}>{tt('reportsReal.roundSlash', { attempt: round.attempt_number, year: round.academic_year })}</div>
           </div>
-          <div style={{ textAlign: 'right', fontSize: 12, color: 'var(--ink-500)' }}>{tt('reports.issuedLabel')}<br />{new Date().toLocaleDateString('th-TH')}</div>
+          <div style={{ textAlign: 'right', fontSize: 14, color: 'var(--ink-500)' }}>{tt('reports.issuedLabel')}<br />{new Date().toLocaleDateString('th-TH')}</div>
         </div>
 
         <div className="sec-title" style={{ margin: '24px 0 12px', color: 'var(--ink-900)' }}>{tt('reports.section1')}</div>
@@ -145,10 +145,10 @@ export function ReportsReal({ toast, readonly, lang }) {
           {summaryCards.map(([label, v, sub, tone]) => (
             <div key={label} style={{ padding: '14px 16px 14px 22px', background: '#fff', borderRadius: 11, border: '1px solid var(--ink-200)', borderLeft: '6px solid ' +
               ({ navy: 'var(--navy-700)', blue: 'var(--blue-600)', ok: 'var(--pass)', gold: 'var(--gold-500)' }[tone]) }}>
-              <div style={{ fontSize: 12.5, color: 'var(--ink-500)', fontWeight: 600 }}>{label}</div>
-              <div className="tnum" style={{ fontSize: 26, fontWeight: 800, marginTop: 4 }}>{v}</div>
+              <div style={{ fontSize: 14.5, color: 'var(--ink-500)', fontWeight: 600 }}>{label}</div>
+              <div className="tnum" style={{ fontSize: 28, fontWeight: 800, marginTop: 4 }}>{v}</div>
               {/* บอกตัวหารไว้ใต้ตัวเลขทุกใบ — ไม่งั้น % 2 ตัวที่หารคนละฐานดูเหมือนเทียบกันได้ */}
-              <div style={{ fontSize: 11.5, color: 'var(--ink-500)', marginTop: 3, lineHeight: 1.45 }}>{sub}</div>
+              <div style={{ fontSize: 13.5, color: 'var(--ink-500)', marginTop: 3, lineHeight: 1.45 }}>{sub}</div>
             </div>
           ))}
         </div>
@@ -159,7 +159,7 @@ export function ReportsReal({ toast, readonly, lang }) {
           <>
             <div className="sec-title" style={{ margin: '26px 0 12px', color: 'var(--ink-900)' }}>{tt('reportsReal.councilSection')}</div>
             <div style={{ border: '1px solid var(--ink-200)', borderRadius: 11, overflow: 'hidden' }}>
-              <div style={{ padding: '10px 16px', background: 'var(--ink-50, #fafafa)', fontSize: 12.5, color: 'var(--ink-600)' }}>
+              <div style={{ padding: '10px 16px', background: 'var(--ink-50, #fafafa)', fontSize: 14.5, color: 'var(--ink-600)' }}>
                 {tt('reportsReal.councilDenominator', { year: yearStats.academic_year, total: yearStats.total })}
               </div>
               {[
@@ -169,13 +169,13 @@ export function ReportsReal({ toast, readonly, lang }) {
                 <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 16px',
                   borderTop: i === 0 ? '1px solid var(--ink-200)' : '1px solid var(--ink-100)' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700 }}>{label}</div>
-                    <div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 2 }}>{note}</div>
+                    <div style={{ fontSize: 16, fontWeight: 700 }}>{label}</div>
+                    <div style={{ fontSize: 14, color: 'var(--ink-500)', marginTop: 2 }}>{note}</div>
                   </div>
-                  <div className="tnum" style={{ fontSize: 13, color: 'var(--ink-600)', flex: 'none' }}>
+                  <div className="tnum" style={{ fontSize: 15, color: 'var(--ink-600)', flex: 'none' }}>
                     {val.passed} / {yearStats.total}
                   </div>
-                  <div className="tnum" style={{ fontSize: 24, fontWeight: 800, flex: 'none', minWidth: 96, textAlign: 'right' }}>
+                  <div className="tnum" style={{ fontSize: 26, fontWeight: 800, flex: 'none', minWidth: 96, textAlign: 'right' }}>
                     {val.rate.toFixed(2)}%
                   </div>
                 </div>
@@ -245,7 +245,7 @@ export function ReportsReal({ toast, readonly, lang }) {
                 ))}</tbody>
               </table>
             </div>
-            <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--ink-500)' }}>{tt('dashReal.distFootnote', { total: yearStats.passDistribution.total })}</p>
+            <p style={{ margin: '10px 0 0', fontSize: 14, color: 'var(--ink-500)' }}>{tt('dashReal.distFootnote', { total: yearStats.passDistribution.total })}</p>
           </>
         )}
       </div>

@@ -6,7 +6,7 @@
    ============================================================ */
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, StatCard, Donut, BarRow, MultiLineChart, ColumnChart, Modal, Empty,
+import { PageHead, StatCard, Donut, BarRow, MultiLineChart, MultiBarChart, ColumnChart, Modal, Empty,
   FirstAttemptSubjectTable } from './components.jsx';
 import { apiFetch } from './api.js';
 import { t, subjectName, roomName } from './i18n.js';
@@ -174,7 +174,7 @@ export function DashboardReal({ go, readonly, lang }) {
               : showingRound
                 ? <RoundView stats={stats} roundInfo={rounds.find(r => String(r.round_id) === tab)}
                     go={go} lang={lang} tt={tt} statCardsOnly />
-                : <div style={{ padding: '28px 0', textAlign: 'center', color: 'var(--ink-500)', fontSize: 13.5 }}>{tt('common.loading')}</div>}
+                : <div style={{ padding: '28px 0', textAlign: 'center', color: 'var(--ink-500)', fontSize: 15.5 }}>{tt('common.loading')}</div>}
           </div>
 
           {/* 2 แท็บกลางเป็นตัวเลข "รอบแรกของทั้งรุ่น" ไม่ได้ผูกกับรอบที่เลือกเลย
@@ -197,7 +197,7 @@ export function DashboardReal({ go, readonly, lang }) {
                     // เอา by ของแต่ละรอบมาบวกกันเองไม่ได้ นั่นเป็นจำนวนใบ คนที่กรอก 2 รอบจะถูกนับซ้ำจนเกิน 100%
                     ? <StatusDonut total={yearSummary.total} by={yearSummary.statusByStudent}
                         not_started={yearSummary.statusByStudent.not_started} perStudent tt={tt} />
-                    : <div style={{ padding: '28px 0', textAlign: 'center', color: 'var(--ink-500)', fontSize: 13.5 }}>{tt('common.loading')}</div>)
+                    : <div style={{ padding: '28px 0', textAlign: 'center', color: 'var(--ink-500)', fontSize: 15.5 }}>{tt('common.loading')}</div>)
                 : showingRound && <RoundView stats={stats} roundInfo={rounds.find(r => String(r.round_id) === tab)} go={go} lang={lang} tt={tt} statusOnly />
             )}
 
@@ -218,7 +218,7 @@ export function DashboardReal({ go, readonly, lang }) {
 
             {mainTab === 'reports' && (
               <div style={{ marginTop: 4 }}>
-                <p style={{ margin: '0 0 14px', color: 'var(--ink-500)', fontSize: 13 }}>{tt('dashReal.reportSectionMultiYearSub')}</p>
+                <p style={{ margin: '0 0 14px', color: 'var(--ink-500)', fontSize: 15 }}>{tt('dashReal.reportSectionMultiYearSub')}</p>
                 <MainTabs value={reportTab} onChange={setReportTab} tt={tt} items={[
                   { key: 'firstRate', label: tt('dashReal.firstAttemptTitle') },
                   { key: 'subjectHistory', label: tt('dashReal.subjectHistoryTitle') },
@@ -303,13 +303,13 @@ function YearMultiPicker({ years, selected, onChange, currentYear, tt, max = 3 }
         <div style={{ position: 'fixed', inset: 0, zIndex: 50 }} onClick={() => setOpen(false)}></div>
         <div className="card fade-up" style={{ position: 'absolute', right: 0, top: 'calc(100% + 6px)', width: 200,
           zIndex: 51, boxShadow: 'var(--sh-lg)', padding: 10 }}>
-          <div style={{ fontSize: 11.5, color: 'var(--ink-500)', padding: '2px 6px 8px' }}>{tt('dashReal.yearPickerMax', { max })}</div>
+          <div style={{ fontSize: 13.5, color: 'var(--ink-500)', padding: '2px 6px 8px' }}>{tt('dashReal.yearPickerMax', { max })}</div>
           {years.map(y => {
             const checked = selected.includes(y);
             const disabled = !checked && selected.length >= max;
             return (
               <label key={y} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '7px 6px', borderRadius: 8,
-                cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? .45 : 1, fontSize: 13.5 }}>
+                cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? .45 : 1, fontSize: 15.5 }}>
                 <input type="checkbox" checked={checked} disabled={disabled} onChange={() => toggle(y)}
                   style={{ accentColor: 'var(--navy-700)' }} />
                 {y === currentYear ? tt('dashReal.currentYearOption', { year: y }) : tt('dashReal.yearOption', { year: y })}
@@ -327,8 +327,8 @@ function Section({ title, sub, children }) {
   return (
     <div style={{ marginTop: 28 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 14 }}>
-        <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, flex: 'none' }}>{title}</h2>
-        {sub && <span style={{ fontSize: 12.5, color: 'var(--ink-500)', flex: 'none' }}>{sub}</span>}
+        <h2 style={{ margin: 0, fontSize: 19, fontWeight: 800, flex: 'none' }}>{title}</h2>
+        {sub && <span style={{ fontSize: 14.5, color: 'var(--ink-500)', flex: 'none' }}>{sub}</span>}
         <div style={{ height: 1, background: 'var(--ink-100)', flex: 1 }} />
       </div>
       {children}
@@ -360,7 +360,7 @@ function AlertPanel({ alerts, go, readonly, tt }) {
 
   return (
     <div className="card card-pad">
-      <h3 style={{ margin: '0 0 14px', fontSize: 16, fontWeight: 800 }}>
+      <h3 style={{ margin: '0 0 14px', fontSize: 18, fontWeight: 800 }}>
         {tt('dashReal.alertsTitle')} <span className="chip tnum" style={{ marginLeft: 6 }}>{alerts.length}</span>
       </h3>
       <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
@@ -378,8 +378,8 @@ function AlertPanel({ alerts, go, readonly, tt }) {
                 <Icon name={a.icon} size={16} />
               </span>
               <span style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ display: 'block', fontSize: 14, fontWeight: 700, color: 'var(--ink-900)' }}>{a.title}</span>
-                <span style={{ display: 'block', fontSize: 12.5, color: 'var(--ink-500)', marginTop: 2 }}>{a.detail}</span>
+                <span style={{ display: 'block', fontSize: 16, fontWeight: 700, color: 'var(--ink-900)' }}>{a.title}</span>
+                <span style={{ display: 'block', fontSize: 14.5, color: 'var(--ink-500)', marginTop: 2 }}>{a.detail}</span>
               </span>
               {target && <Icon name="chevR" size={15} style={{ color: 'var(--ink-400)', flex: 'none', marginTop: 8 }} />}
             </button>
@@ -473,8 +473,8 @@ function StatusDonut({ total, by, not_started, perStudent, tt }) {
   return (
     <div className="card card-pad">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>{tt('dashReal.statusBreakdownTitle')}</h3>
-        <span style={{ fontSize: 12, color: 'var(--ink-400)' }}>
+        <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{tt('dashReal.statusBreakdownTitle')}</h3>
+        <span style={{ fontSize: 14, color: 'var(--ink-400)' }}>
           {perStudent ? tt('dashReal.statusOfStudents') : tt('dashReal.statusOfPapers')}
         </span>
       </div>
@@ -482,15 +482,15 @@ function StatusDonut({ total, by, not_started, perStudent, tt }) {
       {/* donut ซ้าย + รายการสถานะขวาแบบเต็มความกว้าง — เดิมรายการชิดซ้ายจนเหลือที่ว่างครึ่งการ์ด
           ตอนนี้แต่ละสถานะมีแถบสัดส่วนของตัวเอง ที่ว่างเลยกลายเป็นข้อมูลแทน */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 28, flexWrap: 'wrap', marginTop: 16 }}>
-        <Donut segments={segs} center={<><div className="tnum" style={{ fontSize: 26, fontWeight: 800 }}>{total}</div><div style={{ fontSize: 11.5, color: 'var(--ink-500)' }}>{tt('dashReal.eligibleLabel')}</div></>} />
+        <Donut segments={segs} center={<><div className="tnum" style={{ fontSize: 28, fontWeight: 800 }}>{total}</div><div style={{ fontSize: 13.5, color: 'var(--ink-500)' }}>{tt('dashReal.eligibleLabel')}</div></>} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: '1 1 300px', minWidth: 260 }}>
           {segs.map(s => (
             <div key={s.key}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 13.5, marginBottom: 5 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 15.5, marginBottom: 5 }}>
                 <span style={{ width: 10, height: 10, borderRadius: 3, background: s.color, flex: 'none' }}></span>
                 <span style={{ flex: 1, color: 'var(--ink-700)' }}>{s.label}</span>
                 <span className="tnum" style={{ fontWeight: 700 }}>{s.value}</span>
-                <span className="tnum" style={{ color: 'var(--ink-500)', fontSize: 12.5, width: 52, textAlign: 'right' }}>{pct(s.value).toFixed(2)}%</span>
+                <span className="tnum" style={{ color: 'var(--ink-500)', fontSize: 14.5, width: 52, textAlign: 'right' }}>{pct(s.value).toFixed(2)}%</span>
               </div>
               <div className="pbar" style={{ height: 6 }}><i style={{ width: `${pct(s.value)}%`, background: s.color }} /></div>
             </div>
@@ -501,12 +501,12 @@ function StatusDonut({ total, by, not_started, perStudent, tt }) {
       {/* ความคืบหน้าการตรวจ — คนละเรื่องกับสัดส่วนข้างบน (ตัวหารคือ "ใบที่ส่งเข้ามา" ไม่ใช่ทั้งรุ่น) */}
       <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px dashed var(--ink-100)' }}>
         {papers === 0 ? (
-          <div style={{ fontSize: 13, color: 'var(--ink-500)' }}>{tt('dashReal.statusNoPapers')}</div>
+          <div style={{ fontSize: 15, color: 'var(--ink-500)' }}>{tt('dashReal.statusNoPapers')}</div>
         ) : (
           <>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 7 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink-700)' }}>{tt('dashReal.statusProgressLabel')}</span>
-              <span style={{ fontSize: 12.5, color: 'var(--ink-500)', flex: 1 }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink-700)' }}>{tt('dashReal.statusProgressLabel')}</span>
+              <span style={{ fontSize: 14.5, color: 'var(--ink-500)', flex: 1 }}>
                 {tt(perStudent ? 'dashReal.statusProgressSubStudents' : 'dashReal.statusProgressSub', { done: reviewed, total: papers })}
               </span>
               <span className="tnum" style={{ fontWeight: 800 }}>{reviewRate.toFixed(2)}%</span>
@@ -524,7 +524,7 @@ function StatusDonut({ total, by, not_started, perStudent, tt }) {
 // statCardsOnly = แค่การ์ดตัวเลข 4 ใบ + ตารางแยกตามรอบ (โชว์เสมอไม่ว่าอยู่แท็บไหน)
 // อัตราผ่านรายวิชารวมทั้งปี ย้ายไปแท็บ "อัตราผ่านรายวิชา" แทน (เรียก SubjectRateCard ตรงจาก DashboardReal เลย)
 function YearRoundsView({ year, rounds, tt, statCardsOnly }) {
-  if (!year) return <div style={{ padding: '28px 0', textAlign: 'center', color: 'var(--ink-500)', fontSize: 13.5 }}>{tt('dashReal.distEmpty')}</div>;
+  if (!year) return <div style={{ padding: '28px 0', textAlign: 'center', color: 'var(--ink-500)', fontSize: 15.5 }}>{tt('dashReal.distEmpty')}</div>;
   if (!statCardsOnly) return null;
 
   const roundOf = (rid) => rounds.find(r => r.round_id === rid);
@@ -541,12 +541,12 @@ function YearRoundsView({ year, rounds, tt, statCardsOnly }) {
       </div>
 
       <div className="card card-pad">
-        <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800 }}>{tt('dashReal.roundBreakdownTitle')}</h3>
-        <p style={{ margin: '0 0 14px', color: 'var(--ink-500)', fontSize: 13 }}>{tt('dashReal.roundBreakdownSub')}</p>
+        <h3 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 800 }}>{tt('dashReal.roundBreakdownTitle')}</h3>
+        <p style={{ margin: '0 0 14px', color: 'var(--ink-500)', fontSize: 15 }}>{tt('dashReal.roundBreakdownSub')}</p>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15 }}>
             <thead>
-              <tr style={{ color: 'var(--ink-500)', fontSize: 12.5, textAlign: 'left' }}>
+              <tr style={{ color: 'var(--ink-500)', fontSize: 14.5, textAlign: 'left' }}>
                 <th style={{ padding: '8px 10px' }}>{tt('dashReal.colRound')}</th>
                 <th style={{ padding: '8px 10px', textAlign: 'center' }}>{tt('dashReal.colSubjects')}</th>
                 <th style={{ padding: '8px 10px', textAlign: 'center' }}>{tt('dashReal.colSubmitted')}</th>
@@ -571,7 +571,7 @@ function YearRoundsView({ year, rounds, tt, statCardsOnly }) {
             </tbody>
           </table>
         </div>
-        <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--ink-500)' }}>{tt('dashReal.roundBreakdownNote')}</p>
+        <p style={{ margin: '12px 0 0', fontSize: 14, color: 'var(--ink-500)' }}>{tt('dashReal.roundBreakdownNote')}</p>
       </div>
     </>
   );
@@ -582,7 +582,7 @@ function SubjectRateCard({ perSubject, subjectPassRate, title, lang, tt }) {
   return (
     <div className="card card-pad" style={{ flex: '1.3 1 380px', minWidth: 0 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>{title || tt('dashReal.subjectRateTitle')}</h3>
+        <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{title || tt('dashReal.subjectRateTitle')}</h3>
         {subjectPassRate !== undefined && (
           <span className="tnum chip" style={{ background: 'var(--blue-50)', color: 'var(--blue-600)', fontWeight: 700 }}>
             {tt('dashReal.avgAllSubjects', { rate: subjectPassRate })}
@@ -648,50 +648,50 @@ function ExecutiveOverview({ year, history, perSubject, lang, tt }) {
         background: 'linear-gradient(135deg, var(--navy-700), var(--navy-900))', color: '#fff' }}>
         <div className="exec-hero" style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr 1fr' }}>
           <div style={{ padding: '24px 30px', borderRight: '1px solid rgba(255,255,255,.14)' }}>
-            <div style={{ fontSize: 13.5, opacity: .85, fontWeight: 600, marginBottom: 6 }}>{tt('dashReal.heroFirstLabel')}</div>
+            <div style={{ fontSize: 15.5, opacity: .85, fontWeight: 600, marginBottom: 6 }}>{tt('dashReal.heroFirstLabel')}</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-              <span className="tnum" style={{ fontSize: 50, fontWeight: 800, color: 'var(--gold-100)', lineHeight: 1 }}>
+              <span className="tnum" style={{ fontSize: 52, fontWeight: 800, color: 'var(--gold-100)', lineHeight: 1 }}>
                 {first.rate.toFixed(2)}%
               </span>
               {delta !== null && delta !== 0 && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 14, fontWeight: 700,
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 16, fontWeight: 700,
                   color: delta > 0 ? '#7fe0a8' : '#ffb4ab' }}>
                   {delta > 0 ? '▲' : '▼'} {Math.abs(delta).toFixed(2)}%
                 </span>
               )}
             </div>
-            <div style={{ fontSize: 13, opacity: .8, marginTop: 8 }}>
+            <div style={{ fontSize: 15, opacity: .8, marginTop: 8 }}>
               {tt('dashReal.heroFirstSub', { pass: first.passed, total: year.total })}
             </div>
           </div>
 
           <div style={{ padding: '24px 30px', borderRight: '1px solid rgba(255,255,255,.14)' }}>
-            <div style={{ fontSize: 13.5, opacity: .85, fontWeight: 600, marginBottom: 6 }}>{tt('dashReal.heroCumulativeLabel')}</div>
-            <div className="tnum" style={{ fontSize: 38, fontWeight: 800, lineHeight: 1, color: '#7fe0a8' }}>
+            <div style={{ fontSize: 15.5, opacity: .85, fontWeight: 600, marginBottom: 6 }}>{tt('dashReal.heroCumulativeLabel')}</div>
+            <div className="tnum" style={{ fontSize: 40, fontWeight: 800, lineHeight: 1, color: '#7fe0a8' }}>
               {cumulative.rate.toFixed(2)}%
             </div>
             <div className="pbar" style={{ marginTop: 12, background: 'rgba(255,255,255,.22)' }}>
               <i style={{ width: `${cumulative.rate}%`, background: '#7fe0a8' }} />
             </div>
-            <div style={{ fontSize: 12.5, opacity: .8, marginTop: 8 }}>
+            <div style={{ fontSize: 14.5, opacity: .8, marginTop: 8 }}>
               {tt('dashReal.heroCumulativeSub', { total: year.total })}
             </div>
           </div>
 
           <div style={{ padding: '24px 30px' }}>
-            <div style={{ fontSize: 13.5, opacity: .85, fontWeight: 600, marginBottom: 6 }}>{tt('dashReal.heroWatchLabel')}</div>
+            <div style={{ fontSize: 15.5, opacity: .85, fontWeight: 600, marginBottom: 6 }}>{tt('dashReal.heroWatchLabel')}</div>
             {worst ? (
               <>
-                <div style={{ fontSize: 16, fontWeight: 700, marginTop: 2, lineHeight: 1.35 }}>
+                <div style={{ fontSize: 18, fontWeight: 700, marginTop: 2, lineHeight: 1.35 }}>
                   {subjectName(lang, worst.subject_code, worst.subject_name)}
                 </div>
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 8, padding: '4px 11px',
-                  background: 'rgba(224,73,59,.25)', borderRadius: 999, fontSize: 13, fontWeight: 700, color: '#ffb4ab' }}>
+                  background: 'rgba(224,73,59,.25)', borderRadius: 999, fontSize: 15, fontWeight: 700, color: '#ffb4ab' }}>
                   <Icon name="alert" size={14} /> {tt('dashReal.heroWatchChip', { rate: worst.rate })}
                 </div>
               </>
             ) : (
-              <div style={{ fontSize: 13.5, opacity: .8, marginTop: 4 }}>{tt('dashReal.heroWatchEmpty')}</div>
+              <div style={{ fontSize: 15.5, opacity: .8, marginTop: 4 }}>{tt('dashReal.heroWatchEmpty')}</div>
             )}
           </div>
         </div>
@@ -701,8 +701,8 @@ function ExecutiveOverview({ year, history, perSubject, lang, tt }) {
 
       <div className="row wrap-m" style={{ marginBottom: 20, alignItems: 'stretch' }}>
         <div className="card card-pad" style={{ flex: 1, minWidth: 0 }}>
-          <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800 }}>{tt('dashReal.perAttemptTitle')}</h3>
-          <p style={{ margin: '0 0 14px', color: 'var(--ink-500)', fontSize: 13 }}>
+          <h3 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 800 }}>{tt('dashReal.perAttemptTitle')}</h3>
+          <p style={{ margin: '0 0 14px', color: 'var(--ink-500)', fontSize: 15 }}>
             {tt('dashReal.perAttemptSub', { year: year.academic_year })}
           </p>
           {attemptBars.length > 0 ? (
@@ -711,15 +711,15 @@ function ExecutiveOverview({ year, history, perSubject, lang, tt }) {
               <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
                 {attemptBars.map(a => (
                   <div key={a.label} style={{ flex: 1, padding: '10px 12px', background: 'var(--ink-50)', borderRadius: 10, textAlign: 'center' }}>
-                    <div style={{ fontSize: 11.5, color: 'var(--ink-500)' }}>{a.label}</div>
-                    <div className="tnum" style={{ fontSize: 15, fontWeight: 800, marginTop: 2 }}>{a.pass}/{a.sat}</div>
-                    <div style={{ fontSize: 11, color: 'var(--ink-400)' }}>{tt('dashReal.unitPeople')}</div>
+                    <div style={{ fontSize: 13.5, color: 'var(--ink-500)' }}>{a.label}</div>
+                    <div className="tnum" style={{ fontSize: 17, fontWeight: 800, marginTop: 2 }}>{a.pass}/{a.sat}</div>
+                    <div style={{ fontSize: 13, color: 'var(--ink-400)' }}>{tt('dashReal.unitPeople')}</div>
                   </div>
                 ))}
               </div>
             </>
           ) : (
-            <div style={{ padding: '28px 0', textAlign: 'center', color: 'var(--ink-500)', fontSize: 13.5 }}>{tt('dashReal.distEmpty')}</div>
+            <div style={{ padding: '28px 0', textAlign: 'center', color: 'var(--ink-500)', fontSize: 15.5 }}>{tt('dashReal.distEmpty')}</div>
           )}
         </div>
       </div>
@@ -764,7 +764,7 @@ function RoundBar({ round, roundInfo, submitted, eligible, fillRate, total, tt }
       alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 'none' }}>
         <Icon name="calendar" size={18} style={{ color: 'var(--navy-600)' }} />
-        <span style={{ fontWeight: 800, fontSize: 15 }}>
+        <span style={{ fontWeight: 800, fontSize: 17 }}>
           {tt('dashReal.roundBarTitle', { attempt: round.attempt_number, year: round.academic_year })}
         </span>
         <span className={`badge ${round.status === 'open' ? 'ok' : 'draft'}`}>
@@ -773,20 +773,20 @@ function RoundBar({ round, roundInfo, submitted, eligible, fillRate, total, tt }
       </div>
 
       {roundInfo && (
-        <div style={{ fontSize: 13, color: 'var(--ink-500)', flex: 'none' }}>
+        <div style={{ fontSize: 15, color: 'var(--ink-500)', flex: 'none' }}>
           {tt('dashReal.roundBarClose', { date: closeText })}
           {deadlineText && <span style={{ color: deadlineTone, fontWeight: 700 }}> · {deadlineText}</span>}
         </div>
       )}
 
       {/* ข้อมูลรุ่น — ย้ายมาจากใต้หัวข้อหน้า จะได้อยู่รวมกับเรื่องรอบทั้งหมดในแถบเดียว */}
-      <div style={{ fontSize: 13, color: 'var(--ink-500)', flex: 'none' }}>
+      <div style={{ fontSize: 15, color: 'var(--ink-500)', flex: 'none' }}>
         {tt('dashReal.subInfo', { year: round.academic_year, total, eligible })}
       </div>
 
       {/* ความคืบหน้าการกรอก — ตัวเลขเดียวกับการ์ด "ส่งผลสอบแล้ว" ข้างล่าง แต่ตรงนี้ให้เห็นเป็นแถบเทียบกับเวลาที่เหลือ */}
       <div style={{ flex: '1 1 160px', minWidth: 140, marginLeft: 'auto' }}>
-        <div style={{ fontSize: 12.5, color: 'var(--ink-600)', marginBottom: 5, textAlign: 'right' }}>
+        <div style={{ fontSize: 14.5, color: 'var(--ink-600)', marginBottom: 5, textAlign: 'right' }}>
           {tt('dashReal.roundBarProgress', { submitted, total, rate: fillRate })}
         </div>
         <div className="pbar" style={{ height: 8 }}>
@@ -806,20 +806,20 @@ function PassDistribution({ year, lang, tt }) {
 
   return (
     <div className="card card-pad">
-      <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800 }}>{tt('dashReal.distTitle')}</h3>
-      <p style={{ margin: '0 0 16px', color: 'var(--ink-500)', fontSize: 13 }}>
+      <h3 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 800 }}>{tt('dashReal.distTitle')}</h3>
+      <p style={{ margin: '0 0 16px', color: 'var(--ink-500)', fontSize: 15 }}>
         {tt('dashReal.distSub', { year: year.academic_year })}
       </p>
 
       {!dist || dist.total === 0 ? (
-        <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--ink-500)', fontSize: 13.5 }}>
+        <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--ink-500)', fontSize: 15.5 }}>
           {tt('dashReal.distEmpty')}
         </div>
       ) : (
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', minWidth: 120 + dist.rooms.length * 150, borderCollapse: 'collapse', fontSize: 13 }}>
+          <table style={{ width: '100%', minWidth: 120 + dist.rooms.length * 150, borderCollapse: 'collapse', fontSize: 15 }}>
             <thead>
-              <tr style={{ color: 'var(--ink-500)', fontSize: 12.5 }}>
+              <tr style={{ color: 'var(--ink-500)', fontSize: 14.5 }}>
                 <th rowSpan={2} style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid var(--ink-100)' }}>
                   {tt('dashReal.distColResult')}
                 </th>
@@ -832,7 +832,7 @@ function PassDistribution({ year, lang, tt }) {
                   {tt('dashReal.distRoomHead', { room: tt('dashReal.distColTotal'), n: dist.total })}
                 </th>
               </tr>
-              <tr style={{ color: 'var(--ink-500)', fontSize: 11.5 }}>
+              <tr style={{ color: 'var(--ink-500)', fontSize: 13.5 }}>
                 {dist.rooms.map(r => [
                   <th key={`c${r.room_id}`} style={{ padding: '6px 10px', fontWeight: 500, borderBottom: '1px solid var(--ink-100)' }}>{tt('dashReal.distColCount')}</th>,
                   <th key={`p${r.room_id}`} style={{ padding: '6px 10px', fontWeight: 500, borderBottom: '1px solid var(--ink-100)' }}>{tt('dashReal.distColRate')}</th>,
@@ -866,7 +866,7 @@ function PassDistribution({ year, lang, tt }) {
             </tbody>
           </table>
           {/* บอกตัวหารไว้ใต้ตาราง ไม่งั้นคนอ่านไม่รู้ว่า % คิดจากอะไร แล้วเทียบกับการ์ดข้างบนไม่ถูก */}
-          <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--ink-500)' }}>
+          <p style={{ margin: '12px 0 0', fontSize: 14, color: 'var(--ink-500)' }}>
             {tt('dashReal.distFootnote', { total: dist.total })}
           </p>
         </div>
@@ -876,11 +876,12 @@ function PassDistribution({ year, lang, tt }) {
 }
 
 // สี 3 ปีย้อนหลัง — ปีล่าสุดเข้มสุด เก่าสุดจางสุด รองรับปีเพิ่มในอนาคตด้วย modulo
-const HISTORY_COLORS = ['var(--navy-600)', 'var(--blue-600)', 'var(--ink-300)', '#c9971f', '#8b5e34'];
+const HISTORY_COLORS = ['var(--navy-600)', 'var(--blue-600)', 'var(--pass)', '#c9971f', '#8b5e34'];
 
 // อัตราผ่านรายวิชาย้อนหลัง 3 ปี — เส้นละปี, แกน x = รหัสวิชา, ข้อมูลอัปเดตตาม /dashboard/history อัตโนมัติเมื่อมีรอบ/ปีใหม่เข้ามา
 function SubjectHistoryChart({ history, firstRoundSubjects, tt, yearPicker }) {
   const [expanded, setExpanded] = useState(false);
+  const [chartType, setChartType] = useState('bar'); // 'line' | 'bar'
   // ใช้แค่ผลรอบแรก (attempt_number=1) ของแต่ละปี ไม่รวมรอบถัดไป — ดึงจาก firstRoundSubjects ไม่ใช่ y.perSubject (นั่นรวมทุกรอบ)
   const years = [...history.years]
     .filter(y => firstRoundSubjects[y.academic_year]?.length > 0)
@@ -915,10 +916,20 @@ function SubjectHistoryChart({ history, firstRoundSubjects, tt, yearPicker }) {
     <div className="card card-pad">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
         <div>
-          <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800 }}>{tt('dashReal.subjectHistoryTitle')}</h3>
-          <p style={{ margin: 0, color: 'var(--ink-500)', fontSize: 13 }}>{tt('dashReal.subjectHistorySub')}</p>
+          <h3 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 800 }}>{tt('dashReal.subjectHistoryTitle')}</h3>
+          <p style={{ margin: 0, color: 'var(--ink-500)', fontSize: 15 }}>{tt('dashReal.subjectHistorySub')}</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 'none' }}>
+          <div style={{ display: 'flex', border: '1px solid var(--ink-200)', borderRadius: 8, overflow: 'hidden' }}>
+            {[['line', tt('dashReal.chartTypeLine')], ['bar', tt('dashReal.chartTypeBar')]].map(([key, label]) => (
+              <button key={key} type="button" onClick={() => setChartType(key)}
+                style={{ fontFamily: 'inherit', fontSize: 13.5, fontWeight: 700, padding: '7px 12px', border: 'none', cursor: 'pointer',
+                  background: chartType === key ? 'var(--navy-700)' : '#fff',
+                  color: chartType === key ? '#fff' : 'var(--ink-700)' }}>
+                {label}
+              </button>
+            ))}
+          </div>
           {yearPicker}
           <button className="btn btn-ghost btn-sm" style={{ padding: 12, flex: 'none' }} title={tt('dashReal.expandChart')} onClick={() => setExpanded(true)}>
             <Icon name="expand" size={26} />
@@ -926,11 +937,15 @@ function SubjectHistoryChart({ history, firstRoundSubjects, tt, yearPicker }) {
         </div>
       </div>
       <div style={{ marginTop: 16 }}>
-        <MultiLineChart categories={categories} series={series} height={220} width={640} />
+        {chartType === 'line'
+          ? <MultiLineChart categories={categories} series={series} height={220} width={640} />
+          : <MultiBarChart categories={categories} series={series} height={220} width={640} />}
       </div>
 
       <Modal open={expanded} onClose={() => setExpanded(false)} title={tt('dashReal.subjectHistoryTitle')} width={1200}>
-        <MultiLineChart categories={categories} series={series} height={540} width={1140} legendSize={14} />
+        {chartType === 'line'
+          ? <MultiLineChart categories={categories} series={series} height={540} width={1140} legendSize={16} />
+          : <MultiBarChart categories={categories} series={series} height={540} width={1140} legendSize={16} />}
       </Modal>
     </div>
   );
@@ -947,13 +962,13 @@ function YearCompare({ history, lang, tt, yearPicker }) {
   return (
     <div className="card card-pad">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>{tt('dashReal.colFullPass')}</h3>
+        <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{tt('dashReal.colFullPass')}</h3>
         {yearPicker}
       </div>
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', minWidth: 100 + rooms.length * 80, borderCollapse: 'collapse' }}>
           <thead>
-            <tr style={{ textAlign: 'center', color: 'var(--ink-500)', fontSize: 12.5 }}>
+            <tr style={{ textAlign: 'center', color: 'var(--ink-500)', fontSize: 14.5 }}>
               <th style={{ padding: '8px 10px' }}>{tt('dashReal.colYear')}</th>
               {rooms.map(r => <th key={r.room_id} style={{ padding: '8px 10px', minWidth: 70 }}>{roomName(lang, r.room_name)}</th>)}
             </tr>
@@ -968,7 +983,7 @@ function YearCompare({ history, lang, tt, yearPicker }) {
                   return (
                     <td key={r.room_id} className="tnum" style={{ padding: '10px', fontWeight: 700, textAlign: 'center' }}>
                       <span style={{ color: 'var(--status-ok-dot)' }}>{room.fullyPassed}</span> / {room.total}
-                      <div style={{ fontSize: 11.5, fontWeight: 500, color: 'var(--ink-500)' }}>{room.passRate.toFixed(2)}%</div>
+                      <div style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--ink-500)' }}>{room.passRate.toFixed(2)}%</div>
                     </td>
                   );
                 })}
@@ -1009,17 +1024,17 @@ function FirstAttemptPassRate({ history, tt, wide, yearPicker }) {
           padding: 16, width: '100%' }}
         onMouseEnter={e => e.currentTarget.style.boxShadow = 'var(--sh-md)'}
         onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}>
-        <div style={{ fontSize: 12.5, color: 'var(--ink-500)', marginBottom: 6 }}>{tt('dashReal.yearOption', { year: y.academic_year })}</div>
-        <div className="tnum" style={{ fontSize: 30, fontWeight: 800, marginBottom: 8 }}>{rate.toFixed(2)}%</div>
+        <div style={{ fontSize: 14.5, color: 'var(--ink-500)', marginBottom: 6 }}>{tt('dashReal.yearOption', { year: y.academic_year })}</div>
+        <div className="tnum" style={{ fontSize: 32, fontWeight: 800, marginBottom: 8 }}>{rate.toFixed(2)}%</div>
         <div className="pbar" style={{ marginBottom: 10 }}><i style={{ width: `${rate}%`, background: tone }} /></div>
-        <div style={{ fontSize: 12.5, color: 'var(--ink-600)' }}>{tt('dashReal.firstAttemptSub', { passed })}</div>
-        <div style={{ fontSize: 12.5, color: 'var(--ink-500)' }}>{tt('dashReal.firstAttemptTotal', { total: y.total })}</div>
+        <div style={{ fontSize: 14.5, color: 'var(--ink-600)' }}>{tt('dashReal.firstAttemptSub', { passed })}</div>
+        <div style={{ fontSize: 14.5, color: 'var(--ink-500)' }}>{tt('dashReal.firstAttemptTotal', { total: y.total })}</div>
         {/* ผ่านภายในปีแรก = รวมรอบ 2, 3 ด้วย เลยสูงกว่าหรือเท่ากับผ่านครั้งแรกเสมอ */}
-        <div style={{ fontSize: 12.5, color: 'var(--ink-600)', marginTop: 6, paddingTop: 6, borderTop: '1px dashed var(--ink-100)' }}>
+        <div style={{ fontSize: 14.5, color: 'var(--ink-600)', marginTop: 6, paddingTop: 6, borderTop: '1px dashed var(--ink-100)' }}>
           {tt('dashReal.firstYearTitle')} <b className="tnum">{firstYear.rate.toFixed(2)}%</b>
           <div style={{ color: 'var(--ink-500)' }}>{tt('dashReal.firstYearSub', { passed: firstYear.passed })}</div>
         </div>
-        <div style={{ fontSize: 12, color: diff == null ? 'var(--ink-400)' : diff >= 0 ? 'var(--status-ok-fg)' : 'var(--status-reject-fg)', marginTop: 6 }}>
+        <div style={{ fontSize: 14, color: diff == null ? 'var(--ink-400)' : diff >= 0 ? 'var(--status-ok-fg)' : 'var(--status-reject-fg)', marginTop: 6 }}>
           {tt('dashReal.firstAttemptDiffLabel')} {diff == null ? '—' : `${diff >= 0 ? '▲' : '▼'} ${Math.abs(diff).toFixed(2)}`}
         </div>
       </button>
@@ -1030,8 +1045,8 @@ function FirstAttemptPassRate({ history, tt, wide, yearPicker }) {
     <div className="card card-pad">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
         <div>
-          <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800 }}>{tt('dashReal.firstAttemptTitle')}</h3>
-          <p style={{ margin: 0, color: 'var(--ink-500)', fontSize: 13 }}>{tt('dashReal.firstAttemptSubtitle')}</p>
+          <h3 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 800 }}>{tt('dashReal.firstAttemptTitle')}</h3>
+          <p style={{ margin: 0, color: 'var(--ink-500)', fontSize: 15 }}>{tt('dashReal.firstAttemptSubtitle')}</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 'none' }}>
           {yearPicker}
@@ -1045,7 +1060,7 @@ function FirstAttemptPassRate({ history, tt, wide, yearPicker }) {
           เลือกปีเดียว = ไม่มีอะไรเทียบ บอกตรงๆ ว่าให้ติ๊กปีเพิ่ม ดีกว่าปล่อยการ์ดโล่ง */}
       {yearsOldToNew.length > 1 ? (
         <div style={{ marginTop: 18, paddingBottom: 18, borderBottom: '1px dashed var(--ink-100)' }}>
-          <div style={{ fontSize: 12.5, color: 'var(--ink-500)', fontWeight: 600, marginBottom: 10 }}>{tt('dashReal.compareTrendTitle')}</div>
+          <div style={{ fontSize: 14.5, color: 'var(--ink-500)', fontWeight: 600, marginBottom: 10 }}>{tt('dashReal.compareTrendTitle')}</div>
           <ColumnChart height={150} fmt={v => `${v.toFixed(2)}%`}
             data={yearsOldToNew.map((y, i) => ({
               label: tt('dashReal.yearOption', { year: y.academic_year }),
@@ -1056,7 +1071,7 @@ function FirstAttemptPassRate({ history, tt, wide, yearPicker }) {
         </div>
       ) : (
         <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 10, background: 'var(--blue-50)',
-          color: 'var(--navy-700)', fontSize: 12.5 }}>
+          color: 'var(--navy-700)', fontSize: 14.5 }}>
           {tt('dashReal.compareNeedMoreYears')}
         </div>
       )}
@@ -1066,7 +1081,7 @@ function FirstAttemptPassRate({ history, tt, wide, yearPicker }) {
         gridTemplateColumns: `repeat(auto-fit, minmax(${wide ? 240 : 200}px, 1fr))` }}>
         {yearsOldToNew.map((y, i) => <YearBlock key={y.academic_year} y={y} i={i} />)}
       </div>
-      <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--ink-400)' }}>{tt('dashReal.clickForRounds')}</p>
+      <p style={{ margin: '10px 0 0', fontSize: 14, color: 'var(--ink-400)' }}>{tt('dashReal.clickForRounds')}</p>
 
       <Modal open={expanded} onClose={() => setExpanded(false)} title={tt('dashReal.firstAttemptTitle')} width={yearsOldToNew.length * 268 + 40}>
         <div style={{ display: 'grid', gap: 12, gridTemplateColumns: `repeat(auto-fit, minmax(240px, 1fr))` }}>
@@ -1097,14 +1112,14 @@ function RoundBreakdownTable({ year, tt }) {
         return (
           <div key={r.round_id} style={{ width: 360, flex: 'none', padding: 30,
             border: '1px solid var(--ink-200)', borderRadius: 16 }}>
-            <div style={{ fontSize: 16, color: 'var(--ink-500)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ fontSize: 18, color: 'var(--ink-500)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
               {tt('dashReal.roundOnlyLabel', { attempt: r.attempt_number })}
               {r.status === 'open' && <span className="badge ok"><span className="dot" />{tt('dashReal.roundOpenLabel')}</span>}
             </div>
-            <div className="tnum" style={{ fontSize: 40, fontWeight: 800, marginBottom: 16 }}>{rate.toFixed(2)}%</div>
+            <div className="tnum" style={{ fontSize: 42, fontWeight: 800, marginBottom: 16 }}>{rate.toFixed(2)}%</div>
             <div className="pbar" style={{ height: 13, marginBottom: 18 }}><i style={{ width: `${rate}%`, background: tone }} /></div>
-            <div style={{ fontSize: 16, color: 'var(--ink-600)' }}>{tt('dashReal.roundFullyPassedCount', { pass: r.fullyPassed })}</div>
-            <div style={{ fontSize: 16, color: 'var(--ink-500)' }}>{tt('dashReal.roundSatTotal', { total: r.submitted })}</div>
+            <div style={{ fontSize: 18, color: 'var(--ink-600)' }}>{tt('dashReal.roundFullyPassedCount', { pass: r.fullyPassed })}</div>
+            <div style={{ fontSize: 18, color: 'var(--ink-500)' }}>{tt('dashReal.roundSatTotal', { total: r.submitted })}</div>
           </div>
         );
       })}

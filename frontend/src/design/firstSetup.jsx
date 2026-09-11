@@ -60,16 +60,16 @@ export function FirstSetup({ onBack, lang }) {
           {done ? (
             <div style={{ textAlign:'center' }}>
               <div style={{ color:'var(--pass,#16a34a)', marginBottom:10 }}><Icon name="checkCircle" size={40}/></div>
-              <h2 style={{ margin:'0 0 8px', fontSize:20, fontWeight:800 }}>{isEN?'Password set!':'ตั้งรหัสผ่านสำเร็จ'}</h2>
-              <p style={{ color:'var(--ink-500)', fontSize:14, marginBottom:20 }}>
+              <h2 style={{ margin:'0 0 8px', fontSize:22, fontWeight:800 }}>{isEN?'Password set!':'ตั้งรหัสผ่านสำเร็จ'}</h2>
+              <p style={{ color:'var(--ink-500)', fontSize:16, marginBottom:20 }}>
                 {isEN?'You can now sign in with your student ID and new password.':'เข้าสู่ระบบด้วยรหัสนักศึกษาและรหัสผ่านใหม่ได้เลย'}
               </p>
               <button className="btn btn-primary btn-block" onClick={onBack}>{isEN?'Back to sign in':'กลับไปหน้าเข้าสู่ระบบ'}</button>
             </div>
           ) : (
             <>
-              <h2 style={{ margin:'0 0 6px', fontSize:20, fontWeight:800 }}>{isEN?'Set your password':'ตั้งรหัสผ่านครั้งแรก'}</h2>
-              <p style={{ color:'var(--ink-500)', fontSize:13.5, marginBottom:18 }}>
+              <h2 style={{ margin:'0 0 6px', fontSize:22, fontWeight:800 }}>{isEN?'Set your password':'ตั้งรหัสผ่านครั้งแรก'}</h2>
+              <p style={{ color:'var(--ink-500)', fontSize:15.5, marginBottom:18 }}>
                 {isEN?'Enter your student ID and full name exactly as registered.':'กรอกรหัสนักศึกษาและชื่อ-นามสกุลให้ตรงกับที่เจ้าหน้าที่บันทึกไว้'}
               </p>
               <div className="field" style={{ marginBottom:10 }}>
@@ -112,7 +112,7 @@ export function FirstSetup({ onBack, lang }) {
                   </button>
                 </div>
               </div>
-              {error && <div style={{ color:'var(--reject,#dc2626)', fontSize:13, marginBottom:12 }}>{error}</div>}
+              {error && <div style={{ color:'var(--reject,#dc2626)', fontSize:15, marginBottom:12 }}>{error}</div>}
               <button className="btn btn-primary btn-block" onClick={submit} disabled={loading} style={{ marginBottom:10 }}>
                 {loading ? (isEN?'Submitting…':'กำลังตั้งรหัสผ่าน…') : (isEN?'Set password':'ตั้งรหัสผ่าน')}
               </button>

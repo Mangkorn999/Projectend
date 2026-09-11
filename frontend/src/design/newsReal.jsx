@@ -38,7 +38,7 @@ function Lightbox({ url, onClose, tt }) {
   const onMove = e => { if (drag.current) setPos({ x: e.clientX - drag.current.x, y: e.clientY - drag.current.y }); };
   const onUp = () => { drag.current = null; };
 
-  const btn = { border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: 14, fontWeight: 700,
+  const btn = { border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: 16, fontWeight: 700,
     fontFamily: 'inherit', cursor: 'pointer', background: 'rgba(255,255,255,.92)', color: 'var(--ink-900)' };
 
   return (
@@ -108,13 +108,13 @@ export function StudentNewsReal({ go, lang }) {
             <div className="chip" style={{ alignSelf: 'flex-start', background: 'rgba(255,255,255,.14)', color: 'var(--gold-500)', fontWeight: 700 }}>
               <Icon name="clock" size={14} /> {round ? tt('news.openRoundBadge') : tt('news.noOpenRound')}
             </div>
-            {round && <div style={{ fontSize: 19, fontWeight: 800, marginTop: 4 }}>{tt('news.roundSlash', { attempt: round.attempt_number, year: round.academic_year })}</div>}
-            {round && <div style={{ fontSize: 13.5, opacity: .85 }}>{tt('news.openPeriod', { open: new Date(round.open_date).toLocaleDateString('th-TH'), close: new Date(round.close_date).toLocaleDateString('th-TH') })}</div>}
-            {!round && blocked && <div style={{ fontSize: 13.5, opacity: .85 }}>{blocked}</div>}
+            {round && <div style={{ fontSize: 21, fontWeight: 800, marginTop: 4 }}>{tt('news.roundSlash', { attempt: round.attempt_number, year: round.academic_year })}</div>}
+            {round && <div style={{ fontSize: 15.5, opacity: .85 }}>{tt('news.openPeriod', { open: new Date(round.open_date).toLocaleDateString('th-TH'), close: new Date(round.close_date).toLocaleDateString('th-TH') })}</div>}
+            {!round && blocked && <div style={{ fontSize: 15.5, opacity: .85 }}>{blocked}</div>}
           </div>
           <div style={{ padding: '22px 26px', flex: '1 1 280px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
             <div>
-              <div style={{ fontSize: 13.5, color: 'var(--ink-500)', fontWeight: 600 }}>{tt('news.yourStatusLabel')}</div>
+              <div style={{ fontSize: 15.5, color: 'var(--ink-500)', fontWeight: 600 }}>{tt('news.yourStatusLabel')}</div>
             </div>
             <button className="btn btn-gold btn-lg" disabled={!round} onClick={() => go('formIntro')}><Icon name="edit" size={18} /> {tt('news.startBtn')}</button>
           </div>
@@ -130,10 +130,10 @@ export function StudentNewsReal({ go, lang }) {
                 <Icon name="news" size={21} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ marginBottom: 5 }}><span className="chip" style={{ fontSize: 11.5, padding: '3px 9px' }}>{tt('news.roundSlash', { attempt: n.round.attempt_number, year: n.round.academic_year })}</span></div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink-900)' }}>{n.title}</div>
-                <div style={{ fontSize: 13.5, color: 'var(--ink-700)', marginTop: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.content}</div>
-                <div style={{ fontSize: 12.5, color: 'var(--ink-600)', marginTop: 9, display: 'flex', gap: 14 }}>
+                <div style={{ marginBottom: 5 }}><span className="chip" style={{ fontSize: 13.5, padding: '3px 9px' }}>{tt('news.roundSlash', { attempt: n.round.attempt_number, year: n.round.academic_year })}</span></div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--ink-900)' }}>{n.title}</div>
+                <div style={{ fontSize: 15.5, color: 'var(--ink-700)', marginTop: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.content}</div>
+                <div style={{ fontSize: 14.5, color: 'var(--ink-600)', marginTop: 9, display: 'flex', gap: 14 }}>
                   <span><Icon name="calendar" size={13} style={{ verticalAlign: -2, marginRight: 4 }} />{new Date(n.posted_at).toLocaleDateString('th-TH')}</span>
                   <span>{n.poster.first_name} {n.poster.last_name}</span>
                 </div>
@@ -156,8 +156,8 @@ export function StudentNewsReal({ go, lang }) {
             <NewsImage newsId={open.news_id} maxHeight={420} fit="contain" zoomable tt={tt} />
             <div className="hint" style={{ marginTop: 6, textAlign: 'center' }}>{tt('news.zoomHint')}</div>
           </div>}
-          <p style={{ margin: 0, fontSize: 15, lineHeight: 1.7, color: 'var(--ink-900)', whiteSpace: 'pre-wrap' }}>{open.content}</p>
-          <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--ink-100)', fontSize: 13, color: 'var(--ink-500)' }}>
+          <p style={{ margin: 0, fontSize: 17, lineHeight: 1.7, color: 'var(--ink-900)', whiteSpace: 'pre-wrap' }}>{open.content}</p>
+          <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--ink-100)', fontSize: 15, color: 'var(--ink-500)' }}>
             {tt('news.postedByFooter', { name: `${open.poster.first_name} ${open.poster.last_name}` })}
           </div>
         </>}
@@ -180,7 +180,7 @@ function ImagePreview({ file, onRemove, label }) {
         borderRadius: 12, border: '1px solid var(--ink-200)' }} />}
       <button type="button" className="btn btn-ghost btn-sm" onClick={onRemove}
         style={{ position: 'absolute', top: 8, right: 8, background: '#fff' }}><Icon name="x" size={14} /> {label}</button>
-      <div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 6 }}>
+      <div style={{ fontSize: 14, color: 'var(--ink-500)', marginTop: 6 }}>
         {file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB
       </div>
     </div>
@@ -269,8 +269,8 @@ export function ManageNewsReal({ toast, lang }) {
           <div key={n.news_id} className="card" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 15 }}>
             <div style={{ width: 42, height: 42, borderRadius: 11, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--blue-50)', color: 'var(--blue-600)' }}><Icon name="news" size={20} /></div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 15, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.title}</div>
-              <div style={{ fontSize: 12.5, color: 'var(--ink-500)', marginTop: 3 }}>{tt('news.roundSlash', { attempt: n.round.attempt_number, year: n.round.academic_year })} · {new Date(n.posted_at).toLocaleDateString('th-TH')} · {n.poster.first_name}</div>
+              <div style={{ fontSize: 17, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.title}</div>
+              <div style={{ fontSize: 14.5, color: 'var(--ink-500)', marginTop: 3 }}>{tt('news.roundSlash', { attempt: n.round.attempt_number, year: n.round.academic_year })} · {new Date(n.posted_at).toLocaleDateString('th-TH')} · {n.poster.first_name}</div>
             </div>
             {n.image_path && <div style={{ width: 64, flex: 'none' }}><NewsImage newsId={n.news_id} maxHeight={64} radius={9} /></div>}
             <button className="btn btn-ghost btn-sm" onClick={() => openModal(n)}><Icon name="edit" size={15} /> {tt('newsMgmt.editBtn')}</button>

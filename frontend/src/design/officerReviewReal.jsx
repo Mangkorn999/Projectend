@@ -136,7 +136,7 @@ export function OfficerReviewReal({ go, setSel, lang }) {
             background: tab === k ? 'var(--navy-700)' : '#fff', color: tab === k ? '#fff' : 'var(--ink-900)',
             border: '1px solid ' + (tab === k ? 'var(--navy-700)' : 'var(--ink-200)') }}>
             {k === 'NOT_STARTED' ? tt('officer.review.tabNotStarted') : tt('status.' + k)}
-            <span className="tnum" style={{ background: tab === k ? 'rgba(255,255,255,.2)' : 'var(--ink-100)', padding: '1px 8px', borderRadius: 999, fontSize: 12.5, marginLeft: 8 }}>{counts[k]}</span>
+            <span className="tnum" style={{ background: tab === k ? 'rgba(255,255,255,.2)' : 'var(--ink-100)', padding: '1px 8px', borderRadius: 999, fontSize: 14.5, marginLeft: 8 }}>{counts[k]}</span>
           </button>
         ))}
       </div>
@@ -154,10 +154,10 @@ export function OfficerReviewReal({ go, setSel, lang }) {
                     <tbody>{pageRows.map(s => (
                       <tr key={s.student_id}>
                         <td><div style={{ display: 'flex', alignItems: 'center', gap: 11 }}><Avatar name={s.user.first_name} size={34} />
-                          <div><div style={{ fontWeight: 600, fontSize: 14 }}>{s.user.first_name} {s.user.last_name}</div>
-                          <div className="mono" style={{ fontSize: 12, color: 'var(--ink-400)' }}>{s.student_id}</div></div></div></td>
-                        <td><span className="chip" style={{ fontSize: 12 }}>{s.room ? roomName(lang, s.room.room_name) : '-'}</span></td>
-                        <td className="tnum" style={{ fontSize: 13, color: 'var(--ink-700)' }}>{s.academic_year || '—'}</td>
+                          <div><div style={{ fontWeight: 600, fontSize: 16 }}>{s.user.first_name} {s.user.last_name}</div>
+                          <div className="mono" style={{ fontSize: 14, color: 'var(--ink-400)' }}>{s.student_id}</div></div></div></td>
+                        <td><span className="chip" style={{ fontSize: 14 }}>{s.room ? roomName(lang, s.room.room_name) : '-'}</span></td>
+                        <td className="tnum" style={{ fontSize: 15, color: 'var(--ink-700)' }}>{s.academic_year || '—'}</td>
                       </tr>
                     ))}</tbody>
                   </table>
@@ -166,12 +166,12 @@ export function OfficerReviewReal({ go, setSel, lang }) {
                     <tbody>{pageRows.map(s => (
                       <tr key={s.resultId} className="clickable" onClick={() => openDetail(s)}>
                         <td><div style={{ display: 'flex', alignItems: 'center', gap: 11 }}><Avatar name={s.firstName} size={34} />
-                          <div><div style={{ fontWeight: 600, fontSize: 14 }}>{s.firstName} {s.lastName}</div>
-                          <div className="mono" style={{ fontSize: 12, color: 'var(--ink-400)' }}>{s.sid}</div></div></div></td>
-                        <td><span className="chip" style={{ fontSize: 12 }}>{roomName(lang, s.room)}</span></td>
+                          <div><div style={{ fontWeight: 600, fontSize: 16 }}>{s.firstName} {s.lastName}</div>
+                          <div className="mono" style={{ fontSize: 14, color: 'var(--ink-400)' }}>{s.sid}</div></div></div></td>
+                        <td><span className="chip" style={{ fontSize: 14 }}>{roomName(lang, s.room)}</span></td>
                         <td className="tnum" style={{ fontWeight: 700, color: s.allPass ? 'var(--pass)' : 'var(--ink-800)' }}>{s.passedCount}/{s.subjectCount}</td>
-                        <td>{s.files.length ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--status-reject-fg)', fontSize: 13 }}><Icon name="pdf" size={15} /> {tt('officer.review.filesCount', { n: s.files.length })}</span> : <span style={{ color: 'var(--ink-400)' }}>—</span>}</td>
-                        <td style={{ color: 'var(--ink-500)', fontSize: 13 }}>{s.submittedAt}</td>
+                        <td>{s.files.length ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--status-reject-fg)', fontSize: 15 }}><Icon name="pdf" size={15} /> {tt('officer.review.filesCount', { n: s.files.length })}</span> : <span style={{ color: 'var(--ink-400)' }}>—</span>}</td>
+                        <td style={{ color: 'var(--ink-500)', fontSize: 15 }}>{s.submittedAt}</td>
                         <td style={{ textAlign: 'right' }}><button className="btn btn-subtle btn-sm" style={{ background: 'var(--navy-700)', color: '#fff' }}>{tt('officer.review.reviewBtn')} <Icon name="chevR" size={14} /></button></td>
                       </tr>
                     ))}</tbody>

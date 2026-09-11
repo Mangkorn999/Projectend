@@ -29,6 +29,7 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang }) {
   const [room, setRoom] = useState('ALL');
   const [year, setYear] = useState('ALL');
   const [eligible, setEligible] = useState('ALL');
+  const [examResult, setExamResult] = useState('ALL');
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState(() => new Set()); // student_id ที่ติ๊กไว้
   const [saving, setSaving] = useState(false);
@@ -79,13 +80,15 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang }) {
     if (room !== 'ALL' && s.room !== room) return false;
     if (year !== 'ALL' && String(s.year) !== year) return false;
     if (eligible !== 'ALL' && s.eligible !== (eligible === 'YES')) return false;
+    if (examResult === 'PASS' && !(s.allPass && s.status === 'CONFIRMED')) return false;
+    if (examResult === 'FAIL' && !(s.subjectCount > 0 && s.passedCount === 0 && s.status === 'CONFIRMED')) return false;
     if (q && !(`${s.firstName}${s.lastName}${s.sid}`.includes(q))) return false;
     return true;
   });
   const pageRows = filtered.slice(page * per, (page + 1) * per);
   const pages = Math.ceil(filtered.length / per);
 
-  useEffect(() => setPage(0), [q, status, room, year, eligible]);
+  useEffect(() => setPage(0), [q, status, room, year, eligible, examResult]);
 
   // ปีการศึกษา (พ.ศ.) ของนักศึกษาที่มีจริงในระบบ เรียงใหม่→เก่า
   const years = [...new Set(students.map(s => s.year).filter(Boolean))].sort((a, b) => b - a);
@@ -182,6 +185,11 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang }) {
           <option value="ALL">{tt('officer.students.allStatus')}</option><option value="SUBMITTED">{tt('status.SUBMITTED')}</option>
           <option value="CONFIRMED">{tt('status.CONFIRMED')}</option><option value="REJECTED">{tt('status.REJECTED')}</option><option value="DRAFT">{tt('status.DRAFT')}</option>
         </select>
+        <select className="select" style={{ width: 'auto', minWidth: 150 }} value={examResult} onChange={e => setExamResult(e.target.value)}>
+          <option value="ALL">{tt('officer.students.allExamResult')}</option>
+          <option value="PASS">{tt('officer.students.examResultPass')}</option>
+          <option value="FAIL">{tt('officer.students.examResultFail')}</option>
+        </select>
         <select className="select" style={{ width: 'auto', minWidth: 120 }} value={room} onChange={e => setRoom(e.target.value)}>
           <option value="ALL">{tt('officer.students.allRoom')}</option>{rooms.map(r => <option key={r} value={r}>{roomName(lang, r)}</option>)}
         </select>
@@ -199,7 +207,7 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang }) {
       {!readonly && selected.size > 0 && (
         <div className="card" style={{ padding: '12px 18px', marginBottom: 18, display: 'flex', alignItems: 'center',
           gap: 12, flexWrap: 'wrap', borderColor: 'var(--navy-600)' }}>
-          <span style={{ fontSize: 14, fontWeight: 600 }}>{tt('officer.students.selectedCount', { n: selected.size })}</span>
+          <span style={{ fontSize: 16, fontWeight: 600 }}>{tt('officer.students.selectedCount', { n: selected.size })}</span>
           <button className="btn btn-ghost btn-sm" onClick={() => setSelected(new Set())} disabled={saving}>{tt('officer.students.clearSelection')}</button>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
             <button className="btn btn-ghost btn-sm" onClick={() => setEligibility(false)} disabled={saving}>
@@ -235,16 +243,16 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang }) {
                       style={{ width: 16, height: 16, cursor: 'pointer' }} />
                   </td>}
                   <td><div style={{ display: 'flex', alignItems: 'center', gap: 11 }}><Avatar name={s.firstName} size={34} />
-                    <div><div style={{ fontWeight: 600, fontSize: 14 }}>{s.firstName} {s.lastName}</div>
-                    <div className="mono" style={{ fontSize: 12, color: 'var(--ink-400)' }}>{s.sid}</div></div></div></td>
-                  <td><span className="chip" style={{ fontSize: 12 }}>{roomName(lang, s.room)}</span></td>
-                  <td className="tnum" style={{ fontSize: 13, color: 'var(--ink-700)' }}>{s.year || '—'}</td>
+                    <div><div style={{ fontWeight: 600, fontSize: 16 }}>{s.firstName} {s.lastName}</div>
+                    <div className="mono" style={{ fontSize: 14, color: 'var(--ink-400)' }}>{s.sid}</div></div></div></td>
+                  <td><span className="chip" style={{ fontSize: 14 }}>{roomName(lang, s.room)}</span></td>
+                  <td className="tnum" style={{ fontSize: 15, color: 'var(--ink-700)' }}>{s.year || '—'}</td>
                   <td><span className={'badge ' + (s.eligible ? 'ok' : 'draft')}><span className="dot"></span>
                     {s.eligible ? tt('officer.students.eligibleYes') : tt('officer.students.eligibleNo')}</span></td>
                   <td>{s.status === 'DRAFT' ? <span style={{ color: 'var(--ink-400)' }}>—</span> :
                     <span className="tnum" style={{ fontWeight: 700, color: s.allPass ? 'var(--pass)' : 'var(--ink-800)' }}>{s.passedCount}/{s.subjectCount}</span>}</td>
                   <td><StatusBadge status={s.status} lang={lang} /></td>
-                  <td style={{ color: 'var(--ink-500)', fontSize: 13 }}>{s.submittedAt || '—'}</td>
+                  <td style={{ color: 'var(--ink-500)', fontSize: 15 }}>{s.submittedAt || '—'}</td>
                   {!readonly && <td onClick={e => e.stopPropagation()} style={{ whiteSpace: 'nowrap' }}>
                     <button disabled={saving} onClick={() => setResetting(s)} title={tt('usersMgmt.resetHint')}
                       className="btn btn-ghost btn-sm" style={{ marginRight: 6 }}>
@@ -275,7 +283,7 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang }) {
           <button className="btn btn-danger" disabled={saving} onClick={confirmDelete}>
             {saving ? tt('officer.students.deleting') : tt('officer.students.deleteBtn')}</button></>}>
         {deleting && (
-          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: 'var(--ink-700)' }}>
+          <p style={{ margin: 0, fontSize: 16, lineHeight: 1.6, color: 'var(--ink-700)' }}>
             {tt('officer.students.deleteBody', { name: `${deleting.firstName} ${deleting.lastName}`, sid: deleting.sid })}
           </p>
         )}
@@ -285,7 +293,7 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang }) {
         footer={<><button className="btn btn-ghost" onClick={() => setResetting(null)}>{tt('officer.students.cancelBtn')}</button>
           <button className="btn btn-primary" disabled={saving} onClick={confirmReset}>{tt('usersMgmt.resetBtn')}</button></>}>
         {resetting && (
-          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: 'var(--ink-700)' }}>{tt('usersMgmt.resetHint')}</p>
+          <p style={{ margin: 0, fontSize: 16, lineHeight: 1.6, color: 'var(--ink-700)' }}>{tt('usersMgmt.resetHint')}</p>
         )}
       </Modal>
     </div>

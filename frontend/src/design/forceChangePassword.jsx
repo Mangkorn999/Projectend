@@ -50,8 +50,8 @@ export function ForceChangePassword({ onDone }) {
               <Icon name="key" size={22} />
             </div>
             <div>
-              <h2 style={{ margin:0, fontSize:19, fontWeight:800, color:'var(--ink-900)' }}>ต้องเปลี่ยนรหัสผ่านก่อนใช้งาน</h2>
-              <p style={{ margin:'2px 0 0', color:'var(--ink-500)', fontSize:13 }}>ใช้รหัสผ่านชั่วคราวที่เจ้าหน้าที่ตั้งให้อยู่</p>
+              <h2 style={{ margin:0, fontSize:21, fontWeight:800, color:'var(--ink-900)' }}>ต้องเปลี่ยนรหัสผ่านก่อนใช้งาน</h2>
+              <p style={{ margin:'2px 0 0', color:'var(--ink-500)', fontSize:15 }}>ใช้รหัสผ่านชั่วคราวที่เจ้าหน้าที่ตั้งให้อยู่</p>
             </div>
           </div>
 
@@ -68,7 +68,7 @@ export function ForceChangePassword({ onDone }) {
             <input className="input" type="password" value={confirm} onChange={e=>setConfirm(e.target.value)} />
           </div>
           {error && <div style={{ color:'var(--status-reject-fg)', background:'var(--status-reject-bg)',
-            borderRadius:9, padding:'9px 12px', fontSize:13, marginBottom:14 }}>{error}</div>}
+            borderRadius:9, padding:'9px 12px', fontSize:15, marginBottom:14 }}>{error}</div>}
           <button className="btn btn-primary btn-lg btn-block" onClick={submit} disabled={loading}>
             {loading ? 'กำลังเปลี่ยนรหัสผ่าน…' : 'เปลี่ยนรหัสผ่าน'}
           </button>

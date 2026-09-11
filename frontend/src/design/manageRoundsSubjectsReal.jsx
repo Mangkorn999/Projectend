@@ -131,9 +131,9 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
           : <button className="btn btn-primary" onClick={() => setSubjectModal({})}><Icon name="plus" size={17} /> {tt('roundsMgmt.addSubjectBtn')}</button>} />
 
       <div style={{ display: 'inline-flex', background: 'var(--ink-100)', borderRadius: 9, padding: 3, gap: 3, marginBottom: 18 }}>
-        <button onClick={() => setTab('rounds')} style={{ border: 'none', padding: '8px 18px', borderRadius: 7, fontSize: 13.5, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
+        <button onClick={() => setTab('rounds')} style={{ border: 'none', padding: '8px 18px', borderRadius: 7, fontSize: 15.5, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
           background: tab === 'rounds' ? 'var(--navy-700)' : 'transparent', color: tab === 'rounds' ? '#fff' : 'var(--ink-500)' }}>{tt('roundsMgmt.tabRounds')}</button>
-        <button onClick={() => setTab('subjects')} style={{ border: 'none', padding: '8px 18px', borderRadius: 7, fontSize: 13.5, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
+        <button onClick={() => setTab('subjects')} style={{ border: 'none', padding: '8px 18px', borderRadius: 7, fontSize: 15.5, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
           background: tab === 'subjects' ? 'var(--navy-700)' : 'transparent', color: tab === 'subjects' ? '#fff' : 'var(--ink-500)' }}>{tt('roundsMgmt.tabSubjects')}</button>
       </div>
 
@@ -170,10 +170,10 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
                     onClick={() => setDeleteRound(r)}><Icon name="trash" size={16} /></button>
                 </div>
               </div>
-              <div style={{ fontSize: 18, fontWeight: 800 }}>{tt('roundsMgmt.roundLine', { attempt: r.attempt_number, year: r.academic_year })}</div>
-              <div style={{ fontSize: 12.5, color: 'var(--ink-500)', marginTop: 4 }}>{tt('roundsMgmt.targetLine', { year: r.academic_year })}</div>
+              <div style={{ fontSize: 20, fontWeight: 800 }}>{tt('roundsMgmt.roundLine', { attempt: r.attempt_number, year: r.academic_year })}</div>
+              <div style={{ fontSize: 14.5, color: 'var(--ink-500)', marginTop: 4 }}>{tt('roundsMgmt.targetLine', { year: r.academic_year })}</div>
               <div className="hr" style={{ margin: '14px 0' }}></div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 15 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--ink-500)' }}>{tt('roundsMgmt.openDateLabel')}</span><b>{showThaiDateTime(r.open_date)}</b></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--ink-500)' }}>{tt('roundsMgmt.closeDateLabel')}</span><b>{showThaiDateTime(r.close_date)}</b></div>
               </div>
@@ -190,7 +190,7 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
             <thead><tr><th style={{ width: 80 }}>{tt('roundsMgmt.colOrder')}</th><th style={{ width: 120 }}>{tt('roundsMgmt.colCode')}</th><th>{tt('roundsMgmt.colName')}</th><th></th></tr></thead>
             <tbody>{subs.map((s, i) => (
               <tr key={s.subject_id}><td className="tnum" style={{ color: 'var(--ink-500)' }}>{i + 1}</td>
-                <td><span className="chip mono" style={{ fontSize: 12.5 }}>{s.subject_code}</span></td>
+                <td><span className="chip mono" style={{ fontSize: 14.5 }}>{s.subject_code}</span></td>
                 <td style={{ fontWeight: 500 }}>{s.subject_name}</td>
                 <td style={{ textAlign: 'right' }}>
                   <button className="btn btn-ghost btn-sm" style={{ padding: 7, border: 'none' }} onClick={() => setSubjectModal(s)}><Icon name="edit" size={16} /></button>
@@ -205,9 +205,9 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
       <Modal open={!!deleteRound} onClose={() => setDeleteRound(null)} title={tt('roundsMgmt.deleteRoundTitle')} width={440} tone="danger"
         footer={<><button className="btn btn-ghost" onClick={() => setDeleteRound(null)}>{tt('roundsMgmt.cancelBtn')}</button>
           <button className="btn btn-danger" onClick={confirmDeleteRound}><Icon name="trash" size={16} /> {tt('roundsMgmt.deleteRoundBtn')}</button></>}>
-        <div style={{ fontSize: 14, lineHeight: 1.7 }}>
+        <div style={{ fontSize: 16, lineHeight: 1.7 }}>
           {tt('roundsMgmt.deleteRoundBodyPre')} <b>{tt('roundsMgmt.roundLine', { attempt: deleteRound?.attempt_number, year: deleteRound?.academic_year })}</b> {tt('roundsMgmt.deleteRoundBodyPost')}<br />
-          <span style={{ color: 'var(--ink-500)', fontSize: 13 }}>
+          <span style={{ color: 'var(--ink-500)', fontSize: 15 }}>
             {tt('roundsMgmt.deleteRoundNote')}
           </span>
         </div>
@@ -296,29 +296,29 @@ function RoundModal({ round, allSubjects, cohorts, onClose, onSave, tt }) {
         </div>
         <div className="field">
           <label>{tt('roundsMgmt.fieldSubjects')} <span style={{ fontWeight: 400, color: 'var(--ink-500)' }}>{tt('roundsMgmt.selectedCount', { n: subjectIds.length, total: allSubjects.length })}</span></label>
-          {subjectsLocked && <div style={{ fontSize: 12.5, color: 'var(--ink-500)', marginBottom: 8 }}>
+          {subjectsLocked && <div style={{ fontSize: 14.5, color: 'var(--ink-500)', marginBottom: 8 }}>
             {tt('roundsMgmt.lockedNote')}
           </div>}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 200, overflowY: 'auto',
             border: '1px solid var(--ink-200)', borderRadius: 9, padding: 8, opacity: subjectsLocked ? .55 : 1 }}>
             {allSubjects.map(s => (
               <label key={s.subject_id} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 6px',
-                fontSize: 13.5, cursor: subjectsLocked ? 'default' : 'pointer' }}>
+                fontSize: 15.5, cursor: subjectsLocked ? 'default' : 'pointer' }}>
                 <input type="checkbox" disabled={subjectsLocked}
                   checked={subjectIds.includes(s.subject_id)}
                   onChange={() => toggleSubject(s.subject_id)}
                   style={{ width: 16, height: 16, flex: 'none' }} />
-                <span className="mono" style={{ fontSize: 12, color: 'var(--ink-400)', width: 52, flex: 'none' }}>{s.subject_code}</span>
+                <span className="mono" style={{ fontSize: 14, color: 'var(--ink-400)', width: 52, flex: 'none' }}>{s.subject_code}</span>
                 <span>{s.subject_name}</span>
               </label>
             ))}
           </div>
         </div>
 
-        {!isNew && <label style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+        {!isNew && <label style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 16, fontWeight: 600, cursor: 'pointer' }}>
           <input type="checkbox" checked={status === 'open'} onChange={e => setStatus(e.target.checked ? 'open' : 'closed')} style={{ width: 17, height: 17 }} /> {tt('roundsMgmt.statusOpenLabel')}
         </label>}
-        {!isValid && <div style={{ fontSize: 12.5, color: 'var(--ink-500)' }}>{tt('roundsMgmt.fillAllNote')}</div>}
+        {!isValid && <div style={{ fontSize: 14.5, color: 'var(--ink-500)' }}>{tt('roundsMgmt.fillAllNote')}</div>}
       </div>
     </Modal>
   );

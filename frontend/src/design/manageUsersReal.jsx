@@ -73,8 +73,8 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
             <tr key={u.user_id}>
               <td><div style={{ display: 'flex', alignItems: 'center', gap: 11 }}><Avatar name={u.first_name} size={34} bg="var(--navy-600)" />
                 <span style={{ fontWeight: 600 }}>{u.first_name} {u.last_name}</span></div></td>
-              <td className="mono" style={{ fontSize: 13, color: 'var(--ink-500)' }}>{u.psu_passport_id}</td>
-              <td className="mono" style={{ fontSize: 13, color: 'var(--ink-500)' }}>{u.email}</td>
+              <td className="mono" style={{ fontSize: 15, color: 'var(--ink-500)' }}>{u.psu_passport_id}</td>
+              <td className="mono" style={{ fontSize: 15, color: 'var(--ink-500)' }}>{u.email}</td>
               <td><span className="chip" style={{ background: 'var(--blue-50)', color: 'var(--blue-600)', fontWeight: 600 }}><Icon name="chart" size={13} /> {ROLE_LABEL[u.role.role_name]}</span></td>
               {/* must_change_password = ยังไม่เคยตั้งรหัสเอง (บัญชีใหม่ หรือเพิ่งถูกรีเซ็ต) */}
               <td>
@@ -110,7 +110,7 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
             <span className="hint">{tt('usersMgmt.usernameHint')}</span></div>
           {/* ไม่มีช่องรหัสผ่านแล้ว — เจ้าตัวไปตั้งเองที่หน้า "ตั้งรหัสผ่านครั้งแรก" */}
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '11px 13px', borderRadius: 10,
-            background: 'var(--blue-50)', color: 'var(--navy-700)', fontSize: 12.5, lineHeight: 1.5 }}>
+            background: 'var(--blue-50)', color: 'var(--navy-700)', fontSize: 14.5, lineHeight: 1.5 }}>
             <Icon name="key" size={16} style={{ flex: 'none', marginTop: 1 }} />
             <span>{tt('usersMgmt.noPasswordNote')}</span>
           </div>
@@ -120,7 +120,7 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
           </div>
           <div className="field"><label>{tt('usersMgmt.fieldEmail')}</label><input className="input" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="name@psu.ac.th" /></div>
           <div className="field"><label>{tt('usersMgmt.fieldPhone')}</label><input className="input" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} /></div>
-          {error && <div style={{ color: 'var(--reject,#dc2626)', fontSize: 13 }}>{error}</div>}
+          {error && <div style={{ color: 'var(--reject,#dc2626)', fontSize: 15 }}>{error}</div>}
         </div>
       </Modal>
 
@@ -131,7 +131,7 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
           <button className={confirm?.action === 'reset' ? 'btn btn-primary' : 'btn btn-danger'} onClick={runConfirmed}>
             {confirm?.action === 'reset' ? tt('usersMgmt.resetBtn') : tt('usersMgmt.revokeBtn')}</button></>}>
         {confirm && (
-          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: 'var(--ink-700)' }}>
+          <p style={{ margin: 0, fontSize: 16, lineHeight: 1.6, color: 'var(--ink-700)' }}>
             {confirm.action === 'reset'
               ? tt('usersMgmt.confirmResetBody', { name: `${confirm.user.first_name} ${confirm.user.last_name}` })
               : tt('usersMgmt.confirmRevokeBody', { name: `${confirm.user.first_name} ${confirm.user.last_name}` })}

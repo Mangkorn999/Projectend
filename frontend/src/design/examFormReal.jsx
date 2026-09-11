@@ -102,7 +102,7 @@ export function ExamFormReal({ go, toast, lang }) {
       <PageHead title={tt('nav.student.form')} />
       <div className="card card-pad" style={{ maxWidth: 860, margin: '0 auto', minHeight: 420, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 60 }}>
         <Icon name="info" size={34} style={{ color: 'var(--navy-600)', marginBottom: 12 }} />
-        <p style={{ color: 'var(--ink-700)', fontSize: 14.5 }}>{blocked}</p>
+        <p style={{ color: 'var(--ink-700)', fontSize: 16.5 }}>{blocked}</p>
       </div>
     </div>
   );
@@ -117,11 +117,11 @@ export function ExamFormReal({ go, toast, lang }) {
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
             <Icon name="xCircle" size={19} style={{ color: 'var(--status-reject-dot)', flex: 'none', marginTop: 1 }} />
             <div>
-              <div style={{ fontWeight: 700, fontSize: 14.5, marginBottom: 3 }}>{tt('examform.rejectedTitle')}</div>
-              <p style={{ margin: 0, fontSize: 13.5, color: 'var(--ink-700)' }}>
+              <div style={{ fontWeight: 700, fontSize: 16.5, marginBottom: 3 }}>{tt('examform.rejectedTitle')}</div>
+              <p style={{ margin: 0, fontSize: 15.5, color: 'var(--ink-700)' }}>
                 {existing.remark || tt('examform.rejectedDefaultReason')}
               </p>
-              <p style={{ margin: '6px 0 0', fontSize: 12.5, color: 'var(--ink-500)' }}>
+              <p style={{ margin: '6px 0 0', fontSize: 14.5, color: 'var(--ink-500)' }}>
                 {tt('examform.rejectedResubmitNote')}
               </p>
             </div>
@@ -134,8 +134,8 @@ export function ExamFormReal({ go, toast, lang }) {
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
             <Icon name="clock" size={19} style={{ color: 'var(--status-wait-dot)', flex: 'none', marginTop: 1 }} />
             <div>
-              <div style={{ fontWeight: 700, fontSize: 14.5, marginBottom: 3 }}>{tt('examform.editableTitle')}</div>
-              <p style={{ margin: 0, fontSize: 13.5, color: 'var(--ink-700)' }}>{tt('examform.editableNote')}</p>
+              <div style={{ fontWeight: 700, fontSize: 16.5, marginBottom: 3 }}>{tt('examform.editableTitle')}</div>
+              <p style={{ margin: 0, fontSize: 15.5, color: 'var(--ink-700)' }}>{tt('examform.editableNote')}</p>
             </div>
           </div>
         </div>
@@ -145,8 +145,8 @@ export function ExamFormReal({ go, toast, lang }) {
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div className="card" style={{ overflow: 'hidden' }}>
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--ink-100)' }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>{tt('examform.subjectsTitle')}</h3>
-              <p style={{ margin: '3px 0 0', color: 'var(--ink-500)', fontSize: 13 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{tt('examform.subjectsTitle')}</h3>
+              <p style={{ margin: '3px 0 0', color: 'var(--ink-500)', fontSize: 15 }}>
                 {tt('examform.fillCountNote', { n: toAnswer.length })}
                 {passedBefore.length > 0 && tt('examform.passedBeforeNote', { n: passedBefore.length })}
               </p>
@@ -155,8 +155,8 @@ export function ExamFormReal({ go, toast, lang }) {
               <div key={s.subject_id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px',
                 borderBottom: i < subjects.length - 1 ? '1px solid var(--ink-100)' : 'none',
                 background: s.already_passed ? 'var(--ink-50, #fafafa)' : 'transparent' }}>
-                <span className="mono" style={{ fontSize: 12, color: 'var(--ink-400)', width: 60, flex: 'none' }}>{s.subject_code}</span>
-                <span style={{ flex: 1, fontSize: 14.5, fontWeight: 500, color: s.already_passed ? 'var(--ink-500)' : 'var(--ink-800)' }}>{subjectName(lang, s.subject_code, s.subject_name)}</span>
+                <span className="mono" style={{ fontSize: 14, color: 'var(--ink-400)', width: 60, flex: 'none' }}>{s.subject_code}</span>
+                <span style={{ flex: 1, fontSize: 16.5, fontWeight: 500, color: s.already_passed ? 'var(--ink-500)' : 'var(--ink-800)' }}>{subjectName(lang, s.subject_code, s.subject_name)}</span>
                 {s.already_passed ? (
                   <span className="badge ok" style={{ flex: 'none' }}><span className="dot" />{tt('examform.alreadyPassedChip')}</span>
                 ) : (
@@ -174,8 +174,8 @@ export function ExamFormReal({ go, toast, lang }) {
           </div>
 
           <div className="card card-pad">
-            <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800 }}>{tt('examform.attachTitle')}</h3>
-            <p style={{ margin: '0 0 16px', color: 'var(--ink-500)', fontSize: 13 }}>{allPass ? tt('upload.allPassNote') : tt('upload.partialNote')}</p>
+            <h3 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 800 }}>{tt('examform.attachTitle')}</h3>
+            <p style={{ margin: '0 0 16px', color: 'var(--ink-500)', fontSize: 15 }}>{allPass ? tt('upload.allPassNote') : tt('upload.partialNote')}</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <FileSlot label={tt('upload.examLabel')} file={files.EXAM} onChange={f => setFiles(x => ({ ...x, EXAM: f }))} tt={tt} />
             </div>
@@ -184,15 +184,15 @@ export function ExamFormReal({ go, toast, lang }) {
 
         <div style={{ width: 260, flex: 'none' }}>
           <div className="card card-pad" style={{ position: 'sticky', top: 84 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink-500)', marginBottom: 12 }}>{tt('progress.title')}</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink-500)', marginBottom: 12 }}>{tt('progress.title')}</div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
               <Donut size={130} thickness={16} segments={[
                 { value: toAnswer.filter(s => results[s.subject_id] === true).length, color: 'var(--pass)' },
                 { value: toAnswer.filter(s => results[s.subject_id] === false).length, color: 'var(--fail)' },
                 { value: toAnswer.length - filled, color: 'var(--ink-200)' },
-              ]} center={<><div className="tnum" style={{ fontSize: 26, fontWeight: 800 }}>{filled}/{toAnswer.length}</div><div style={{ fontSize: 11.5, color: 'var(--ink-500)' }}>{tt('progress.filled')}</div></>} />
+              ]} center={<><div className="tnum" style={{ fontSize: 28, fontWeight: 800 }}>{filled}/{toAnswer.length}</div><div style={{ fontSize: 13.5, color: 'var(--ink-500)' }}>{tt('progress.filled')}</div></>} />
             </div>
-            {error && <div style={{ color: 'var(--reject,#dc2626)', fontSize: 13, marginTop: 10 }}>{error}</div>}
+            {error && <div style={{ color: 'var(--reject,#dc2626)', fontSize: 15, marginTop: 10 }}>{error}</div>}
             <button className="btn btn-primary btn-block btn-lg" style={{ marginTop: 14 }}
               disabled={filled < toAnswer.length || submitting} onClick={submit}>
               {submitting ? tt('common.submitting')
@@ -212,8 +212,8 @@ function FileSlot({ label, file, onChange, tt }) {
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', border: '1px dashed var(--ink-300)', borderRadius: 11 }}>
       <Icon name="pdf" size={22} style={{ color: file ? 'var(--pass)' : 'var(--ink-400)', flex: 'none' }} />
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 13.5, fontWeight: 600 }}>{label}</div>
-        <div style={{ fontSize: 12, color: 'var(--ink-500)' }}>{file ? file.name : tt('common.noFileYet')}</div>
+        <div style={{ fontSize: 15.5, fontWeight: 600 }}>{label}</div>
+        <div style={{ fontSize: 14, color: 'var(--ink-500)' }}>{file ? file.name : tt('common.noFileYet')}</div>
       </div>
       <label className="btn btn-ghost btn-sm" style={{ cursor: 'pointer' }}>
         {tt('common.selectFile')}

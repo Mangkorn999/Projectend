@@ -55,21 +55,21 @@ export function StudentStatusReal({ go, lang }) {
           <div className="card" style={{ padding: '22px 24px', borderLeft: `4px solid ${status === 'REJECTED' ? 'var(--status-reject-dot)' : status === 'CONFIRMED' ? 'var(--status-ok-dot)' : 'var(--status-wait-dot)'}` }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
               <div>
-                <div style={{ fontSize: 13.5, color: 'var(--ink-500)', fontWeight: 600, marginBottom: 8 }}>{tt('statuspage.currentStatus')}</div>
+                <div style={{ fontSize: 15.5, color: 'var(--ink-500)', fontWeight: 600, marginBottom: 8 }}>{tt('statuspage.currentStatus')}</div>
                 <StatusBadge status={status} size="lg" lang={lang} />
-                <div style={{ fontSize: 13, color: 'var(--ink-500)', marginTop: 10 }}>{tt('statuspage.submittedNote', { date: submittedAt })}</div>
-                {status === 'REJECTED' && latest.remark && <div style={{ marginTop: 10, padding: '10px 13px', background: 'var(--status-reject-bg)', borderRadius: 10, fontSize: 13, color: 'var(--status-reject-fg)' }}>{latest.remark}</div>}
+                <div style={{ fontSize: 15, color: 'var(--ink-500)', marginTop: 10 }}>{tt('statuspage.submittedNote', { date: submittedAt })}</div>
+                {status === 'REJECTED' && latest.remark && <div style={{ marginTop: 10, padding: '10px 13px', background: 'var(--status-reject-bg)', borderRadius: 10, fontSize: 15, color: 'var(--status-reject-fg)' }}>{latest.remark}</div>}
               </div>
               <Donut size={104} thickness={13} segments={[{ value: passed, color: 'var(--pass)' }, { value: total - passed, color: 'var(--fail)' }]}
-                center={<><div className="tnum" style={{ fontSize: 21, fontWeight: 800 }}>{passed}/{total}</div><div style={{ fontSize: 10.5, color: 'var(--ink-500)' }}>{tt('progress.legendPass')}</div></>} />
+                center={<><div className="tnum" style={{ fontSize: 23, fontWeight: 800 }}>{passed}/{total}</div><div style={{ fontSize: 12.5, color: 'var(--ink-500)' }}>{tt('progress.legendPass')}</div></>} />
             </div>
           </div>
           <div className="card card-pad">
-            <h3 style={{ margin: '0 0 14px', fontSize: 16, fontWeight: 800 }}>{tt('statuspage.subjectSummaryTitle')}</h3>
+            <h3 style={{ margin: '0 0 14px', fontSize: 18, fontWeight: 800 }}>{tt('statuspage.subjectSummaryTitle')}</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 9 }}>
               {latest.subject_results.map(s => (
                 <div key={s.subject_result_id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '9px 13px', background: '#fff', border: '1px solid var(--ink-200)', borderRadius: 9 }}>
-                  <span style={{ fontSize: 13, color: 'var(--ink-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subjectName(lang, s.subject.subject_code, s.subject.subject_name)}</span>
+                  <span style={{ fontSize: 15, color: 'var(--ink-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subjectName(lang, s.subject.subject_code, s.subject.subject_name)}</span>
                   <PassBadge passed={s.is_passed} lang={lang} />
                 </div>
               ))}
@@ -78,7 +78,7 @@ export function StudentStatusReal({ go, lang }) {
         </div>
         <div style={{ width: 300, flex: 'none' }} className="exam-aside">
           <div className="card card-pad">
-            <h3 style={{ margin: '0 0 16px', fontSize: 15, fontWeight: 800 }}>{tt('statuspage.timelineTitle')}</h3>
+            <h3 style={{ margin: '0 0 16px', fontSize: 17, fontWeight: 800 }}>{tt('statuspage.timelineTitle')}</h3>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               {timeline.map((tl, i) => (
                 <div key={i} style={{ display: 'flex', gap: 12 }}>
@@ -90,8 +90,8 @@ export function StudentStatusReal({ go, lang }) {
                     {i < timeline.length - 1 && <div style={{ width: 2, flex: 1, minHeight: 30, background: tl.done ? 'var(--pass)' : 'var(--ink-200)' }}></div>}
                   </div>
                   <div style={{ paddingBottom: 18 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: tl.rejected ? 'var(--status-reject-fg)' : tl.active ? 'var(--status-wait-fg)' : 'var(--ink-800)' }}>{tl.label}</div>
-                    <div style={{ fontSize: 12.5, color: 'var(--ink-500)', marginTop: 2 }}>{tl.date}</div>
+                    <div style={{ fontSize: 16, fontWeight: 600, color: tl.rejected ? 'var(--status-reject-fg)' : tl.active ? 'var(--status-wait-fg)' : 'var(--ink-800)' }}>{tl.label}</div>
+                    <div style={{ fontSize: 14.5, color: 'var(--ink-500)', marginTop: 2 }}>{tl.date}</div>
                   </div>
                 </div>
               ))}
