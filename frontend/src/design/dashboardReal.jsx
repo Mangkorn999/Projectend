@@ -17,8 +17,14 @@ const ALL_ROUNDS = 'all';
 /* แท็บที่ตัวเลขเป็นระดับ "ทั้งรุ่น/รอบแรก" ไม่ได้ผูกกับรอบที่เลือก — มีให้กดเฉพาะตอน "รวมทั้งปี" */
 const YEAR_ONLY_TABS = ['firstBySubject', 'firstCount'];
 
-export function DashboardReal({ go, readonly, lang }) {
+export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreView, onRestoreConsumed }) {
   const tt = (key, vars) => t(lang, key, vars);
+  // คลิก "ผ่าน/ไม่ผ่าน" ในการ์ดอัตราผ่านรายวิชา — พาไปหน้าข้อมูลนักศึกษา กรองเฉพาะคนที่ผ่าน/ไม่ผ่านวิชานั้น (ข้อมูลจริง ไม่ใช่ mock)
+  // แนบ tab/mainTab/year ปัจจุบันไปด้วย — ใช้ตอนกดปุ่ม "กลับไปหน้าแดชบอด" ที่หน้านักศึกษา จะได้กลับมาที่ widget เดิม
+  const goToSubjectStudents = (subjectCode, passed, subjectFullName) => {
+    setStudentsFilter?.({ subjectCode, passed, subjectFullName, year, tab, mainTab });
+    go('students');
+  };
   const [rounds, setRounds] = useState([]);
   const [history, setHistory] = useState(null);
   // เอา state ของ alerts ออกแล้ว — AlertPanel ถูกคอมเมนต์ไว้ตั้งแต่รอบก่อน
@@ -29,7 +35,8 @@ export function DashboardReal({ go, readonly, lang }) {
   const [reportYears, setReportYears] = useState([]);
   const [tab, setTab] = useState(ALL_ROUNDS); // ALL_ROUNDS = รวมทั้งปี, ไม่งั้นเป็น round_id
   // แท็บบนสุด 3 อัน แทนที่การเรียง Donut/อัตราผ่านรายวิชา/สถิติเชิงรายงานต่อกันเป็นแถวยาวแบบเดิม
-  const [mainTab, setMainTab] = useState('status'); // 'status' | 'subjects' | 'firstBySubject' | 'firstCount' | 'reports'
+  // ค่าเริ่มต้นอ่านจาก restoreView ถ้ามี (กลับมาจากปุ่ม "กลับไปหน้าแดชบอด" ที่หน้านักศึกษา)
+  const [mainTab, setMainTab] = useState(() => restoreView?.mainTab || 'status'); // 'status' | 'subjects' | 'firstBySubject' | 'firstCount' | 'reports'
   // แท็บย่อยใน "สถิติเชิงรายงาน" — ไม่ขึ้นกับรอบที่เลือก อิงปีที่เลือกจาก yearPicker เท่านั้น
   const [reportTab, setReportTab] = useState('firstRate'); // 'firstRate' | 'firstCount' | 'subjectHistory' | 'fullPass'
   const [stats, setStats] = useState(null); // สถิติของรอบที่เลือก (ใช้เฉพาะตอนไม่ใช่ "รวมทั้งปี")
@@ -51,16 +58,19 @@ export function DashboardReal({ go, readonly, lang }) {
         setHistory(hist);
 
         // ปีตั้งต้น = ปีของรอบที่เปิดรับอยู่ ไม่มีก็ปีล่าสุดที่มีรอบ
+        // มาจากปุ่ม "กลับไปหน้าแดชบอด" ที่หน้านักศึกษา ใช้ปี/รอบที่ค้างไว้ตอนกดออกไปแทน
         const openRound = roundList.find(r => r.status === 'open');
         const newestYear = roundList.length
           ? Math.max(...roundList.map(r => r.academic_year))
           : null;
-        setYear(openRound ? openRound.academic_year : newestYear);
+        setYear(restoreView?.year ?? (openRound ? openRound.academic_year : newestYear));
         // ค่าเริ่มต้นโซนรายงาน = 3 ปีล่าสุดที่มีข้อมูลจริง (เหมือนเดิมก่อนมีติ๊กเลือก)
         setReportYears(hist.years.map(y => y.academic_year).sort((a, b) => b - a).slice(0, 3));
 
         // เจ้าหน้าที่เปิดมาเพื่อดูรอบที่กำลังเปิดรับก่อน ผู้บริหารดูภาพรวมทั้งปี
-        if (!readonly && openRound) setTab(String(openRound.round_id));
+        if (restoreView?.tab) setTab(restoreView.tab);
+        else if (!readonly && openRound) setTab(String(openRound.round_id));
+        if (restoreView) onRestoreConsumed?.();
 
         const round1ByYear = new Map();
         roundList.forEach(r => { if (r.attempt_number === 1) round1ByYear.set(r.academic_year, r.round_id); });
@@ -203,8 +213,8 @@ export function DashboardReal({ go, readonly, lang }) {
 
             {mainTab === 'subjects' && (
               tab === ALL_ROUNDS
-                ? <SubjectRateCard perSubject={yearSummary?.perSubject || []} lang={lang} tt={tt} title={tt('dashReal.subjectRateYearTitle')} />
-                : showingRound && <SubjectRateCard perSubject={stats.perSubject} subjectPassRate={stats.subjectPassRate} lang={lang} tt={tt} />
+                ? <SubjectRateCard perSubject={yearSummary?.perSubject || []} lang={lang} tt={tt} title={tt('dashReal.subjectRateYearTitle')} onSubjectClick={goToSubjectStudents} />
+                : showingRound && <SubjectRateCard perSubject={stats.perSubject} subjectPassRate={stats.subjectPassRate} lang={lang} tt={tt} onSubjectClick={goToSubjectStudents} />
             )}
 
             {/* 2 แท็บนี้มีให้กดเฉพาะตอน "รวมทั้งปี" (ดู items ของ MainTabs ข้างบน)
@@ -578,7 +588,7 @@ function YearRoundsView({ year, rounds, tt, statCardsOnly }) {
 }
 
 /* อัตราผ่านรายวิชา — ใช้ทั้งมุมมองรอบเดียวและรวมทั้งปี ต่างกันแค่ชุดข้อมูลที่ส่งเข้ามา */
-function SubjectRateCard({ perSubject, subjectPassRate, title, lang, tt }) {
+function SubjectRateCard({ perSubject, subjectPassRate, title, lang, tt, onSubjectClick }) {
   return (
     <div className="card card-pad" style={{ flex: '1.3 1 380px', minWidth: 0 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 16 }}>
@@ -600,8 +610,10 @@ function SubjectRateCard({ perSubject, subjectPassRate, title, lang, tt }) {
           );
           return (
             <BarRow key={sub.subject_id} label={label} value={sub.rate} max={100}
-              color="var(--pass)" track="var(--fail)"
-              right={`${sub.rate}%`} sub={tt('dashReal.passFailSub', { pass: sub.pass, fail: sub.fail })} />
+              color="var(--pass)" track="var(--fail)" right={`${sub.rate}%`}
+              sub={tt('dashReal.passFailSub', { pass: sub.pass, fail: sub.fail })}
+              onPassClick={onSubjectClick ? () => onSubjectClick(sub.subject_code, true, sub.subject_name) : undefined}
+              onFailClick={onSubjectClick ? () => onSubjectClick(sub.subject_code, false, sub.subject_name) : undefined} />
           );
         })}
       </div>

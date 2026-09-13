@@ -195,6 +195,10 @@ const main = async () => {
     check("  2 rows flagged carried_forward",
       submit2.json.data?.subject_results?.filter((s) => s.carried_forward).length, 2);
 
+    // per-subject stats now count only confirmed (approved) papers — approve
+    // round2's paper first so the 3 subjects sat this round have a confirmed sitter to count
+    await call("PATCH", `/api/exam-results/${submit2.json.data.result_id}/approve`, { token: oToken });
+
     // per-subject stats count only students who actually sat the subject,
     // so the 2 carried-forward subjects report null instead of 100%
     const stats = await call("GET", `/api/dashboard/stats?round_id=${r2}`, { token: oToken });

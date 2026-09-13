@@ -209,7 +209,7 @@ export function Donut({ segments, size=180, thickness=26, center, gap=2 }) {
 // track = สีพื้นหลังของราง = ส่วนที่ "ยังไม่ถึง" ค่านี้
 // อัตราผ่านส่งสีแดงมา ส่วนที่เหลือจะได้อ่านออกว่า "ไม่ผ่าน" — ไม่งั้น 0% จะเป็นรางเปล่า
 // หน้าตาเหมือนกรณี "ไม่มีข้อมูล" จนแยกไม่ออก
-export function BarRow({ label, value, max=100, color='var(--navy-600)', track, right, sub }) {
+export function BarRow({ label, value, max=100, color='var(--navy-600)', track, right, sub, onPassClick, onFailClick }) {
   const pct = value / max * 100;
   const failPct = 100 - pct;
   // เปิดหน้ามาแท่งค่อยๆ ไล่จาก 0 ไปค่าจริง — เขียวไล่จากซ้าย, แดง (track) ไล่จากขวา พร้อมกัน มาบรรจบกันตรงกลางพอดี
@@ -228,8 +228,12 @@ export function BarRow({ label, value, max=100, color='var(--navy-600)', track, 
         <span className="tnum" style={{ fontSize:15.5, fontWeight:700, color:'var(--ink-900)', flex:'none' }}>{right}</span>
       </div>
       <div className="pbar" style={{ height:9, position:'relative' }}>
-        {track && <i style={{ position:'absolute', right:0, top:0, height:'100%', width:fw+'%', background:track }}></i>}
-        <i style={{ position:'relative', width:w+'%', background:color }}></i>
+        {track && <i className={onFailClick ? 'pbar-seg-fail' : undefined} onClick={onFailClick}
+          style={{ position:'absolute', right:0, top:0, height:'100%', width:fw+'%',
+          background:track, cursor: onFailClick ? 'pointer' : 'default' }}></i>}
+        <i className={onPassClick ? 'pbar-seg-pass' : undefined} onClick={onPassClick}
+          style={{ position:'relative', width:w+'%', background:color,
+          cursor: onPassClick ? 'pointer' : 'default' }}></i>
       </div>
       {sub && <div style={{ fontSize:13.5, color:'var(--ink-400)' }}>{sub}</div>}
     </div>

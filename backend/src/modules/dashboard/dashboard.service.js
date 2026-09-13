@@ -19,6 +19,11 @@ const onlySent = (results) => results.filter((r) => r.student_status !== "draft"
 // ใช้กฎเดียวกับ findPassedSubjectIds ฝั่ง examResults จะได้ไม่ขัดกันเอง
 const notRejected = (results) => results.filter((r) => r.staff_status !== "rejected");
 
+// ยืนยันแล้วเท่านั้น (staff_status === approved) — ตัด pending (รอตรวจ) ออกด้วย
+// ใช้เฉพาะ "อัตราการผ่านรายวิชา" (buildPerSubject) ที่ต้องการเฉพาะใบที่เจ้าหน้าที่ตรวจสอบแล้วจริง
+// ต่างจาก notRejected ที่สถิติอื่นในไฟล์นี้ (fullyPassed, สัดส่วนสถานะ ฯลฯ) ยังใช้แบบเดิม
+const onlyConfirmed = (results) => results.filter((r) => r.staff_status === "approved");
+
 // นับว่าผลสอบแต่ละใบอยู่สถานะไหน
 const countByStatus = (results) => {
   const by = { draft: 0, submitted: 0, approved: 0, rejected: 0 };
@@ -249,7 +254,8 @@ export const buildStats = async (roundId) => {
   const sent = onlySent(results);
   const submitted = sent.length;
   const counted = notRejected(sent);
-  const perSubject = buildPerSubject(counted, subjects);
+  // อัตราการผ่านรายวิชา นับเฉพาะใบที่ยืนยันแล้ว — รอตรวจสอบยังไม่นับ
+  const perSubject = buildPerSubject(onlyConfirmed(counted), subjects);
   // ใช้ counted ไม่ใช่ sent — ใบที่เจ้าหน้าที่ตีกลับเชื่อไม่ได้ ต้องไม่นับเป็น "ผ่านครบ"
   // (กฎเดียวกับ buildPerSubject/buildFirstAttemptBySubject ในไฟล์นี้ เดิมตรงนี้หลุดไปใช้ sent)
   const fullyPassed = countFullyPassed(counted, subjectIds);
@@ -496,7 +502,8 @@ const buildYearSummary = async (year, allSubjects) => {
     rounds: roundSummaries,
     byRoom, // ผ่านครบ/ส่งแล้วแยกตามห้องเรียน (ปกติ/ภาษาอังกฤษ) — ใช้ตารางเทียบย้อนหลัง
     // อัตราผ่านรายวิชา รวมทุกรอบของปีนี้ — ใช้กราฟเทียบอัตราผ่านรายวิชาย้อนหลัง
-    perSubject: buildPerSubject(yearCounted, allSubjects),
+    // นับเฉพาะใบที่ยืนยันแล้ว — รอตรวจสอบยังไม่นับ (เหมือนกฎที่ระดับรอบ)
+    perSubject: buildPerSubject(onlyConfirmed(yearCounted), allSubjects),
   };
 };
 

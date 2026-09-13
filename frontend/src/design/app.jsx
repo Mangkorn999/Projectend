@@ -141,6 +141,10 @@ export function App() {
   // อาจมีการเขียน URL ทับไปแล้ว อ่านจาก window.location ตอนนั้นจะได้ค่าผิด
   const [bootPath] = useState(() => window.location.pathname);
   const [sel, setSel] = useState(null);
+  // กรองที่ส่งมาจาก Dashboard ตอนคลิกผ่าน/ไม่ผ่านรายวิชา — OfficerStudentsReal อ่านครั้งเดียวตอนเปิดหน้าแล้วเคลียร์ทิ้ง
+  const [studentsFilter, setStudentsFilter] = useState(null);
+  // widget เดิม (ปี/รอบ/แท็บ) ที่ค้างไว้ตอนกด "กลับไปหน้าแดชบอด" จากหน้านักศึกษา — DashboardReal อ่านครั้งเดียวแล้วเคลียร์ทิ้งเหมือนกัน
+  const [dashboardRestore, setDashboardRestore] = useState(null);
   const [sbOpen, setSbOpen] = useState(false);
   const [toast, showToast] = useToast();
   const [formStep, setFormStep] = useState(0);
@@ -329,9 +333,12 @@ export function App() {
       if(page==='history') return <StudentHistoryReal go={go} lang={lang} />;
     }
     if(role==='officer'){
-      if(page==='dashboard') return <DashboardReal go={go} lang={lang} />;
+      if(page==='dashboard') return <DashboardReal go={go} lang={lang} setStudentsFilter={setStudentsFilter}
+        restoreView={dashboardRestore} onRestoreConsumed={() => setDashboardRestore(null)} />;
       if(page==='review') return <OfficerReviewReal go={go} setSel={setSel} lang={lang} />;
-      if(page==='students') return <OfficerStudentsReal go={go} setSel={setSel} toast={showToast} lang={lang} />;
+      if(page==='students') return <OfficerStudentsReal go={go} setSel={setSel} toast={showToast} lang={lang}
+        initialFilter={studentsFilter} onInitialFilterConsumed={() => setStudentsFilter(null)}
+        onBackToDashboard={(view) => { setDashboardRestore(view); go('dashboard'); }} />;
       if(page==='import') return <StudentImport toast={showToast} lang={lang} />;
       if(page==='detail') return <StudentDetailReal student={sel} go={go} toast={showToast} lang={lang} />;
       if(page==='rounds') return <ManageRoundsSubjectsReal toast={showToast} lang={lang} />;
