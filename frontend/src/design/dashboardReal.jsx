@@ -22,7 +22,12 @@ export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreVi
   // คลิก "ผ่าน/ไม่ผ่าน" ในการ์ดอัตราผ่านรายวิชา — พาไปหน้าข้อมูลนักศึกษา กรองเฉพาะคนที่ผ่าน/ไม่ผ่านวิชานั้น (ข้อมูลจริง ไม่ใช่ mock)
   // แนบ tab/mainTab/year ปัจจุบันไปด้วย — ใช้ตอนกดปุ่ม "กลับไปหน้าแดชบอด" ที่หน้านักศึกษา จะได้กลับมาที่ widget เดิม
   const goToSubjectStudents = (subjectCode, passed, subjectFullName) => {
-    setStudentsFilter?.({ subjectCode, passed, subjectFullName, year, tab, mainTab });
+    setStudentsFilter?.({ kind: 'subject', subjectCode, passed, subjectFullName, year, tab, mainTab });
+    go('students');
+  };
+  // ปุ่ม "ดูรายชื่อ" ในการ์ดร้อยละผ่านครั้งแรกย้อนหลัง — targetYear เป็นปีของการ์ดที่กด ไม่ใช่ year (ตัวเลือกบนสุด) เพราะการ์ดนี้อยู่นอกโซนที่ผูกกับ year
+  const goToFirstAttemptStudents = (targetYear, passed) => {
+    setStudentsFilter?.({ kind: 'firstAttempt', year: targetYear, passed, tab, mainTab });
     go('students');
   };
   const [rounds, setRounds] = useState([]);
@@ -235,7 +240,7 @@ export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreVi
                   { key: 'fullPass', label: tt('dashReal.colFullPass') },
                 ]} />
                 <div key={reportTab} className="blur-in" style={{ marginTop: 14 }}>
-                  {reportTab === 'firstRate' && <FirstAttemptPassRate history={reportHistory} tt={tt} wide yearPicker={reportYearPicker} />}
+                  {reportTab === 'firstRate' && <FirstAttemptPassRate history={reportHistory} tt={tt} wide yearPicker={reportYearPicker} onViewStudents={goToFirstAttemptStudents} />}
                   {reportTab === 'subjectHistory' && <SubjectHistoryChart history={reportHistory} firstRoundSubjects={firstRoundSubjects} tt={tt} yearPicker={reportYearPicker} />}
                   {reportTab === 'fullPass' && <YearCompare history={reportHistory} lang={lang} tt={tt} yearPicker={reportYearPicker} />}
                 </div>
@@ -1011,7 +1016,7 @@ function YearCompare({ history, lang, tt, yearPicker }) {
 /* ร้อยละคนที่สอบผ่านครบทุกวิชาตั้งแต่ "รอบแรก" (attempt_number=1) ของแต่ละปี เทียบกับจำนวนนักศึกษาทั้งรุ่น
    แสดงเก่าไปใหม่ (ซ้ายไปขวา) พร้อมส่วนต่างเทียบปีก่อนหน้า
    การ์ดจริงแคบ (อยู่คอลัมน์เดียวกับ donut/ผ่านครบทุกวิชา) เลยเรียงเป็นแถวแนวตั้ง — กดขยายดูแบบเทียบข้างกันครบทุกปีในโมดัลแทน */
-function FirstAttemptPassRate({ history, tt, wide, yearPicker }) {
+function FirstAttemptPassRate({ history, tt, wide, yearPicker, onViewStudents }) {
   const [expanded, setExpanded] = useState(false);
   // คลิกการ์ดปีไหน เปิด modal แยกเป็นรายรอบของปีนั้น — เก็บทั้ง object เลยไม่ต้องหาซ้ำ
   const [roundDetailYear, setRoundDetailYear] = useState(null);
@@ -1030,7 +1035,10 @@ function FirstAttemptPassRate({ history, tt, wide, yearPicker }) {
     return (
       // การ์ดคลิกได้ — กดแล้วเปิด modal แยกเป็นทุกรอบของปีนี้ (y.rounds มาจาก /dashboard/history อยู่แล้ว ไม่ต้องยิงเพิ่ม)
       // กว้างเต็มช่องของ grid เสมอ — เดิมล็อกไว้ 220px พอเลือกปีเดียวเลยเหลือที่ว่างเกือบทั้งการ์ด
-      <button type="button" onClick={() => setRoundDetailYear(y)}
+      // เดิมเป็น <button> ทั้งใบ — เปลี่ยนเป็น div เพราะปุ่ม "ดูรายชื่อ" ด้านล่างต้องอยู่ข้างในด้วย
+      // (button ซ้อน button ผิด HTML spec เบราว์เซอร์จะ auto-close ปุ่มในให้เอง คลิกไม่ทำงาน)
+      <div role="button" tabIndex={0} onClick={() => setRoundDetailYear(y)}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setRoundDetailYear(y); }}
         style={{ textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit', background: '#fff',
           border: '1px solid var(--ink-200)', borderRadius: 12, transition: '.15s',
           padding: 16, width: '100%' }}
@@ -1049,7 +1057,22 @@ function FirstAttemptPassRate({ history, tt, wide, yearPicker }) {
         <div style={{ fontSize: 14, color: diff == null ? 'var(--ink-400)' : diff >= 0 ? 'var(--status-ok-fg)' : 'var(--status-reject-fg)', marginTop: 6 }}>
           {tt('dashReal.firstAttemptDiffLabel')} {diff == null ? '—' : `${diff >= 0 ? '▲' : '▼'} ${Math.abs(diff).toFixed(2)}`}
         </div>
-      </button>
+        {/* แยกจากคลิกเปิด modal ข้างบน — ต้องมี onViewStudents (officer เท่านั้น ผู้บริหารดูหน้านักศึกษาไม่ได้) */}
+        {onViewStudents && (
+          <div style={{ display: 'flex', gap: 14, marginTop: 8, paddingTop: 8, borderTop: '1px dashed var(--ink-100)' }}>
+            <button type="button" onClick={e => { e.stopPropagation(); onViewStudents(y.academic_year, true); }}
+              style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', display: 'flex',
+                alignItems: 'center', gap: 4, fontSize: 14, fontWeight: 700, color: 'var(--status-ok-fg)' }}>
+              <Icon name="eye" size={13} /> {tt('dashReal.viewPassedStudentsBtn')}
+            </button>
+            <button type="button" onClick={e => { e.stopPropagation(); onViewStudents(y.academic_year, false); }}
+              style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', display: 'flex',
+                alignItems: 'center', gap: 4, fontSize: 14, fontWeight: 700, color: 'var(--status-reject-fg)' }}>
+              <Icon name="eye" size={13} /> {tt('dashReal.viewFailedStudentsBtn')}
+            </button>
+          </div>
+        )}
+      </div>
     );
   };
 
