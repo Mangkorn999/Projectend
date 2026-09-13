@@ -54,11 +54,13 @@ const NAV = (lang, pendingCount)=>({
     { k:'newsmgmt', label:translate(lang,'nav.officer.newsmgmt'), icon:'news' },
     { section:translate(lang,'nav.section.reports') },
     { k:'reports', label:translate(lang,'nav.officer.reports'), icon:'report' },
+    { k:'manual', label:translate(lang,'nav.officer.manual'), icon:'book' },
   ],
   // ผู้บริหารเห็นได้แค่ภาพรวม — backend ตัดสิทธิ์ /students กับ /exam-results ไปแล้ว (403)
   executive: [
     { k:'dashboard', label:translate(lang,'nav.executive.dashboard'), icon:'grid' },
     { k:'reports', label:translate(lang,'nav.executive.reports'), icon:'report' },
+    { k:'manual', label:translate(lang,'nav.executive.manual'), icon:'book' },
   ],
 });
 const DEFAULT_PAGE = { student:'news', officer:'dashboard', executive:'dashboard' };
@@ -91,6 +93,7 @@ const PAGE_PATH = {
   usermgmt: '/users',
   newsmgmt: '/news-manage',
   reports: '/reports',
+  manual: '/manual',
 };
 const PATH_PAGE = Object.fromEntries(
   Object.entries(PAGE_PATH).map(([page, path]) => [path, page]),
@@ -345,11 +348,14 @@ export function App() {
       if(page==='usermgmt') return <ManageUsersReal toast={showToast} currentUserId={currentUser?.id} lang={lang} />;
       if(page==='newsmgmt') return <ManageNewsReal toast={showToast} lang={lang} />;
       if(page==='reports') return <ReportsReal toast={showToast} lang={lang} />;
+      // ปุ่มก่อน เนื้อหาคู่มือทำทีหลัง
+      if(page==='manual') return <Empty icon="book" title={translate(lang,'nav.officer.manual')} sub={translate(lang,'common.comingSoon')} />;
     }
     // ไม่มีหน้า students/detail ให้ผู้บริหารแล้ว — endpoint รายบุคคลเป็นของ officer เท่านั้น
     if(role==='executive'){
       if(page==='dashboard') return <DashboardReal go={go} readonly lang={lang} />;
       if(page==='reports') return <ReportsReal toast={showToast} readonly lang={lang} />;
+      if(page==='manual') return <Empty icon="book" title={translate(lang,'nav.executive.manual')} sub={translate(lang,'common.comingSoon')} />;
     }
     return <Empty title="ไม่พบหน้าที่ต้องการ" />;
   };
