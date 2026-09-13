@@ -22,6 +22,7 @@ import { ManageRoundsSubjectsReal } from './manageRoundsSubjectsReal.jsx';
 import { ManageUsersReal } from './manageUsersReal.jsx';
 import { StudentNewsReal, ManageNewsReal } from './newsReal.jsx';
 import { ReportsReal } from './reportsReal.jsx';
+import { OfficerManual } from './userManual.jsx';
 
 const TWEAK_DEFAULTS = {
   examFormStyle: 'toggle',
@@ -348,8 +349,7 @@ export function App() {
       if(page==='usermgmt') return <ManageUsersReal toast={showToast} currentUserId={currentUser?.id} lang={lang} />;
       if(page==='newsmgmt') return <ManageNewsReal toast={showToast} lang={lang} />;
       if(page==='reports') return <ReportsReal toast={showToast} lang={lang} />;
-      // ปุ่มก่อน เนื้อหาคู่มือทำทีหลัง
-      if(page==='manual') return <Empty icon="book" title={translate(lang,'nav.officer.manual')} sub={translate(lang,'common.comingSoon')} />;
+      if(page==='manual') return <OfficerManual />;
     }
     // ไม่มีหน้า students/detail ให้ผู้บริหารแล้ว — endpoint รายบุคคลเป็นของ officer เท่านั้น
     if(role==='executive'){
