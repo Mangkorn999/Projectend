@@ -597,7 +597,11 @@ export function NotifToastStack({ items=[], onGo, onDismiss, lang='TH' }) {
     <div style={{ position:'fixed', top:'calc(var(--header-h) + 10px)', right:16, zIndex:250,
       display:'flex', flexDirection:'column', gap:9, width:320, maxWidth:'92vw' }}>
       {items.map(n=>(
-        <button key={n._toastId} className="fade-up" onClick={()=>{ onDismiss?.(n._toastId); onGo?.(n.page); }}
+        // div (ไม่ใช่ button) เพราะข้างในมีปุ่ม "ปิด" ซ้อนอยู่ — button ในปุ่มไม่ใช่ HTML ที่ถูกต้อง (browser จะ auto-correct
+        // แล้ว DOM จริงเพี้ยนไปจาก JSX ที่เขียน ปุ่มปิดหลุดออกไปอยู่นอก element แม่ ทำให้ click/layout ผิดที่ผิดทาง)
+        <div key={n._toastId} className="fade-up" role="button" tabIndex={0}
+          onClick={()=>{ onDismiss?.(n._toastId); onGo?.(n.page); }}
+          onKeyDown={e=>{ if(e.key==='Enter'||e.key===' '){ onDismiss?.(n._toastId); onGo?.(n.page); } }}
           style={{ display:'flex', alignItems:'flex-start', gap:11, padding:'12px 13px', width:'100%',
             border:'1px solid var(--navy-800)', borderRadius:12, textAlign:'left', cursor:'pointer', fontFamily:'inherit',
             background:'var(--navy-800)', boxShadow:'0 0 10px 2px rgba(232,114,15,.5), var(--sh-lg)' }}>
@@ -611,7 +615,7 @@ export function NotifToastStack({ items=[], onGo, onDismiss, lang='TH' }) {
             style={{ border:'none', background:'transparent', padding:2, flex:'none', cursor:'pointer', color:'rgba(255,255,255,.85)' }}>
             <Icon name="x" size={14} />
           </button>
-        </button>
+        </div>
       ))}
     </div>
   );
