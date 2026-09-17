@@ -7,7 +7,6 @@ import { useState } from 'react';
 import { Icon } from './data.jsx';
 import { Logo } from './logos.jsx';
 import { apiFetch, setSession, ApiError } from './api.js';
-import { FirstSetup } from './firstSetup.jsx';
 
 /* English strings suffixed with _EN for easy grep/review; Thai stays inline as the default */
 const facultyName_EN = 'Faculty of Nursing';
@@ -31,7 +30,6 @@ const REMEMBER_KEY = 'nurse_remember_username';
 
 // เข้าใช้งานเว็บเดียวกันสำหรับทุก role — role มาจาก JWT/DB เสมอ ไม่มี login mode แยกอีกแล้ว
 export function Login({ onLogin }) {
-  const [showFirstSetup, setShowFirstSetup] = useState(false);
   const [loading, setLoading] = useState(false);
   const [lang, setLang] = useState('TH'); // 'TH' | 'EN'
   const isEN = lang==='EN';
@@ -55,17 +53,15 @@ export function Login({ onLogin }) {
       if (rememberMe) localStorage.setItem(REMEMBER_KEY, username);
       else localStorage.removeItem(REMEMBER_KEY);
       // ไม่มี data.token แล้ว — backend ตั้ง httpOnly cookie ให้ browser เก็บเองตอนตอบ request นี้
-      setSession(data.user, data.must_change_password);
+      setSession(data.user, data.must_change_password, data.profile_incomplete);
       // ส่ง user (มี role จริงจาก JWT) ขึ้นไปให้ App.jsx ใช้ตั้ง state แทน role ปลอมแบบเดิม
-      onLogin(data.user, data.must_change_password);
+      onLogin(data.user, data.must_change_password, data.profile_incomplete);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : (isEN?'Login failed':'เข้าสู่ระบบไม่สำเร็จ'));
     } finally {
       setLoading(false);
     }
   };
-
-  if (showFirstSetup) return <FirstSetup onBack={()=>setShowFirstSetup(false)} lang={lang} />;
 
   return (
     <div style={{ minHeight:'100vh', display:'flex', position:'relative' }} className="login-wrap">
@@ -153,15 +149,12 @@ export function Login({ onLogin }) {
             {isEN?'Remember username':'จดจำรหัสผ่าน'}
           </label>
           {error && <div style={{ color:'var(--reject,#dc2626)', fontSize:15, marginBottom:12 }}>{error}</div>}
-          {/* ลืมรหัสผ่าน = ติดต่อเจ้าหน้าที่ให้กดรีเซ็ตให้ แล้วกลับมาตั้งใหม่ที่ลิงก์นี้
-              ไม่มี self-service reset ในระบบ เลยไม่มีลิงก์ "ลืมรหัสผ่าน" แยกอีกต่อไป */}
-          <div style={{ display:'flex', justifyContent:'space-between', gap:12, marginBottom:18, flexWrap:'wrap' }}>
+          {/* ล็อกอินไม่ได้ (ลืมรหัส/บัญชีค้าง) = ติดต่อเจ้าหน้าที่คณะเท่านั้น ไม่มี self-service ใดๆ บนหน้านี้แล้ว
+              นักศึกษา: รหัสผ่าน = เลขบัตร ปชช ตั้งแต่วันนำเข้า, officer/executive: รหัสชั่วคราวที่เจ้าหน้าที่ตั้งให้ตอนสร้าง/รีเซ็ตบัญชี */}
+          <div style={{ marginBottom:18 }}>
             <span style={{ fontSize:14.5, color:'var(--ink-500)' }}>
-              {isEN?'Forgot your password? Ask the faculty officer to reset it.':'ลืมรหัสผ่าน? ติดต่อเจ้าหน้าที่คณะเพื่อขอรีเซ็ต'}
+              {isEN?'Trouble signing in? Ask the faculty officer for help.':'เข้าสู่ระบบไม่ได้? ติดต่อเจ้าหน้าที่คณะ'}
             </span>
-            <a onClick={()=>setShowFirstSetup(true)} style={{ fontSize:15, cursor:'pointer' }}>
-              {isEN?'First time / after a reset: set your password':'เข้าใช้งานครั้งแรก หรือหลังรีเซ็ต / ตั้งรหัสผ่าน'}
-            </a>
           </div>
 
           <button className="btn btn-primary btn-lg btn-block" onClick={submit} disabled={loading}>

@@ -47,7 +47,7 @@ router.post(
   upload.single("file"),
   bulkImport,
 );
-// officer สั่งเคลียร์ password ของนักศึกษาคนหนึ่ง ให้กลับไปตั้งใหม่ผ่าน first-setup ได้อีกครั้ง
+// เจ้าหน้าที่ "รีเซ็ต" รหัสผ่าน = กรอกเลขบัตร ปชช เดิมซ้ำ (password นักศึกษา = เลขบัตร ปชช เสมอ ไม่มีรหัสชั่วคราว)
 router.post(
   "/:id/reset-password",
   authenticate,

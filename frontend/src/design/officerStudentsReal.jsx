@@ -43,6 +43,8 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang, initial
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(null); // นักศึกษาที่กำลังจะลบ (รอยืนยันในโมดัล)
   const [resetting, setResetting] = useState(null); // นักศึกษาที่กำลังจะรีเซ็ตรหัส (รอยืนยันในโมดัล)
+  const [resetNationalId, setResetNationalId] = useState('');
+  const [resetError, setResetError] = useState('');
   const per = 10;
 
   useEffect(() => {
@@ -182,17 +184,23 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang, initial
     }
   };
 
-  // รีเซ็ตรหัสผ่าน — endpoint เดียวกับที่หน้าจัดการผู้ใช้ใช้ (POST /users/:id/reset-password ไม่จำกัด role ปลายทาง)
-  // ล้าง password_hash ให้ต้องไปตั้งใหม่ที่หน้า "ตั้งรหัสผ่านครั้งแรก" — เจ้าหน้าที่ไม่เคยเห็นรหัสจริง
+  // รีเซ็ตรหัสผ่านนักศึกษา = กรอกเลขบัตร ปชช เดิมซ้ำ (password นักศึกษา = hash(เลขบัตร ปชช) เสมอ ไม่มีรหัสชั่วคราว)
+  // endpoint แยกจาก officer/executive (POST /students/:id/reset-password) เพราะ semantics ไม่เหมือนกัน
   const confirmReset = async () => {
     if (!resetting) return;
+    setResetError('');
+    if (!/^\d{13}$/.test(resetNationalId)) {
+      setResetError('เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก');
+      return;
+    }
     setSaving(true);
     try {
-      await apiFetch(`/users/${resetting.userId}/reset-password`, { method: 'POST' });
+      await apiFetch(`/students/${resetting.sid}/reset-password`, { method: 'POST', body: { national_id: resetNationalId } });
       toast?.(tt('usersMgmt.resetToast', { name: resetting.firstName }));
       setResetting(null);
+      setResetNationalId('');
     } catch (e) {
-      toast?.(e instanceof ApiError ? e.message : tt('detailReal.actionFailMsg'), 'error');
+      setResetError(e instanceof ApiError ? e.message : tt('detailReal.actionFailMsg'));
     } finally {
       setSaving(false);
     }
@@ -321,7 +329,7 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang, initial
                   <td><StatusBadge status={s.status} lang={lang} /></td>
                   <td style={{ color: 'var(--ink-500)', fontSize: 15 }}>{s.submittedAt || '—'}</td>
                   {!readonly && <td onClick={e => e.stopPropagation()} style={{ whiteSpace: 'nowrap' }}>
-                    <button disabled={saving} onClick={() => setResetting(s)} title={tt('usersMgmt.resetHint')}
+                    <button disabled={saving} onClick={() => { setResetting(s); setResetNationalId(''); setResetError(''); }} title={tt('usersMgmt.resetHint')}
                       className="btn btn-ghost btn-sm" style={{ marginRight: 6 }}>
                       <Icon name="key" size={15} /> {tt('usersMgmt.resetBtn')}</button>
                     {s.eligible && <button disabled={saving} onClick={() => toggleOneEligibility(s)}
@@ -360,7 +368,17 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang, initial
         footer={<><button className="btn btn-ghost" onClick={() => setResetting(null)}>{tt('officer.students.cancelBtn')}</button>
           <button className="btn btn-primary" disabled={saving} onClick={confirmReset}>{tt('usersMgmt.resetBtn')}</button></>}>
         {resetting && (
-          <p style={{ margin: 0, fontSize: 16, lineHeight: 1.6, color: 'var(--ink-700)' }}>{tt('usersMgmt.resetHint')}</p>
+          <>
+            <p style={{ margin: '0 0 14px', fontSize: 16, lineHeight: 1.6, color: 'var(--ink-700)' }}>
+              {tt('officer.students.resetNationalIdHint')}
+            </p>
+            <div className="field">
+              <label>{tt('officer.students.resetNationalIdLabel')}</label>
+              <input className="input mono" value={resetNationalId} onChange={e => setResetNationalId(e.target.value)}
+                placeholder="1234567890123" autoFocus />
+            </div>
+            {resetError && <div style={{ color: 'var(--reject,#dc2626)', fontSize: 15, marginTop: 10 }}>{resetError}</div>}
+          </>
         )}
       </Modal>
     </div>

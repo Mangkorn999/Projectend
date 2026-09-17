@@ -14,10 +14,10 @@ export function getStoredUser() {
   if (!raw) return null;
   return JSON.parse(raw);
 }
-// mustChangePassword เก็บติดไปกับ user object — ต้องรู้ตอน refresh หน้าด้วย
-// ไม่ใช่แค่ตอน login ครั้งแรก เพราะ backend ยัง block ทุก endpoint จนกว่าจะเปลี่ยนรหัส
-export function setSession(user, mustChangePassword = false) {
-  const stored = { ...user, mustChangePassword };
+// mustChangePassword/profileIncomplete เก็บติดไปกับ user object — ต้องรู้ตอน refresh หน้าด้วย
+// ไม่ใช่แค่ตอน login ครั้งแรก เพราะ backend ยัง block ทุก endpoint จนกว่าจะเปลี่ยนรหัส/กรอกโปรไฟล์ครบ
+export function setSession(user, mustChangePassword = false, profileIncomplete = false) {
+  const stored = { ...user, mustChangePassword, profileIncomplete };
   localStorage.setItem(USER_KEY, JSON.stringify(stored));
 }
 // ลบแค่ฝั่ง browser — cookie ต้องให้ backend สั่งลบผ่าน POST /auth/logout (ดู logout() ล่างสุด)

@@ -413,8 +413,8 @@ export const remove = async (req, res, next) => {
   }
 };
 
-// เจ้าหน้าที่ reset บัญชีนักศึกษากลับเป็นยังไม่ตั้งรหัสผ่าน
-// ใช้ตอนพบว่ามีคนแอบตั้งรหัสแทนเจ้าของบัญชี หรือเจ้าของลืมรหัสและไม่มี self-reset
+// เจ้าหน้าที่ "รีเซ็ต" รหัสผ่านนักศึกษา = กรอกเลขบัตร ปชช เดิมซ้ำ (แก้ตอนพิมพ์ผิดตอน import/สงสัยโดนสวมสิทธิ์)
+// password ของนักศึกษา = hash(เลขบัตร ปชช) เสมอ ไม่มีรหัสชั่วคราว ไม่บังคับเปลี่ยนรหัสแบบ officer/executive
 export const resetPassword = async (req, res, next) => {
   try {
     const student = await studentRepo.findById(req.params.id);
@@ -423,10 +423,21 @@ export const resetPassword = async (req, res, next) => {
       err.statusCode = 404;
       throw err;
     }
-    await studentRepo.resetPassword(req.params.id);
+
+    const { national_id } = req.body;
+    if (!NATIONAL_ID_PATTERN.test(national_id)) {
+      const err = new Error("เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    await studentRepo.setPassword(
+      req.params.id,
+      await bcrypt.hash(national_id, SALT_ROUNDS),
+    );
     res.json({
       success: true,
-      data: { message: "รีเซ็ตรหัสผ่านแล้ว นักศึกษาต้องตั้งรหัสผ่านใหม่ผ่านหน้าตั้งรหัสผ่านครั้งแรก" },
+      data: { message: "ตั้งรหัสผ่านใหม่แล้ว (เลขบัตร ปชช เดิม) นักศึกษา login ได้ทันที" },
     });
   } catch (err) {
     next(err);

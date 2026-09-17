@@ -8,7 +8,8 @@ import { t as translate } from './i18n.js';
 import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakToggle, TweakColor } from './tweaks-panel.jsx';
 import { Login } from './login.jsx';
 import { ForceChangePassword } from './forceChangePassword.jsx';
-import { getStoredUser, logout, apiFetch } from './api.js';
+import { CompleteProfile } from './completeProfile.jsx';
+import { getStoredUser, logout, setSession, apiFetch } from './api.js';
 import { buildNotifications, fromServer, sortByNewest, countUnread, readKeys, markAllRead, toastedKeys, markToasted } from './notifications.js';
 import { FormIntro } from './student.jsx';
 import { StudentImport } from './studentImport.jsx';
@@ -77,6 +78,7 @@ const DEFAULT_PAGE = { student:'news', officer:'dashboard', executive:'dashboard
    ============================================================ */
 const LOGIN_PATH = '/login';
 const CHANGE_PASSWORD_PATH = '/change-password';
+const COMPLETE_PROFILE_PATH = '/complete-profile';
 
 // key ต้องตรงกับค่าใน `page` ทุกตัวที่ render() รู้จัก ไม่งั้นหน้านั้นจะไม่มี URL
 const PAGE_PATH = {
@@ -140,6 +142,8 @@ export function App() {
   const [currentUser, setCurrentUser] = useState(null);
   // บัญชีที่เจ้าหน้าที่สร้างให้ยังใช้รหัสชั่วคราวอยู่ — บล็อกทั้งแอปจนกว่าจะเปลี่ยนรหัสสำเร็จ
   const [mustChangePassword, setMustChangePassword] = useState(false);
+  // นักศึกษาที่เจ้าหน้าที่ import มาแล้ว (มีแค่ student_id+เลขบัตร ปชช) ยังไม่เคยกรอกโปรไฟล์ — ยังไม่มี Student row
+  const [profileIncomplete, setProfileIncomplete] = useState(false);
   const [page, setPage] = useState('news');
   // path ที่ผู้ใช้เปิดเข้ามาครั้งแรก — ต้องจำไว้ก่อน เพราะกว่า /auth/me จะตอบกลับมา
   // อาจมีการเขียน URL ทับไปแล้ว อ่านจาก window.location ตอนนั้นจะได้ค่าผิด
@@ -262,6 +266,7 @@ export function App() {
     if (!stored) { replaceUrl(LOGIN_PATH); return; }
 
     if (stored.mustChangePassword) { setMustChangePassword(true); replaceUrl(CHANGE_PASSWORD_PATH); return; }
+    if (stored.profileIncomplete) { setProfileIncomplete(true); replaceUrl(COMPLETE_PROFILE_PATH); return; }
 
     const verifyCookie = async ()=>{
       try {
@@ -293,9 +298,10 @@ export function App() {
     return ()=> window.removeEventListener('popstate', onPop);
   }, [role]);
 
-  const handleLogin = (user, mustChange)=>{
+  const handleLogin = (user, mustChange, profileIncompleteFlag)=>{
     setLoggingOut(false); // เผื่อ login กลับมาหลัง logout ค้าง state เบลอไว้จากรอบก่อน
     if (mustChange) { setMustChangePassword(true); replaceUrl(CHANGE_PASSWORD_PATH); return; }
+    if (profileIncompleteFlag) { setProfileIncomplete(true); replaceUrl(COMPLETE_PROFILE_PATH); return; }
     setCurrentUser(user);
     setRole(user.role);
     const p = DEFAULT_PAGE[user.role];
@@ -310,7 +316,27 @@ export function App() {
     replaceUrl(LOGIN_PATH);
   };
 
+  // กรอกโปรไฟล์สำเร็จ — มี Student row แล้ว, cookie เดิมยังใช้ได้ (authenticate เช็ค studentId จาก DB สดทุก request)
+  // ไม่ต้องให้กรอกรหัสผ่านซ้ำ แค่ถาม /auth/me ใหม่เพื่อเอา currentUser/role แล้วเข้าแอปต่อได้เลย
+  const handleProfileCompleted = async ()=>{
+    try {
+      const me = await apiFetch('/auth/me');
+      const user = { id: me.id, name: me.name, role: me.role };
+      setSession(user, false, false);
+      setProfileIncomplete(false);
+      setCurrentUser(user);
+      setRole(user.role);
+      const p = DEFAULT_PAGE[user.role];
+      setPage(p);
+      replaceUrl(PAGE_PATH[p]);
+    } catch (err) {
+      // cookie หมดอายุพอดีตอนกรอกโปรไฟล์ — apiFetch เด้งกลับ login ให้เองแล้ว (forceLogout)
+      console.error('refresh session after complete-profile failed:', err);
+    }
+  };
+
   if (mustChangePassword) return <ForceChangePassword onDone={handlePasswordChanged} />;
+  if (profileIncomplete) return <CompleteProfile onDone={handleProfileCompleted} />;
   if(!role) return <Login onLogin={handleLogin} />;
 
   const nav = role==='student' ? navStudent(lang, rejectedCount) : NAV(lang, pendingCount)[role];

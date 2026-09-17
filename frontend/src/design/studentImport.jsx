@@ -2,15 +2,15 @@
    เจ้าหน้าที่ — เพิ่มนักศึกษาเข้าระบบ 2 แบบ: import CSV (ทีละหลายคน) หรือกรอกเองทีละคน
    เรียก POST /api/students/import และ POST /api/students จริง ไม่ใช่ mock
    ============================================================ */
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Icon } from './data.jsx';
 import { PageHead } from './components.jsx';
 import { apiFetch, ApiError } from './api.js';
 import { t } from './i18n.js';
 
 const CSV_TEMPLATE =
-  'student_id,first_name,last_name,email,phone,room_name,academic_year\n' +
-  '6610210001,สมชาย,ใจดี,6610210001@psu.ac.th,0812345678,ห้องเรียนปกติ,2566\n';
+  'student_id,national_id\n' +
+  '6610210001,1234567890123\n';
 
 export function StudentImport({ toast, lang }) {
   const [tab, setTab] = useState('csv'); // 'csv' | 'manual'
@@ -49,7 +49,8 @@ function tabBtnStyle(active) {
 // (รายละเอียดเต็มยังอยู่ในคอลัมน์ "เหตุผล" เหมือนเดิม อันนี้แค่ช่วยจัดหมวด)
 const REASON_MATCHERS = [
   { match: 'มีในระบบแล้ว', labelKey: 'importReal.reasonExists', tone: 'wait' },
-  { match: 'ไม่พบห้องเรียน', labelKey: 'importReal.reasonRoomMismatch', tone: 'reject' },
+  { match: 'เลขบัตรประชาชน', labelKey: 'importReal.reasonInvalidId', tone: 'reject' },
+  { match: 'รหัสนักศึกษาต้องเป็นตัวเลข', labelKey: 'importReal.reasonInvalidId', tone: 'reject' },
   { match: 'ข้อมูลไม่ครบ', labelKey: 'importReal.reasonIncomplete', tone: 'draft' },
   { match: 'บันทึกไม่สำเร็จ', labelKey: 'importReal.reasonError', tone: 'reject' },
 ];
@@ -71,10 +72,6 @@ function CsvImport({ toast, tt }) {
   const [result, setResult] = useState(null); // { imported_count, skipped_count, imported, skipped }
   const [view, setView] = useState('skipped'); // 'imported' | 'skipped' — ตารางไหนกำลังโชว์อยู่
   const [error, setError] = useState('');
-  const [rooms, setRooms] = useState([]);
-
-  // โชว์ชื่อห้องจริงในระบบตรงนี้เลย — กันพิมพ์ room_name ใน CSV ไม่ตรง (ต้องตรงเป๊ะทุกตัวอักษร)
-  useEffect(() => { apiFetch('/rooms').then(setRooms).catch(()=>{}); }, []);
 
   const downloadTemplate = () => {
     // สร้างไฟล์ CSV ตัวอย่างในเบราว์เซอร์ ไม่ต้องพึ่ง backend — ให้เจ้าหน้าที่เอาไปแก้เป็นรายชื่อจริง
@@ -121,12 +118,7 @@ function CsvImport({ toast, tt }) {
           background:'var(--blue-50)', border:'1px solid var(--blue-100)', borderRadius:12, padding:14 }}>
           <Icon name="info" size={17} style={{ color:'var(--blue-600)', flex:'none', marginTop:1 }} />
           <div style={{ fontSize:15, color:'var(--ink-700)', lineHeight:1.7 }}>
-            {tt('importReal.csvColumnsNote').replace('{cols}', '')}<span className="mono" style={{ fontSize:14 }}>student_id, first_name, last_name, email, phone, room_name, academic_year</span><br/>
-            <b>{tt('importReal.roomNameNote')}</b>{' '}
-            {rooms.length > 0
-              ? rooms.map(r => <span key={r.room_id} className="chip" style={{ marginRight:6 }}>{r.room_name}</span>)
-              : <span style={{ color:'var(--ink-500)' }}>{tt('importReal.noRoomsNote')}</span>}
-            <br/>
+            {tt('importReal.csvColumnsNote').replace('{cols}', '')}<span className="mono" style={{ fontSize:14 }}>student_id, national_id</span><br/>
             {tt('importReal.noPasswordNote')}
           </div>
         </div>
@@ -286,27 +278,21 @@ function ResultBanner({ result, tt }) {
   );
 }
 
-const EMPTY_FORM = { student_id:'', first_name:'', last_name:'', email:'', phone:'', room_id:'', academic_year:'' };
+const EMPTY_FORM = { student_id:'', national_id:'' };
 
-// เพิ่มทีละคน — field ตรงกับตาราง users (first_name/last_name/email/phone) + students (student_id/room_id/academic_year)
-// room ให้เลือกจาก dropdown จริงจาก GET /api/rooms เท่านั้น กันพิมพ์ชื่อห้องผิดแบบตอน import CSV
+// เพิ่มทีละคน — สร้างแค่ user (student_id + เลขบัตร ปชช = password) ชื่อ/ห้อง/ปีจบ
+// นักศึกษากรอกเองตอน login ครั้งแรก (complete-profile) ไม่ใช่หน้าที่เจ้าหน้าที่กรอกอีกต่อไป
 function ManualAdd({ toast, tt }) {
-  const [rooms, setRooms] = useState([]);
-  const [loadingRooms, setLoadingRooms] = useState(true);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    apiFetch('/rooms').then(setRooms).catch(()=>{}).finally(()=>setLoadingRooms(false));
-  }, []);
 
   const set = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }));
 
   const submit = async () => {
     setError('');
-    const { student_id, first_name, last_name, email, phone, room_id, academic_year } = form;
-    if (!student_id || !first_name || !last_name || !email || !phone || !room_id || !academic_year) {
+    const { student_id, national_id } = form;
+    if (!student_id || !national_id) {
       setError(tt('importReal.fillAllFields'));
       return;
     }
@@ -314,9 +300,9 @@ function ManualAdd({ toast, tt }) {
     try {
       await apiFetch('/students', {
         method: 'POST',
-        body: { student_id, first_name, last_name, email, phone, room_id: Number(room_id), academic_year: Number(academic_year) },
+        body: { student_id, national_id },
       });
-      toast && toast(tt('importReal.addedToast', { name: `${first_name} ${last_name}` }), 'success');
+      toast && toast(tt('importReal.addedToast', { name: student_id }), 'success');
       setForm(EMPTY_FORM);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : tt('importReal.addFailMsg'));
@@ -326,7 +312,7 @@ function ManualAdd({ toast, tt }) {
   };
 
   return (
-    <div className="card" style={{ padding:0, maxWidth:680, margin:'0 auto', overflow:'hidden' }}>
+    <div className="card" style={{ padding:0, maxWidth:520, margin:'0 auto', overflow:'hidden' }}>
       <div style={{ display:'flex', alignItems:'center', gap:12, padding:'18px 22px',
         borderBottom:'1px solid var(--ink-100)', background:'var(--ink-50)' }}>
         <div style={{ width:38, height:38, borderRadius:10, flex:'none', background:'var(--gold-100)',
@@ -341,50 +327,13 @@ function ManualAdd({ toast, tt }) {
 
       <div style={{ padding:'20px 24px 4px' }}>
         <FormSection title={tt('importReal.sectionStudent')}>
-          <div className="grid g-2">
-            <div className="field">
-              <label>{tt('importReal.fieldStudentId')} <Req /></label>
-              <input className="input mono" value={form.student_id} onChange={set('student_id')} placeholder="6610210001" />
-            </div>
-            <div className="field">
-              <label>{tt('importReal.fieldYear')} <Req /></label>
-              <input className="input tnum" type="number" value={form.academic_year} onChange={set('academic_year')} placeholder="2568" />
-            </div>
-          </div>
-          <div className="grid g-2">
-            <div className="field">
-              <label>{tt('importReal.fieldFirstName')} <Req /></label>
-              <input className="input" value={form.first_name} onChange={set('first_name')} placeholder="สมชาย" />
-            </div>
-            <div className="field">
-              <label>{tt('importReal.fieldLastName')} <Req /></label>
-              <input className="input" value={form.last_name} onChange={set('last_name')} placeholder="ใจดี" />
-            </div>
+          <div className="field">
+            <label>{tt('importReal.fieldStudentId')} <Req /></label>
+            <input className="input mono" value={form.student_id} onChange={set('student_id')} placeholder="6610210001" />
           </div>
           <div className="field">
-            <label>{tt('importReal.fieldRoom')} <Req /></label>
-            <select className="select" value={form.room_id} onChange={set('room_id')} disabled={loadingRooms}>
-              <option value="">{loadingRooms ? tt('importReal.loadingRooms') : tt('importReal.selectRoomOpt')}</option>
-              {rooms.map(r => <option key={r.room_id} value={r.room_id}>{r.room_name}</option>)}
-            </select>
-            {!loadingRooms && rooms.length === 0 && (
-              <span className="hint" style={{ color:'var(--status-wait-fg)' }}>
-                {tt('importReal.noRoomsWarning')}
-              </span>
-            )}
-          </div>
-        </FormSection>
-
-        <FormSection title={tt('importReal.sectionContact')}>
-          <div className="grid g-2">
-            <div className="field">
-              <label>{tt('importReal.fieldEmail')} <Req /></label>
-              <input className="input" type="email" value={form.email} onChange={set('email')} placeholder="studentid@psu.ac.th" />
-            </div>
-            <div className="field">
-              <label>{tt('importReal.fieldPhone')} <Req /></label>
-              <input className="input tnum" value={form.phone} onChange={set('phone')} placeholder="0812345678" />
-            </div>
+            <label>{tt('importReal.fieldNationalId')} <Req /></label>
+            <input className="input mono" value={form.national_id} onChange={set('national_id')} placeholder="1234567890123" />
           </div>
         </FormSection>
 

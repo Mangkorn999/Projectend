@@ -28,10 +28,11 @@ export const create = async (req, res, next) => {
       phone,
     } = req.body;
 
-    // password ไม่บังคับแล้ว — ไม่ส่งมา = ให้เจ้าตัวไปตั้งรหัสเองที่หน้า "ตั้งรหัสผ่านครั้งแรก"
-    // (flow เดียวกับนักศึกษาที่ import เข้ามา เจ้าหน้าที่ไม่ต้องรู้รหัสของใครเลย)
+    // เจ้าหน้าที่ตั้งรหัสผ่านชั่วคราวให้ตอนสร้างบัญชี — เจ้าตัวต้องเปลี่ยนเองตอน login ครั้งแรก
+    // (ไม่มี first-setup แยกแล้ว — ใช้กลไกเดียวกับ must_change_password ที่มีอยู่แล้ว)
     if (
       !psu_passport_id ||
+      !password ||
       !role_name ||
       !first_name ||
       !last_name ||
@@ -51,7 +52,7 @@ export const create = async (req, res, next) => {
       throw err;
     }
 
-    if (password && password.length < MIN_PASSWORD_LENGTH) {
+    if (password.length < MIN_PASSWORD_LENGTH) {
       const err = new Error(
         `รหัสผ่านต้องยาวอย่างน้อย ${MIN_PASSWORD_LENGTH} ตัวอักษร`,
       );
@@ -73,17 +74,11 @@ export const create = async (req, res, next) => {
       throw err;
     }
 
-    // ไม่ตั้งรหัสให้ = password_hash เป็น null → login ไม่ได้จนกว่าเจ้าตัวจะไปตั้งเองที่ /api/auth/first-setup
-    let passwordHash = null;
-    if (password) {
-      passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-    }
-
     const user = await UserRepo.create({
       role_id: role.role_id,
       psu_passport_id,
-      password_hash: passwordHash,
-      // ยังไม่ถือว่าเป็นรหัสของเจ้าตัว — ตั้งเองเสร็จเมื่อไหร่ first-setup จะปลดธงนี้ให้
+      password_hash: await bcrypt.hash(password, SALT_ROUNDS),
+      // รหัสที่เจ้าหน้าที่ตั้งให้เป็นแค่รหัสชั่วคราว — บังคับเปลี่ยนตอน login ครั้งแรก (ForceChangePassword)
       must_change_password: true,
       first_name,
       last_name,
@@ -179,14 +174,28 @@ export const revokeAccess = async (req, res, next) => {
   }
 };
 
-// เจ้าหน้าที่รีเซ็ตรหัสผ่านให้ officer/executive (เจ้าตัวลืมรหัส)
-// กลไกเหมือนรีเซ็ตของนักศึกษาเป๊ะ: ล้าง password_hash แล้วให้ไปตั้งใหม่เองที่หน้าตั้งรหัสครั้งแรก
-// เจ้าหน้าที่จึงไม่เคยรู้รหัสของใครเลย ต่างจาก "ถอนสิทธิ์" ตรงเจตนา — อันนั้นคือไม่ให้ใช้งานต่อ
+// เจ้าหน้าที่รีเซ็ตรหัสผ่านให้ผู้ใช้คนหนึ่ง (ลืมรหัส) — ตั้งรหัสชั่วคราวใหม่ให้ทันที
+// บังคับเปลี่ยนตอน login ครั้งถัดไป (ไม่มี first-setup แยกแล้ว ใช้กลไกเดียวกับสร้างบัญชีใหม่)
+// ต่างจาก "ถอนสิทธิ์" ตรงเจตนา — อันนั้นคือไม่ให้ใช้งานต่อถาวรจนกว่าเจ้าหน้าที่จะเปิดให้ใหม่
 export const resetPassword = async (req, res, next) => {
   try {
     const targetId = Number(req.params.id);
     if (!Number.isInteger(targetId)) {
       const err = new Error("user id ไม่ถูกต้อง");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const { new_password } = req.body;
+    if (!new_password) {
+      const err = new Error("กรุณากรอกรหัสผ่านชั่วคราวให้ผู้ใช้");
+      err.statusCode = 400;
+      throw err;
+    }
+    if (new_password.length < MIN_PASSWORD_LENGTH) {
+      const err = new Error(
+        `รหัสผ่านต้องยาวอย่างน้อย ${MIN_PASSWORD_LENGTH} ตัวอักษร`,
+      );
       err.statusCode = 400;
       throw err;
     }
@@ -198,12 +207,14 @@ export const resetPassword = async (req, res, next) => {
       throw err;
     }
 
-    await UserRepo.revokeAccess(targetId);
+    await UserRepo.setPassword(
+      targetId,
+      await bcrypt.hash(new_password, SALT_ROUNDS),
+    );
     res.json({
       success: true,
       data: {
-        message:
-          "รีเซ็ตรหัสผ่านแล้ว ผู้ใช้ต้องตั้งรหัสผ่านใหม่ผ่านหน้าตั้งรหัสผ่านครั้งแรก",
+        message: "ตั้งรหัสผ่านชั่วคราวแล้ว ผู้ใช้ต้องเปลี่ยนรหัสตอน login ครั้งถัดไป",
       },
     });
   } catch (err) {

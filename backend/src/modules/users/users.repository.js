@@ -52,11 +52,20 @@ export const updateRole = (id, role_id) => {
 };
 
 // ถอนสิทธิ์ — ไม่ลบ record (กัน FK พังจากประวัติ news/rounds/exam ที่ user นี้เคยสร้าง/ยืนยันไว้)
-// เคลียร์ password_hash กลับเป็น null เหมือนกลไก reset ของนักศึกษา — login ไม่ได้จนกว่าจะมีคนตั้งรหัสให้ใหม่
+// เคลียร์ password_hash เป็น null ถาวร — login ไม่ได้อีกจนกว่าเจ้าหน้าที่จะ resetPassword ให้ใหม่ (ไม่ใช่ตั้งเอง ไม่มี first-setup แล้ว)
 export const revokeAccess = (id) => {
   return prisma.user.update({
     where: { user_id: Number(id) },
     data: { password_hash: null, must_change_password: true },
+    select: PUBLIC_USER_FIELDS,
+  });
+};
+
+// รีเซ็ตรหัสผ่าน — ตั้งรหัสชั่วคราวใหม่ให้ทันที (ต่างจาก revokeAccess ที่ล้างเป็น null ถาวร)
+export const setPassword = (id, password_hash) => {
+  return prisma.user.update({
+    where: { user_id: Number(id) },
+    data: { password_hash, must_change_password: true },
     select: PUBLIC_USER_FIELDS,
   });
 };

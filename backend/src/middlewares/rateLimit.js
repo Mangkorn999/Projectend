@@ -1,5 +1,5 @@
 // in-memory rate limiter — พอสำหรับ deploy เดียว ไม่ต้องพึ่ง Redis
-// กัน brute-force endpoint ที่ยังไม่ auth ได้ (เช่น first-setup ที่ใครก็ยิงได้โดยไม่ต้องมี token)
+// กัน brute-force endpoint ที่ยังไม่ auth ได้ (เช่น login ที่ใครก็ยิงได้โดยไม่ต้องมี token)
 // buckets เก็บใน memory ของ process เดียว — ถ้า scale หลาย instance ในอนาคตต้องย้ายไป Redis
 const buckets = new Map();
 

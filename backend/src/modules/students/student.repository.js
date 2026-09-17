@@ -41,6 +41,13 @@ export const findRoomById = (room_id) =>
 export const findByPsuId = (psu_passport_id) =>
   prisma.user.findUnique({ where: { psu_passport_id } });
 
+// รีเซ็ตรหัสผ่านนักศึกษา = ตั้ง hash ใหม่ตรงๆ ไม่ล้างเป็น null และไม่บังคับเปลี่ยน (password นักศึกษา = เลขบัตร ปชช เสมอ)
+export const setPassword = (studentId, password_hash) =>
+  prisma.user.update({
+    where: { psu_passport_id: studentId },
+    data: { password_hash },
+  });
+
 // สร้างแค่ user จากการ import — รหัสผ่าน = hash(เลขบัตร ปชช) ที่เจ้าหน้าที่กรอกมาตอน import
 // ยังไม่สร้าง student row — นักศึกษา login ครั้งแรกแล้วกรอกโปรไฟล์เองผ่าน completeProfile ถึงจะสร้างให้
 export const createFromImport = ({ role_id, psu_passport_id, password_hash }) =>
@@ -104,12 +111,6 @@ export const updateProfile = (student_id, { user: userData, student: studentData
   });
 
 // เจ้าหน้าที่ reset บัญชีนักศึกษากลับเป็นยังไม่ตั้งรหัส — ใช้แก้ impersonation/ลืมรหัส
-export const resetPassword = (studentId) =>
-  prisma.user.update({
-    where: { psu_passport_id: studentId },
-    data: { password_hash: null, must_change_password: true },
-  });
-
 // มีใบผลสอบของนักศึกษาคนนี้อยู่กี่ใบ — ใช้กันลบคนที่มีประวัติสอบไปแล้ว
 export const countExamResults = (studentId) =>
   prisma.examResult.count({ where: { student_id: studentId } });
