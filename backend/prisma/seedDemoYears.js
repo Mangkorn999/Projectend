@@ -205,6 +205,9 @@ const main = async () => {
         academic_year: year,
         room_id: p.room,
         exam_eligible: true,
+        // ข้อมูลเดโมไม่มีชื่ออังกฤษ — ใส่ placeholder กัน schema บังคับ NOT NULL
+        first_name_en: `Student${p.id.slice(-4)}`,
+        last_name_en: "Demo",
       })),
     });
 

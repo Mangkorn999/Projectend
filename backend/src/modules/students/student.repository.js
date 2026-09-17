@@ -98,17 +98,21 @@ export const completeProfile = ({
 
 // เจ้าหน้าที่แก้ข้อมูลนักศึกษาทีหลัง — แก้ได้ทั้งฝั่ง user (ชื่อ/email/เบอร์) และฝั่ง student (ห้อง/ปีจบ/ชื่ออังกฤษ)
 // รับเฉพาะ field ที่ส่งมา (partial update) ผ่าน nested write ในคำสั่งเดียว
-export const updateProfile = (student_id, { user: userData, student: studentData }) =>
-  prisma.student.update({
+export const updateProfile = (student_id, { user: userData, student: studentData }) => {
+  // room_id เป็น FK ของ relation `room` — Prisma update ต้องเขียนผ่าน room:{connect}} ไม่ใช่ set scalar ตรงๆ
+  const { room_id, ...restStudentData } = studentData;
+  return prisma.student.update({
     where: { student_id },
     data: {
-      ...studentData,
+      ...restStudentData,
+      ...(room_id !== undefined ? { room: { connect: { room_id } } } : {}),
       ...(userData && Object.keys(userData).length > 0
         ? { user: { update: userData } }
         : {}),
     },
-    include: { user: { select: PUBLIC_USER_FIELDS } },
+    include: { user: { select: PUBLIC_USER_FIELDS }, room: true },
   });
+};
 
 // เจ้าหน้าที่ reset บัญชีนักศึกษากลับเป็นยังไม่ตั้งรหัส — ใช้แก้ impersonation/ลืมรหัส
 // มีใบผลสอบของนักศึกษาคนนี้อยู่กี่ใบ — ใช้กันลบคนที่มีประวัติสอบไปแล้ว

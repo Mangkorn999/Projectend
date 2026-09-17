@@ -189,6 +189,9 @@ async function main() {
         room_id: rooms[s.room % rooms.length].room_id,
         academic_year: s.year,
         exam_eligible: true, // เปิดสิทธิ์ให้หมด ไม่งั้น dashboard นับตัวหารไม่ตรง
+        // STUDENTS ไม่มีชื่ออังกฤษ (ข้อมูลเดโมไว้ทดสอบ dashboard เท่านั้น) — ใส่ placeholder กัน schema บังคับ NOT NULL
+        first_name_en: `Student${s.id.slice(-4)}`,
+        last_name_en: "Demo",
       },
     });
   }
