@@ -106,7 +106,7 @@ const main = async () => {
   const createRound = await call("POST", "/api/rounds", {
     token: officerToken,
     body: {
-      academic_year: 2568,
+      academic_year: 2570,
       attempt_number: 1,
       open_date: new Date(Date.now() - 86400000).toISOString(),
       close_date: new Date(Date.now() + 86400000).toISOString(),
@@ -118,7 +118,7 @@ const main = async () => {
 
   const studentCreateRound = await call("POST", "/api/rounds", {
     token: studentToken,
-    body: { academic_year: 2568, attempt_number: 9, open_date: new Date().toISOString(), close_date: new Date().toISOString() },
+    body: { academic_year: 2570, attempt_number: 9, open_date: new Date().toISOString(), close_date: new Date().toISOString() },
   });
   check("student สร้างรอบ → 403", studentCreateRound.status, 403);
 

@@ -37,12 +37,13 @@ const check = (name, actual, expected) => {
 
 // A brand new student every run. Carry-forward looks at every round the student
 // has ever filled, so reusing an account would inherit passes from the last run.
+const YEAR = 2597; // clear of the seed data and of smoke-phase11 (2599/2598)
 const STAMP = Date.now().toString().slice(-8);
-const STUDENT_ID = `993${STAMP}`;
+// 2 หลักแรกของรหัสนักศึกษาคำนวณเป็นปีจบฝั่ง server (entry+4) — ต้องตั้งให้ตรงกับ YEAR ข้างบน
+const STUDENT_ID = `${String(YEAR - 4).slice(-2)}${STAMP}`;
+const NATIONAL_ID = `1${STAMP}00000`.slice(0, 13);
 const FIRST = "ทดสอบ";
 const LAST = "ตีกลับ";
-const PASSWORD = "rejectedit123";
-const YEAR = 2597; // clear of the seed data and of smoke-phase11 (2599/2598)
 const NOW = { open_date: "2020-01-01", close_date: "2099-12-31" };
 
 const openRound = async (token, attempt, subjectIds) => {
@@ -57,30 +58,35 @@ const openRound = async (token, attempt, subjectIds) => {
 };
 
 const addStudent = async (token, id, year, roomId) => {
+  // เจ้าหน้าที่ import แค่รหัสนักศึกษา + เลขบัตร ปชช — รหัสผ่าน = เลขบัตร ปชช ทันที ไม่ต้อง first-setup
   const made = await call("POST", "/api/students", {
     token,
-    body: {
-      student_id: id, first_name: FIRST, last_name: LAST,
-      email: `${id}@test.local`, phone: "0800000000",
-      room_id: roomId, academic_year: year,
-    },
+    body: { student_id: id, national_id: NATIONAL_ID },
   });
   check(`create student ${year} -> 201`, made.status, 201);
 
-  // imported accounts have no password yet, first-setup sets one
-  const setup = await call("POST", "/api/auth/first-setup", {
-    body: { student_id: id, first_name: FIRST, last_name: LAST, password: PASSWORD },
+  const login = await call("POST", "/api/auth/login", {
+    body: { psu_passport_id: id, password: NATIONAL_ID },
   });
-  check(`first-setup ${year} -> 201`, setup.status, 201);
+  if (!login.cookie) { console.log(`student ${id} login failed:`, JSON.stringify(login.json)); process.exit(1); }
+
+  // ยังไม่มี student row จนกว่าจะกรอกโปรไฟล์ครั้งแรก (ปีจบคำนวณฝั่ง server จาก id เอง ไม่ส่ง year ไป)
+  const profile = await call("POST", "/api/students/complete-profile", {
+    token: login.cookie,
+    body: {
+      first_name: FIRST, last_name: LAST,
+      first_name_en: "Test", last_name_en: "RejectEdit",
+      email: `${id}@test.local`, phone: "0800000000",
+      room_id: roomId,
+    },
+  });
+  check(`complete-profile ${year} -> 201`, profile.status, 201);
+  check(`complete-profile academic_year matches ${year}`, profile.json.data?.student?.academic_year, year);
 
   await call("PATCH", "/api/students/bulk-eligible", {
     token, body: { student_ids: [id], exam_eligible: true },
   });
 
-  const login = await call("POST", "/api/auth/login", {
-    body: { psu_passport_id: id, password: PASSWORD },
-  });
-  if (!login.cookie) { console.log(`student ${id} login failed:`, JSON.stringify(login.json)); process.exit(1); }
   return login.cookie;
 };
 

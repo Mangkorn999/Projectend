@@ -38,14 +38,16 @@ const check = (name, actual, expected) => {
 // A brand new student every run. Carry-forward looks at every round the student
 // has ever filled, so reusing the seeded account would inherit passes from the
 // previous run and the expected counts would drift.
-const STAMP = Date.now().toString().slice(-8);
-const STUDENT_ID = `991${STAMP}`;
-const OTHER_ID = `992${STAMP}`; // same run, different academic year
-const FIRST = "ทดสอบ";
-const LAST = "แครี่ฟอร์เวิร์ด";
-const PASSWORD = "carryfwd123";
 const YEAR = 2599; // far from seed data so it cannot collide with other tests
 const OTHER_YEAR = 2598;
+const STAMP = Date.now().toString().slice(-6);
+// 2 หลักแรกของรหัสนักศึกษาคำนวณเป็นปีจบฝั่ง server (entry+4) — ต้องตั้งให้ตรงกับปีที่ต้องการทดสอบ
+const makeStudentId = (year, salt) => `${String(year - 4).slice(-2)}${salt}${STAMP}`;
+const makeNationalId = (salt) => `1${STAMP}${salt}`.padEnd(13, "0").slice(0, 13);
+const STUDENT_ID = makeStudentId(YEAR, "1");
+const OTHER_ID = makeStudentId(OTHER_YEAR, "2"); // same run, different academic year
+const FIRST = "ทดสอบ";
+const LAST = "แครี่ฟอร์เวิร์ด";
 // window wide enough that the round counts as active while the test runs
 const NOW = { open_date: "2020-01-01", close_date: "2099-12-31" };
 
@@ -60,32 +62,35 @@ const openRound = async (token, attempt, subjectIds) => {
   return id;
 };
 
-// Add a student, give them a password, let them fill exam results, return their token.
-const addStudent = async (token, id, year, roomId) => {
+// Add a student (id+national_id only), let them complete their profile and fill exam results, return their token.
+const addStudent = async (token, id, year, roomId, nationalId) => {
   const made = await call("POST", "/api/students", {
     token,
-    body: {
-      student_id: id, first_name: FIRST, last_name: LAST,
-      email: `${id}@test.local`, phone: "0800000000",
-      room_id: roomId, academic_year: year,
-    },
+    body: { student_id: id, national_id: nationalId },
   });
   check(`create student ${year} -> 201`, made.status, 201);
 
-  // imported accounts have no password yet, first-setup sets one
-  const setup = await call("POST", "/api/auth/first-setup", {
-    body: { student_id: id, first_name: FIRST, last_name: LAST, password: PASSWORD },
+  const login = await call("POST", "/api/auth/login", {
+    body: { psu_passport_id: id, password: nationalId },
   });
-  check(`first-setup ${year} -> 201`, setup.status, 201);
+  if (!login.cookie) { console.log(`student ${id} login failed:`, JSON.stringify(login.json)); process.exit(1); }
+
+  const profile = await call("POST", "/api/students/complete-profile", {
+    token: login.cookie,
+    body: {
+      first_name: FIRST, last_name: LAST,
+      first_name_en: "Test", last_name_en: "CarryForward",
+      email: `${id}@test.local`, phone: "0800000000",
+      room_id: roomId,
+    },
+  });
+  check(`complete-profile ${year} -> 201`, profile.status, 201);
+  check(`complete-profile academic_year matches ${year}`, profile.json.data?.student?.academic_year, year);
 
   await call("PATCH", "/api/students/bulk-eligible", {
     token, body: { student_ids: [id], exam_eligible: true },
   });
 
-  const login = await call("POST", "/api/auth/login", {
-    body: { psu_passport_id: id, password: PASSWORD },
-  });
-  if (!login.cookie) { console.log(`student ${id} login failed:`, JSON.stringify(login.json)); process.exit(1); }
   return login.cookie;
 };
 
@@ -102,8 +107,8 @@ const main = async () => {
   const rooms = (await call("GET", "/api/rooms", { token: oToken })).json.data || [];
   if (!rooms.length) { console.log("no rooms in db, run seed first"); process.exit(1); }
 
-  const sToken = await addStudent(oToken, STUDENT_ID, YEAR, rooms[0].room_id);
-  const otherToken = await addStudent(oToken, OTHER_ID, OTHER_YEAR, rooms[0].room_id);
+  const sToken = await addStudent(oToken, STUDENT_ID, YEAR, rooms[0].room_id, makeNationalId("1"));
+  const otherToken = await addStudent(oToken, OTHER_ID, OTHER_YEAR, rooms[0].room_id, makeNationalId("2"));
 
   // Only one round can be active at a time, and findActive() picks an arbitrary
   // open one. Park any round that is already open so ours is the one found,

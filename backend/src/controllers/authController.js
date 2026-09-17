@@ -60,9 +60,11 @@ export const firstSetup = async (req, res) => {
     }
     // เช็คชื่อ-นามสกุลต้องตรงกับที่เจ้าหน้าที่ import ไว้เป๊ะ — นี่คือ "รหัสผ่านชั้นที่สอง"
     // ปิดช่องโหว่เดา student_id เปล่าๆ (id เรียงเลขรุ่น เดาง่าย แต่ชื่อ-สกุลคู่กันเดายากกว่า)
+    // นักศึกษาที่ import ด้วย flow ใหม่ไม่มี first_name/last_name ตอนสร้าง (null) — ไม่ต้อง first-setup อยู่แล้ว
+    // (password ตั้งจากเลขบัตร ปชช ตั้งแต่ import) กันไว้ไม่ให้ null.trim() พัง 500
     if (
-      user.first_name.trim() !== first_name.trim() ||
-      user.last_name.trim() !== last_name.trim()
+      (user.first_name ?? "").trim() !== first_name.trim() ||
+      (user.last_name ?? "").trim() !== last_name.trim()
     ) {
       return invalid();
     }
@@ -153,6 +155,8 @@ export const login = async (req, res) => {
       message: "เข้าสู่ระบบสำเร็จ",
       // ไม่ส่ง token กลับไปแล้ว — อยู่ใน cookie ที่ JS อ่านไม่ได้
       must_change_password: user.must_change_password,
+      // นักศึกษาที่ import มาแล้วยังไม่เคยกรอกโปรไฟล์ (ไม่มี student row) — frontend เด้งไปหน้ากรอกโปรไฟล์
+      profile_incomplete: user.role.role_name === "student" && !user.student,
       user: {
         id: user.user_id,
         name: user.first_name,
@@ -242,7 +246,7 @@ export const getme = async (req, res) => {
     //ดึงข้อมูลจาก jwt
     const user = await prisma.user.findUnique({
       where: { user_id: req.user.userId },
-      include: { role: true },
+      include: { role: true, student: true },
     });
     //ส่งข้อมูลเป็น json
     res.json({
@@ -252,6 +256,7 @@ export const getme = async (req, res) => {
         name: user.first_name,
         role: user.role.role_name,
         must_change_password: user.must_change_password,
+        profile_incomplete: user.role.role_name === "student" && !user.student,
       },
     });
     // ถ้าไม่มี token ก็จะ เเจ้ง error server

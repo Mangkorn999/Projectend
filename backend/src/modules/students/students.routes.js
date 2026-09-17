@@ -6,6 +6,8 @@ import {
   getAll,
   getById,
   create,
+  update,
+  completeProfile,
   bulkSetEligible,
   bulkImport,
   resetPassword,
@@ -24,6 +26,13 @@ router.get("/", authenticate, requireRole("officer"), getAll);
 router.get("/:id", authenticate, requireRole("officer", "student"), getById); // student เช็ค ownership ต่อใน controller
 // เพิ่มนักศึกษาทีละคน (พิมพ์เอง) — คู่กับ import CSV ด้านล่าง
 router.post("/", authenticate, requireRole("officer"), create);
+// นักศึกษากรอกโปรไฟล์ครั้งแรกหลัง login (บังคับผ่าน middleware ถ้ายังไม่มี student row)
+router.post(
+  "/complete-profile",
+  authenticate,
+  requireRole("student"),
+  completeProfile,
+);
 router.patch(
   "/bulk-eligible",
   authenticate,
@@ -47,4 +56,6 @@ router.post(
 );
 // ลบนักศึกษาที่ import ผิด — controller กันไว้ไม่ให้ลบคนที่มีผลสอบแล้ว
 router.delete("/:id", authenticate, requireRole("officer"), remove);
+// เจ้าหน้าที่แก้ข้อมูลนักศึกษาทีหลัง — แก้ได้ทุก field (ต้องอยู่ท้ายสุดหลัง path เฉพาะทั้งหมด กัน "/:id" ชิงจับ)
+router.patch("/:id", authenticate, requireRole("officer"), update);
 export default router;

@@ -47,11 +47,8 @@ const login = async (psu_passport_id) =>
     body: { psu_passport_id, password: psu_passport_id },
   });
 
-const csvBody = (roomName, studentId = "6699990001") =>
-  [
-    "student_id,first_name,last_name,email,phone,room_name,academic_year",
-    `${studentId},ทดสอบ,นำเข้า,test.import@example.com,0800000001,${roomName},2568`,
-  ].join("\r\n");
+const csvBody = (studentId = "6699990001", nationalId = "1100000000001") =>
+  ["student_id,national_id", `${studentId},${nationalId}`].join("\r\n");
 
 const main = async () => {
   const officerLogin = await login("456");
@@ -71,7 +68,7 @@ const main = async () => {
   // ── bulk import: UTF-8 CSV (มี BOM) ───────────────
   const utf8Csv = Buffer.concat([
     Buffer.from([0xef, 0xbb, 0xbf]),
-    Buffer.from(csvBody("ห้องเรียนปกติ"), "utf8"),
+    Buffer.from(csvBody(), "utf8"),
   ]);
   const utf8Form = new FormData();
   utf8Form.append("file", new Blob([utf8Csv], { type: "text/csv" }), "students-utf8.csv");
@@ -84,11 +81,10 @@ const main = async () => {
 
   // ── bulk import: Thai ANSI (win874) CSV ไม่มี BOM ─
   // จำลองไฟล์ที่ Excel บน Windows ไทย save เป็น CSV ธรรมดา (ไม่ใช่ "CSV UTF-8")
+  // หมายเหตุ: CSV ใหม่ไม่มีคอลัมน์ภาษาไทยแล้ว (ชื่อ/ห้อง ย้ายไป complete-profile)
+  // เคสนี้เลยไม่ได้ทดสอบ path decode win874 จริงจัง (ไม่มี byte ที่ไม่ใช่ ASCII ให้เดาผิด) แต่ยังคุ้มไว้เผื่อมีคนเปิดไฟล์เป็น ANSI มา
   const win874Csv = iconv.encode(
-    [
-      "student_id,first_name,last_name,email,phone,room_name,academic_year",
-      "6699990002,ทดสอบ,เอนซี,test.import2@example.com,0800000002,ห้องเรียนอังกฤษ,2568",
-    ].join("\r\n"),
+    ["student_id,national_id", "6699990002,1100000000002"].join("\r\n"),
     "win874",
   );
   const ansiForm = new FormData();
@@ -110,7 +106,7 @@ const main = async () => {
   const utf8NoBomForm = new FormData();
   utf8NoBomForm.append(
     "file",
-    new Blob([Buffer.from(csvBody("ห้องเรียนอังกฤษ", "6699990003"), "utf8")], { type: "text/csv" }),
+    new Blob([Buffer.from(csvBody("6699990003", "1100000000003"), "utf8")], { type: "text/csv" }),
     "students-utf8-no-bom.csv",
   );
   const utf8NoBomImport = await call("POST", "/api/students/import", {
@@ -124,19 +120,19 @@ const main = async () => {
     1,
   );
 
-  // ── bulk import: ห้องไม่มีจริง → skip พร้อมเหตุผล ─
-  const badRoomForm = new FormData();
-  badRoomForm.append(
+  // ── bulk import: เลขบัตร ปชช ผิดรูปแบบ (ไม่ใช่ 13 หลัก) → skip พร้อมเหตุผล ─
+  const badIdForm = new FormData();
+  badIdForm.append(
     "file",
-    new Blob([Buffer.from(csvBody("ห้องไม่มีจริง", "6699990004"), "utf8")], { type: "text/csv" }),
-    "students-badroom.csv",
+    new Blob([Buffer.from(csvBody("6699990004", "123"), "utf8")], { type: "text/csv" }),
+    "students-badid.csv",
   );
-  const badRoomImport = await call("POST", "/api/students/import", {
+  const badIdImport = await call("POST", "/api/students/import", {
     token: officerToken,
-    form: badRoomForm,
+    form: badIdForm,
   });
-  check("import CSV ห้องไม่มีจริง → 201 (แต่ skip)", badRoomImport.status, 201);
-  check("import CSV ห้องไม่มีจริง → skipped_count 1", badRoomImport.json?.data?.skipped_count, 1);
+  check("import CSV เลขบัตรผิดรูปแบบ → 201 (แต่ skip)", badIdImport.status, 201);
+  check("import CSV เลขบัตรผิดรูปแบบ → skipped_count 1", badIdImport.json?.data?.skipped_count, 1);
 
   console.log(results.join("\n"));
   console.log(`\n${results.length - failures}/${results.length} passed`);

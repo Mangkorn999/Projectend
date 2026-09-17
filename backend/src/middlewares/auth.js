@@ -9,6 +9,8 @@ const prisma = new PrismaClient();
 
 // path ที่ยังใช้ได้ตอนถูกบังคับเปลี่ยนรหัสผ่าน (req.path นับจาก /api/auth)
 const PASSWORD_SETUP_PATHS = ["/me", "/password"];
+// path ที่ยังใช้ได้ตอนนักศึกษายังไม่กรอกโปรไฟล์ครั้งแรก (req.path นับจากจุด mount ของ router นั้นๆ)
+const PROFILE_SETUP_PATHS = ["/me", "/complete-profile"];
 
 export const authenticate = async (req, res, next) => {
   // token อยู่ใน httpOnly cookie ชื่อ "token" — browser แนบมาให้เองทุก request
@@ -52,6 +54,7 @@ export const authenticate = async (req, res, next) => {
       where: { user_id: decoded.userId },
       select: {
         user_id: true,
+        psu_passport_id: true,
         password_hash: true,
         must_change_password: true,
         role: { select: { role_name: true } },
@@ -72,6 +75,7 @@ export const authenticate = async (req, res, next) => {
     // เปลี่ยน role ให้ใครแล้วมีผลทันที ไม่ต้องรอ token เก่าหมดอายุ
     req.user = {
       userId: user.user_id,
+      username: user.psu_passport_id,
       role: user.role.role_name,
       studentId: user.student?.student_id ?? null,
       mustChangePassword: user.must_change_password,
@@ -87,6 +91,19 @@ export const authenticate = async (req, res, next) => {
         success: false,
         message: "กรุณาตั้งรหัสผ่านใหม่ก่อนใช้งานระบบ",
         must_change_password: true,
+      });
+    }
+
+    // นักศึกษาที่ยังไม่เคยกรอกโปรไฟล์ (ไม่มี student row) → ใช้ได้แค่ /me กับ complete-profile
+    if (
+      req.user.role === "student" &&
+      !req.user.studentId &&
+      !PROFILE_SETUP_PATHS.includes(req.path)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "กรุณากรอกข้อมูลโปรไฟล์ให้ครบก่อนใช้งานระบบ",
+        profile_incomplete: true,
       });
     }
 

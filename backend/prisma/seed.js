@@ -12,6 +12,7 @@ const SEED_ACCOUNT = { must_change_password: false };
 
 async function main() {
   //ลบข้อมูลเก่า หากเพิ่มเติม
+  await prisma.notification.deleteMany({});
   await prisma.news.deleteMany({});
   await prisma.certificate.deleteMany({});
   await prisma.subjectResult.deleteMany({});
@@ -136,13 +137,16 @@ async function main() {
   console.log("Users created.");
 
   // 5. สร้าง Student Profile
+  // รหัส 66xxxxxxxx เข้าปี 2566 หลักสูตร 4 ปี → จบปี 2570 (entry + 4)
   await prisma.student.create({
     data: {
       student_id: "6610210631",
       user_id: studentUser.user_id,
       faculty_id: faculty.faculty_id,
       room_id: room.room_id,
-      academic_year: 2568,
+      academic_year: 2570,
+      first_name_en: "Thanyatep",
+      last_name_en: "Jiwtan",
     },
   });
   console.log("Student profile created.");

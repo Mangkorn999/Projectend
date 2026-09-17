@@ -27,9 +27,11 @@ const check = (name, actual, expected) => {
 const STAMP = String(Date.now()).slice(-6);
 const YEAR_A = 2591;
 const YEAR_B = 2592;
-const A_ID = `771${STAMP}`;
-const B_ID = `772${STAMP}`;
-const PASSWORD = "newsscope123";
+// 2 หลักแรกของรหัสนักศึกษาคำนวณเป็นปีจบฝั่ง server (entry+4) — ต้องตั้งให้ตรงกับ YEAR_A/YEAR_B
+const A_ID = `${String(YEAR_A - 4).slice(-2)}1${STAMP}`;
+const B_ID = `${String(YEAR_B - 4).slice(-2)}2${STAMP}`;
+const A_NATIONAL_ID = `1${STAMP}1`.padEnd(13, "0").slice(0, 13);
+const B_NATIONAL_ID = `1${STAMP}2`.padEnd(13, "0").slice(0, 13);
 const PAST = { open_date: "2020-01-01", close_date: "2020-01-31" };
 
 const main = async () => {
@@ -39,20 +41,28 @@ const main = async () => {
 
   const rooms = (await call("GET", "/api/rooms", { token: oToken })).data;
 
-  const addStudent = async (id, year) => {
+  const addStudent = async (id, year, nationalId) => {
     await call("POST", "/api/students", {
       token: oToken,
-      body: { student_id: id, first_name: "ข่าว", last_name: "ทดสอบ", email: `${id}@test.local`,
-        phone: "0800000000", room_id: rooms[0].room_id, academic_year: year },
+      body: { student_id: id, national_id: nationalId },
     });
-    await call("POST", "/api/auth/first-setup", { body: { student_id: id, first_name: "ข่าว", last_name: "ทดสอบ", password: PASSWORD } });
-    const login = await call("POST", "/api/auth/login", { body: { psu_passport_id: id, password: PASSWORD } });
+    const login = await call("POST", "/api/auth/login", { body: { psu_passport_id: id, password: nationalId } });
     if (!login.cookie) { console.log(`student ${id} login failed:`, JSON.stringify(login.json)); process.exit(1); }
+    const profile = await call("POST", "/api/students/complete-profile", {
+      token: login.cookie,
+      body: {
+        first_name: "ข่าว", last_name: "ทดสอบ",
+        first_name_en: "News", last_name_en: "Test",
+        email: `${id}@test.local`, phone: "0800000000",
+        room_id: rooms[0].room_id,
+      },
+    });
+    if (profile.status !== 201) { console.log(`complete-profile ${id} failed:`, JSON.stringify(profile.json)); process.exit(1); }
     return login.cookie;
   };
 
-  const aToken = await addStudent(A_ID, YEAR_A);
-  const bToken = await addStudent(B_ID, YEAR_B);
+  const aToken = await addStudent(A_ID, YEAR_A, A_NATIONAL_ID);
+  const bToken = await addStudent(B_ID, YEAR_B, B_NATIONAL_ID);
 
   const mkRound = async (year) => {
     const r = await call("POST", "/api/rounds", { token: oToken, body: { academic_year: year, attempt_number: 1, ...PAST } });

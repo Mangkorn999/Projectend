@@ -35,9 +35,23 @@ const LAST_NAMES = [
   "ขวัญเมือง", "นวลจันทร์", "ปานทอง", "เพชรรัตน์", "มณีโชติ", "สุขสวัสดิ์",
 ];
 
-// รหัสนักศึกษา 2 ตัวหน้า = ปีที่เข้าเรียน = ปีการศึกษาที่จบ − 3 (หลักสูตร 4 ปี)
-// เช่น รุ่นจบ 2570 เข้าเรียน 2567 → ขึ้นต้นด้วย 67
-const idPrefixOf = (academicYear) => String(academicYear - 3).slice(-2);
+// ชื่อ-สกุลอังกฤษ (ทับศัพท์) — เรียงคู่ตำแหน่งเดียวกับ FIRST_NAMES/LAST_NAMES ข้างบน
+const FIRST_NAMES_EN = [
+  "Natthapong", "Pimchanok", "Thanakrit", "Supansa", "Attapon", "Kamonchanok", "Woramet", "Piyanuch",
+  "Chanathip", "Siriporn", "Phanupong", "Jiraporn", "Anucha", "Benjawan", "Rattanaporn", "Kittisak",
+  "Suthasinee", "Theeraphat", "Napassorn", "Chayapol", "Panida", "Apisit", "Yanisa", "Thossaphon",
+  "Wiphawee", "Supakorn", "Areeya", "Peerapat", "Chonthicha", "Kantapong",
+];
+
+const LAST_NAMES_EN = [
+  "Srisombat", "Kaewmanee", "Wongaree", "Janpen", "Boonmak", "Thongsuk", "Inthong",
+  "Somboondee", "Rattanaphon", "Ketkaew", "Duangchan", "Saelim", "Phrommaa", "Chuchoed",
+  "Khwanmueang", "Nualchan", "Panthong", "Phetcharat", "Maneechot", "Suksawat",
+];
+
+// รหัสนักศึกษา 2 ตัวหน้า = ปีที่เข้าเรียน = ปีการศึกษาที่จบ − 4 (หลักสูตร 4 ปี)
+// เช่น รุ่นจบ 2570 เข้าเรียน 2566 → ขึ้นต้นด้วย 66
+const idPrefixOf = (academicYear) => String(academicYear - 4).slice(-2);
 
 const buildStudents = (academicYear, count, firstRoomCount) => {
   const prefix = idPrefixOf(academicYear);
@@ -49,8 +63,10 @@ const buildStudents = (academicYear, count, firstRoomCount) => {
     students.push({
       id: `${prefix}1021${running}`,
       first: FIRST_NAMES[i % FIRST_NAMES.length],
+      firstEn: FIRST_NAMES_EN[i % FIRST_NAMES_EN.length],
       // เลื่อนนามสกุลคนละจังหวะกับชื่อ จะได้ไม่ได้ชื่อ-สกุลคู่เดิมซ้ำๆ
       last: LAST_NAMES[Math.floor(i / FIRST_NAMES.length + i) % LAST_NAMES.length],
+      lastEn: LAST_NAMES_EN[Math.floor(i / FIRST_NAMES.length + i) % LAST_NAMES_EN.length],
       // คนแรกๆ อยู่ห้องแรก ที่เหลืออยู่ห้องที่สอง
       roomIndex: i < firstRoomCount ? 0 : 1,
     });
@@ -114,6 +130,8 @@ async function main() {
         faculty_id: faculty.faculty_id,
         room_id: rooms[s.roomIndex].room_id,
         academic_year: academicYear,
+        first_name_en: s.firstEn,
+        last_name_en: s.lastEn,
         exam_eligible: true,
       },
     });

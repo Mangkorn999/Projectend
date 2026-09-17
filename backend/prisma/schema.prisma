@@ -24,10 +24,11 @@ model User {
   // must_change_password = ยังใช้รหัสเริ่มต้นอยู่ ต้องบังคับตั้งใหม่ก่อนใช้งาน
   password_hash        String?      @db.VarChar(255)
   must_change_password Boolean      @default(true)
-  first_name      String            @db.VarChar(100)
-  last_name       String            @db.VarChar(100)
-  email           String            @db.VarChar(100)
-  phone           String            @db.VarChar(20)
+  // นักศึกษา: ว่างตอน import จนกว่าจะกรอกโปรไฟล์ครั้งแรก (เจ้าหน้าที่/ผู้บริหารยังกรอกตอนสร้างบัญชีเหมือนเดิม)
+  first_name      String?           @db.VarChar(100)
+  last_name       String?           @db.VarChar(100)
+  email           String?           @db.VarChar(100)
+  phone           String?           @db.VarChar(20)
   created_at      DateTime          @default(now())
   confirmed_exams ExamResult[]      @relation("UserToExamResult")
   news            News[]            @relation("UserToNews")
@@ -60,6 +61,9 @@ model Student {
   faculty_id               Int
   academic_year            Int
   room_id                  Int
+  // ชื่อ-สกุลภาษาอังกฤษ — ใช้ออกเอกสาร/ใบประกอบวิชาชีพ กรอกตอน complete-profile ครั้งแรกพร้อมกับสร้างแถวนี้เลย
+  first_name_en            String       @db.VarChar(100)
+  last_name_en             String       @db.VarChar(100)
   exam_results             ExamResult[]
   notifications            Notification[]
   // เปิดสิทธิ์กรอกผลสอบให้อัตโนมัติตั้งแต่เพิ่มนักศึกษาเข้าระบบ — เจ้าหน้าที่ค่อยกดถอนสิทธิ์เองถ้าไม่ต้องการ

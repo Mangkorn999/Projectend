@@ -41,38 +41,66 @@ export const findRoomById = (room_id) =>
 export const findByPsuId = (psu_passport_id) =>
   prisma.user.findUnique({ where: { psu_passport_id } });
 
-// สร้าง user(ไม่มี password)+student คู่กันใน transaction เดียว — import แถวนี้ล้มทั้งคู่ถ้าพลาด
-export const createImported = ({
-  role_id,
-  psu_passport_id,
+// สร้างแค่ user จากการ import — รหัสผ่าน = hash(เลขบัตร ปชช) ที่เจ้าหน้าที่กรอกมาตอน import
+// ยังไม่สร้าง student row — นักศึกษา login ครั้งแรกแล้วกรอกโปรไฟล์เองผ่าน completeProfile ถึงจะสร้างให้
+export const createFromImport = ({ role_id, psu_passport_id, password_hash }) =>
+  prisma.user.create({
+    data: {
+      role_id,
+      psu_passport_id,
+      password_hash,
+      must_change_password: false, // ไม่มี flow ให้ตั้งรหัสใหม่ — เลขบัตร ปชช คือรหัสผ่านถาวร
+    },
+    select: { user_id: true, psu_passport_id: true },
+  });
+
+// นักศึกษากรอกโปรไฟล์ครั้งแรก — update user (ชื่อ/email/เบอร์) + สร้าง student row พร้อมกัน
+export const completeProfile = ({
+  user_id,
+  student_id,
   first_name,
   last_name,
+  first_name_en,
+  last_name_en,
   email,
   phone,
   faculty_id,
   room_id,
   academic_year,
 }) =>
-  prisma.user.create({
+  prisma.user.update({
+    where: { user_id },
     data: {
-      role_id,
-      psu_passport_id,
-      password_hash: null,
-      must_change_password: true,
       first_name,
       last_name,
       email,
       phone,
       student: {
         create: {
-          student_id: psu_passport_id,
+          student_id,
           faculty_id,
           room_id,
           academic_year,
+          first_name_en,
+          last_name_en,
         },
       },
     },
     select: { ...PUBLIC_USER_FIELDS, student: true },
+  });
+
+// เจ้าหน้าที่แก้ข้อมูลนักศึกษาทีหลัง — แก้ได้ทั้งฝั่ง user (ชื่อ/email/เบอร์) และฝั่ง student (ห้อง/ปีจบ/ชื่ออังกฤษ)
+// รับเฉพาะ field ที่ส่งมา (partial update) ผ่าน nested write ในคำสั่งเดียว
+export const updateProfile = (student_id, { user: userData, student: studentData }) =>
+  prisma.student.update({
+    where: { student_id },
+    data: {
+      ...studentData,
+      ...(userData && Object.keys(userData).length > 0
+        ? { user: { update: userData } }
+        : {}),
+    },
+    include: { user: { select: PUBLIC_USER_FIELDS } },
   });
 
 // เจ้าหน้าที่ reset บัญชีนักศึกษากลับเป็นยังไม่ตั้งรหัส — ใช้แก้ impersonation/ลืมรหัส

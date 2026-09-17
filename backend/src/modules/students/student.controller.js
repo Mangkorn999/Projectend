@@ -1,17 +1,16 @@
+import bcrypt from "bcryptjs";
 import { parse } from "csv-parse/sync";
 import iconv from "iconv-lite";
 import * as studentRepo from "./student.repository.js";
 import * as notifRepo from "../notifications/notifications.repository.js";
+import { calcGraduationYear } from "../../utils/academicYear.js";
 
-const REQUIRED_COLUMNS = [
-  "student_id",
-  "first_name",
-  "last_name",
-  "email",
-  "phone",
-  "room_name",
-  "academic_year",
-];
+const REQUIRED_COLUMNS = ["student_id", "national_id"];
+const NATIONAL_ID_PATTERN = /^\d{13}$/;
+// รหัสนักศึกษาต้องเป็นตัวเลขล้วน อย่างน้อย 2 หลัก — 2 หลักแรกใช้คำนวณปีจบใน academicYear.js
+// (ไม่ล็อกความยาวตายตัวเป็น 10 หลัก เพราะ smoke test สร้างรหัสทดสอบสั้นกว่านั้น)
+const STUDENT_ID_PATTERN = /^\d{2,}$/;
+const SALT_ROUNDS = 10;
 
 export const getAll = async (req, res, next) => {
   try {
@@ -45,29 +44,25 @@ export const getById = async (req, res, next) => {
 };
 
 // เพิ่มนักศึกษาทีละคน (พิมพ์เอง) — ทางเลือกคู่กับ import CSV เวลามีแค่ 1-2 คน
-// room ต้องเลือกจาก dropdown (room_id) ไม่ใช่พิมพ์ชื่อเอง กันพิมพ์ผิด/ไม่ตรงกับที่มีจริงแบบตอน import CSV
+// เจ้าหน้าที่กรอกแค่รหัสนักศึกษา + เลขบัตร ปชช — ชื่อ/ห้อง/ปีจบ นักศึกษากรอกเองตอน login ครั้งแรก (complete-profile)
 export const create = async (req, res, next) => {
   try {
-    const {
-      student_id,
-      first_name,
-      last_name,
-      email,
-      phone,
-      room_id,
-      academic_year,
-    } = req.body;
+    const { student_id, national_id } = req.body;
 
-    if (
-      !student_id ||
-      !first_name ||
-      !last_name ||
-      !email ||
-      !phone ||
-      !room_id ||
-      !academic_year
-    ) {
-      const err = new Error("กรุณากรอกข้อมูลให้ครบ");
+    if (!student_id || !national_id) {
+      const err = new Error("กรุณากรอกรหัสนักศึกษาและเลขบัตรประชาชน");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    if (!NATIONAL_ID_PATTERN.test(national_id)) {
+      const err = new Error("เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    if (!STUDENT_ID_PATTERN.test(student_id)) {
+      const err = new Error("รหัสนักศึกษาต้องเป็นตัวเลขอย่างน้อย 2 หลัก");
       err.statusCode = 400;
       throw err;
     }
@@ -79,6 +74,60 @@ export const create = async (req, res, next) => {
       throw err;
     }
 
+    const studentRole = await studentRepo.findRoleByName("student");
+    if (!studentRole) {
+      const err = new Error("ระบบยังไม่ได้ตั้งค่าข้อมูลพื้นฐาน (role)");
+      err.statusCode = 500;
+      throw err;
+    }
+
+    const user = await studentRepo.createFromImport({
+      role_id: studentRole.role_id,
+      psu_passport_id: student_id,
+      password_hash: await bcrypt.hash(national_id, SALT_ROUNDS),
+    });
+
+    res.status(201).json({ success: true, data: user });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// นักศึกษากรอกโปรไฟล์ครั้งแรกหลัง login (บังคับผ่าน middleware ถ้ายังไม่มี student row)
+// ปีการศึกษาที่จบคำนวณจากรหัสนักศึกษาเองฝั่ง server เท่านั้น — ไม่รับค่าจาก client
+export const completeProfile = async (req, res, next) => {
+  try {
+    // authenticate แนบ req.user.studentId ไว้แล้ว — ถ้ามีค่าแปลว่ากรอกโปรไฟล์ไปแล้ว ห้ามกรอกซ้ำ
+    if (req.user.studentId) {
+      const err = new Error("กรอกโปรไฟล์ไปแล้ว");
+      err.statusCode = 409;
+      throw err;
+    }
+
+    const {
+      first_name,
+      last_name,
+      first_name_en,
+      last_name_en,
+      email,
+      phone,
+      room_id,
+    } = req.body;
+
+    if (
+      !first_name ||
+      !last_name ||
+      !first_name_en ||
+      !last_name_en ||
+      !email ||
+      !phone ||
+      !room_id
+    ) {
+      const err = new Error("กรุณากรอกข้อมูลให้ครบ");
+      err.statusCode = 400;
+      throw err;
+    }
+
     const room = await studentRepo.findRoomById(Number(room_id));
     if (!room) {
       const err = new Error("ไม่พบห้องเรียนที่เลือก");
@@ -86,28 +135,85 @@ export const create = async (req, res, next) => {
       throw err;
     }
 
-    const studentRole = await studentRepo.findRoleByName("student");
     const faculty = await studentRepo.findFaculty();
-    if (!studentRole || !faculty) {
-      const err = new Error("ระบบยังไม่ได้ตั้งค่าข้อมูลพื้นฐาน (role/faculty)");
+    if (!faculty) {
+      const err = new Error("ระบบยังไม่ได้ตั้งค่าข้อมูลพื้นฐาน (faculty)");
       err.statusCode = 500;
       throw err;
     }
 
-    // password_hash = null, must_change_password = true — เข้าครั้งแรกผ่าน /api/auth/first-setup เหมือน import CSV
-    const student = await studentRepo.createImported({
-      role_id: studentRole.role_id,
-      psu_passport_id: student_id,
+    // psu_passport_id ของนักศึกษา = student_id — ใช้คำนวณปีจบด้วย
+    const student_id = req.user.username;
+    const academic_year = calcGraduationYear(student_id);
+
+    const result = await studentRepo.completeProfile({
+      user_id: req.user.userId,
+      student_id,
       first_name,
       last_name,
+      first_name_en,
+      last_name_en,
       email,
       phone,
       faculty_id: faculty.faculty_id,
       room_id: room.room_id,
-      academic_year: Number(academic_year),
+      academic_year,
     });
 
-    res.status(201).json({ success: true, data: student });
+    res.status(201).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// เจ้าหน้าที่แก้ข้อมูลนักศึกษาทีหลัง — แก้ได้ทุก field รวมปีการศึกษาจบ (เคสซ้ำชั้น/ลาพัก)
+export const update = async (req, res, next) => {
+  try {
+    const existing = await studentRepo.findById(req.params.id);
+    if (!existing) {
+      const err = new Error("ไม่พบนักศึกษา");
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const {
+      first_name,
+      last_name,
+      first_name_en,
+      last_name_en,
+      email,
+      phone,
+      room_id,
+      academic_year,
+    } = req.body;
+
+    if (room_id !== undefined) {
+      const room = await studentRepo.findRoomById(Number(room_id));
+      if (!room) {
+        const err = new Error("ไม่พบห้องเรียนที่เลือก");
+        err.statusCode = 400;
+        throw err;
+      }
+    }
+
+    const userData = {};
+    if (first_name !== undefined) userData.first_name = first_name;
+    if (last_name !== undefined) userData.last_name = last_name;
+    if (email !== undefined) userData.email = email;
+    if (phone !== undefined) userData.phone = phone;
+
+    const studentData = {};
+    if (first_name_en !== undefined) studentData.first_name_en = first_name_en;
+    if (last_name_en !== undefined) studentData.last_name_en = last_name_en;
+    if (room_id !== undefined) studentData.room_id = Number(room_id);
+    if (academic_year !== undefined) studentData.academic_year = Number(academic_year);
+
+    const updated = await studentRepo.updateProfile(req.params.id, {
+      user: userData,
+      student: studentData,
+    });
+
+    res.json({ success: true, data: updated });
   } catch (err) {
     next(err);
   }
@@ -195,19 +301,13 @@ export const bulkImport = async (req, res, next) => {
       throw err;
     }
 
-    // ทุกแถวใช้ role/faculty เดียวกัน (คณะนี้มีคณะเดียว) — ดึงครั้งเดียวนอกลูปพอ
+    // ทุกแถวใช้ role เดียวกัน — ดึงครั้งเดียวนอกลูปพอ
     const studentRole = await studentRepo.findRoleByName("student");
-    const faculty = await studentRepo.findFaculty();
-    if (!studentRole || !faculty) {
-      const err = new Error("ระบบยังไม่ได้ตั้งค่าข้อมูลพื้นฐาน (role/faculty)");
+    if (!studentRole) {
+      const err = new Error("ระบบยังไม่ได้ตั้งค่าข้อมูลพื้นฐาน (role)");
       err.statusCode = 500;
       throw err;
     }
-
-    // ดึงห้องเรียนทั้งหมดมาไว้ก่อนครั้งเดียว — ใช้ทั้งจับคู่ชื่อห้องและบอกชื่อห้องที่มีจริงตอน error
-    const rooms = await studentRepo.findAllRooms();
-    const roomsByName = new Map(rooms.map((r) => [r.room_name, r]));
-    const validRoomNames = rooms.map((r) => r.room_name).join(", ");
 
     const imported = [];
     const skipped = [];
@@ -215,27 +315,29 @@ export const bulkImport = async (req, res, next) => {
     for (let i = 0; i < rows.length; i++) {
       const rowNum = i + 2; // +1 เพราะแถวแรกคือ header, +1 เพราะนับแบบ 1-indexed ให้ตรงกับที่เห็นใน Excel
       const row = rows[i];
-      const {
-        student_id,
-        first_name,
-        last_name,
-        email,
-        phone,
-        room_name,
-        academic_year,
-      } = row;
+      const { student_id, national_id } = row;
 
       // validate ฟิลด์บังคับต่อแถว — ขาดฟิลด์ไหนก็ข้ามแถวนั้น ไม่ทำให้ทั้งไฟล์ล้ม
-      if (
-        !student_id ||
-        !first_name ||
-        !last_name ||
-        !email ||
-        !phone ||
-        !room_name ||
-        !academic_year
-      ) {
+      if (!student_id || !national_id) {
         skipped.push({ row: rowNum, student_id, reason: "ข้อมูลไม่ครบ" });
+        continue;
+      }
+
+      if (!NATIONAL_ID_PATTERN.test(national_id)) {
+        skipped.push({
+          row: rowNum,
+          student_id,
+          reason: "เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก",
+        });
+        continue;
+      }
+
+      if (!STUDENT_ID_PATTERN.test(student_id)) {
+        skipped.push({
+          row: rowNum,
+          student_id,
+          reason: "รหัสนักศึกษาต้องเป็นตัวเลขอย่างน้อย 2 หลัก",
+        });
         continue;
       }
 
@@ -246,31 +348,13 @@ export const bulkImport = async (req, res, next) => {
         continue;
       }
 
-      // ห้องเรียนต้องมีอยู่จริงในระบบก่อน (seed ไว้แล้ว) — พิมพ์ชื่อห้องผิดก็ข้ามแถวนั้น
-      // บอกชื่อห้องที่มีจริงไปด้วย กันคนพิมพ์ผิด/พิมพ์ไม่ครบแล้วงงว่าทำไมข้าม
-      const room = roomsByName.get(room_name);
-      if (!room) {
-        skipped.push({
-          row: rowNum,
-          student_id,
-          reason: `ไม่พบห้องเรียน '${room_name}' (ห้องที่มีในระบบ: ${validRoomNames})`,
-        });
-        continue;
-      }
-
       try {
-        // สร้าง user (password_hash = null, must_change_password = true)
-        // นักศึกษาจะเข้าเว็บครั้งแรกได้ผ่านหน้า "ตั้งรหัสผ่านครั้งแรก" (/api/auth/first-setup) เท่านั้น
-        await studentRepo.createImported({
+        // สร้างแค่ user — รหัสผ่าน = hash(เลขบัตร ปชช) เข้าระบบได้ทันที ไม่ต้องผ่าน first-setup
+        // student row จะถูกสร้างตอนนักศึกษากรอกโปรไฟล์เอง (complete-profile) หลัง login ครั้งแรก
+        await studentRepo.createFromImport({
           role_id: studentRole.role_id,
           psu_passport_id: student_id,
-          first_name,
-          last_name,
-          email,
-          phone,
-          faculty_id: faculty.faculty_id,
-          room_id: room.room_id,
-          academic_year: Number(academic_year),
+          password_hash: await bcrypt.hash(national_id, SALT_ROUNDS),
         });
         imported.push(student_id);
       } catch (createErr) {
