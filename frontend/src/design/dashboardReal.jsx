@@ -32,8 +32,7 @@ export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreVi
   };
   const [rounds, setRounds] = useState([]);
   const [history, setHistory] = useState(null);
-  // เอา state ของ alerts ออกแล้ว — AlertPanel ถูกคอมเมนต์ไว้ตั้งแต่รอบก่อน
-  // ถ้าจะเปิดกลับมาใช้ ต้องเอา apiFetch('/dashboard/alerts') กลับเข้า Promise.all ด้านล่างด้วย
+  const [alerts, setAlerts] = useState([]);
   const [year, setYear] = useState(null); // ปีการศึกษาที่กำลังดู
   // ปีของโซน "สถิติเชิงรายงาน" แยกอิสระจาก year ด้านบน — ไม่ผูกกับที่เลือกบนสุด/RoundTabs
   // ติ๊กเลือกได้สูงสุด 3 ปี จากทั้งหมดที่มีจริง (ไม่จำกัดแค่ 3 ปีล่าสุดเหมือน yearOptions ด้านบน)
@@ -57,10 +56,12 @@ export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreVi
       apiFetch('/rounds'),
       // ดึงย้อนหลังยาวๆ ไว้ก่อน (เผื่อมีเป็น 10 ปี) จะได้ติ๊กเลือกปีเก่าๆ ในโซนรายงานได้ครบ ไม่ใช่แค่ 3 ปีล่าสุด
       apiFetch('/dashboard/history?years=20'),
+      apiFetch('/dashboard/alerts').catch(() => ({ alerts: [] })),
     ])
-      .then(([roundList, hist]) => {
+      .then(([roundList, hist, alertData]) => {
         setRounds(roundList);
         setHistory(hist);
+        setAlerts(alertData.alerts || []);
 
         // ปีตั้งต้น = ปีของรอบที่เปิดรับอยู่ ไม่มีก็ปีล่าสุดที่มีรอบ
         // มาจากปุ่ม "กลับไปหน้าแดชบอด" ที่หน้านักศึกษา ใช้ปี/รอบที่ค้างไว้ตอนกดออกไปแทน
@@ -171,9 +172,8 @@ export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreVi
         sub={yearSummary ? tt('dashReal.subInfo', { year, total: yearSummary.total, eligible: yearSummary.eligible }) : null}
         actions={yearPicker} />
 
-      {/* ─── โซน 1: "เรื่องที่ต้องดำเนินการ" — เอาออกก่อน (คอมเมนต์พักไว้ ยังไม่ลบ) ───
+      {/* ─── โซน 1: "เรื่องที่ต้องดำเนินการ" — แจ้งเตือนคำนวณสดจาก backend ─── */}
       <AlertPanel alerts={alerts} go={go} readonly={readonly} tt={tt} />
-      */}
 
       {/* ─── โซน 2: ผลการกรอกของรอบที่เลือก ─────────────────────────
           เจ้าหน้าที่เท่านั้น — ผู้บริหารดูภาพรวมทั้งปีอย่างเดียว ไม่ต้องไล่ทีละรอบ
