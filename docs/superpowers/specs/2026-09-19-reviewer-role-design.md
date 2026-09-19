@@ -219,4 +219,5 @@ try {
 
 - `review_logs` ออกแบบไว้รองรับ "workload รายคน" อยู่แล้ว (`GROUP BY reviewer_id`) — ถ้าวันหน้าต้องการหน้าสรุป ไม่ต้องแก้ schema เพิ่ม
 - ต้องอัปเดต `backend/BACKEND_GUIDE.md` (endpoint ใหม่/role ใหม่/schema/Changelog) ในคอมมิตเดียวกับโค้ด ตามกติกาใน `CLAUDE.md`
+- ต้องเพิ่ม `backend/SYNTAX_NOTES.md` ด้วย — `updateMany` แบบมีเงื่อนไขกันชน (guard) เป็น syntax/pattern ใหม่ของโปรเจกต์นี้ ยังไม่เคยอธิบายไว้ (โค้ดทั้งฟีเจอร์นี้เขียนแบบ syntax พื้นฐาน ไม่ใช้ chaining ซับซ้อน — ตาม [[code-style-beginner-friendly]])
 - ถ้าจำนวน reviewer เพิ่มจนคิวรวมเริ่มชนกันบ่อย (409 ขึ้นถี่) ค่อยพิจารณา assignment จริงจังตอนนั้น
