@@ -32,7 +32,6 @@ export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreVi
   };
   const [rounds, setRounds] = useState([]);
   const [history, setHistory] = useState(null);
-  const [alerts, setAlerts] = useState([]);
   const [year, setYear] = useState(null); // ปีการศึกษาที่กำลังดู
   // ปีของโซน "สถิติเชิงรายงาน" แยกอิสระจาก year ด้านบน — ไม่ผูกกับที่เลือกบนสุด/RoundTabs
   // ติ๊กเลือกได้สูงสุด 3 ปี จากทั้งหมดที่มีจริง (ไม่จำกัดแค่ 3 ปีล่าสุดเหมือน yearOptions ด้านบน)
@@ -56,12 +55,10 @@ export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreVi
       apiFetch('/rounds'),
       // ดึงย้อนหลังยาวๆ ไว้ก่อน (เผื่อมีเป็น 10 ปี) จะได้ติ๊กเลือกปีเก่าๆ ในโซนรายงานได้ครบ ไม่ใช่แค่ 3 ปีล่าสุด
       apiFetch('/dashboard/history?years=20'),
-      apiFetch('/dashboard/alerts').catch(() => ({ alerts: [] })),
     ])
-      .then(([roundList, hist, alertData]) => {
+      .then(([roundList, hist]) => {
         setRounds(roundList);
         setHistory(hist);
-        setAlerts(alertData.alerts || []);
 
         // ปีตั้งต้น = ปีของรอบที่เปิดรับอยู่ ไม่มีก็ปีล่าสุดที่มีรอบ
         // มาจากปุ่ม "กลับไปหน้าแดชบอด" ที่หน้านักศึกษา ใช้ปี/รอบที่ค้างไว้ตอนกดออกไปแทน
@@ -171,9 +168,6 @@ export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreVi
         title={tt('dashReal.title')}
         sub={yearSummary ? tt('dashReal.subInfo', { year, total: yearSummary.total, eligible: yearSummary.eligible }) : null}
         actions={yearPicker} />
-
-      {/* ─── โซน 1: "เรื่องที่ต้องดำเนินการ" — แจ้งเตือนคำนวณสดจาก backend ─── */}
-      <AlertPanel alerts={alerts} go={go} readonly={readonly} tt={tt} />
 
       {/* ─── โซน 2: ผลการกรอกของรอบที่เลือก ─────────────────────────
           เจ้าหน้าที่เท่านั้น — ผู้บริหารดูภาพรวมทั้งปีอย่างเดียว ไม่ต้องไล่ทีละรอบ
@@ -347,60 +341,6 @@ function Section({ title, sub, children }) {
         <div style={{ height: 1, background: 'var(--ink-100)', flex: 1 }} />
       </div>
       {children}
-    </div>
-  );
-}
-
-/* แจ้งเตือนสถานะปัจจุบัน — /dashboard/alerts คำนวณสดทุกครั้ง ไม่มีของค้างเก่า
-   ไม่มีอะไรค้างก็ยังมีการ์ดบอก ไม่ปล่อยพื้นที่ว่างจนดูเหมือนโหลดไม่ขึ้น */
-function AlertPanel({ alerts, go, readonly, tt }) {
-  const TONE = {
-    reject: ['var(--status-reject-bg)', 'var(--status-reject-fg)', 'var(--status-reject-dot)'],
-    wait: ['var(--status-wait-bg)', 'var(--status-wait-fg)', 'var(--status-wait-dot)'],
-    ok: ['var(--status-ok-bg)', 'var(--status-ok-fg)', 'var(--status-ok-dot)'],
-    navy: ['var(--blue-50)', 'var(--navy-700)', 'var(--navy-600)'],
-  };
-
-  // กดแจ้งเตือนแล้วพาไปหน้าที่ทำงานนั้นได้เลย — เรื่องรอตรวจไปคิวตรวจ, เรื่องคนยังไม่ส่งไปรายชื่อ
-  const targetOf = (a) => {
-    if (readonly) return null; // ผู้บริหารไม่มีหน้าพวกนี้
-    if (a.type === 'pending_review') return 'review';
-    if (a.type === 'not_submitted') return 'students';
-    if (a.type === 'round_closing' || a.type === 'round_overdue') return 'rounds';
-    return null;
-  };
-
-  // ไม่มีอะไรค้าง = ไม่ต้องแสดงอะไรเลย กล่องนี้โผล่เฉพาะตอนมีเรื่องให้ทำจริง
-  if (alerts.length === 0) return null;
-
-  return (
-    <div className="card card-pad">
-      <h3 style={{ margin: '0 0 14px', fontSize: 18, fontWeight: 800 }}>
-        {tt('dashReal.alertsTitle')} <span className="chip tnum" style={{ marginLeft: 6 }}>{alerts.length}</span>
-      </h3>
-      <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
-        {alerts.map(a => {
-          const [bg, fg, dot] = TONE[a.tone] || TONE.navy;
-          const target = targetOf(a);
-          return (
-            <button key={a.key} onClick={target ? () => go(target) : undefined}
-              style={{ display: 'flex', alignItems: 'flex-start', gap: 11, padding: '13px 14px', textAlign: 'left',
-                border: '1px solid var(--ink-200)', borderLeft: `3px solid ${dot}`, borderRadius: 12,
-                background: '#fff', fontFamily: 'inherit', width: '100%',
-                cursor: target ? 'pointer' : 'default' }}>
-              <span style={{ width: 32, height: 32, borderRadius: 9, flex: 'none', display: 'flex',
-                alignItems: 'center', justifyContent: 'center', background: bg, color: fg }}>
-                <Icon name={a.icon} size={16} />
-              </span>
-              <span style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ display: 'block', fontSize: 16, fontWeight: 700, color: 'var(--ink-900)' }}>{a.title}</span>
-                <span style={{ display: 'block', fontSize: 14.5, color: 'var(--ink-500)', marginTop: 2 }}>{a.detail}</span>
-              </span>
-              {target && <Icon name="chevR" size={15} style={{ color: 'var(--ink-400)', flex: 'none', marginTop: 8 }} />}
-            </button>
-          );
-        })}
-      </div>
     </div>
   );
 }
@@ -616,7 +556,8 @@ function SubjectRateCard({ perSubject, subjectPassRate, title, lang, tt, onSubje
           return (
             <BarRow key={sub.subject_id} label={label} value={sub.rate} max={100}
               color="var(--pass)" track="var(--fail)" right={`${sub.rate}%`}
-              sub={tt('dashReal.passFailSub', { pass: sub.pass, fail: sub.fail })}
+              passLabel={tt('dashReal.passCountBtn', { n: sub.pass })}
+              failLabel={tt('dashReal.failCountBtn', { n: sub.fail })}
               onPassClick={onSubjectClick ? () => onSubjectClick(sub.subject_code, true, sub.subject_name) : undefined}
               onFailClick={onSubjectClick ? () => onSubjectClick(sub.subject_code, false, sub.subject_name) : undefined} />
           );
@@ -904,7 +845,10 @@ function SubjectHistoryChart({ history, firstRoundSubjects, tt, yearPicker }) {
     .filter(y => firstRoundSubjects[y.academic_year]?.length > 0)
     .sort((a, b) => a.academic_year - b.academic_year); // เก่า→ใหม่ อ่านซ้ายไปขวา
 
-  if (years.length === 0) return null;
+  // เดิม return null เฉยๆ ตอนไม่มีข้อมูล — กดแท็บแล้วจอว่างมองไม่ออกว่าพังหรือแค่ไม่มีข้อมูล (เช่น ปีนี้ยังไม่เคยมีรอบที่ 1)
+  if (years.length === 0) {
+    return <div className="card card-pad"><Empty icon="chart" title={tt('dashReal.subjectHistoryTitle')} sub={tt('dashReal.subjectHistoryEmpty')} /></div>;
+  }
 
   // แกน x ต้องเป็น union ของวิชาทุกปีที่โชว์ ไม่ใช่แค่ของปีล่าสุด — ถ้ารอบแรกของปีล่าสุดสอบไม่ครบทุกวิชา
   // (เช่น รอบนั้นข้าม 1102) วิชานั้นจะหายไปจากกราฟทั้งที่ปีอื่นมีข้อมูลอยู่จริง

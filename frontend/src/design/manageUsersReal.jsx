@@ -22,9 +22,10 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
   const [resetPassword, setResetPassword] = useState(''); // รหัสชั่วคราวที่เจ้าหน้าที่ตั้งให้ตอน reset
   const [confirmError, setConfirmError] = useState('');
   const tt = (key, vars) => t(lang, key, vars);
-  const ROLE_LABEL = { officer: tt('role.officer'), executive: tt('role.executive') };
+  const ROLE_LABEL = { officer: tt('role.officer'), executive: tt('role.executive'), reviewer: tt('role.reviewer') };
 
-  const load = () => { apiFetch('/users').then(all => setUsers(all.filter(u => u.role.role_name === 'officer' || u.role.role_name === 'executive'))).catch(e => toast(e.message, 'error')); };
+  const MANAGED_ROLES = ['officer', 'executive', 'reviewer'];
+  const load = () => { apiFetch('/users').then(all => setUsers(all.filter(u => MANAGED_ROLES.includes(u.role.role_name)))).catch(e => toast(e.message, 'error')); };
   useEffect(load, []);
 
   // ทั้ง 2 ปุ่มเป็นการกระทำที่ย้อนกลับเองไม่ได้ (เจ้าตัว login ด้วยรหัสเดิมไม่ได้อีกแล้ว)
@@ -112,6 +113,7 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
             <select className="select" value={form.role_name} onChange={e => setForm(f => ({ ...f, role_name: e.target.value }))}>
               <option value="executive">{tt('role.executive')}</option>
               <option value="officer">{tt('role.officer')}</option>
+              <option value="reviewer">{tt('role.reviewer')}</option>
             </select>
           </div>
           <div className="field"><label>{tt('usersMgmt.fieldUsername')}</label><input className="input" value={form.psu_passport_id} onChange={e => setForm(f => ({ ...f, psu_passport_id: e.target.value }))} />

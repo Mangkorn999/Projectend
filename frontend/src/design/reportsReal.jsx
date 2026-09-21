@@ -6,7 +6,7 @@
    ============================================================ */
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, StatusBadge, FirstAttemptSubjectTable } from './components.jsx';
+import { PageHead, StatusBadge, FirstAttemptSubjectTable, Modal, Empty } from './components.jsx';
 import { Logo } from './logos.jsx';
 import { apiFetch } from './api.js';
 import { t, subjectName, roomName } from './i18n.js';
@@ -15,6 +15,12 @@ export function ReportsReal({ toast, readonly, lang }) {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState('');
   const [downloading, setDownloading] = useState(false);
+  // การ์ดรายชื่อผ่าน/ไม่ผ่านรายวิชา — เดิมอยู่ที่ Dashboard (กดแล้วเด้งไปหน้ารายชื่อนักศึกษาทั้งรุ่น ปนกับตัวกรองอื่นเพียบ)
+  // ย้ายมาไว้ที่นี่แทนตามที่เจ้าหน้าที่ขอ — คลิกตัวเลขในตาราง "อัตราผ่านรายวิชา" ด้านล่างแล้วเห็นรายชื่อแยกเป็นสัดส่วนในหน้านี้เลย ไม่ต้องเปลี่ยนหน้า
+  const [subjectModal, setSubjectModal] = useState(null); // { subjectCode, subjectName, passed } | null
+  const [subjectModalData, setSubjectModalData] = useState(null); // ผลจาก /students/subject-result-list
+  const [subjectModalError, setSubjectModalError] = useState('');
+  const [subjectDownloading, setSubjectDownloading] = useState(false);
   const tt = (key, vars) => t(lang, key, vars);
 
   // ตัวเลขที่ส่งสภาการพยาบาลเป็นระดับปีการศึกษา ไม่ใช่ระดับรอบ — ต้องดึงสรุปรายปีมาคู่กัน
@@ -55,6 +61,42 @@ export function ReportsReal({ toast, readonly, lang }) {
     .sort((a, b) => a.attempt_number - b.attempt_number);
   const yearOptions = [...new Set(rounds.map(r => r.academic_year))].sort((a, b) => b - a);
   const yearStats = history?.years.find(y => y.academic_year === year) || null;
+
+  // เปิด modal รายชื่อ = ดึงข้อมูลใหม่ทุกครั้ง (กันเห็นข้อมูลของวิชา/รอบก่อนหน้าค้างอยู่)
+  useEffect(() => {
+    if (!subjectModal) { setSubjectModalData(null); return; }
+    setSubjectModalData(null);
+    setSubjectModalError('');
+    apiFetch(`/students/subject-result-list?subject_code=${subjectModal.subjectCode}&passed=${subjectModal.passed}&round_id=${roundId}`)
+      .then(setSubjectModalData)
+      .catch(e => setSubjectModalError(e.message));
+  }, [subjectModal, roundId]);
+
+  const downloadSubjectPdf = async () => {
+    if (!subjectModal) return;
+    setSubjectDownloading(true);
+    try {
+      const res = await fetch(
+        `http://localhost:3000/api/students/export-subject?subject_code=${subjectModal.subjectCode}&passed=${subjectModal.passed}&round_id=${roundId}`,
+        { credentials: 'include' },
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || tt('reportsReal.pdfFailMsg'));
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `รายชื่อ-${subjectModal.passed ? 'ผ่าน' : 'ไม่ผ่าน'}-${subjectModal.subjectCode}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast(e.message, 'error');
+    } finally {
+      setSubjectDownloading(false);
+    }
+  };
 
   // เปลี่ยนปี = เด้งไปรอบแรกของปีนั้นเสมอ เพราะ round_id ของปีเก่าไม่ได้อยู่ในปีใหม่
   const changeYear = (nextYear) => {
@@ -199,17 +241,32 @@ export function ReportsReal({ toast, readonly, lang }) {
         <div className="sec-title" style={{ margin: '26px 0 12px', color: 'var(--ink-900)' }}>{tt('reports.section3')}</div>
         <table className="tbl" style={{ border: '1px solid var(--ink-200)', borderRadius: 10, overflow: 'hidden' }}>
           <thead><tr><th>{tt('reports.colCode')}</th><th>{tt('reports.colSubject')}</th><th style={{ textAlign: 'right' }}>{tt('reports.colPass')}</th><th style={{ textAlign: 'right' }}>{tt('reports.colFail')}</th><th style={{ textAlign: 'right' }}>{tt('reports.colPassRate')}</th></tr></thead>
-          <tbody>{perSubject.map(s => (
+          <tbody>{perSubject.map(s => {
+            const openList = (passed) => setSubjectModal({
+              subjectCode: s.subject_code, subjectName: s.subject_name, passed,
+            });
+            // คลิกได้เฉพาะ officer (readonly = ผู้บริหาร ไม่มีสิทธิ์ดูรายชื่อรายบุคคล) และต้องมีคนอย่างน้อย 1 คน
+            return (
             <tr key={s.subject_id}><td className="mono">{s.subject_code}</td>
               <td style={{ fontWeight: 500 }}>{subjectName(lang, s.subject_code, s.subject_name)}</td>
-              <td className="tnum" style={{ textAlign: 'right', color: 'var(--pass)', fontWeight: 700 }}>{s.pass}</td>
-              <td className="tnum" style={{ textAlign: 'right', color: 'var(--fail)', fontWeight: 700 }}>{s.fail}</td>
+              <td className="tnum" style={{ textAlign: 'right' }}>
+                {!readonly && s.pass > 0
+                  ? <button className="badge-link" onClick={() => openList(true)} style={{ background: 'none', border: 'none', color: 'var(--pass)', fontWeight: 700, fontSize: 'inherit', fontFamily: 'inherit', padding: 0 }}>{s.pass}</button>
+                  : <span style={{ color: 'var(--pass)', fontWeight: 700 }}>{s.pass}</span>}
+              </td>
+              <td className="tnum" style={{ textAlign: 'right' }}>
+                {!readonly && s.fail > 0
+                  ? <button className="badge-link" onClick={() => openList(false)} style={{ background: 'none', border: 'none', color: 'var(--fail)', fontWeight: 700, fontSize: 'inherit', fontFamily: 'inherit', padding: 0 }}>{s.fail}</button>
+                  : <span style={{ color: 'var(--fail)', fontWeight: 700 }}>{s.fail}</span>}
+              </td>
               {/* rate = null คือไม่มีใครสอบวิชานี้ในรอบนี้ ต้องขึ้นขีด ไม่ใช่ 0% ที่แปลว่าสอบแล้วตกหมด */}
               <td style={{ textAlign: 'right' }}>{s.rate === null
                 ? <span className="badge" style={{ background: 'var(--ink-100)', color: 'var(--ink-500)' }}>—</span>
                 : <span className="badge" style={{ background: s.rate >= 80 ? 'var(--status-ok-bg)' : s.rate >= 60 ? 'var(--gold-50)' : 'var(--status-reject-bg)', color: s.rate >= 80 ? 'var(--status-ok-fg)' : s.rate >= 60 ? '#3a2c05' : 'var(--status-reject-fg)' }}>{s.rate}%</span>}</td></tr>
-          ))}</tbody>
+            );
+          })}</tbody>
         </table>
+        {!readonly && <div style={{ fontSize: 13.5, color: 'var(--ink-500)', marginTop: 6 }}>{tt('reportsReal.subjectClickHint')}</div>}
 
         {/* ตารางรายวิชาของการสอบรอบแรก — ตัวหารเป็นนักศึกษาทั้งรุ่น คนละตัวกับตารางด้านบน
             ตารางด้านบนเป็นระดับ "รอบที่เลือก" ตารางนี้เป็นระดับ "ปี/รอบแรก" จึงต้องอยู่แยกกัน ไม่ใช่แก้ของเดิม */}
@@ -249,6 +306,46 @@ export function ReportsReal({ toast, readonly, lang }) {
           </>
         )}
       </div>
+
+      {/* รายชื่อผ่าน/ไม่ผ่านรายวิชา — แยกเป็นกล่องของตัวเอง ไม่ปนกับตัวกรอง/คอลัมน์อื่นๆ ของหน้าข้อมูลนักศึกษา */}
+      {subjectModal && (
+        <Modal open onClose={() => setSubjectModal(null)}
+          title={tt(subjectModal.passed ? 'reportsReal.subjectModalTitlePass' : 'reportsReal.subjectModalTitleFail',
+            { subject: `${subjectModal.subjectCode} ${subjectName(lang, subjectModal.subjectCode, subjectModal.subjectName)}` })}
+          width={640}
+          footer={<>
+            <button className="btn btn-ghost" onClick={() => setSubjectModal(null)}>{tt('common.close')}</button>
+            <button className="btn btn-primary" disabled={subjectDownloading || !subjectModalData?.students?.length} onClick={downloadSubjectPdf}>
+              <Icon name="pdf" size={16} /> {subjectDownloading ? tt('reportsReal.generating') : tt('reportsReal.downloadPdfBtn')}
+            </button>
+          </>}>
+          {subjectModalError && <div style={{ color: 'var(--reject,#dc2626)', padding: '10px 0' }}>{subjectModalError}</div>}
+          {!subjectModalError && !subjectModalData && <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>}
+          {subjectModalData && (
+            subjectModalData.students.length === 0
+              ? <Empty icon="users" title={tt('reportsReal.subjectModalEmpty')} />
+              : <>
+                  <div style={{ fontSize: 15, color: 'var(--ink-600)', marginBottom: 10 }}>
+                    {tt('reportsReal.subjectModalCount', { n: subjectModalData.students.length })} · {subjectModalData.scope_label}
+                  </div>
+                  <div style={{ maxHeight: 420, overflowY: 'auto', border: '1px solid var(--ink-200)', borderRadius: 10 }}>
+                    <table className="tbl">
+                      <thead><tr><th>{tt('officer.students.colStudent')}</th><th>{tt('officer.students.colRoom')}</th></tr></thead>
+                      <tbody>{subjectModalData.students.map(st => (
+                        <tr key={st.student_id}>
+                          <td>
+                            <div style={{ fontWeight: 600 }}>{st.first_name} {st.last_name}</div>
+                            <div className="mono" style={{ fontSize: 13.5, color: 'var(--ink-500)' }}>{st.student_id}</div>
+                          </td>
+                          <td>{roomName(lang, st.room_name)}</td>
+                        </tr>
+                      ))}</tbody>
+                    </table>
+                  </div>
+                </>
+          )}
+        </Modal>
+      )}
     </div>
   );
 }

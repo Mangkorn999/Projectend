@@ -85,17 +85,30 @@ function NewsImage({ newsId, maxHeight = 320, radius = 12, fit = 'cover', zoomab
   </>);
 }
 
+// staff_status (backend) -> key ที่ StatusBadge เข้าใจ — pattern เดียวกับ studentDetailReal.jsx
+const STAFF_STATUS_TO_BADGE = { pending: 'SUBMITTED', approved: 'CONFIRMED', rejected: 'REJECTED' };
+
 export function StudentNewsReal({ go, lang }) {
   const [news, setNews] = useState(null);
   const [round, setRound] = useState(null);
   const [blocked, setBlocked] = useState('');
   const [open, setOpen] = useState(null);
+  const [myResult, setMyResult] = useState(null); // ผลของรอบที่เปิดอยู่ตอนนี้ (ถ้ามี) — null = ยังไม่เคยกรอก
   const tt = (key, vars) => t(lang, key, vars);
 
   useEffect(() => {
     apiFetch('/news').then(setNews).catch(e => setNews([]));
     apiFetch('/rounds/active').then(r => setRound(r)).catch(e => setBlocked(e.message));
+    // ประวัติทั้งหมดของตัวเอง เรียงใหม่->เก่า — กรองเอาแค่ใบของรอบที่เปิดอยู่ทีหลัง (ตอนนี้ยังไม่รู้ round_id)
+    apiFetch('/exam-results/me').then(setMyResult).catch(() => setMyResult([]));
   }, []);
+
+  // ใบล่าสุดของรอบที่กำลังเปิดอยู่ (ถ้ามี) — ใช้โชว์ "สถานะของคุณ" ให้ตรงกับความจริง
+  // ไม่ใช่แค่ปุ่ม "เริ่มกรอกผลสอบ" ตายตัวเหมือนเดิม ทั้งที่กรอกไปแล้วก็ยังขึ้นแบบนี้
+  const currentResult = round && myResult ? myResult.find(r => r.round_id === round.round_id) : null;
+  // ยืนยันแล้ว แก้ไขไม่ได้อีก (backend บล็อก 409) ปุ่มจึงต้องเปลี่ยนเป็นดูสถานะแทนที่จะชวนกดแล้วชนกำแพง
+  const startBtnLabel = currentResult?.staff_status === 'approved' ? tt('news.viewStatusBtn')
+    : currentResult ? tt('news.editBtn') : tt('news.startBtn');
 
   if (!news) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
 
@@ -114,9 +127,12 @@ export function StudentNewsReal({ go, lang }) {
           </div>
           <div style={{ padding: '22px 26px', flex: '1 1 280px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
             <div>
-              <div style={{ fontSize: 15.5, color: 'var(--ink-500)', fontWeight: 600 }}>{tt('news.yourStatusLabel')}</div>
+              <div style={{ fontSize: 15.5, color: 'var(--ink-500)', fontWeight: 600, marginBottom: currentResult ? 7 : 0 }}>{tt('news.yourStatusLabel')}</div>
+              {currentResult && <StatusBadge status={STAFF_STATUS_TO_BADGE[currentResult.staff_status]} size="lg" lang={lang} />}
             </div>
-            <button className="btn btn-gold btn-lg" disabled={!round} onClick={() => go('formIntro')}><Icon name="edit" size={18} /> {tt('news.startBtn')}</button>
+            <button className="btn btn-gold btn-lg" disabled={!round}
+              onClick={() => go(currentResult?.staff_status === 'approved' ? 'status' : 'formIntro')}>
+              <Icon name="edit" size={18} /> {startBtnLabel}</button>
           </div>
         </div>
       </div>

@@ -1,7 +1,8 @@
 /* ============================================================
-   เจ้าหน้าที่ / ผู้บริหาร — รายละเอียดผลสอบนักศึกษาคนเดียว (ข้อมูลจริงจาก backend)
+   เจ้าหน้าที่ / เจ้าหน้าที่ตรวจสอบ — รายละเอียดผลสอบนักศึกษาคนเดียว (ข้อมูลจริงจาก backend)
    แทนที่ StudentDetail เดิมใน officer.jsx ที่ยังใช้ mock SUBJECTS/STUDENTS
-   executive เปิดด้วย readonly=true — ปุ่มยืนยัน/ตีกลับ/แก้ไขข้อมูลจะไม่โชว์ (backend เองก็ block role นี้อยู่แล้วที่ระดับ route)
+   canEdit = เห็นปุ่มแก้ไขข้อมูล, canReview = เห็นปุ่มยืนยัน/ตีกลับ — แยกกัน 2 flag เพราะ reviewer
+   ต้องการ canReview แต่ไม่เอา canEdit (officer ได้ทั้งคู่) ผู้บริหารไม่มีสิทธิ์เข้าหน้านี้เลยอยู่แล้ว (backend block ที่ route)
 
    โชว์ผลสอบ "ทุกรอบ" ที่นักศึกษาคนนี้เคยส่ง เป็น block คลิกสลับได้ฝั่งขวา (ไม่ใช่แค่รอบล่าสุดแบบเดิม)
    ข้อมูลมีอยู่แล้วจาก /exam-results?student_id=... (ไม่ต้องยิง API เพิ่ม) แค่ไม่ทิ้งรอบอื่นทิ้งเหมือนก่อน
@@ -14,7 +15,7 @@ import { t, subjectName, roomName } from './i18n.js';
 
 const STAFF_STATUS_TO_BADGE = { pending: 'SUBMITTED', approved: 'CONFIRMED', rejected: 'REJECTED' };
 
-export function StudentDetailReal({ student, go, toast, readonly, lang }) {
+export function StudentDetailReal({ student, go, toast, canEdit, canReview, lang }) {
   const tt = (key, vars) => t(lang, key, vars);
   const quickReasons = [tt('officer.detail.quickReason1'), tt('officer.detail.quickReason2'), tt('officer.detail.quickReason3')];
   const [subjects, setSubjects] = useState([]); // [{subject_id, subject_code, subject_name}]
@@ -122,7 +123,7 @@ export function StudentDetailReal({ student, go, toast, readonly, lang }) {
         crumb={<><a onClick={() => go('students')} style={{ cursor: 'pointer' }}>{tt('officer.detail.crumbList')}</a> <Icon name="chevR" size={13} /> {tt('officer.detail.crumbDetail')}</>}
         sub={<span className="mono">{student.sid} · {tt('officer.detail.subInfo', { room: roomName(lang, displayRoom), year: displayYear })}</span>}
         actions={<div style={{ display: 'flex', gap: 8 }}>
-          {!readonly && <button className="btn btn-ghost" onClick={openEdit}><Icon name="edit" size={16} /> {tt('officer.detail.editBtn')}</button>}
+          {canEdit && <button className="btn btn-ghost" onClick={openEdit}><Icon name="edit" size={16} /> {tt('officer.detail.editBtn')}</button>}
           <button className="btn btn-ghost" onClick={() => go('students')}><Icon name="chevL" size={16} /> {tt('officer.detail.backBtn')}</button>
         </div>} />
 
@@ -164,13 +165,13 @@ export function StudentDetailReal({ student, go, toast, readonly, lang }) {
             <StatusBadge status={status} size="lg" lang={lang} />
             {examResult?.remark && status === 'REJECTED' && <div style={{ marginTop: 12, padding: '11px 13px', background: 'var(--status-reject-bg)', borderRadius: 10, fontSize: 15, color: 'var(--status-reject-fg)' }}>
               <b>{tt('officer.detail.rejectReasonLabel')}</b><br />{examResult.remark}</div>}
-            {!readonly && status === 'SUBMITTED' && <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginTop: 16 }}>
+            {canReview && status === 'SUBMITTED' && <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginTop: 16 }}>
               <button className="btn btn-success btn-block btn-lg" disabled={busy} onClick={() => review('approve')}>
                 <Icon name="checkCircle" size={18} /> {tt('officer.detail.confirmBtn')}</button>
               <button className="btn btn-danger btn-block" disabled={busy} onClick={() => setReject(true)}>
                 <Icon name="xCircle" size={17} /> {tt('officer.detail.rejectBtn')}</button>
             </div>}
-            {!readonly && status === 'CONFIRMED' && <div style={{ marginTop: 14, padding: '11px 13px', background: 'var(--status-ok-bg)', borderRadius: 10, fontSize: 15, color: 'var(--status-ok-fg)', display: 'flex', gap: 8, alignItems: 'center' }}>
+            {canReview && status === 'CONFIRMED' && <div style={{ marginTop: 14, padding: '11px 13px', background: 'var(--status-ok-bg)', borderRadius: 10, fontSize: 15, color: 'var(--status-ok-fg)', display: 'flex', gap: 8, alignItems: 'center' }}>
               <Icon name="checkCircle" size={17} /> {tt('status.CONFIRMED')}</div>}
             {status === 'DRAFT' && <div style={{ marginTop: 12, fontSize: 15, color: 'var(--ink-500)' }}>{tt('detailReal.notFilledYet')}</div>}
           </div>

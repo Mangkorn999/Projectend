@@ -32,7 +32,14 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang, initial
   const [examResult, setExamResult] = useState('ALL');
   // กรองรายวิชา — มาจากการคลิก "ผ่าน/ไม่ผ่าน" ในการ์ดอัตราผ่านรายวิชาที่ Dashboard เท่านั้น ไม่มี dropdown ให้เลือกเอง
   // ตั้งค่าเริ่มต้นจาก initialFilter ตรงๆ (lazy init) ไม่ต้อง setState ใน effect
-  const [subjectFilter, setSubjectFilter] = useState(() => initialFilter?.kind === 'subject' ? { subjectCode: initialFilter.subjectCode, passed: initialFilter.passed, subjectFullName: initialFilter.subjectFullName } : null); // { subjectCode, passed, subjectFullName } | null
+  // roundId = null หมายถึง "รวมทั้งปี" (initialFilter.tab === 'all') — ไม่งั้นเป็น round_id ของรอบที่กดมาจาก Dashboard
+  // ต้องแนบมาด้วย ไม่งั้นตัวกรองจะไปเทียบกับ "ผลล่าสุดของนักศึกษา" เฉยๆ ซึ่งอาจเป็นคนละรอบกับที่ Dashboard กำลังนับอยู่
+  // (บั๊กที่เจอจริง: การ์ดรอบที่ 2 บอกไม่ผ่าน 5 คน แต่คลิกแล้วเจอ 7 คน เพราะมีคนที่ "ผลล่าสุด" ดันเป็นรอบอื่นปนมาด้วย)
+  const [subjectFilter, setSubjectFilter] = useState(() => initialFilter?.kind === 'subject'
+    ? { subjectCode: initialFilter.subjectCode, passed: initialFilter.passed, subjectFullName: initialFilter.subjectFullName,
+        roundId: initialFilter.tab === 'all' ? null : Number(initialFilter.tab),
+        year: initialFilter.year } // ใช้ตอน export PDF กรณี "รวมทั้งปี" (roundId เป็น null) — เก็บแยกไว้กันปีเปลี่ยนไปตาม year state ทีหลัง
+    : null); // { subjectCode, passed, subjectFullName, roundId, year } | null
   // กรอง "ผ่าน/ไม่ผ่านครั้งแรก" — มาจากปุ่ม "ดูรายชื่อ" ในการ์ดร้อยละผ่านครั้งแรกย้อนหลังที่ Dashboard เท่านั้น
   const [firstAttemptFilter, setFirstAttemptFilter] = useState(() => initialFilter?.kind === 'firstAttempt' ? { year: initialFilter.year, passed: initialFilter.passed } : null); // { year, passed } | null
   // widget เดิมของ Dashboard (ปี/รอบ/แท็บ) ตอนกดมาที่นี่ — เก็บแยกจาก subjectFilter เพราะแม้ผู้ใช้จะกดเคลียร์ตัวกรองวิชา
@@ -45,6 +52,7 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang, initial
   const [resetting, setResetting] = useState(null); // นักศึกษาที่กำลังจะรีเซ็ตรหัส (รอยืนยันในโมดัล)
   const [resetNationalId, setResetNationalId] = useState('');
   const [resetError, setResetError] = useState('');
+  const [downloading, setDownloading] = useState(false);
   const per = 10;
 
   useEffect(() => {
@@ -62,14 +70,20 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang, initial
         // ใบของรอบที่ 1 (attempt_number=1) เท่านั้น — ใช้แยกจาก "ผลล่าสุด" เพราะ "ผ่านครั้งแรก" ต้องดูเฉพาะรอบแรก
         // ไม่ใช่ใบล่าสุดที่อาจมาจากรอบถัดไป (round_id ไม่ซ้ำต่อคน/รอบ จึงมีใบรอบ 1 ได้แค่ใบเดียวต่อคน)
         const round1ByStudent = new Map();
+        // ใบ "ทุกรอบ" ของนักศึกษาแต่ละคน (ไม่ใช่แค่ล่าสุด) — subjectFilter ต้องเช็คใบของรอบที่ Dashboard
+        // กำลังดูอยู่จริงๆ ใช้แค่ "ล่าสุด" ไม่พอ เพราะนักศึกษาบางคนล่าสุดอาจเป็นรอบอื่นที่ไม่ใช่รอบที่กด
+        const allResultsByStudent = new Map();
         for (const r of examResults) {
           if (!latestByStudent.has(r.student_id)) latestByStudent.set(r.student_id, r);
           if (r.round.attempt_number === 1) round1ByStudent.set(r.student_id, r);
+          if (!allResultsByStudent.has(r.student_id)) allResultsByStudent.set(r.student_id, []);
+          allResultsByStudent.get(r.student_id).push(r);
         }
         setStudents(studentList.map(s => {
           const latest = latestByStudent.get(s.student_id);
           const passedCount = latest ? latest.subject_results.filter(sr => sr.is_passed).length : 0;
           const r1 = round1ByStudent.get(s.student_id);
+          const allResults = allResultsByStudent.get(s.student_id) || [];
           return {
             sid: s.student_id,
             userId: s.user.user_id,
@@ -86,6 +100,12 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang, initial
             allPass: passedCount === latest?.subject_results.length && passedCount > 0,
             // ใช้กรองตาม subjectFilter (คลิกมาจากการ์ดอัตราผ่านรายวิชาที่ Dashboard) — ดูแค่ผลล่าสุดเหมือนคอลัมน์อื่นในตารางนี้
             subjectResults: latest ? latest.subject_results.map(sr => ({ code: sr.subject.subject_code, passed: sr.is_passed })) : [],
+            // ทุกใบของนักศึกษาคนนี้ (คนละอันกับ subjectResults ด้านบนที่เป็นแค่ใบล่าสุด) — subjectFilter ใช้ตัวนี้แทน
+            // academicYear + carriedForward ต้องมีด้วย ไม่งั้น "รวมทั้งปี" กรองปีไม่ได้ และนับคนที่ยกผลมาเป็น "สอบจริง" ผิด
+            allResults: allResults.map(r => ({
+              roundId: r.round_id, academicYear: r.round.academic_year, approved: r.staff_status === 'approved',
+              subjects: r.subject_results.map(sr => ({ code: sr.subject.subject_code, passed: sr.is_passed, carriedForward: sr.carried_forward })),
+            })),
             // ใช้กรองตาม firstAttemptFilter (ปุ่ม "ดูรายชื่อ" การ์ดร้อยละผ่านครั้งแรกที่ Dashboard) — carry-forward เติมผลรอบก่อนให้ครบทุกวิชาของรอบ 1 อยู่แล้ว
             // (ดูแบบเดียวกับ countFullyPassed ฝั่ง backend) เช็ค every ตรงๆ จึงพอ ไม่ต้องเทียบ subjectIds ของรอบ
             firstAttempt: r1 ? {
@@ -112,9 +132,26 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang, initial
     if (eligible !== 'ALL' && s.eligible !== (eligible === 'YES')) return false;
     if (examResult === 'PASS' && !(s.allPass && s.status === 'CONFIRMED')) return false;
     if (examResult === 'FAIL' && !(s.subjectCount > 0 && s.passedCount === 0 && s.status === 'CONFIRMED')) return false;
-    // มาจากคลิก "ผ่าน/ไม่ผ่าน" ในการ์ดอัตราผ่านรายวิชาที่ Dashboard — การ์ดนั้นนับเฉพาะใบที่ยืนยันแล้ว
-    // (dashboard.service.js: onlyConfirmed) ต้องกรองด้วยกฎเดียวกัน ไม่งั้นคลิก "ผ่าน" มาแล้วเจอคนที่ยังรอตรวจปนอยู่
-    if (subjectFilter && !(s.status === 'CONFIRMED' && s.subjectResults.some(r => r.code === subjectFilter.subjectCode && r.passed === subjectFilter.passed))) return false;
+    // มาจากคลิก "ผ่าน/ไม่ผ่าน" ในการ์ดอัตราผ่านรายวิชาที่ Dashboard — ต้องคำนวณด้วยกฎ**เดียวกันเป๊ะ**กับที่
+    // dashboard.service.js ใช้คิดเลขบนบัตร ไม่งั้นตัวเลขบัตรกับจำนวนคนในลิสต์นี้จะไม่ตรงกัน (เจอบั๊กนี้มาแล้ว 2 รอบ):
+    //
+    // รอบแรกที่เจอ: เช็คแค่ "ผลล่าสุด" ของนักศึกษา ไม่กรองรอบ/ปี — แก้ไปแล้วด้วย roundId ด้านล่าง
+    // รอบสองที่เจอ (ทดสอบแล้วเจอจริง — 57 คนหลุดเข้ามาทั้งที่บัตรบอก 5): กรณี "รวมทั้งปี" เดิมเช็คทุกใบ
+    // "ทุกปี" ไม่ใช่แค่ปีที่กำลังดู แล้วใช้ .some() เช็คแยกอิสระ ทำให้คนที่ตกวิชานี้ไปแล้วแต่ "ไปสอบแก้ตัวผ่านทีหลัง
+    // ในปีเดียวกัน" ยังติดอยู่ในลิสต์ "ไม่ผ่าน" ทั้งที่ปัจจุบันผ่านแล้ว (บัตรใช้กฎ "เคยผ่านสักรอบ = นับว่าผ่าน ชนะเสมอ")
+    if (subjectFilter) {
+      const relevant = subjectFilter.roundId
+        ? s.allResults.filter(r => r.roundId === subjectFilter.roundId)
+        : s.allResults.filter(r => r.academicYear === subjectFilter.year); // "รวมทั้งปี" — เฉพาะปีที่กำลังดู ไม่ใช่ทุกปีที่เคยมี
+      const approved = relevant.filter(r => r.approved);
+      const sitReal = (sub) => sub.code === subjectFilter.subjectCode && !sub.carriedForward; // สอบจริง ไม่ใช่ยกผลมา
+      const everPassed = approved.some(r => r.subjects.some(sub => sitReal(sub) && sub.passed));
+      const everAttempted = approved.some(r => r.subjects.some(sitReal));
+      // เคยผ่านสักครั้ง = นับเป็นผ่านเสมอ (ชนะการตกครั้งก่อนหน้า) — ตกได้ก็ต่อเมื่อสอบจริงแล้วไม่เคยผ่านเลย
+      const studentPassed = everPassed;
+      if (!everAttempted) return false; // ไม่เคยสอบวิชานี้จริงเลยในสโคปนี้ ไม่เกี่ยว ไม่นับ
+      if (studentPassed !== subjectFilter.passed) return false;
+    }
     // มาจากปุ่ม "ดูรายชื่อ" การ์ดร้อยละผ่านครั้งแรก — ต้องเป็นใบรอบ 1 ของปีนั้น + ยืนยันแล้ว + ผ่าน/ไม่ผ่านตรงที่เลือก
     if (firstAttemptFilter && !(s.firstAttempt && s.firstAttempt.confirmed
       && s.firstAttempt.year === firstAttemptFilter.year && s.firstAttempt.passed === firstAttemptFilter.passed)) return false;
@@ -206,6 +243,37 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang, initial
     }
   };
 
+  // export รายชื่อ (เฉพาะตอนกรองด้วย subjectFilter — คลิกมาจากปุ่ม "ผ่าน/ไม่ผ่าน N คน" ที่ Dashboard เท่านั้น)
+  // ไฟล์ PDF ต้อง login ก่อน — fetch เป็น blob เองพร้อม credentials แทนใช้ <a href> ตรงๆ (pattern เดียวกับ reportsReal.jsx)
+  const downloadSubjectPdf = async () => {
+    if (!subjectFilter) return;
+    setDownloading(true);
+    try {
+      const scope = subjectFilter.roundId
+        ? `round_id=${subjectFilter.roundId}`
+        : `year=${subjectFilter.year}`;
+      const res = await fetch(
+        `http://localhost:3000/api/students/export-subject?subject_code=${subjectFilter.subjectCode}&passed=${subjectFilter.passed}&${scope}`,
+        { credentials: 'include' },
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || tt('detailReal.actionFailMsg'));
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `รายชื่อ-${subjectFilter.passed ? 'ผ่าน' : 'ไม่ผ่าน'}-${subjectFilter.subjectCode}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast?.(e.message, 'error');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const setEligibility = (value) => setEligibilityFor([...selected], value);
   const toggleOneEligibility = (s) => {
     setEligibilityFor([s.sid], !s.eligible);
@@ -224,15 +292,20 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang, initial
         )} />
 
       {subjectFilter && (
-        <div className="chip" style={{ marginBottom: 14, display: 'inline-flex', alignItems: 'center', gap: 8,
-          background: subjectFilter.passed ? 'var(--status-ok-bg)' : 'var(--status-reject-bg)',
-          color: subjectFilter.passed ? 'var(--status-ok-fg)' : 'var(--status-reject-fg)', fontWeight: 700 }}>
-          <Icon name="eye" size={15} />
-          {tt(subjectFilter.passed ? 'officer.students.subjectFilterPass' : 'officer.students.subjectFilterFail',
-            { subject: `${subjectFilter.subjectCode} ${subjectName(lang, subjectFilter.subjectCode, subjectFilter.subjectFullName)}` })}
-          <button onClick={() => setSubjectFilter(null)} style={{ border: 'none', background: 'transparent', cursor: 'pointer',
-            color: 'inherit', display: 'flex', padding: 0 }} title={tt('officer.students.subjectFilterClear')}>
-            <Icon name="xCircle" size={15} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+          <div className="chip" style={{ display: 'inline-flex', alignItems: 'center', gap: 8,
+            background: subjectFilter.passed ? 'var(--status-ok-bg)' : 'var(--status-reject-bg)',
+            color: subjectFilter.passed ? 'var(--status-ok-fg)' : 'var(--status-reject-fg)', fontWeight: 700 }}>
+            <Icon name="eye" size={15} />
+            {tt(subjectFilter.passed ? 'officer.students.subjectFilterPass' : 'officer.students.subjectFilterFail',
+              { subject: `${subjectFilter.subjectCode} ${subjectName(lang, subjectFilter.subjectCode, subjectFilter.subjectFullName)}` })}
+            <button onClick={() => setSubjectFilter(null)} style={{ border: 'none', background: 'transparent', cursor: 'pointer',
+              color: 'inherit', display: 'flex', padding: 0 }} title={tt('officer.students.subjectFilterClear')}>
+              <Icon name="xCircle" size={15} />
+            </button>
+          </div>
+          <button className="btn btn-ghost btn-sm" disabled={downloading} onClick={downloadSubjectPdf}>
+            <Icon name="pdf" size={15} /> {downloading ? tt('reportsReal.generating') : tt('reportsReal.downloadPdfBtn')}
           </button>
         </div>
       )}

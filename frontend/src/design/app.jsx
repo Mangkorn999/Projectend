@@ -64,8 +64,13 @@ const NAV = (lang, pendingCount)=>({
     { k:'reports', label:translate(lang,'nav.executive.reports'), icon:'report' },
     { k:'manual', label:translate(lang,'nav.executive.manual'), icon:'book' },
   ],
+  // เจ้าหน้าที่ตรวจสอบ — เห็นแค่คิวตรวจ (pooled queue เดียวกับ officer ไม่มี assignment)
+  // ไม่มี badge:pendingCount ให้เหมือน officer ตั้งใจ — pendingCount effect ผูกกับ role==='officer' เท่านั้น
+  reviewer: [
+    { k:'review', label:translate(lang,'nav.officer.review'), icon:'checkCircle' },
+  ],
 });
-const DEFAULT_PAGE = { student:'news', officer:'dashboard', executive:'dashboard' };
+const DEFAULT_PAGE = { student:'news', officer:'dashboard', executive:'dashboard', reviewer:'review' };
 
 /* ============================================================
    URL ของแต่ละหน้า
@@ -109,6 +114,7 @@ const ROLE_PAGES = {
   student: ['news', 'formIntro', 'form', 'status', 'history'],
   officer: ['dashboard', 'review', 'students', 'import', 'detail', 'rounds', 'usermgmt', 'newsmgmt', 'reports'],
   executive: ['dashboard', 'reports'],
+  reviewer: ['review', 'detail'],
 };
 
 // หน้าที่ต้องมีข้อมูลที่เลือกไว้ใน state ก่อน (`sel`) ซึ่งหายไปตอนรีเฟรช
@@ -370,23 +376,28 @@ export function App() {
         initialFilter={studentsFilter} onInitialFilterConsumed={() => setStudentsFilter(null)}
         onBackToDashboard={(view) => { setDashboardRestore(view); go('dashboard'); }} />;
       if(page==='import') return <StudentImport toast={showToast} lang={lang} />;
-      if(page==='detail') return <StudentDetailReal student={sel} go={go} toast={showToast} lang={lang} />;
+      if(page==='detail') return <StudentDetailReal student={sel} go={go} toast={showToast} canEdit canReview lang={lang} />;
       if(page==='rounds') return <ManageRoundsSubjectsReal toast={showToast} lang={lang} />;
       if(page==='usermgmt') return <ManageUsersReal toast={showToast} currentUserId={currentUser?.id} lang={lang} />;
       if(page==='newsmgmt') return <ManageNewsReal toast={showToast} lang={lang} />;
       if(page==='reports') return <ReportsReal toast={showToast} lang={lang} />;
       if(page==='manual') return <OfficerManual />;
     }
-    // ไม่มีหน้า students/detail ให้ผู้บริหารแล้ว — endpoint รายบุคคลเป็นของ officer เท่านั้น
+    // ไม่มีหน้า students/detail ให้ผู้บริหารแล้ว — endpoint รายบุคคลเป็นของ officer/reviewer เท่านั้น
     if(role==='executive'){
       if(page==='dashboard') return <DashboardReal go={go} readonly lang={lang} />;
       if(page==='reports') return <ReportsReal toast={showToast} readonly lang={lang} />;
       if(page==='manual') return <Empty icon="book" title={translate(lang,'nav.executive.manual')} sub={translate(lang,'common.comingSoon')} />;
     }
+    // เจ้าหน้าที่ตรวจสอบ — reuse component เดิมของ officer ทั้งคู่ ไม่มีของใหม่ แค่ไม่มี canEdit
+    if(role==='reviewer'){
+      if(page==='review') return <OfficerReviewReal go={go} setSel={setSel} lang={lang} />;
+      if(page==='detail') return <StudentDetailReal student={sel} go={go} toast={showToast} canEdit={false} canReview lang={lang} />;
+    }
     return <Empty title="ไม่พบหน้าที่ต้องการ" />;
   };
 
-  const activeNav = page==='detail' ? 'students' : page;
+  const activeNav = page==='detail' ? (role==='reviewer' ? 'review' : 'students') : page;
 
   return (
     <div data-density={t.density}>

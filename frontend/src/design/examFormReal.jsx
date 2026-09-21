@@ -70,6 +70,9 @@ export function ExamFormReal({ go, toast, lang }) {
 
   const filled = toAnswer.filter(s => results[s.subject_id] !== undefined).length;
   const allPass = toAnswer.length > 0 && toAnswer.every(s => results[s.subject_id] === true);
+  // แก้ไขใบเดิมที่เคยแนบไฟล์ไว้แล้ว (เช่น แค่แก้คำตอบ 1 วิชาแล้วส่งใหม่) ไม่ต้องบังคับแนบไฟล์ซ้ำ —
+  // ไฟล์เดิมยังติดอยู่กับใบเดิม (resubmit ไม่ได้ลบ certificates ทิ้ง) นับว่ามีหลักฐานแล้ว
+  const hasAttachment = !!files.EXAM || (existing?.certificates?.length > 0);
 
   const submit = async () => {
     setSubmitting(true);
@@ -177,7 +180,9 @@ export function ExamFormReal({ go, toast, lang }) {
             <h3 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 800 }}>{tt('examform.attachTitle')}</h3>
             <p style={{ margin: '0 0 16px', color: 'var(--ink-500)', fontSize: 15 }}>{allPass ? tt('upload.allPassNote') : tt('upload.partialNote')}</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <FileSlot label={tt('upload.examLabel')} file={files.EXAM} onChange={f => setFiles(x => ({ ...x, EXAM: f }))} tt={tt} />
+              <FileSlot label={tt('upload.examLabel')} file={files.EXAM}
+                existingName={existing?.certificates?.[0]?.file_name}
+                onChange={f => setFiles(x => ({ ...x, EXAM: f }))} tt={tt} />
             </div>
           </div>
         </div>
@@ -193,8 +198,13 @@ export function ExamFormReal({ go, toast, lang }) {
               ]} center={<><div className="tnum" style={{ fontSize: 28, fontWeight: 800 }}>{filled}/{toAnswer.length}</div><div style={{ fontSize: 13.5, color: 'var(--ink-500)' }}>{tt('progress.filled')}</div></>} />
             </div>
             {error && <div style={{ color: 'var(--reject,#dc2626)', fontSize: 15, marginTop: 10 }}>{error}</div>}
+            {/* ข้อความบอกไว้ว่า "กรุณาแนบใบรายงานผลสอบ" ทั้ง 2 เคส (ผ่านครบ/ยังไม่ผ่าน) แต่เดิมปุ่มไม่เคยเช็คว่าแนบไฟล์จริงไหม
+                กดส่งได้เลยแม้ไม่มีไฟล์ — บั๊กที่เจอจากการทดสอบจริง (ผลสอบไม่มีหลักฐานแนบทั้งที่ควรมี) */}
+            {filled >= toAnswer.length && !hasAttachment && !submitting && (
+              <div style={{ color: 'var(--reject,#dc2626)', fontSize: 14, marginTop: 10 }}>{tt('examform.needAttachMsg')}</div>
+            )}
             <button className="btn btn-primary btn-block btn-lg" style={{ marginTop: 14 }}
-              disabled={filled < toAnswer.length || submitting} onClick={submit}>
+              disabled={filled < toAnswer.length || !hasAttachment || submitting} onClick={submit}>
               {submitting ? tt('common.submitting')
                 : existing?.staff_status === 'rejected' ? tt('examform.resubmitBtn')
                 : existing ? tt('examform.editBtn')
@@ -207,13 +217,17 @@ export function ExamFormReal({ go, toast, lang }) {
   );
 }
 
-function FileSlot({ label, file, onChange, tt }) {
+function FileSlot({ label, file, existingName, onChange, tt }) {
+  // ไม่ได้เลือกไฟล์ใหม่รอบนี้ แต่ใบเดิม (แก้ไข/ส่งใหม่) มีไฟล์แนบอยู่แล้ว — บอกให้รู้ว่ามีอยู่แล้ว ไม่ใช่ยังไม่แนบเลย
+  const showingExisting = !file && existingName;
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', border: '1px dashed var(--ink-300)', borderRadius: 11 }}>
-      <Icon name="pdf" size={22} style={{ color: file ? 'var(--pass)' : 'var(--ink-400)', flex: 'none' }} />
+      <Icon name="pdf" size={22} style={{ color: (file || showingExisting) ? 'var(--pass)' : 'var(--ink-400)', flex: 'none' }} />
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 15.5, fontWeight: 600 }}>{label}</div>
-        <div style={{ fontSize: 14, color: 'var(--ink-500)' }}>{file ? file.name : tt('common.noFileYet')}</div>
+        <div style={{ fontSize: 14, color: 'var(--ink-500)' }}>
+          {file ? file.name : showingExisting ? tt('common.attachedAlready', { name: existingName }) : tt('common.noFileYet')}
+        </div>
       </div>
       <label className="btn btn-ghost btn-sm" style={{ cursor: 'pointer' }}>
         {tt('common.selectFile')}

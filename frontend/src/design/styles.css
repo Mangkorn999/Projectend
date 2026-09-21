@@ -7,12 +7,15 @@
 @import url('https://cdn.jsdelivr.net/gh/lazywasabi/thai-web-fonts@7/fonts/LINESeedSansTH/LINESeedSansTH.css');
 
 :root {
-  /* ---- Brand: PSU orange + academic gold (deepened, less flat) ---- */
-  --navy-900: #6b3200;
-  --navy-800: #9a4300;
-  --navy-700: #e8720f;   /* primary */
-  --navy-600: #ee8a2e;
-  --navy-500: #f4a352;
+  /* ---- Brand: PSU orange + academic gold ----
+     เดิมส้มสด #e8720f สด/แบนไปหน่อย และ contrast กับตัวหนังสือขาวไม่ผ่าน WCAG AA (~3.3:1)
+     ลดสัดส่วนความสว่าง เปลี่ยนเป็นส้มไหม้/ดินเผาเข้มขึ้น (burnt orange) ดูเป็นทางการ/หรูขึ้น
+     และผ่าน contrast 4.5:1 กับตัวหนังสือขาวแล้ว (~4.8:1) */
+  --navy-900: #3d1c00;
+  --navy-800: #7a3900;
+  --navy-700: #bd5700;   /* primary */
+  --navy-600: #d16e10;
+  --navy-500: #e0893a;
   --accent-teal: #0d6e6a;   /* secondary accent for contrast against orange */
   --accent-teal-bg: #e2f3f1;
   --blue-600: #2563eb;   /* interactive / link */
@@ -35,7 +38,7 @@
   --ink-100: #f6efe9;
   --ink-50:  #fbf7f3;
   --white: #ffffff;
-  --canvas: #ffffff;
+  --canvas: #f7f3ef; /* พื้นหลังแอปแบบ Apple/iOS (grouped) — เทาอุ่นอ่อนๆ ให้การ์ดขาวลอยเด่นแยกชั้นชัดเจน ไม่ใช่ขาวทับขาว */
 
   /* ---- Status ---- */
   --status-draft-bg:#eef1f6; --status-draft-fg:#5a6678; --status-draft-dot:#94a3b8;
@@ -46,12 +49,13 @@
   --fail: #e0493b;
 
   /* ---- Radius / shadow ---- */
-  --r-sm: 9px; --r-md: 13px; --r-lg: 18px; --r-xl: 24px; --r-pill: 999px;
-  --sh-xs: 0 1px 2px rgba(70,40,10,.07);
-  --sh-sm: 0 2px 6px rgba(70,40,10,.07), 0 1px 2px rgba(70,40,10,.05);
-  --sh-md: 0 6px 20px rgba(70,40,10,.09), 0 2px 6px rgba(70,40,10,.05);
-  --sh-lg: 0 22px 48px -14px rgba(60,30,5,.24);
-  --sh-nav: 0 8px 30px rgba(60,30,5,.10);
+  /* โค้งมนขึ้น + เงานุ่มขึ้น (กระจายกว้าง โปร่งใสกว่าเดิม) ให้ความรู้สึกแบบ iOS/Apple */
+  --r-sm: 11px; --r-md: 15px; --r-lg: 20px; --r-xl: 28px; --r-pill: 999px;
+  --sh-xs: 0 1px 3px rgba(70,40,10,.05);
+  --sh-sm: 0 2px 10px rgba(70,40,10,.055), 0 1px 2px rgba(70,40,10,.04);
+  --sh-md: 0 10px 28px rgba(70,40,10,.08), 0 2px 8px rgba(70,40,10,.04);
+  --sh-lg: 0 26px 54px -16px rgba(60,30,5,.20);
+  --sh-nav: 0 8px 30px rgba(60,30,5,.08);
 
   --header-h: 64px;
   --sidebar-w: 256px;
@@ -87,10 +91,11 @@ a { color: var(--blue-600); text-decoration: none; }
   font-size:16px; padding:10px 16px; transition:.18s cubic-bezier(.4,0,.2,1); white-space:nowrap; line-height:1; }
 .btn svg { width:18px; height:18px; }
 .btn:active:not(:disabled) { transform: translateY(1px) scale(.98); }
-.btn-primary { background: var(--navy-700); color:#fff; box-shadow: var(--sh-xs); }
-.btn-primary:hover { background: var(--navy-600); box-shadow: var(--sh-md); transform: translateY(-1px); }
-.btn-gold { background: var(--navy-700); color:#fff; }
-.btn-gold:hover { background: var(--navy-600); color:#fff; box-shadow: var(--sh-md); transform: translateY(-1px); }
+/* gradient นุ่มๆ แทนสีทึบแบนราบ — โทนเดียวกับ .nav-item.active ให้ปุ่มหลักดูมีมิติขึ้นนิดๆ ไม่ flat */
+.btn-primary { background: linear-gradient(135deg, var(--navy-600), var(--navy-700)); color:#fff; box-shadow: var(--sh-xs); }
+.btn-primary:hover { background: linear-gradient(135deg, var(--navy-500), var(--navy-600)); box-shadow: var(--sh-md); transform: translateY(-1px); }
+.btn-gold { background: linear-gradient(135deg, var(--navy-600), var(--navy-700)); color:#fff; }
+.btn-gold:hover { background: linear-gradient(135deg, var(--navy-500), var(--navy-600)); color:#fff; box-shadow: var(--sh-md); transform: translateY(-1px); }
 .btn-ghost { background:#fff; color: var(--ink-900); border-color: var(--ink-200); }
 .btn-ghost:hover { background: var(--ink-50); border-color: var(--ink-300); box-shadow: var(--sh-xs); }
 .btn-subtle { background: var(--ink-100); color: var(--ink-900); }
@@ -111,6 +116,10 @@ a { color: var(--blue-600); text-decoration: none; }
   transition: box-shadow .2s cubic-bezier(.4,0,.2,1), transform .2s cubic-bezier(.4,0,.2,1); }
 .card-pad { padding: 22px; }
 .card.clickable, tr.clickable { cursor:pointer; }
+/* การ์ดที่กดได้ยกตัวขึ้นนิดๆ ตอน hover (bento-grid style) — เฉพาะจอที่มีเมาส์จริง ไม่โดนมือถือแตะค้าง */
+@media (hover: hover) {
+  .card.clickable:hover { transform: translateY(-2px); box-shadow: var(--sh-md); }
+}
 
 /* Status badge */
 .badge { display:inline-flex; align-items:center; gap:6px; font-weight:600; font-size:14.5px;
@@ -126,6 +135,11 @@ a { color: var(--blue-600); text-decoration: none; }
 .badge.reject .dot{ background:var(--status-reject-dot); }
 .badge.pass { background:var(--status-ok-bg); color:var(--status-ok-fg); }
 .badge.fail { background:var(--status-reject-bg); color:var(--status-reject-fg); }
+
+/* badge ที่กดได้ (เช่น "ไม่ผ่าน 3 คน" บนแดชบอร์ด กดแล้วไปดูรายชื่อ) — ต่างจาก badge เฉยๆ ตรงต้องดูออกว่ากดได้ */
+.badge-link { border:none; font-family:inherit; cursor:pointer; transition:.15s cubic-bezier(.4,0,.2,1); }
+.badge-link:hover { filter:brightness(.95); transform:translateY(-1px); box-shadow:var(--sh-xs); }
+.badge-link:active { transform:translateY(0); }
 
 .chip { display:inline-flex; align-items:center; gap:6px; font-size:15px; font-weight:500;
   padding:5px 11px; border-radius: var(--r-pill); background:var(--ink-100); color:var(--ink-900); white-space:nowrap; }

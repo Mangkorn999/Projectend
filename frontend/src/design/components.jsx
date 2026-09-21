@@ -167,7 +167,7 @@ export function StatCard({ icon, label, value, sub, tone='navy', onClick, accent
           <div className="tnum" style={{ fontSize:32, fontWeight:800, color:'var(--ink-900)', lineHeight:1 }}>{value}</div>
           {sub && <div style={{ fontSize:14.5, color:'var(--ink-500)', marginTop:7 }}>{sub}</div>}
         </div>
-        <div style={{ width:42, height:42, borderRadius:12, background:bg, color:fg, flex:'none',
+        <div style={{ width:42, height:42, borderRadius:'var(--r-md)', background:bg, color:fg, flex:'none',
           display:'flex', alignItems:'center', justifyContent:'center' }}>
           <Icon name={icon} size={22} />
         </div>
@@ -209,7 +209,7 @@ export function Donut({ segments, size=180, thickness=26, center, gap=2 }) {
 // track = สีพื้นหลังของราง = ส่วนที่ "ยังไม่ถึง" ค่านี้
 // อัตราผ่านส่งสีแดงมา ส่วนที่เหลือจะได้อ่านออกว่า "ไม่ผ่าน" — ไม่งั้น 0% จะเป็นรางเปล่า
 // หน้าตาเหมือนกรณี "ไม่มีข้อมูล" จนแยกไม่ออก
-export function BarRow({ label, value, max=100, color='var(--navy-600)', track, right, sub, onPassClick, onFailClick }) {
+export function BarRow({ label, value, max=100, color='var(--navy-600)', track, right, sub, passLabel, failLabel, onPassClick, onFailClick }) {
   const pct = value / max * 100;
   const failPct = 100 - pct;
   // เปิดหน้ามาแท่งค่อยๆ ไล่จาก 0 ไปค่าจริง — เขียวไล่จากซ้าย, แดง (track) ไล่จากขวา พร้อมกัน มาบรรจบกันตรงกลางพอดี
@@ -235,7 +235,16 @@ export function BarRow({ label, value, max=100, color='var(--navy-600)', track, 
           style={{ position:'relative', width:w+'%', background:color,
           cursor: onPassClick ? 'pointer' : 'default' }}></i>
       </div>
-      {sub && <div style={{ fontSize:13.5, color:'var(--ink-400)' }}>{sub}</div>}
+      {/* เดิมมีแค่แถบบางๆ 9px ให้คลิก แทบไม่มีใครสังเกตว่ากดได้ — ทำเป็นปุ่มชัดๆ แยกผ่าน/ไม่ผ่าน
+          แตะง่ายกว่า (ปุ่มใหญ่กว่าแถบเยอะ) และบอกตรงๆ ว่ากดแล้วไปดูรายชื่อได้ */}
+      {(onPassClick || onFailClick) ? (
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+          {onPassClick && <button type="button" onClick={onPassClick} className="badge pass badge-link">
+            <span className="dot"></span>{passLabel}</button>}
+          {onFailClick && <button type="button" onClick={onFailClick} className="badge fail badge-link">
+            <span className="dot"></span>{failLabel}</button>}
+        </div>
+      ) : sub && <div style={{ fontSize:13.5, color:'var(--ink-400)' }}>{sub}</div>}
     </div>
   );
 }
