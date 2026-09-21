@@ -28,6 +28,7 @@ export const cleanupYears = async (years) => {
 
     await prisma.certificate.deleteMany({ where: { result_id: { in: rids } } });
     await prisma.subjectResult.deleteMany({ where: { result_id: { in: rids } } });
+    await prisma.reviewLog.deleteMany({ where: { result_id: { in: rids } } });
     await prisma.examResult.deleteMany({ where: { result_id: { in: rids } } });
     await prisma.notification.deleteMany({ where: { student_id: { in: sids } } });
     await prisma.news.deleteMany({ where: { round: { academic_year: { in: safe } } } });

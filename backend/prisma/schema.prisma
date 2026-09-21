@@ -35,6 +35,7 @@ model User {
   student         Student?
   created_rounds  SubmissionRound[] @relation("UserToRound")
   role            Role              @relation(fields: [role_id], references: [role_id])
+  review_logs     ReviewLog[]
 
   @@map("users")
 }
@@ -119,8 +120,23 @@ model ExamResult {
   round           SubmissionRound @relation(fields: [round_id], references: [round_id])
   student         Student         @relation(fields: [student_id], references: [student_id])
   subject_results SubjectResult[]
+  review_logs     ReviewLog[]
 
   @@map("exam_results")
+}
+
+// Insert-only — ทุกครั้งที่ approve/reject 1 แถว ไม่ทับของเดิมเหมือน exam_results.confirmed_by
+model ReviewLog {
+  log_id      Int        @id @default(autoincrement())
+  result_id   Int
+  reviewer_id Int
+  action      String     @db.VarChar(20) // "approved" | "rejected"
+  remark      String?    @db.Text // snapshot ของ remark ตอนตรวจครั้งนั้น (ถ้ามี)
+  created_at  DateTime   @default(now())
+  exam_result ExamResult @relation(fields: [result_id], references: [result_id])
+  reviewer    User       @relation(fields: [reviewer_id], references: [user_id])
+
+  @@map("review_logs")
 }
 
 model SubjectResult {

@@ -102,6 +102,7 @@ async function main() {
   await prisma.notification.deleteMany({ where: { student_id: { in: ids } } });
   await prisma.certificate.deleteMany({ where: { exam_result: { student_id: { in: ids } } } });
   await prisma.subjectResult.deleteMany({ where: { exam_result: { student_id: { in: ids } } } });
+  await prisma.reviewLog.deleteMany({ where: { exam_result: { student_id: { in: ids } } } });
   await prisma.examResult.deleteMany({ where: { student_id: { in: ids } } });
   await prisma.student.deleteMany({ where: { student_id: { in: ids } } });
   await prisma.user.deleteMany({ where: { psu_passport_id: { in: ids } } });

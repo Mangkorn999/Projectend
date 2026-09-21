@@ -337,7 +337,7 @@ res.status(statusCode).json({ success: false, message });
 
 ## 7. โมดูลทั้ง 10 ตัว
 
-สัญลักษณ์ในตาราง: 🔓 = ไม่ต้อง login · 🔑 = ต้อง login · 👤 นักศึกษา · 🧑‍💼 เจ้าหน้าที่ · 👔 ผู้บริหาร
+สัญลักษณ์ในตาราง: 🔓 = ไม่ต้อง login · 🔑 = ต้อง login · 👤 นักศึกษา · 🧑‍💼 เจ้าหน้าที่ · 👔 ผู้บริหาร · 🔍 เจ้าหน้าที่ตรวจสอบ (reviewer)
 
 ### 7.1 auth — เข้าสู่ระบบ
 
@@ -413,13 +413,13 @@ public เพราะหน้าสมัคร/ตั้งรหัสคร
 | Method | URL | สิทธิ์ | ทำอะไร |
 |---|---|---|---|
 | GET | `/api/users` | 🧑‍💼 | รายชื่อผู้ใช้ทั้งหมด |
-| POST | `/api/users` | 🧑‍💼 | สร้างบัญชี officer/executive |
+| POST | `/api/users` | 🧑‍💼 | สร้างบัญชี officer/executive/reviewer |
 | POST | `/api/users/:id/role` | 🧑‍💼 | เปลี่ยน role |
 | POST | `/api/users/:id/revoke` | 🧑‍💼 | ถอนสิทธิ์ |
 | POST | `/api/users/:id/reset-password` | 🧑‍💼 | รีเซ็ตรหัสให้ไปตั้งใหม่เอง |
 
 **กฎสำคัญ**
-- สร้างได้แค่ `officer` / `executive` (`CREATABLE_ROLES`) — บัญชีนักศึกษาต้องมาทาง import CSV เท่านั้น
+- สร้างได้แค่ `officer` / `executive` / `reviewer` (`CREATABLE_ROLES` ใน `users.controller.js`) — บัญชีนักศึกษาต้องมาทาง import CSV เท่านั้น
 - **`password` ไม่บังคับตอนสร้าง** — ไม่ส่งมา = `password_hash: null` เจ้าตัวไปตั้งรหัสเองที่ `POST /api/auth/first-setup` (flow เดียวกับนักศึกษาที่ import เข้ามา) เจ้าหน้าที่จึงไม่เคยรู้รหัสของใคร
 - `reset-password` ใช้กลไกเดียวกับ `revoke` (ล้าง `password_hash`) ต่างกันที่เจตนา — reset = ลืมรหัส ตั้งใหม่ได้, revoke = ไม่ให้ใช้งานต่อ
 - **ห้ามเปลี่ยน role / ถอนสิทธิ์ตัวเอง** (เช็ค `targetId === req.user.userId`) — กันเจ้าหน้าที่ล็อกตัวเองออกจากระบบจนไม่มีใครเข้าได้
@@ -430,8 +430,10 @@ public เพราะหน้าสมัคร/ตั้งรหัสคร
 
 | Method | URL | สิทธิ์ | ทำอะไร |
 |---|---|---|---|
-| GET | `/api/students` | 🧑‍💼 | รายชื่อนักศึกษาทั้งหมด |
-| GET | `/api/students/:id` | 🧑‍💼 👤 | ดูรายคน (นักศึกษาดูได้แค่ตัวเอง) |
+| GET | `/api/students` | 🧑‍💼 🔍 | รายชื่อนักศึกษาทั้งหมด (reviewer ใช้ทำแท็บ "ยังไม่กรอก" ในคิวตรวจ) |
+| GET | `/api/students/subject-result-list` | 🧑‍💼 | รายชื่อคนที่ผ่าน/ไม่ผ่านวิชาหนึ่ง (JSON) — query: `subject_code`, `passed=true\|false`, และ `round_id` (รอบเดียว) **หรือ** `year` (รวมทั้งปี) |
+| GET | `/api/students/export-subject` | 🧑‍💼 | รายการเดียวกันเป็น PDF (query เหมือนข้างบน) — ต้องอยู่ก่อน `/:id` ใน routes เสมอ |
+| GET | `/api/students/:id` | 🧑‍💼 👤 🔍 | ดูรายคน (นักศึกษาดูได้แค่ตัวเอง) |
 | POST | `/api/students` | 🧑‍💼 | เพิ่มทีละคน |
 | PATCH | `/api/students/bulk-eligible` | 🧑‍💼 | เปิด/ปิดสิทธิ์กรอกผลสอบหลายคนพร้อมกัน |
 | POST | `/api/students/import` | 🧑‍💼 | import CSV |
@@ -509,9 +511,9 @@ status: "open"  และ  open_date <= ตอนนี้  และ  close_dat
 | POST | `/api/exam-results` | 👤 | ส่ง/แก้ผลสอบของรอบที่เปิดอยู่ |
 | GET | `/api/exam-results/me` | 👤 | ประวัติของตัวเอง |
 | POST | `/api/exam-results/:id/certificates` | 👤 | แนบ PDF |
-| GET | `/api/exam-results` | 🧑‍💼 | ดูทั้งหมด (กรองได้) |
-| PATCH | `/api/exam-results/:id/approve` | 🧑‍💼 | ยืนยันผล |
-| PATCH | `/api/exam-results/:id/reject` | 🧑‍💼 | ตีกลับ (ต้องมี remark) |
+| GET | `/api/exam-results` | 🧑‍💼 🔍 | ดูทั้งหมด (กรองได้) |
+| PATCH | `/api/exam-results/:id/approve` | 🧑‍💼 🔍 | ยืนยันผล |
+| PATCH | `/api/exam-results/:id/reject` | 🧑‍💼 🔍 | ตีกลับ (ต้องมี remark) |
 
 **สถานะ 2 ชุด แยกกันคนละเรื่อง**
 ```js
@@ -558,7 +560,23 @@ dashboard นับอัตราผ่านรายวิชาเฉพา�
 **`getAll`** รับ query 3 ตัว: `?round_id=` `?staff_status=` `?student_id=` (ผสมกันได้) เรียงจาก `submitted_at` ใหม่→เก่า.
 > ⚠️ **ไม่ส่ง `round_id` = ได้ผลสอบทุกรอบทุกปีปนกัน** นักศึกษา 1 คนมีได้หลายใบ. ฝั่งหน้าเว็บต้องระบุรอบเสมอ ไม่งั้นตัวเลขจะไม่ตรงกับ dashboard ที่นับรอบเดียว.
 
-**`approve` / `reject`** ใช้ฟังก์ชันเดียวกัน (`reviewExamResult`) ต่างแค่ค่าสถานะกับ "บังคับมี remark ไหม". บันทึก `confirmed_by` จาก JWT + `confirmed_at` เป็นเวลาปัจจุบัน.
+**`approve` / `reject`** ใช้ฟังก์ชันเดียวกัน (`reviewExamResult`) ต่างแค่ค่าสถานะกับ "บังคับมี remark ไหม". บันทึก `confirmed_by` จาก JWT + `confirmed_at` เป็นเวลาปัจจุบัน. เข้าได้ทั้ง `officer` และ `reviewer` — คิวเดียวกันหมด (pooled) ไม่มี assignment ว่าใครตรวจของใคร.
+
+**Guard กันตรวจซ้อน (`staff_status` ต้องเป็น `pending` เท่านั้น):**
+```js
+if (existing.staff_status !== STAFF_STATUS.PENDING) throw httpError(..., 409); // ด่านแรก ข้อความชัดเจน
+const { count } = await examRepo.updateStaffStatusIfPending(id, {...});        // updateMany + where staff_status='pending'
+if (count === 0) throw httpError(..., 409); // ด่านสอง กัน race จริง — อีกคนแทรกพอดีระหว่างด่านแรกกับตอนนี้
+```
+`updateMany` (ไม่ใช่ `update` ธรรมดา) เพราะต้องใส่เงื่อนไข `staff_status` ลง `where` — `update` รับแค่ unique field ใส่เงื่อนไขสถานะเพิ่มไม่ได้ ด่านแรกอย่างเดียวไม่พอกันจริง (มี gap ระหว่างเช็คกับเขียน) ต้องมีด่านสองเช็ค `count`.
+
+⚠️ **ผลข้างเคียงที่ตั้งใจ:** ใบที่ถูก approve/reject ไปแล้วครั้งหนึ่ง แก้คำตัดสินตรงๆ ผ่าน API อีกไม่ได้แล้ว (จะได้ 409 เสมอ ไม่ว่าใครเป็นคนกด) — ต้องให้นักศึกษา resubmit ก่อน (`staff_status` กลับเป็น `pending` ผ่าน `resubmitWithSubjects`) ถึงจะตรวจซ้ำได้อีก **เปลี่ยนจากพฤติกรรมเดิมก่อนมี reviewer** (เดิม reject แล้วกด approve ทันทีโดยไม่ resubmit ทำได้) — เหตุผล: ทางเดียวที่แยกแยะ "แก้คำตัดสินตัวเองโดยตั้งใจ" กับ "อีกคนมาแทรกแบบไม่รู้ตัว (race)" ได้แน่นอนคือปิดทางแรกไปด้วยเลย ไม่งั้น guard กันชนจริงไม่ได้ (ทดสอบแล้วด้วย `Promise.all` ยิงพร้อมกันจริง — ถ้าไม่ hardcode "pending" การ์ดหลุด ทั้งสองคำขอผ่านหมด). `tests/smoke-phase4-6.mjs` แก้ให้ resubmit ก่อน approve ตามนี้แล้ว.
+
+**Audit log (`review_logs`, insert-only)** — บันทึก**ทุกครั้ง**ที่ approve/reject ไม่ทับของเดิมเหมือน `exam_results.confirmed_by` (`reviewLog.repository.js`, เรียกหลัง guard ผ่านเท่านั้น, ห่อ `try/catch` เอง — insert log พลาดไม่ทำให้ request ทั้งเส้น error เพราะการตรวจสำเร็จไปแล้วจริง):
+```js
+await reviewLogRepo.create({ result_id, reviewer_id: req.user.userId, action: staff_status, remark });
+```
+ยังไม่มี endpoint อ่าน — query ผ่าน DB ตรงถ้าต้องใช้ก่อนมี UI. `tests/cleanupYears.mjs` และสคริปต์ seed ทุกตัว (`seed.js`, `demoSeed.js`, `seedDemoYears.js`, `seedCohort.js`) ต้องลบ `review_logs` ก่อน `exam_results` เสมอ ไม่งั้น FK พัง (`review_logs_result_id_fkey`).
 
 ### 7.8 certificates — ไฟล์หลักฐาน
 
@@ -720,11 +738,11 @@ dashboard นับอัตราผ่านรายวิชาเฉพา�
 
 ## 8. ฐานข้อมูล
 
-### ตารางทั้งหมด (12 model ใน `prisma/schema.prisma`)
+### ตารางทั้งหมด (13 model ใน `prisma/schema.prisma`)
 
 | model | ตารางจริง | เก็บอะไร |
 |---|---|---|
-| `Role` | `roles` | 3 บทบาท: student / officer / executive |
+| `Role` | `roles` | 4 บทบาท: student / officer / executive / reviewer |
 | `User` | `users` | ทุกคนที่เข้าระบบได้ + `password_hash` |
 | `Faculty` | `faculties` | คณะ (ตอนนี้มีแค่คณะพยาบาลศาสตร์) |
 | `Room` | `rooms` | ห้องเรียนปกติ / ห้องเรียนอังกฤษ |
@@ -736,6 +754,7 @@ dashboard นับอัตราผ่านรายวิชาเฉพา�
 | `Certificate` | `certificates` | ไฟล์หลักฐาน (เก็บแค่ path) |
 | `News` | `news` | ข่าว/ประกาศ |
 | `Notification` | `notifications` | แจ้งเตือนรายคน (`type` = `approved` / `rejected` / `eligible`) |
+| `ReviewLog` | `review_logs` | audit log insert-only ของทุกครั้งที่ approve/reject (`reviewer_id`, `action`, `remark` ตอนนั้น) |
 
 > ตาราง `sessions` เคยมี (ตอนคิดจะทำ session-based auth) แต่ **ลบทิ้งแล้ว** — auth ใช้ JWT ใน httpOnly cookie ล้วน ไม่ต้องเก็บ session ใน DB
 
@@ -791,11 +810,13 @@ User ──1:M── SubmissionRound (creator, ผ่าน created_by)
 | `20260812000000_add_unique_round_year_attempt` | unique `submission_rounds(academic_year, attempt_number)` — กันรอบซ้ำ |
 
 **ขั้นตอนแก้ตาราง**: แก้ `prisma/schema.prisma` → `npx prisma migrate dev --name อธิบายสั้นๆ` → Prisma สร้างโฟลเดอร์ migration ใหม่ + อัปเดต DB + สร้าง client ใหม่ให้อัตโนมัติ.
+
+> ⚠️ **`review_logs` (2026-09-20) ไม่มี migration file** — dev DB drift จาก `migrate dev` เดิมอยู่แล้ว (ดู changelog 17 ก.ย.) ใช้ `npx prisma db push` แทนสำหรับตารางนี้ (sync schema ตรงๆ ไม่สร้างประวัติ) ตามด้วย `npx prisma generate` (ต้องปิด server ก่อน ไม่งั้น query engine dll ถูกล็อกอยู่ rename ไม่ได้บน Windows).
 **ห้ามแก้ไฟล์ใน `migrations/` ที่รันไปแล้วด้วยมือ** — DB กับประวัติจะไม่ตรงกัน.
 
 ### `prisma/seed.js` — ข้อมูลตัวอย่าง
 
-ลำดับ: ลบข้อมูลเก่าทุกตาราง (เรียงจากตารางลูกไปแม่ ไม่งั้น foreign key ขวาง) → 3 roles → คณะ + 2 ห้อง → 3 users → student profile → 8 รายวิชา
+ลำดับ: ลบข้อมูลเก่าทุกตาราง (เรียงจากตารางลูกไปแม่ ไม่งั้น foreign key ขวาง — `review_logs` ต้องมาก่อน `exam_results`) → 4 roles → คณะ + 2 ห้อง → 4 users → student profile → 8 รายวิชา
 
 บัญชีทดสอบ (รหัสผ่าน = รหัสผู้ใช้ตัวเอง, ข้ามการบังคับเปลี่ยนรหัส):
 
@@ -804,6 +825,7 @@ User ──1:M── SubmissionRound (creator, ผ่าน created_by)
 | student | `6610210631` | `6610210631` |
 | officer | `456` | `456` |
 | executive | `789` | `789` |
+| reviewer | `321` | `321` |
 
 ### `prisma/demoSeed.js` — ข้อมูลชุดใหญ่สำหรับเดโม
 
@@ -977,6 +999,7 @@ npx prisma db seed && npm test
 | `smoke-phase12-reject-edit.mjs` | ตีกลับแล้วนักศึกษาแก้ใบเดิม |
 | `smoke-phase13-duplicate-round.mjs` | ปีเดียวกัน + ครั้งที่เดียวกัน สร้างซ้ำไม่ได้ + เปิดรอบได้ทีละรอบเดียว (ลบของที่สร้างทิ้งเองตอนจบ) |
 | `smoke-phase14-news-scope.mjs` | นักศึกษาเห็นประกาศเฉพาะรุ่นตัวเอง เจ้าหน้าที่เห็นครบ (ลบของที่สร้างทิ้งเองตอนจบ) |
+| `smoke-phase15-reviewer.mjs` | reviewer role (สิทธิ์เข้า/บล็อก), guard กันตรวจซ้อนแบบ race จริง (`Promise.all`), audit log ทางอ้อม (ลบของที่สร้างทิ้งเองตอนจบ) |
 
 **ต้องรัน server ค้างไว้ก่อน** แล้วค่อยรันเทสอีกหน้าต่าง.
 
@@ -1045,6 +1068,8 @@ curl -H "Authorization: Bearer <token>" http://localhost:3000/api/subjects/1
 
 | วันที่ | เปลี่ยนอะไร |
 |---|---|
+| 2026-09-21 | **แก้ตัวเลข "ผ่าน/ไม่ผ่านรายวิชา" มุมมอง "รวมทั้งปี" ให้นับรายคน** — เดิม `buildYearSummary` ส่ง array ใบทั้งปีเข้า `buildPerSubject` (นับตามใบ) คนที่สอบซ้ำหลายรอบถูกนับเกิน (ทดสอบจริง: badge 9 แต่คนจริง 5) ทั้งที่คอมเมนต์หัวฟังก์ชันเดียวกันเขียนไว้ว่า "รวมทุกรอบนับรายคน". ใหม่: `buildPerSubjectByStudent` + map `passedByStudentConfirmed`/`attemptedByStudentConfirmed` (เฉพาะใบ approved, ไม่นับ carried_forward, **เคยผ่านสักรอบ = นับผ่าน ชนะเสมอ**) — ไม่แตะ `passedByStudent` เดิมที่ใช้กับ "ผ่านครบทุกวิชา" (นับ pending ด้วยโดยตั้งใจ) ลบ `yearCounted` ที่ไม่ใช้แล้ว. ตัวเลขรายรอบ (`buildPerSubject` เดิม) ไม่เปลี่ยน — 1 คนมีได้ใบเดียวต่อรอบอยู่แล้ว. **เพิ่ม endpoint** `GET /api/students/subject-result-list` (JSON) + `GET /api/students/export-subject` (PDF) รายชื่อผ่าน/ไม่ผ่านรายวิชา ใช้ logic เดียวกับตัวเลขบัตรเป๊ะ (`findMatchingSubjectResult` ใน `student.repository.js`, `resolveSubjectQuery` ใน controller ใช้ร่วมกัน 2 endpoint) เฉพาะ officer (ผู้บริหารไม่มีสิทธิ์ดูรายบุคคล). **แยกชิ้นส่วน PDF ใช้ร่วม** ออกเป็น `utils/pdfReport.js` (ฟอนต์/ตาราง/ช่องลงนาม/เลขหน้า) — `dashboard.pdf.js` ใช้ของกลางแทนโค้ดเดิม (ตรวจแล้วรายงานเดิมออกมาเหมือนเดิม) + `students/students.pdf.js` ใหม่. ชื่อไฟล์ดาวน์โหลดที่เป็นภาษาไทยต้องใส่ `filename*=UTF-8''...` (RFC 5987) คู่ `filename` ASCII สำรอง. **ข้อจำกัดที่รู้แล้ว:** เลเยอร์ข้อความที่ซ่อนใน PDF (ใช้ copy/ค้นหา) เรียงสระ+วรรณยุกต์ไทยที่ซ้อนกัน 2 ชั้นสลับตำแหน่ง (เช่น "ทั้ง") เป็นข้อจำกัดของ pdfkit/fontkit — ภาพที่มองเห็น/พิมพ์ถูกต้อง 100% (`schema.prisma` ไม่เปลี่ยน, `dashboard.service.js`, `dashboard.pdf.js`, `utils/pdfReport.js` ใหม่, `students/student.controller.js`, `student.repository.js`, `students.pdf.js` ใหม่, `students.routes.js`, `subjects.repository.js` เพิ่ม `findByCode`) |
+| 2026-09-20 | **เพิ่ม role `reviewer` (เจ้าหน้าที่ตรวจสอบ) + audit log `review_logs`** — ตามสเปก [`docs/superpowers/specs/2026-09-19-reviewer-role-design.md`](../docs/superpowers/specs/2026-09-19-reviewer-role-design.md). Pooled queue เดียวกับ officer ไม่มี assignment รายคน/รายห้อง. เพิ่ม role ใน seed (`321`/`321`), `CREATABLE_ROLES`/`ASSIGNABLE_ROLES` ใน `users.controller.js`, เปิด route ให้ reviewer เข้า `GET/PATCH /api/exam-results*` + `GET /api/students*` (`requireRole`). **แก้ guard กันตรวจซ้อน** — `examResults.controller.js` `reviewExamResult` เดิม update ตรงๆ ไม่เช็คสถานะก่อนเลย (บั๊กแฝงเดิม ไม่ใช่ของใหม่) ตอนนี้บังคับ `staff_status` ต้องเป็น `pending` เท่านั้นถึงตรวจได้ ผ่าน `updateStaffStatusIfPending` (`updateMany` + where กันชน — ด่านสองเช็ค `count===0` กัน race จริงที่ด่านแรกเช็คไม่ทัน ทดสอบยืนยันด้วย `Promise.all` ยิงพร้อมกันจริงใน `smoke-phase15-reviewer.mjs`) **ผลข้างเคียงที่ตั้งใจ (breaking change เล็กน้อย):** ใบที่ตรวจไปแล้วครั้งหนึ่งจะแก้คำตัดสินตรงๆ ผ่าน API อีกไม่ได้ (409 เสมอ) ต้องรอนักศึกษา resubmit ก่อน — เดิม reject แล้ว approve ทันทีไม่ resubmit ทำได้ (`smoke-phase4-6.mjs` แก้เพิ่ม resubmit-before-approve ตามนี้แล้ว). เพิ่ม `review_logs` (insert-only, ทุกครั้งที่ approve/reject) ผ่าน `reviewLog.repository.js` เรียกหลัง guard ผ่านเท่านั้น. **`review_logs` ต้องลบก่อน `exam_results` เสมอ** (FK) — แก้ `tests/cleanupYears.mjs` และสคริปต์ seed ทุกตัว (`seed.js`, `demoSeed.js`, `seedDemoYears.js` ×2 จุด, `seedCohort.js`) ที่ยังไม่ครอบคลุม (`schema.prisma` — `db push` ไม่มี migration file ดู 8. ฐานข้อมูล, `seed.js`, `demoSeed.js`, `seedDemoYears.js`, `seedCohort.js`, `users.controller.js`, `examResults.controller.js`, `examResults.repository.js`, `examResults/reviewLog.repository.js` ใหม่, `students.routes.js`, `examResults.routes.js`, `tests/cleanupYears.mjs`, `tests/smoke-phase4-6.mjs`, `tests/smoke-phase15-reviewer.mjs` ใหม่, `package.json`) — frontend ต่อครบแล้ว (`app.jsx`, `studentDetailReal.jsx`, `manageUsersReal.jsx`, `i18n.js`) |
 | 2026-09-17 | **แก้ bug `PATCH /api/students/:id` (`updateProfile`) 500 ทุกครั้งที่ส่ง `room_id` มา** — เดิม spread `room_id` เป็น scalar ตรงๆ ลง `prisma.student.update()` แต่ schema กำหนด `room` เป็น relation (`@relation(fields:[room_id])`) ต้องเขียนผ่าน `room:{connect:{room_id}}` เท่านั้น. จุดนี้ไม่มี smoke test คลุมเลย เจอจากทดสอบ UI จริงผ่านหน้า "แก้ไขข้อมูลนักศึกษา" ที่เพิ่งต่อ frontend เข้ากับ endpoint นี้เป็นครั้งแรก (`student.repository.js`). เพิ่ม `first_name_en`/`last_name_en` placeholder ใน `demoSeed.js`/`seedDemoYears.js` ด้วย — สองสคริปต์นี้เขียนก่อน schema บังคับ field นี้เป็น NOT NULL เลย seed ไม่ผ่านมาตั้งแต่รอบก่อนแล้วไม่มีใครรัน demo seed เจอจนตอนนี้ |
 | 2026-09-17 | **ตัด first-setup (name-match) ทิ้งทั้งระบบ** — ไม่มีใครใช้แล้วหลังนักศึกษาเปลี่ยนไป login ด้วยเลขบัตร ปชช โดยตรง (ดู entry ด้านล่าง). officer/executive เปลี่ยนมาใช้กลไกเดียวกับ student: `POST /api/users` **บังคับ** ส่ง `password` มาด้วยแล้ว (เจ้าหน้าที่ตั้งรหัสชั่วคราวให้ตอนสร้างบัญชี) + `must_change_password: true` เสมอ → login ครั้งแรกเจอ `ForceChangePassword` (มีอยู่แล้ว ไม่ต้องสร้างใหม่) บังคับเปลี่ยนเอง. `POST /api/users/:id/reset-password` เปลี่ยนจาก "ล้าง password เป็น null แล้วให้ไป first-setup" เป็น **รับ `new_password` ตั้งรหัสชั่วคราวใหม่ให้ทันที** (`UserRepo.setPassword` — ฟังก์ชันใหม่ แยกจาก `revokeAccess` ที่ยังล้างเป็น null ถาวรเหมือนเดิมสำหรับกรณีถอนสิทธิ์จริง). เพิ่ม `POST /api/students/:id/reset-password` **ใหม่** (ของเดิมเป็น dead code ไม่มี frontend เรียกเลย ลบไปแล้วสร้างใหม่ให้ถูก semantics) — รับ `national_id` แล้ว re-hash ตรงๆ **ไม่ตั้ง `must_change_password`** เพราะ password นักศึกษาต้องเป็นเลขบัตร ปชช เสมอ ไม่มีรหัสชั่วคราวแบบ officer/executive. ลบ `POST /api/auth/first-setup` + controller `firstSetup` ทิ้งทั้งหมด (`authController.js`, `auth.routes.js`, `users.controller.js`, `users.repository.js`, `students.routes.js`, `student.controller.js`, `student.repository.js`) |
 | 2026-09-17 | **Login นักศึกษาเปลี่ยนเป็น username=รหัสนักศึกษา + password=เลขบัตร ปชช (hash bcrypt) ใช้แทน password ทุกครั้ง ไม่ใช่แค่ first-setup** — เจ้าหน้าที่ import แค่ `student_id`+เลขบัตร ปชช สร้างแค่ `User` row (ยังไม่มี `Student`), login ครั้งแรกผ่าน `/api/auth/login` ปกติเลย ไม่มี first-setup แยกสำหรับนักศึกษาอีกต่อไป. หลัง login แล้วไม่มี `Student` row → gate ไปกรอกโปรไฟล์ (`POST /api/students/complete-profile`) — ปีการศึกษาจบคำนวณฝั่ง server จาก 2 หลักแรกของ `student_id` เท่านั้น (`utils/academicYear.js`, สูตร entry+4). เพิ่ม endpoint แก้ข้อมูลนักศึกษาทีหลัง (`PATCH /api/students/:id`) ครอบคลุมเคสซ้ำชั้น/ลาพัก. `User.first_name/last_name/email/phone` เปลี่ยนเป็น nullable (ไม่มีตอน import แล้ว), เพิ่ม `Student.first_name_en/last_name_en`. เพิ่ม validate format `student_id` (ตัวเลขล้วนอย่างน้อย 2 หลัก) ทั้ง `create()`/`bulkImport()`, กัน crash 500 ตอน first-setup (name-match) ถ้า `first_name`/`last_name` เป็น null สำหรับนักศึกษาที่ import ด้วย flow ใหม่ — role อื่น (officer/executive) ยังใช้ first-setup name-match แบบเดิม. `academicYear.js` validation error ใส่ `statusCode 400`. `prisma/seed.js` เพิ่ม `notification.deleteMany()` ก่อนลบ students (ไม่งั้น FK restrict violation ทุกครั้งที่มี notifications ค้าง). **ยังไม่มี migration ใน `prisma/migrations` สำหรับ schema diff นี้** — dev DB สร้างด้วย `db push` มาตลอดไม่เคย apply migration history จริง ต้องจัดการแยกก่อนขึ้น production (`schema.prisma`, `seed.js`, `seedCohort.js`, `authController.js`, `middlewares/auth.js`, `modules/students/*`, `utils/academicYear.js`, `tests/smoke-phase4-6/9/11/12/14.mjs`) |

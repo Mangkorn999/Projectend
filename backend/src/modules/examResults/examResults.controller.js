@@ -5,6 +5,7 @@ import * as studentRepo from "../students/student.repository.js";
 import * as subjectsRepo from "../subjects/subjects.repository.js";
 import { subjectsOfRound } from "../../utils/roundSubjects.js";
 import * as notifRepo from "../notifications/notifications.repository.js";
+import * as reviewLogRepo from "./reviewLog.repository.js";
 
 const httpError = (message, statusCode) => {
   const err = new Error(message);
@@ -152,10 +153,16 @@ export const getAll = async (req, res, next) => {
 };
 
 // ยืนยัน/ตีกลับ ใช้ตัวเดียวกัน ต่างกันแค่สถานะและ remark
+// reviewer เข้าได้เหมือน officer (pooled queue) — ตรวจกันเองได้ทุกคนที่ผ่าน requireRole
 const reviewExamResult = async (req, res, next, { staff_status, requireRemark }) => {
   try {
     const existing = await examRepo.findById(req.params.id);
     if (!existing) throw httpError("ไม่พบผลสอบที่ระบุ", 404);
+    // เช็คไว้ก่อนเป็นด่านแรก ให้ error message ชัดเจนกรณีทั่วไป (ใบถูกตรวจไปแล้วนานแล้ว)
+    // เช็คจริงที่กันทับกันได้จริง (แม้ 2 คนกดพร้อมกันเป๊ะๆ) คือเงื่อนไขใน updateStaffStatusIfPending ด้านล่าง
+    if (existing.staff_status !== STAFF_STATUS.PENDING) {
+      throw httpError("ใบนี้ถูกตรวจไปแล้ว กรุณารีเฟรชหน้า", 409);
+    }
 
     const remark = req.body?.remark?.trim();
     if (requireRemark && !remark) {
@@ -169,11 +176,33 @@ const reviewExamResult = async (req, res, next, { staff_status, requireRemark })
       remarkToSave = null;
     }
 
-    const result = await examRepo.updateStaffStatus(req.params.id, {
+    // updateMany + where กันชนสถานะ = optimistic guard ตัวจริง — ถ้าอีกคนตรวจแทรกไปก่อนพอดี
+    // (ระหว่างเช็คด่านแรกด้านบน กับตอนนี้) count จะได้ 0 ต้องเช็คแยก ไม่ใช่แค่ throw ตาม existing เฉยๆ
+    // Guard นี้ครอบคลุมทุกคนที่ตรวจได้ (officer เดิมด้วย ไม่ใช่แค่ reviewer) — เจตนา: ใบที่เคยถูกตรวจ
+    // ไปแล้วครั้งหนึ่ง (approved/rejected) ต้องให้นักศึกษาส่งใหม่ก่อน (กลับเป็น pending) ถึงจะตรวจซ้ำได้อีก
+    // แก้คำตัดสินตรงๆ ผ่าน API โดยไม่รอ resubmit ทำไม่ได้อีกต่อไป (เปลี่ยนจากพฤติกรรมเดิมก่อนมี reviewer)
+    const { count } = await examRepo.updateStaffStatusIfPending(req.params.id, {
       staff_status,
       remark: remarkToSave,
       confirmed_by: req.user.userId, // อ่านจาก JWT เท่านั้น
     });
+    if (count === 0) {
+      throw httpError("ใบนี้ถูกตรวจไปแล้ว กรุณารีเฟรชหน้า", 409);
+    }
+    const result = await examRepo.findById(req.params.id); // ดึงค่าล่าสุดไปตอบ response
+
+    // ตรวจสำเร็จแล้ว (DB commit ผ่าน) — insert log พลาดไม่ควรทำให้ request นี้ error
+    // (จะทำให้เจ้าหน้าที่เห็นว่าตัวเอง "ตรวจไม่สำเร็จ" ทั้งที่จริงสำเร็จแล้ว) log error ไว้ฝั่ง server แทน
+    try {
+      await reviewLogRepo.create({
+        result_id: Number(req.params.id),
+        reviewer_id: req.user.userId,
+        action: staff_status,
+        remark: remarkToSave,
+      });
+    } catch (e) {
+      console.error("บันทึก review_logs ไม่สำเร็จ:", e.message);
+    }
 
     // แจ้งเตือนนักศึกษาเจ้าของผลสอบ — ยิงแบบ fire-and-forget ไม่ให้ล้มการยืนยัน/ตีกลับถ้าแจ้งเตือนพลาด
     const roundLabel = `รอบ ${existing.round.attempt_number}/${existing.round.academic_year}`;

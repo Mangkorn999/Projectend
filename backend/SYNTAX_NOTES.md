@@ -139,6 +139,27 @@ user = await prisma.user.update({
 });
 ```
 
+### updateMany — ใส่เงื่อนไขกันชน (optimistic guard)
+
+`update` ธรรมดา `where` ต้องเป็น unique field ล้วน (เช่น `user_id`) — ใส่เงื่อนไขอื่นเพิ่มไม่ได้ ถ้าอยากเช็คว่า "แถวนี้ยังอยู่ในสถานะที่คาดไว้ไหมก่อนแก้" (กัน 2 คนแก้แถวเดียวกันพร้อมกันทับกันเงียบๆ) ต้องใช้ `updateMany` แทน เพราะ `where` ของ `updateMany` ใส่เงื่อนไขอะไรก็ได้:
+
+```js
+// ตัวอย่างจริงจาก examResults.repository.js — กัน officer/reviewer 2 คนตรวจใบเดียวกันซ้อนกัน
+const { count } = await prisma.examResult.updateMany({
+  where: { result_id: Number(result_id), staff_status: "pending" }, // ต้องยัง "pending" อยู่เท่านั้นถึงจะแก้ได้
+  data: { staff_status: "approved" },
+});
+if (count === 0) {
+  // where ไม่ match แถวไหนเลย = มีคนแก้ไปก่อนแล้ว (สถานะเปลี่ยนไปแล้ว) ไม่ใช่ error ของ DB
+  // ต้องเช็คแยกเอง ไม่มี exception โยนมาให้เหมือน update() ที่หา record ไม่เจอ
+  throw new Error("มีคนแก้ไปก่อนแล้ว");
+}
+```
+
+`updateMany` **ไม่คืน record ที่แก้ไปเหมือน `update`** — คืนแค่ `{ count: จำนวนแถวที่แก้ }`. อยากได้ข้อมูลล่าสุดไปตอบ frontend ต้อง `findUnique`/`findFirst` แยกอีกที**หลัง** `updateMany` เสร็จ.
+
+`count === 0` เช็คสำคัญมาก — คือหัวใจของการกันชน (2 request เข้ามาพร้อมกันเป๊ะ ฝั่งที่แพ้จะได้ `count: 0` ไม่ใช่ error) ถ้าลืมเช็คจุดนี้เท่ากับไม่ได้กันอะไรเลย เหมือนใช้ `update` ธรรมดา.
+
 ### where เทียบ SQL WHERE
 ```js
 where: { psu_passport_id: psu_passport_id }   // = WHERE psu_passport_id = ...

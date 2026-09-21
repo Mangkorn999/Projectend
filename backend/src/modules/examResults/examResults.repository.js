@@ -99,17 +99,18 @@ export const findAll = ({ round_id, staff_status, student_id } = {}) => {
   });
 };
 
-// เจ้าหน้าที่ยืนยัน/ตีกลับ — บันทึกคนกดและเวลาไว้ด้วย
-export const updateStaffStatus = (result_id, { staff_status, remark, confirmed_by }) =>
-  prisma.examResult.update({
-    where: { result_id: Number(result_id) },
+// เจ้าหน้าที่ยืนยัน/ตีกลับ — ทำได้แค่ตอนใบยังเป็น "pending" (ยังไม่มีใครตรวจ) เท่านั้น
+// updateMany (ไม่ใช่ update) เพราะต้องใส่เงื่อนไข staff_status ลง where ได้ด้วย (optimistic guard กัน 2 คนตรวจใบเดียวกันทับกัน)
+// update ธรรมดารับ where เฉพาะ unique field เท่านั้น ใส่เงื่อนไขสถานะเพิ่มไม่ได้
+export const updateStaffStatusIfPending = (result_id, { staff_status, remark, confirmed_by }) =>
+  prisma.examResult.updateMany({
+    where: { result_id: Number(result_id), staff_status: STAFF_STATUS.PENDING },
     data: {
       staff_status,
       remark: remark ?? null,
       confirmed_by,
       confirmed_at: new Date(),
     },
-    include: { ...withDetails, student: studentSafeSelect },
   });
 
 export const findByStudent = (student_id) =>

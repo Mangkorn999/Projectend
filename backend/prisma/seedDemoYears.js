@@ -120,6 +120,7 @@ const main = async () => {
   const oldRids = oldResults.map((r) => r.result_id);
   await prisma.certificate.deleteMany({ where: { result_id: { in: oldRids } } });
   await prisma.subjectResult.deleteMany({ where: { result_id: { in: oldRids } } });
+  await prisma.reviewLog.deleteMany({ where: { result_id: { in: oldRids } } });
   await prisma.examResult.deleteMany({ where: { result_id: { in: oldRids } } });
   await prisma.notification.deleteMany({ where: { student_id: { in: oldSids } } });
   await prisma.news.deleteMany({ where: { round: { academic_year: { in: years } } } });
@@ -172,6 +173,7 @@ const main = async () => {
       ).map((r) => r.result_id);
       await prisma.certificate.deleteMany({ where: { result_id: { in: rids } } });
       await prisma.subjectResult.deleteMany({ where: { result_id: { in: rids } } });
+      await prisma.reviewLog.deleteMany({ where: { result_id: { in: rids } } });
       await prisma.examResult.deleteMany({ where: { result_id: { in: rids } } });
       await prisma.notification.deleteMany({ where: { student_id: { in: sids } } });
       await prisma.student.deleteMany({ where: { student_id: { in: sids } } });

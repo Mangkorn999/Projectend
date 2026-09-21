@@ -16,6 +16,7 @@ async function main() {
   await prisma.news.deleteMany({});
   await prisma.certificate.deleteMany({});
   await prisma.subjectResult.deleteMany({});
+  await prisma.reviewLog.deleteMany({});
   await prisma.examResult.deleteMany({});
   await prisma.submissionRound.deleteMany({});
   await prisma.subject.deleteMany({});
@@ -63,6 +64,7 @@ async function main() {
     { role_name: "student", description: "นักศึกษา" },
     { role_name: "officer", description: "เจ้าหน้าที่คณะ" },
     { role_name: "executive", description: "ผู้บริหารคณะ" },
+    { role_name: "reviewer", description: "เจ้าหน้าที่ตรวจสอบ" },
   ];
   for (const role of roleData) {
     await prisma.role.create({ data: role });
@@ -92,6 +94,9 @@ async function main() {
   }); // เปลี่ยน staff เป็น officer
   const executiveRole = await prisma.role.findFirst({
     where: { role_name: "executive" },
+  });
+  const reviewerRole = await prisma.role.findFirst({
+    where: { role_name: "reviewer" },
   });
 
   if (!studentRole || !staffRole) throw new Error("Roles not found!");
@@ -132,6 +137,18 @@ async function main() {
       last_name: "Exec",
       email: "executive@psu.ac.th",
       phone: "0877777777",
+    },
+  });
+  await prisma.user.create({
+    data: {
+      role_id: reviewerRole.role_id,
+      psu_passport_id: "321",
+      password_hash: initialPassword("321"),
+      ...SEED_ACCOUNT,
+      first_name: "Reviewer",
+      last_name: "Test",
+      email: "reviewer@psu.ac.th",
+      phone: "0866666666",
     },
   });
   console.log("Users created.");

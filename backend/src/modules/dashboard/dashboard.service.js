@@ -70,6 +70,28 @@ const buildPerSubject = (sent, subjects) =>
     };
   });
 
+// เหมือน buildPerSubject แต่รับ "แผนที่รายคน" แทน array ใบ — ใช้ตอนรวมหลายรอบเข้าด้วยกัน (ปีเดียวมีได้หลายรอบ)
+// นับคนเดียวครั้งเดียวต่อวิชา แม้จะสอบวิชานั้นซ้ำหลายรอบในปีนั้นก็ตาม (buildPerSubject ธรรมดานับตามจำนวนใบ ใช้ได้แค่ตอน
+// ใบต่อคนมีได้ใบเดียวแน่ๆ เช่นดูรอบเดียว — ถ้าเอาไปใช้กับหลายรอบรวมกัน คนที่สอบซ้ำหลายรอบจะถูกนับเกินจำนวนคนจริง)
+const buildPerSubjectByStudent = (passedByStudent, attemptedByStudent, subjects) =>
+  subjects.map((sub) => {
+    let pass = 0;
+    let fail = 0;
+    for (const [studentId, attempted] of attemptedByStudent) {
+      if (!attempted.has(sub.subject_id)) continue; // ไม่เคยสอบวิชานี้จริงเลยปีนี้ (มีแต่ carried_forward) ไม่นับ
+      if (passedByStudent.get(studentId)?.has(sub.subject_id)) pass++;
+      else fail++;
+    }
+    return {
+      subject_id: sub.subject_id,
+      subject_code: sub.subject_code,
+      subject_name: sub.subject_name,
+      pass,
+      fail,
+      rate: pass + fail ? percent(pass, pass + fail) : null,
+    };
+  });
+
 // ตารางสรุป "ผ่านกี่วิชา" ของรอบสอบครั้งแรก แยกตามห้องเรียน
 // เช่น ผ่าน 8 วิชา 146 คน / ผ่าน 7 วิชา 47 คน — ตรงกับตารางที่คณะส่งสภาการพยาบาล
 // นับเป็นรายคน: 1 คน = 1 แถวเดียวเท่านั้น (อยู่ในช่อง "ผ่าน N วิชา" ช่องเดียว)
@@ -337,13 +359,17 @@ const buildYearSummary = async (year, allSubjects) => {
   // (ถ้าใช้ total − everSubmitted คนที่ค้าง draft จะโดนนับทั้งช่อง draft และช่องยังไม่เริ่ม)
   const everStarted = new Set();
   const roundSummaries = [];
-  const yearCounted = []; // ผลที่นับได้ (ไม่ถูกตีกลับ) รวมทุกรอบของปีนี้ — ใช้ทำอัตราผ่านรายวิชาย้อนหลัง
 
   // ห้องเรียนของนักศึกษาแต่ละคน — ใช้แยกยอดตามห้องตอนท้าย
   const roomOfStudent = new Map(); // student_id -> room_id
   // วิชาที่แต่ละคนสอบผ่านแล้ว รวมทุกรอบของปีนี้ (ยุบซ้ำด้วย Set)
   // ต้องรวมข้ามรอบ ไม่ใช่ดูทีละรอบ — คนสอบแก้ตัวผ่านครบก็ต่อเมื่อเอาผลรอบก่อนมารวมด้วย
   const passedByStudent = new Map(); // student_id -> Set(subject_id)
+  // คนละชุดกับ passedByStudent ด้านบน (นั่นรวมใบ pending ด้วย ใช้กับ "ผ่านครบทุกวิชา")
+  // 2 ชุดนี้นับเฉพาะใบที่ยืนยันแล้ว (approved) — ใช้กับ perSubject "รวมทั้งปี" เท่านั้น กฎเดียวกับ buildPerSubject รายรอบ
+  // (อัตราผ่านรายวิชา นับเฉพาะใบที่ยืนยันแล้ว + นับเฉพาะคนที่สอบจริง ไม่ใช่ carried_forward)
+  const passedByStudentConfirmed = new Map(); // student_id -> Set(subject_id) ที่เคยผ่าน (ปีนี้)
+  const attemptedByStudentConfirmed = new Map(); // student_id -> Set(subject_id) ที่เคยสอบจริง (ไม่ carried_forward) ปีนี้
   // ใบล่าสุดของแต่ละคน ใช้ทำ statusByStudent ท้ายฟังก์ชัน
   const latestPaperOf = new Map(); // student_id -> examResult
 
@@ -388,9 +414,22 @@ const buildYearSummary = async (year, allSubjects) => {
       for (const sr of r.subject_results) {
         if (sr.is_passed) passedSet.add(sr.subject_id);
       }
+
+      // นับรายคนสำหรับ perSubject "รวมทั้งปี" — เดิมส่ง array ใบทั้งปีตรงๆ เข้า buildPerSubject (นับตามใบ)
+      // คนที่สอบซ้ำหลายรอบในปีเดียว (เช่น ตกวิชาเดิม 2-3 รอบ) จะถูกนับเป็นหลายใบ ทำให้ตัวเลข "ไม่ผ่าน N คน"
+      // เกินจำนวนคนจริง (บั๊กที่เจอจริง: badge บอก 9 แต่คนจริงมี 8, อีกเคสจริงมีคนตกซ้ำถึง 3 รอบ)
+      if (r.staff_status === "approved") {
+        if (!passedByStudentConfirmed.has(r.student_id)) passedByStudentConfirmed.set(r.student_id, new Set());
+        if (!attemptedByStudentConfirmed.has(r.student_id)) attemptedByStudentConfirmed.set(r.student_id, new Set());
+        const passedC = passedByStudentConfirmed.get(r.student_id);
+        const attemptedC = attemptedByStudentConfirmed.get(r.student_id);
+        for (const sr of r.subject_results) {
+          if (sr.is_passed) passedC.add(sr.subject_id);
+          if (!sr.carried_forward) attemptedC.add(sr.subject_id); // สอบจริงรอบนี้ (ไม่ใช่ยกผลมาจากรอบก่อน)
+        }
+      }
     }
 
-    yearCounted.push(...counted);
     roundSummaries.push({
       round_id: round.round_id,
       attempt_number: round.attempt_number,
@@ -503,7 +542,7 @@ const buildYearSummary = async (year, allSubjects) => {
     byRoom, // ผ่านครบ/ส่งแล้วแยกตามห้องเรียน (ปกติ/ภาษาอังกฤษ) — ใช้ตารางเทียบย้อนหลัง
     // อัตราผ่านรายวิชา รวมทุกรอบของปีนี้ — ใช้กราฟเทียบอัตราผ่านรายวิชาย้อนหลัง
     // นับเฉพาะใบที่ยืนยันแล้ว — รอตรวจสอบยังไม่นับ (เหมือนกฎที่ระดับรอบ)
-    perSubject: buildPerSubject(onlyConfirmed(yearCounted), allSubjects),
+    perSubject: buildPerSubjectByStudent(passedByStudentConfirmed, attemptedByStudentConfirmed, allSubjects),
   };
 };
 

@@ -22,10 +22,11 @@ router.post(
   uploadPdf.single("file"),
   uploadCertificate,
 );
-// ─── เจ้าหน้าที่ ───
+// ─── เจ้าหน้าที่ / เจ้าหน้าที่ตรวจสอบ ───
 // executive ไม่มีสิทธิ์ดูผลสอบรายบุคคล — ดูได้แค่สถิติรวมที่ /api/dashboard
-router.get("/", authenticate, requireRole("officer"), getAll);
-router.patch("/:id/approve", authenticate, requireRole("officer"), approve);
-router.patch("/:id/reject", authenticate, requireRole("officer"), reject);
+// reviewer ตรวจได้เหมือน officer (pooled queue เดียวกัน ไม่มี assignment)
+router.get("/", authenticate, requireRole("officer", "reviewer"), getAll);
+router.patch("/:id/approve", authenticate, requireRole("officer", "reviewer"), approve);
+router.patch("/:id/reject", authenticate, requireRole("officer", "reviewer"), reject);
 
 export default router;

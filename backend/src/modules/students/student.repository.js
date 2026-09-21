@@ -16,6 +16,54 @@ export const findAll = () => {
     include: { user: { select: PUBLIC_USER_FIELDS }, faculty: true, room: true },
   });
 };
+
+// นักศึกษาที่ผล (ใบที่ยืนยันแล้วเท่านั้น) ตรงตาม subject_code+passed — ใช้ทำ export รายชื่อ
+// จากปุ่ม "ผ่าน/ไม่ผ่าน" ในการ์ดอัตราผ่านรายวิชาที่ Dashboard — กติกาเดียวกับที่ dashboard.service.js ใช้คำนวณตัวเลขบัตร
+//
+// roundId ระบุ = ดูรอบเดียว (1 คนมีได้ใบเดียวต่อรอบอยู่แล้ว ไม่ต้องกันซ้ำ)
+// year ระบุ (ไม่มี roundId) = "รวมทั้งปี" — 1 คนสอบได้หลายรอบในปีเดียว ต้องยุบเหลือคนละ 1 แถว
+// ตามสถานะสุดท้าย (เคยผ่านสักรอบ = ถือว่าผ่าน, ไม่ carried_forward = สอบจริงไม่ใช่ยกผลมา)
+export const findMatchingSubjectResult = async ({ subjectCode, passed, roundId, year }) => {
+  const where = roundId
+    ? { round_id: roundId, staff_status: "approved" }
+    : { staff_status: "approved", round: { academic_year: year } };
+
+  const results = await prisma.examResult.findMany({
+    where,
+    include: {
+      student: { include: { user: { select: PUBLIC_USER_FIELDS }, room: true } },
+      subject_results: { include: { subject: true } },
+    },
+  });
+
+  if (roundId) {
+    return results
+      .filter((r) =>
+        r.subject_results.some(
+          (sr) => sr.subject.subject_code === subjectCode && sr.is_passed === passed && !sr.carried_forward,
+        ),
+      )
+      .map((r) => ({ student: r.student, submitted_at: r.submitted_at }));
+  }
+
+  // รวมทั้งปี — ยุบใบหลายรอบของคนเดียวกันให้เหลือคนละ 1 แถว
+  const byStudent = new Map(); // student_id -> { student, everPassed, latestSubmittedAt }
+  for (const r of results) {
+    const hit = r.subject_results.find(
+      (sr) => sr.subject.subject_code === subjectCode && !sr.carried_forward,
+    );
+    if (!hit) continue;
+    if (!byStudent.has(r.student_id)) {
+      byStudent.set(r.student_id, { student: r.student, everPassed: false, submitted_at: r.submitted_at });
+    }
+    const entry = byStudent.get(r.student_id);
+    if (hit.is_passed) entry.everPassed = true;
+    if (r.submitted_at > entry.submitted_at) entry.submitted_at = r.submitted_at;
+  }
+  return [...byStudent.values()]
+    .filter((s) => s.everPassed === passed)
+    .map((s) => ({ student: s.student, submitted_at: s.submitted_at }));
+};
 export const findById = (id) =>
   prisma.student.findUnique({
     where: { student_id: id },

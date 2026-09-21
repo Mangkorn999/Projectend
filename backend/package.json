@@ -4,7 +4,7 @@
   "type": "module",
   "main": "app.js",
   "scripts": {
-    "test": "node tests/smoke-phase1-3.mjs && node tests/smoke-phase4-6.mjs && node tests/smoke-phase9-import.mjs && node tests/smoke-phase10-round-subjects.mjs && node tests/smoke-phase11-carry-forward.mjs && node tests/smoke-phase12-reject-edit.mjs && node tests/smoke-phase13-duplicate-round.mjs && node tests/smoke-phase14-news-scope.mjs",
+    "test": "node tests/smoke-phase1-3.mjs && node tests/smoke-phase4-6.mjs && node tests/smoke-phase9-import.mjs && node tests/smoke-phase10-round-subjects.mjs && node tests/smoke-phase11-carry-forward.mjs && node tests/smoke-phase12-reject-edit.mjs && node tests/smoke-phase13-duplicate-round.mjs && node tests/smoke-phase14-news-scope.mjs && node tests/smoke-phase15-reviewer.mjs",
     "start": "node src/server.js",
     "demo:seed": "node --env-file=.env prisma/demoSeed.js",
     "seed:cohort": "node --env-file=.env prisma/seedCohort.js",

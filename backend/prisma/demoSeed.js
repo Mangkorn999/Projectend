@@ -163,6 +163,7 @@ async function main() {
   const demoIds = STUDENTS.map((s) => s.id);
   await prisma.certificate.deleteMany({ where: { exam_result: { student_id: { in: demoIds } } } });
   await prisma.subjectResult.deleteMany({ where: { exam_result: { student_id: { in: demoIds } } } });
+  await prisma.reviewLog.deleteMany({ where: { exam_result: { student_id: { in: demoIds } } } });
   await prisma.examResult.deleteMany({ where: { student_id: { in: demoIds } } });
   await prisma.student.deleteMany({ where: { student_id: { in: demoIds } } });
   await prisma.user.deleteMany({ where: { psu_passport_id: { in: demoIds } } });

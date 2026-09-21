@@ -254,6 +254,18 @@ const main = async () => {
   check("reject เซ็ต staff_status", reject.json?.data?.staff_status, "rejected");
   check("reject เซ็ต confirmed_by", typeof reject.json?.data?.confirmed_by, "number");
 
+  // แก้คำตัดสินตรงๆ ผ่าน API โดยไม่ผ่านการ resubmit ก่อนทำไม่ได้แล้ว (guard กันตรวจซ้อน —
+  // ดู reviewer-role-design.md ข้อ C) นักศึกษาต้องส่งใหม่ก่อน ใบถึงจะกลับไป pending ให้ตรวจต่อได้
+  const rejectedApproveBlocked = await call("PATCH", `/api/exam-results/${resultId}/approve`, { token: officerToken });
+  check("approve ใบที่ถูกตีกลับไปแล้วตรงๆ (ไม่ resubmit ก่อน) → 409", rejectedApproveBlocked.status, 409);
+
+  const resubmitAfterReject = await call("POST", "/api/exam-results", {
+    token: studentToken,
+    body: { subject_results: subjectIds.map((id, i) => ({ subject_id: id, is_passed: i !== 2 })) },
+  });
+  check("resubmit หลังถูกตีกลับ → 200", resubmitAfterReject.status, 200);
+  check("resubmit กลับไปเป็น pending", resubmitAfterReject.json?.data?.staff_status, "pending");
+
   const approve = await call("PATCH", `/api/exam-results/${resultId}/approve`, { token: officerToken });
   check("approve → 200", approve.status, 200);
   check("approve เซ็ต staff_status", approve.json?.data?.staff_status, "approved");

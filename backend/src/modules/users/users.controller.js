@@ -13,8 +13,8 @@ export const getAll = async (req, res, next) => {
   }
 };
 
-// เจ้าหน้าที่สร้างบัญชี officer/executive ให้คนอื่น — ไม่มีสมัครเองสองบทบาทนี้ (กันปลอมตัว)
-const CREATABLE_ROLES = ["officer", "executive"];
+// เจ้าหน้าที่สร้างบัญชี officer/executive/reviewer ให้คนอื่น — ไม่มีสมัครเอง 3 บทบาทนี้ (กันปลอมตัว)
+const CREATABLE_ROLES = ["officer", "executive", "reviewer"];
 
 export const create = async (req, res, next) => {
   try {
@@ -92,7 +92,7 @@ export const create = async (req, res, next) => {
   }
 };
 
-const ASSIGNABLE_ROLES = ["student", "officer", "executive"];
+const ASSIGNABLE_ROLES = ["student", "officer", "executive", "reviewer"];
 
 export const updateRole = async (req, res, next) => {
   try {

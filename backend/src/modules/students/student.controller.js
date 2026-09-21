@@ -3,7 +3,10 @@ import { parse } from "csv-parse/sync";
 import iconv from "iconv-lite";
 import * as studentRepo from "./student.repository.js";
 import * as notifRepo from "../notifications/notifications.repository.js";
+import * as subjectsRepo from "../subjects/subjects.repository.js";
+import * as roundsRepo from "../rounds/rounds.repository.js";
 import { calcGraduationYear } from "../../utils/academicYear.js";
+import { buildSubjectListPdf } from "./students.pdf.js";
 
 const REQUIRED_COLUMNS = ["student_id", "national_id"];
 const NATIONAL_ID_PATTERN = /^\d{13}$/;
@@ -439,6 +442,99 @@ export const resetPassword = async (req, res, next) => {
       success: true,
       data: { message: "ตั้งรหัสผ่านใหม่แล้ว (เลขบัตร ปชช เดิม) นักศึกษา login ได้ทันที" },
     });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ตรวจ query ร่วมกันของ 2 endpoint ข้างล่าง (JSON list + export PDF) — โค้ดเดียวกัน กันสองจุดเพี้ยนไม่ตรงกัน
+const resolveSubjectQuery = async (query) => {
+  const { subject_code, passed, round_id, year } = query;
+  if (!subject_code || (passed !== "true" && passed !== "false")) {
+    const err = new Error("ต้องระบุ subject_code และ passed (true หรือ false)");
+    err.statusCode = 400;
+    throw err;
+  }
+  if (!round_id && !year) {
+    const err = new Error("ต้องระบุ round_id หรือ year อย่างใดอย่างหนึ่ง");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const subject = await subjectsRepo.findByCode(subject_code);
+  if (!subject) {
+    const err = new Error(`ไม่พบวิชารหัส ${subject_code}`);
+    err.statusCode = 404;
+    throw err;
+  }
+
+  let scopeLabel;
+  let roundId = null;
+  if (round_id) {
+    const round = await roundsRepo.findById(Number(round_id));
+    if (!round) {
+      const err = new Error("ไม่พบรอบที่ระบุ");
+      err.statusCode = 404;
+      throw err;
+    }
+    roundId = round.round_id;
+    scopeLabel = `รอบ ${round.attempt_number}/${round.academic_year}`;
+  } else {
+    scopeLabel = `รวมทั้งปีการศึกษา ${year}`;
+  }
+
+  const wantPassed = passed === "true";
+  const rows = await studentRepo.findMatchingSubjectResult({
+    subjectCode: subject_code,
+    passed: wantPassed,
+    roundId,
+    year: round_id ? null : Number(year),
+  });
+
+  return { subject, wantPassed, scopeLabel, rows };
+};
+
+// รายชื่อนักศึกษาที่ผ่าน/ไม่ผ่านวิชาหนึ่งวิชา (JSON) — ใช้แสดงตัวอย่างในหน้ารายงานสรุปผลก่อนกดดาวน์โหลด PDF
+export const getSubjectResultList = async (req, res, next) => {
+  try {
+    const { subject, wantPassed, scopeLabel, rows } = await resolveSubjectQuery(req.query);
+    res.json({
+      success: true,
+      data: {
+        subject,
+        passed: wantPassed,
+        scope_label: scopeLabel,
+        students: rows.map((r) => ({
+          student_id: r.student.student_id,
+          first_name: r.student.user.first_name,
+          last_name: r.student.user.last_name,
+          room_name: r.student.room?.room_name ?? null,
+          academic_year: r.student.academic_year,
+          submitted_at: r.submitted_at,
+        })),
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// export รายชื่อนักศึกษาที่ผ่าน/ไม่ผ่านวิชาหนึ่งวิชาเป็น PDF — กดจากปุ่ม "ดาวน์โหลด PDF" ที่หน้ารายงานสรุปผล
+// ส่ง round_id = ดูรอบเดียว, ส่ง year (ไม่ส่ง round_id) = ดู "รวมทั้งปี" — เลือกอย่างใดอย่างหนึ่ง
+export const exportSubjectList = async (req, res, next) => {
+  try {
+    const { subject, wantPassed, scopeLabel, rows } = await resolveSubjectQuery(req.query);
+
+    // ชื่อไฟล์มีภาษาไทย — filename="..." เฉยๆ ใช้ไม่ได้กับ non-ASCII (บางเบราว์เซอร์เพี้ยน)
+    // ต้องมี filename ASCII สำรอง + filename*=UTF-8''... (RFC 5987) คู่กันเสมอ
+    const fileName = `รายชื่อ-${wantPassed ? "ผ่าน" : "ไม่ผ่าน"}-${subject.subject_code}.pdf`;
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="report.pdf"; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+    );
+
+    buildSubjectListPdf({ subject, passed: wantPassed, scopeLabel, rows, res });
   } catch (err) {
     next(err);
   }
