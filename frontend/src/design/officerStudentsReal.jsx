@@ -18,7 +18,7 @@ const STAFF_STATUS_TO_BADGE = {
   rejected: 'REJECTED',
 };
 
-export function OfficerStudentsReal({ go, setSel, toast, readonly, lang, initialFilter, onInitialFilterConsumed, onBackToDashboard }) {
+export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly, lang, initialFilter, onInitialFilterConsumed, onBackToDashboard }) {
   const tt = (key, vars) => t(lang, key, vars);
   const [students, setStudents] = useState([]);
   const [rooms, setRooms] = useState([]);
@@ -384,7 +384,7 @@ export function OfficerStudentsReal({ go, setSel, toast, readonly, lang, initial
             </tr></thead>
             <tbody>
               {pageRows.map(s => (
-                <tr key={s.sid} className="clickable" onClick={() => { setSel(s); go('detail'); }}>
+                <tr key={s.sid} className="clickable" onClick={() => { setSel(s); setDetailFrom('students'); go('detail'); }}>
                   {!readonly && <td onClick={e => e.stopPropagation()}>
                     <input type="checkbox" checked={selected.has(s.sid)} onChange={() => toggleOne(s.sid)}
                       aria-label={tt('officer.students.selectOneAria', { name: `${s.firstName} ${s.lastName}` })}

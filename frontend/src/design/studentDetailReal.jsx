@@ -15,7 +15,7 @@ import { t, subjectName, roomName } from './i18n.js';
 
 const STAFF_STATUS_TO_BADGE = { pending: 'SUBMITTED', approved: 'CONFIRMED', rejected: 'REJECTED' };
 
-export function StudentDetailReal({ student, go, toast, canEdit, canReview, lang }) {
+export function StudentDetailReal({ student, go, backTo = 'students', toast, canEdit, canReview, lang }) {
   const tt = (key, vars) => t(lang, key, vars);
   const quickReasons = [tt('officer.detail.quickReason1'), tt('officer.detail.quickReason2'), tt('officer.detail.quickReason3')];
   const [subjects, setSubjects] = useState([]); // [{subject_id, subject_code, subject_name}]
@@ -124,7 +124,7 @@ export function StudentDetailReal({ student, go, toast, canEdit, canReview, lang
         sub={<span className="mono">{student.sid} · {tt('officer.detail.subInfo', { room: roomName(lang, displayRoom), year: displayYear })}</span>}
         actions={<div style={{ display: 'flex', gap: 8 }}>
           {canEdit && <button className="btn btn-ghost" onClick={openEdit}><Icon name="edit" size={16} /> {tt('officer.detail.editBtn')}</button>}
-          <button className="btn btn-ghost" onClick={() => go('students')}><Icon name="chevL" size={16} /> {tt('officer.detail.backBtn')}</button>
+          <button className="btn btn-ghost" onClick={() => go(backTo)}><Icon name="chevL" size={16} /> {tt('officer.detail.backBtn')}</button>
         </div>} />
 
       <div className="row wrap-m" style={{ alignItems: 'flex-start' }}>

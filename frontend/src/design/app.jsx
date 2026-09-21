@@ -155,6 +155,10 @@ export function App() {
   // อาจมีการเขียน URL ทับไปแล้ว อ่านจาก window.location ตอนนั้นจะได้ค่าผิด
   const [bootPath] = useState(() => window.location.pathname);
   const [sel, setSel] = useState(null);
+  // หน้าที่กดเข้ามาหน้า detail (students หรือ review) — ปุ่ม "กลับ" ใน StudentDetailReal ใช้ค่านี้ย้อนกลับไปหน้าเดิม
+  const [detailFrom, setDetailFrom] = useState('students');
+  // แท็บ/รอบ/หน้าที่ค้างไว้ตอนกดเข้าดูรายละเอียดจากคิวตรวจสอบ — OfficerReviewReal อ่านครั้งเดียวตอนกลับมาแล้วเคลียร์ทิ้ง
+  const [reviewRestore, setReviewRestore] = useState(null);
   // กรองที่ส่งมาจาก Dashboard ตอนคลิกผ่าน/ไม่ผ่านรายวิชา — OfficerStudentsReal อ่านครั้งเดียวตอนเปิดหน้าแล้วเคลียร์ทิ้ง
   const [studentsFilter, setStudentsFilter] = useState(null);
   // widget เดิม (ปี/รอบ/แท็บ) ที่ค้างไว้ตอนกด "กลับไปหน้าแดชบอด" จากหน้านักศึกษา — DashboardReal อ่านครั้งเดียวแล้วเคลียร์ทิ้งเหมือนกัน
@@ -371,12 +375,13 @@ export function App() {
     if(role==='officer'){
       if(page==='dashboard') return <DashboardReal go={go} lang={lang} setStudentsFilter={setStudentsFilter}
         restoreView={dashboardRestore} onRestoreConsumed={() => setDashboardRestore(null)} />;
-      if(page==='review') return <OfficerReviewReal go={go} setSel={setSel} lang={lang} />;
-      if(page==='students') return <OfficerStudentsReal go={go} setSel={setSel} toast={showToast} lang={lang}
+      if(page==='review') return <OfficerReviewReal go={go} setSel={setSel} setDetailFrom={setDetailFrom} lang={lang}
+        restoreView={reviewRestore} onLeave={setReviewRestore} onRestoreConsumed={() => setReviewRestore(null)} />;
+      if(page==='students') return <OfficerStudentsReal go={go} setSel={setSel} setDetailFrom={setDetailFrom} toast={showToast} lang={lang}
         initialFilter={studentsFilter} onInitialFilterConsumed={() => setStudentsFilter(null)}
         onBackToDashboard={(view) => { setDashboardRestore(view); go('dashboard'); }} />;
       if(page==='import') return <StudentImport toast={showToast} lang={lang} />;
-      if(page==='detail') return <StudentDetailReal student={sel} go={go} toast={showToast} canEdit canReview lang={lang} />;
+      if(page==='detail') return <StudentDetailReal student={sel} go={go} backTo={detailFrom} toast={showToast} canEdit canReview lang={lang} />;
       if(page==='rounds') return <ManageRoundsSubjectsReal toast={showToast} lang={lang} />;
       if(page==='usermgmt') return <ManageUsersReal toast={showToast} currentUserId={currentUser?.id} lang={lang} />;
       if(page==='newsmgmt') return <ManageNewsReal toast={showToast} lang={lang} />;
@@ -391,8 +396,9 @@ export function App() {
     }
     // เจ้าหน้าที่ตรวจสอบ — reuse component เดิมของ officer ทั้งคู่ ไม่มีของใหม่ แค่ไม่มี canEdit
     if(role==='reviewer'){
-      if(page==='review') return <OfficerReviewReal go={go} setSel={setSel} lang={lang} />;
-      if(page==='detail') return <StudentDetailReal student={sel} go={go} toast={showToast} canEdit={false} canReview lang={lang} />;
+      if(page==='review') return <OfficerReviewReal go={go} setSel={setSel} setDetailFrom={setDetailFrom} lang={lang}
+        restoreView={reviewRestore} onLeave={setReviewRestore} onRestoreConsumed={() => setReviewRestore(null)} />;
+      if(page==='detail') return <StudentDetailReal student={sel} go={go} backTo={detailFrom} toast={showToast} canEdit={false} canReview lang={lang} />;
     }
     return <Empty title="ไม่พบหน้าที่ต้องการ" />;
   };

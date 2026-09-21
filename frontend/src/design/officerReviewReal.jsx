@@ -23,10 +23,11 @@ const PER_PAGE = 20;
 // รอบที่ควรเลือกให้ตอนเปิดหน้ามา — รอบที่เปิดรับอยู่ ถ้าไม่มีก็รอบล่าสุด (rounds เรียงใหม่→เก่ามาแล้ว)
 const defaultRound = (rounds) => rounds.find(r => r.status === 'open') || rounds[0];
 
-export function OfficerReviewReal({ go, setSel, lang }) {
+export function OfficerReviewReal({ go, setSel, setDetailFrom, lang, restoreView, onLeave, onRestoreConsumed }) {
   const tt = (key, vars) => t(lang, key, vars);
-  const [tab, setTab] = useState('SUBMITTED');
-  const [page, setPage] = useState(0);
+  // ค่าเริ่มต้นอ่านจาก restoreView ถ้ามี (กลับมาจากปุ่ม "กลับ" ที่หน้ารายละเอียด — จะได้อยู่แท็บ/หน้าเดิม)
+  const [tab, setTab] = useState(() => restoreView?.tab || 'SUBMITTED');
+  const [page, setPage] = useState(() => restoreView?.page || 0);
   const [rounds, setRounds] = useState(null);
   const [roundId, setRoundId] = useState('');
   const [results, setResults] = useState(null);
@@ -43,7 +44,8 @@ export function OfficerReviewReal({ go, setSel, lang }) {
         setRounds(roundList);
         setStudents(studentList);
         setSubjects(subjectList);
-        setRoundId(String(defaultRound(roundList)?.round_id || ''));
+        setRoundId(String(restoreView?.roundId || defaultRound(roundList)?.round_id || ''));
+        if (restoreView) onRestoreConsumed?.();
       })
       .catch(e => setError(e.message));
   }, []);
@@ -117,7 +119,7 @@ export function OfficerReviewReal({ go, setSel, lang }) {
   const pages = Math.ceil(list.length / PER_PAGE);
   const pageRows = list.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
 
-  const openDetail = (row) => { setSel(row); go('detail'); };
+  const openDetail = (row) => { setSel(row); setDetailFrom('review'); onLeave?.({ tab, roundId, page }); go('detail'); };
 
   return (
     <div className="fade-up">
