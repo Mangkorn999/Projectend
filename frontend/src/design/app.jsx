@@ -350,7 +350,11 @@ export function App() {
   if(!role) return <Login onLogin={handleLogin} />;
 
   const nav = role==='student' ? navStudent(lang, rejectedCount) : NAV(lang, pendingCount)[role];
-  const go = (p, step=0)=>{ setPage(p); setFormStep(step); pushUrl(PAGE_PATH[p] || '/'); window.scrollTo(0,0); };
+  const go = (p, step=0)=>{
+    // ออกไปหน้าอื่นที่ไม่ใช่ review/detail (เช่น กด sidebar ไป Dashboard) — ทิ้งตำแหน่งคิวที่จำไว้ ไม่งั้นกลับมาหน้า review ทีหลังจะเด้งไปแท็บเก่า
+    if (p !== 'review' && p !== 'detail') setReviewRestore(null);
+    setPage(p); setFormStep(step); pushUrl(PAGE_PATH[p] || '/'); window.scrollTo(0,0);
+  };
   // ไม่มีสลับ role ปลอมอีกแล้ว — 'logout' คือทางเดียวที่เหลือ
   // เบลอหน้าจอ 280ms เหมือนตอนสลับภาษา ระหว่างนั้นยิง POST /auth/logout ให้ backend ลบ cookie
   // (clearSession() อย่างเดียวไม่พอ — cookie เป็น httpOnly ฝั่ง JS ลบเองไม่ได้)
