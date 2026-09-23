@@ -12,7 +12,7 @@
    ============================================================ */
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, Avatar, Empty, Pagination } from './components.jsx';
+import { PageHead, Avatar, Empty, Pagination, Select } from './components.jsx';
 import { apiFetch } from './api.js';
 import { t, roomName } from './i18n.js';
 
@@ -125,10 +125,9 @@ export function OfficerReviewReal({ go, setSel, setDetailFrom, lang, restoreView
     <div className="fade-up">
       <PageHead title={tt('officer.review.title')} sub={tt('officer.review.sub')}
         actions={
-          <select className="input" value={roundId} onChange={e => selectRound(e.target.value)}
-            style={{ minWidth: 200 }} aria-label={tt('dashReal.roundSelectLabel')}>
-            {rounds.map(r => <option key={r.round_id} value={String(r.round_id)}>{roundLabel(r)}</option>)}
-          </select>} />
+          <Select className="input" value={roundId} onChange={v => selectRound(v)} lang={lang}
+            style={{ minWidth: 200 }} ariaLabel={tt('dashReal.roundSelectLabel')}
+            options={rounds.map(r => ({ value: String(r.round_id), label: roundLabel(r) }))} />} />
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
         {TABS.map(k => (

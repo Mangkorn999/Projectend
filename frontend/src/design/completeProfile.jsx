@@ -2,11 +2,13 @@
    นักศึกษากรอกโปรไฟล์ครั้งแรกหลัง login — เจ้าหน้าที่ import มาแค่ student_id
    + เลขบัตร ปชช เท่านั้น ยังไม่มี Student row จนกว่าจะกรอกหน้านี้เสร็จ
    backend บล็อกทุก endpoint ยกเว้น /me กับ /complete-profile จนกว่าจะกรอกสำเร็จ
-   ปีการศึกษาที่จบคำนวณฝั่ง server จาก student_id เท่านั้น — ไม่รับ/ไม่โชว์การคำนวณฝั่งนี้
+   ปีการศึกษาที่จบตั้งฝั่ง server เท่านั้น (ปีที่เจ้าหน้าที่ระบุตอน import ถ้ามี ไม่งั้นคำนวณจากรหัส)
+   หน้านี้แค่โชว์ผล นักศึกษาแก้เองไม่ได้
    ============================================================ */
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
 import { Logo } from './logos.jsx';
+import { Select } from './components.jsx';
 import { apiFetch, ApiError } from './api.js';
 
 const EMPTY = {
@@ -71,7 +73,7 @@ export function CompleteProfile({ onDone }) {
               <div style={{ color: 'var(--pass,#16a34a)', marginBottom: 10 }}><Icon name="checkCircle" size={40} /></div>
               <h2 style={{ margin: '0 0 8px', fontSize: 22, fontWeight: 800 }}>กรอกโปรไฟล์สำเร็จ</h2>
               <p style={{ color: 'var(--ink-500)', fontSize: 16, marginBottom: 4 }}>
-                ปีการศึกษาที่จบ (ระบบคำนวณให้): <b>{result?.student?.academic_year ?? '-'}</b>
+                ปีการศึกษาที่จบ: <b>{result?.student?.academic_year ?? '-'}</b>
               </p>
               <p style={{ color: 'var(--ink-500)', fontSize: 15, marginBottom: 20 }}>เข้าใช้งานระบบต่อได้เลย</p>
               <button className="btn btn-primary btn-block" onClick={onDone}>เข้าสู่ระบบ</button>
@@ -145,10 +147,10 @@ export function CompleteProfile({ onDone }) {
               </div>
               <div className="field" style={{ marginBottom: 16 }}>
                 <label>ห้องเรียน</label>
-                <select className="select" value={form.room_id} onChange={set('room_id')} disabled={loadingRooms}>
-                  <option value="">{loadingRooms ? 'กำลังโหลด…' : '— เลือกห้องเรียน —'}</option>
-                  {rooms.map(r => <option key={r.room_id} value={r.room_id}>{r.room_name}</option>)}
-                </select>
+                <Select value={String(form.room_id)} disabled={loadingRooms}
+                  onChange={v => setForm(f => ({ ...f, room_id: v }))}
+                  options={[{ value: '', label: loadingRooms ? 'กำลังโหลด…' : '— เลือกห้องเรียน —' },
+                    ...rooms.map(r => ({ value: String(r.room_id), label: r.room_name }))]} />
               </div>
 
               {error && <div style={{ color: 'var(--status-reject-fg)', background: 'var(--status-reject-bg)',

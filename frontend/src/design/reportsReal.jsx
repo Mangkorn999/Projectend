@@ -6,7 +6,7 @@
    ============================================================ */
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, StatusBadge, FirstAttemptSubjectTable, Modal, Empty } from './components.jsx';
+import { PageHead, StatusBadge, FirstAttemptSubjectTable, Modal, Empty, Select } from './components.jsx';
 import { Logo } from './logos.jsx';
 import { apiFetch } from './api.js';
 import { t, subjectName, roomName } from './i18n.js';
@@ -140,7 +140,8 @@ export function ReportsReal({ toast, readonly, lang }) {
   const summaryCards = [
     [tt('reports.totalStudents'), total, tt('reportsReal.cardTotalSub', { canSubmit }), 'navy'],
     [tt('reports.submitted'), submitted, tt('reportsReal.cardOfCohort', { rate: fillRate }), 'blue'],
-    [tt('reports.fullyPassed'), fullyPassed, tt('reportsReal.cardOfCohort', { rate: fullyPassedRate }), 'ok'],
+    // จำนวนวิชาเอาจากรอบจริง (perSubject = วิชาของรอบนั้น) ไม่ใช่ 8 ตายตัว — รอบที่สอบ 3 วิชาจะได้ไม่ขึ้น "ผ่านครบ 8 วิชา"
+    [tt('reports.fullyPassed', { n: perSubject.length }), fullyPassed, tt('reportsReal.cardOfCohort', { rate: fullyPassedRate }), 'ok'],
     [tt('reportsReal.cardSitterRate'), passRateOfSitters + '%', tt('reportsReal.cardSitterRateSub', { n: submitted }), 'gold'],
   ];
   // 5 แถวนี้บวกกันได้เท่า total พอดี — เดิมมี 4 แถวและแถวสุดท้ายติดป้าย "ร่าง"
@@ -158,16 +159,13 @@ export function ReportsReal({ toast, readonly, lang }) {
       <PageHead title={tt('reports.title')} sub={tt('reportsReal.roundSlash', { attempt: round.attempt_number, year: round.academic_year })}
         actions={<div className="no-print" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           {/* เลือกปี + รอบ ที่จะดูและ export — รายงานบนจอกับไฟล์ PDF เป็นรอบเดียวกันเสมอ */}
-          <select className="input" value={year ?? ''} onChange={e => changeYear(Number(e.target.value))}
-            style={{ width: 'auto', padding: '8px 30px 8px 12px', flex: 'none' }} aria-label={tt('reportsReal.pickYear')}>
-            {yearOptions.map(y => <option key={y} value={y}>{tt('dashReal.yearOption', { year: y })}</option>)}
-          </select>
-          <select className="input" value={roundId ?? ''} onChange={e => setRoundId(Number(e.target.value))}
-            style={{ width: 'auto', padding: '8px 30px 8px 12px', flex: 'none' }} aria-label={tt('reportsReal.pickRound')}>
-            {roundsInYear.map(r => (
-              <option key={r.round_id} value={r.round_id}>{tt('dashReal.roundOnlyLabel', { attempt: r.attempt_number })}</option>
-            ))}
-          </select>
+          <Select className="input" value={year ?? ''} onChange={v => changeYear(Number(v))} lang={lang}
+            style={{ width: 'auto', padding: '8px 30px 8px 12px', flex: 'none' }} ariaLabel={tt('reportsReal.pickYear')}
+            options={yearOptions.map(y => ({ value: y, label: tt('dashReal.yearOption', { year: y }) }))} />
+          <Select className="input" value={roundId ?? ''} onChange={v => setRoundId(Number(v))} lang={lang}
+            style={{ width: 'auto', padding: '8px 30px 8px 12px', flex: 'none' }} ariaLabel={tt('reportsReal.pickRound')}
+            options={roundsInYear.map(r => ({ value: r.round_id,
+              label: tt('dashReal.roundOnlyLabel', { attempt: r.attempt_number }) }))} />
           <button className="btn btn-ghost" onClick={() => window.print()}><Icon name="printer" size={16} /> {tt('reports.printBtn')}</button>
           {!readonly && <button className="btn btn-primary" disabled={downloading} onClick={downloadPdf}><Icon name="pdf" size={16} /> {downloading ? tt('reportsReal.generating') : tt('reportsReal.downloadPdfBtn')}</button>}
         </div>} />

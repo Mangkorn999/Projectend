@@ -33,10 +33,14 @@ export function Avatar({ name, size = 38, bg }) {
 // notifications: ทุกตัวถูกแปลงเป็นรูปเดียวกันที่ design/notifications.js แล้ว
 //   { key, tone, icon, page, title, sub, at }
 // onNotifOpen: เรียกตอนเปิด modal — ไป mark ว่าอ่านแล้วทั้งหมด (ทั้ง DB และ localStorage)
-export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notifications=[], unread=0, onNotifOpen, onNotifGo, lang='TH', setLang, langLoading=false }) {
+export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notifications=[], unread=0, onNotifOpen, onNotifGo, onNotifClearAll, lang='TH', setLang, langLoading=false }) {
   const [open, setOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const openNotif = () => { setNotifOpen(true); onNotifOpen?.(); };
+  // แสดง 2 กลุ่มแยกกัน: เรื่องที่ต้องลงมือทำ (alert สดของเจ้าหน้าที่) กับเรื่องที่แค่บอกให้รู้
+  // ถ้าปนกันเรื่องด่วนจะจมอยู่กลางกองประกาศ
+  const liveItems = notifications.filter(n => n.live);
+  const eventItems = notifications.filter(n => !n.live);
   return (
     <header style={{ height:'var(--header-h)', background:'#fff', borderBottom:'1px solid var(--ink-200)',
       display:'flex', alignItems:'center', gap:16, padding:'0 18px 0 16px', position:'sticky', top:0, zIndex:40 }}>
@@ -59,32 +63,31 @@ export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notificati
           background: lang==='EN'?'var(--navy-700)':'transparent', color: lang==='EN'?'#fff':'var(--ink-500)' }}>
           {langLoading && lang==='EN' ? <span className="lang-spinner"></span> : 'EN'}</button>
       </div>}
+      {/* ปุ่มไอคอนล้วน ต้องมี aria-label ไม่งั้นโปรแกรมอ่านหน้าจออ่านได้แค่ว่า "ปุ่ม" */}
       <button className="btn btn-ghost btn-sm" style={{ position:'relative', padding:9, border:'1px solid var(--ink-200)' }}
-        onClick={openNotif}>
+        onClick={openNotif} aria-label={t(lang,'topbar.notifTitle')}>
         <Icon name="bell" size={19} />
         {unread>0 && <span style={{ position:'absolute', top:5, right:5, width:8, height:8, borderRadius:'50%',
           background:'var(--fail)', boxShadow:'0 0 0 2px #fff' }}></span>}
       </button>
-      <Modal open={notifOpen} onClose={()=>setNotifOpen(false)} title={t(lang,'topbar.notifTitle')} width={680}>
+      <Modal open={notifOpen} onClose={()=>setNotifOpen(false)} title={t(lang,'topbar.notifTitle')} width={680}
+        footer={notifications.length && onNotifClearAll ? (
+          <button className="btn btn-ghost" onClick={()=>{ onNotifClearAll(); setNotifOpen(false); }}>
+            <Icon name="trash" size={16} /> {t(lang,'topbar.notifClearAll')}
+          </button>
+        ) : null}>
         {notifications.length ? (
           <div style={{ minHeight:440, display:'flex', flexDirection:'column', gap:10 }}>
-            {notifications.map((n)=>(
-              // การ์ดกดได้ — กดแล้วพาไปหน้าที่เกี่ยวข้อง (n.page) ที่ยังไม่อ่านพื้นขาวเต็ม อ่านแล้วจางลง
-              <button key={n.key} onClick={()=>{ setNotifOpen(false); onNotifGo?.(n.page); }}
-                style={{ display:'flex', alignItems:'flex-start', gap:13, padding:'13px 14px', width:'100%',
-                  border:'1px solid var(--ink-200)', borderRadius:12, textAlign:'left', cursor:'pointer', fontFamily:'inherit',
-                  background: n.is_read===false?'#fff':'var(--ink-50, #fafafa)', opacity: n.is_read===false?1:.7 }}>
-                <div style={{ width:38, height:38, borderRadius:10, flex:'none', display:'flex', alignItems:'center', justifyContent:'center',
-                  background:`var(--status-${n.tone}-bg)`, color:`var(--status-${n.tone}-fg)` }}><Icon name={n.icon} size={18}/></div>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:16, fontWeight:700, color:'var(--ink-900)' }}>{n.title}</div>
-                  {n.sub && <div style={{ fontSize:14.5, fontWeight:400, color:'var(--ink-500)', marginTop:2 }}>{n.sub}</div>}
-                </div>
-                <div style={{ fontSize:13.5, color:'var(--ink-400)', flex:'none', whiteSpace:'nowrap' }}>
-                  {n.at ? new Date(n.at).toLocaleDateString(lang==='EN'?'en-GB':'th-TH') : ''}
-                </div>
-              </button>
-            ))}
+            {/* หัวข้อคั่นโผล่เฉพาะตอนมีทั้ง 2 กลุ่ม — มีกลุ่มเดียวก็ไม่ต้องมีหัวข้อให้รก */}
+            {liveItems.length > 0 && eventItems.length > 0 &&
+              <div className="sec-title" style={{ fontSize:13 }}>{t(lang,'topbar.notifActionNeeded')}</div>}
+            {liveItems.map(n => <NotifRow key={n.key} n={n} lang={lang}
+              onClick={()=>{ setNotifOpen(false); onNotifGo?.(n.page); }} />)}
+
+            {liveItems.length > 0 && eventItems.length > 0 &&
+              <div className="sec-title" style={{ fontSize:13, marginTop:6 }}>{t(lang,'topbar.notifUpdates')}</div>}
+            {eventItems.map(n => <NotifRow key={n.key} n={n} lang={lang}
+              onClick={()=>{ setNotifOpen(false); onNotifGo?.(n.page); }} />)}
           </div>
         ) : (
           <div style={{ minHeight:440, display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -115,6 +118,28 @@ export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notificati
         </>}
       </div>
     </header>
+  );
+}
+
+/* แถวเดียวในกล่องแจ้งเตือน — กดแล้วพาไปหน้าที่เกี่ยวข้อง (n.page)
+   ที่ยังไม่อ่านพื้นขาวเต็ม อ่านแล้วจางลง · alert สด (n.live) ไม่มีวันที่จึงเว้นช่องขวาไว้ */
+function NotifRow({ n, lang, onClick }) {
+  const unreadLook = n.is_read === false || n.live;
+  return (
+    <button onClick={onClick}
+      style={{ display:'flex', alignItems:'flex-start', gap:13, padding:'13px 14px', width:'100%',
+        border:'1px solid var(--ink-200)', borderRadius:12, textAlign:'left', cursor:'pointer', fontFamily:'inherit',
+        background: unreadLook?'#fff':'var(--ink-50, #fafafa)', opacity: unreadLook?1:.7 }}>
+      <div style={{ width:38, height:38, borderRadius:10, flex:'none', display:'flex', alignItems:'center', justifyContent:'center',
+        background:`var(--status-${n.tone}-bg)`, color:`var(--status-${n.tone}-fg)` }}><Icon name={n.icon} size={18}/></div>
+      <div style={{ flex:1, minWidth:0 }}>
+        <div style={{ fontSize:16, fontWeight:700, color:'var(--ink-900)' }}>{n.title}</div>
+        {n.sub && <div style={{ fontSize:14.5, fontWeight:400, color:'var(--ink-500)', marginTop:2 }}>{n.sub}</div>}
+      </div>
+      <div style={{ fontSize:13.5, color:'var(--ink-400)', flex:'none', whiteSpace:'nowrap' }}>
+        {n.at ? new Date(n.at).toLocaleDateString(lang==='EN'?'en-GB':'th-TH') : ''}
+      </div>
+    </button>
   );
 }
 
@@ -585,16 +610,18 @@ export function useToast(){
   return [toast,show];
 }
 
-/* ---- Notification popup (มุมขวาบน ใต้กระดิ่ง) ----
+/* ---- Notification popup (มุมขวาล่าง) ----
    ต่างจาก Toast ด้านบน: อันนี้เด้งหลายอันซ้อนกันได้ (แจ้งเตือนเข้ามาพร้อมกันหลายรายการ)
-   กดที่การ์ด = ไปหน้าที่เกี่ยวข้อง, ไม่กด = หายเองใน 30 วิ (ยังนับว่ายังไม่อ่าน) */
+   กดที่การ์ด = ไปหน้าที่เกี่ยวข้อง, ไม่กด = หายเองใน TOAST_MS (ยังนับว่ายังไม่อ่าน ดูต่อได้ในกระดิ่ง)
+   เดิม 30 วิ นานเกิน — การ์ดอยู่มุมขวาบนทับปุ่มของหัวหน้าเพจ (เช่นเลือกรอบในคิวตรวจ) ครึ่งนาทีกดอะไรไม่ได้ */
+const TOAST_MS = 8000;
 export function useNotifToasts(){
   const [items,setItems]=useState([]);
   const push=(notifs)=>{
     const withId = notifs.map(n=>({ ...n, _toastId: n.key+':'+Date.now() }));
     setItems(cur=>[...cur, ...withId]);
     withId.forEach(n=>{
-      setTimeout(()=>setItems(cur=>cur.filter(x=>x._toastId!==n._toastId)), 30000);
+      setTimeout(()=>setItems(cur=>cur.filter(x=>x._toastId!==n._toastId)), TOAST_MS);
     });
   };
   return [items,push,setItems];
@@ -603,7 +630,11 @@ export function useNotifToasts(){
 export function NotifToastStack({ items=[], onGo, onDismiss, lang='TH' }) {
   if(!items.length) return null;
   return (
-    <div style={{ position:'fixed', top:'calc(var(--header-h) + 10px)', right:16, zIndex:250,
+    // มุมขวา "ล่าง" ไม่ใช่ขวาบน — ขวาบนคือที่วางปุ่มหลักของทุกหน้า (เลือกรอบ/เลือกปี/ปุ่มเพิ่ม) toast เคยทับจนกดไม่ได้
+    // กล่องแม่ pointerEvents:none — ช่องว่างระหว่างการ์ดต้องคลิกทะลุไปโดนของข้างใต้ได้ (การ์ดเปิดคืนเป็น auto เอง)
+    // aria-live = โปรแกรมอ่านหน้าจออ่านแจ้งเตือนที่เด้งเข้ามาใหม่ให้เอง
+    <div aria-live="polite" aria-label={t(lang,'topbar.notifToastRegion')}
+      style={{ position:'fixed', bottom:16, right:16, zIndex:250, pointerEvents:'none',
       display:'flex', flexDirection:'column', gap:9, width:320, maxWidth:'92vw' }}>
       {items.map(n=>(
         // div (ไม่ใช่ button) เพราะข้างในมีปุ่ม "ปิด" ซ้อนอยู่ — button ในปุ่มไม่ใช่ HTML ที่ถูกต้อง (browser จะ auto-correct
@@ -611,7 +642,7 @@ export function NotifToastStack({ items=[], onGo, onDismiss, lang='TH' }) {
         <div key={n._toastId} className="fade-up" role="button" tabIndex={0}
           onClick={()=>{ onDismiss?.(n._toastId); onGo?.(n.page); }}
           onKeyDown={e=>{ if(e.key==='Enter'||e.key===' '){ onDismiss?.(n._toastId); onGo?.(n.page); } }}
-          style={{ display:'flex', alignItems:'flex-start', gap:11, padding:'12px 13px', width:'100%',
+          style={{ display:'flex', alignItems:'flex-start', gap:11, padding:'12px 13px', width:'100%', pointerEvents:'auto',
             border:'1px solid var(--navy-800)', borderRadius:12, textAlign:'left', cursor:'pointer', fontFamily:'inherit',
             background:'var(--navy-800)', boxShadow:'0 0 10px 2px rgba(232,114,15,.5), var(--sh-lg)' }}>
           <div style={{ width:34, height:34, borderRadius:9, flex:'none', display:'flex', alignItems:'center', justifyContent:'center',
@@ -662,6 +693,220 @@ export function Empty({ icon='doc', title, sub, action }) {
   </div>;
 }
 
+/* ---- Select (dropdown ที่ค้นหาได้ + เลื่อนได้) ----
+   ใช้แทน <select> ของ browser ทุกที่ เพราะของเดิมมี 2 ปัญหา:
+     1. รายการยาว (เช่น 12 รอบสอบ) browser วาดยาวลงไปจนล้นจอ เลื่อนไม่ได้
+     2. พิมพ์ค้นหาไม่ได้ ต้องไล่หาด้วยตาทีละบรรทัด
+
+   วิธีใช้ — เหมือน <select> เดิม แต่ส่ง options เป็น array แทนการเขียน <option>:
+     <Select value={year} onChange={v => setYear(v)}
+             options={[{ value: 2569, label: 'รุ่น 2569' }, ...]} />
+
+   ข้อควรรู้: value เทียบแบบ === ดังนั้นถ้า state เป็น string ก็ต้องส่ง value เป็น string
+   (เหมือน <select> เดิมที่ค่าเป็น string เสมอ)
+
+   กล่องรายการวาดด้วย createPortal ไปที่ document.body ไม่ได้วาดไว้ในการ์ด
+   เพราะการ์ดหลายใบตั้ง overflow:hidden ไว้ ถ้าวาดข้างในกล่องจะโดนตัดครึ่ง */
+export function Select({
+  value,
+  onChange,
+  options = [],
+  placeholder,
+  disabled = false,
+  searchable,        // ไม่ส่งมา = ตัดสินใจเอง (เกิน 7 ตัวเลือกถึงจะมีช่องค้นหา)
+  style,
+  className = 'select',
+  lang = 'TH',
+  ariaLabel,
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [activeIndex, setActiveIndex] = useState(0); // แถวที่ไฮไลต์อยู่ (ลูกศรขึ้น/ลง)
+  const [box, setBox] = useState(null);              // ตำแหน่ง+ขนาดของกล่องรายการ
+  const triggerRef = useRef(null);
+  const searchRef = useRef(null);
+  const listRef = useRef(null);
+
+  // ค้นหาแบบไม่สนตัวพิมพ์เล็กใหญ่ — ดูทั้ง label และ value
+  // value ด้วย เพราะบางที่เก็บรหัส (เช่นรหัสวิชา) ไว้ใน value แต่ label เป็นชื่อเต็ม
+  const q = query.trim().toLowerCase();
+  const shown = q
+    ? options.filter((o) =>
+        String(o.label).toLowerCase().includes(q) ||
+        String(o.value).toLowerCase().includes(q))
+    : options;
+
+  const showSearch = searchable === undefined ? options.length > 7 : searchable;
+  const selected = options.find((o) => o.value === value);
+
+  // วัดตำแหน่งปุ่มแล้วคำนวณว่ากล่องรายการจะไปอยู่ตรงไหน
+  // ที่ว่างใต้ปุ่มไม่พอ → พลิกไปอยู่ข้างบนแทน (ปุ่มที่อยู่ท้ายหน้าจะได้ไม่ถูกตัด)
+  const measure = () => {
+    const el = triggerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - r.bottom;
+    const spaceAbove = r.top;
+    const wantHeight = 300;
+    const dropUp = spaceBelow < wantHeight && spaceAbove > spaceBelow;
+    setBox({
+      left: r.left,
+      width: r.width,
+      top: dropUp ? undefined : r.bottom + 6,
+      bottom: dropUp ? window.innerHeight - r.top + 6 : undefined,
+      maxHeight: Math.min(wantHeight, (dropUp ? spaceAbove : spaceBelow) - 16),
+    });
+  };
+
+  // เปิดกล่อง: วัดตำแหน่ง, ล้างคำค้นเก่า, ไฮไลต์ตัวที่เลือกอยู่
+  const openList = () => {
+    if (disabled) return;
+    measure();
+    setQuery('');
+    const i = options.findIndex((o) => o.value === value);
+    setActiveIndex(i < 0 ? 0 : i);
+    setOpen(true);
+  };
+
+  const closeList = () => {
+    setOpen(false);
+    setQuery('');
+  };
+
+  const pick = (opt) => {
+    onChange?.(opt.value);
+    closeList();
+    triggerRef.current?.focus(); // โฟกัสกลับที่ปุ่ม ไม่งั้นกด Tab ต่อแล้วกระโดดไปต้นหน้า
+  };
+
+  // หน้าจอขยับ (เลื่อนหน้า / ย่อขยายหน้าต่าง) กล่องต้องขยับตาม ไม่งั้นค้างลอยผิดที่
+  // capture:true เพื่อให้ได้ยินการเลื่อนของกล่องด้านในด้วย ไม่ใช่แค่การเลื่อนทั้งหน้า
+  useEffect(() => {
+    if (!open) return;
+    const onMove = () => measure();
+    window.addEventListener('scroll', onMove, true);
+    window.addEventListener('resize', onMove);
+    return () => {
+      window.removeEventListener('scroll', onMove, true);
+      window.removeEventListener('resize', onMove);
+    };
+  }, [open]);
+
+  // เปิดแล้วเด้งเคอร์เซอร์ไปที่ช่องค้นหาเลย ผู้ใช้จะได้พิมพ์ได้ทันทีไม่ต้องกดอีกที
+  useEffect(() => {
+    if (open && showSearch) searchRef.current?.focus();
+  }, [open, showSearch]);
+
+  // เลื่อนแถวที่ไฮไลต์ให้อยู่ในสายตาเสมอตอนกดลูกศร
+  useEffect(() => {
+    if (!open) return;
+    const row = listRef.current?.querySelector(`[data-idx="${activeIndex}"]`);
+    row?.scrollIntoView({ block: 'nearest' });
+  }, [activeIndex, open]);
+
+  // พิมพ์คำค้นใหม่แล้วรายการเปลี่ยน — ไฮไลต์ต้องกลับไปแถวแรกพร้อมกัน
+  // ไม่งั้นไฮไลต์ค้างอยู่แถวที่ 5 ทั้งที่เหลือผลค้นหาแค่ 2 แถว กด Enter แล้วไม่ได้อะไร
+  // ตั้ง 2 state พร้อมกันในตัวจัดการเหตุการณ์เดียว ไม่ใช้ useEffect ตามทีหลัง —
+  // React รวมให้เป็น render เดียว ส่วน useEffect จะ render 2 รอบ (รอบแรกไฮไลต์ยังผิดอยู่)
+  const changeQuery = (text) => {
+    setQuery(text);
+    setActiveIndex(0);
+  };
+
+  const onKeyDown = (e) => {
+    if (!open) {
+      // ยังไม่เปิด: Enter / เว้นวรรค / ลูกศรลง = เปิดกล่อง
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        openList();
+      }
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeList();
+      triggerRef.current?.focus();
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex((i) => Math.min(i + 1, shown.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      setActiveIndex(0);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      setActiveIndex(shown.length - 1);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (shown[activeIndex]) pick(shown[activeIndex]);
+    } else if (e.key === 'Tab') {
+      closeList(); // กด Tab ออก = ปิดกล่อง ไม่ให้ลอยค้างตอนโฟกัสไปช่องอื่นแล้ว
+    }
+  };
+
+  const label = selected ? selected.label : (placeholder ?? t(lang, 'select.placeholder'));
+
+  return (
+    <>
+      <button type="button" ref={triggerRef} className={className + ' select-trigger'}
+        disabled={disabled} onClick={() => (open ? closeList() : openList())}
+        onKeyDown={onKeyDown}
+        aria-haspopup="listbox" aria-expanded={open} aria-label={ariaLabel}
+        style={{ textAlign: 'left', cursor: disabled ? 'not-allowed' : 'pointer', ...style }}>
+        <span className="select-trigger-text" style={{ color: selected ? undefined : 'var(--ink-400)' }}>{label}</span>
+      </button>
+
+      {open && box && createPortal(
+        <>
+          {/* ฉากหลังใส ๆ คลุมทั้งจอ — คลิกที่ไหนก็ได้นอกกล่องแล้วปิด */}
+          <div style={{ position: 'fixed', inset: 0, zIndex: 300 }} onMouseDown={closeList} />
+          <div className="card select-panel" role="listbox"
+            style={{ position: 'fixed', left: box.left, top: box.top, bottom: box.bottom,
+              width: box.width, minWidth: 180, maxHeight: box.maxHeight, zIndex: 301,
+              display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: 'var(--sh-lg)' }}>
+            {showSearch && (
+              <div style={{ padding: 8, borderBottom: '1px solid var(--ink-100)', flex: 'none', position: 'relative' }}>
+                <Icon name="search" size={15} style={{ position: 'absolute', left: 18, top: '50%',
+                  transform: 'translateY(-50%)', color: 'var(--ink-400)' }} />
+                <input ref={searchRef} className="input" value={query}
+                  onChange={(e) => changeQuery(e.target.value)} onKeyDown={onKeyDown}
+                  placeholder={t(lang, 'select.searchPh')}
+                  style={{ padding: '7px 10px 7px 32px', fontSize: 15 }} />
+              </div>
+            )}
+            <div ref={listRef} style={{ overflowY: 'auto', padding: 5, flex: 1 }}>
+              {shown.length === 0 && (
+                <div style={{ padding: '14px 10px', fontSize: 15, color: 'var(--ink-400)', textAlign: 'center' }}>
+                  {t(lang, 'select.noMatch')}
+                </div>
+              )}
+              {shown.map((o, i) => {
+                const isSelected = o.value === value;
+                const isActive = i === activeIndex;
+                return (
+                  <button key={String(o.value)} type="button" data-idx={i} role="option"
+                    aria-selected={isSelected}
+                    onMouseEnter={() => setActiveIndex(i)}
+                    onClick={() => pick(o)}
+                    className="select-option"
+                    style={{ background: isActive ? 'var(--blue-50)' : 'transparent',
+                      fontWeight: isSelected ? 700 : 500 }}>
+                    <span style={{ flex: 1, minWidth: 0 }}>{o.label}</span>
+                    {isSelected && <Icon name="check" size={15} style={{ flex: 'none', color: 'var(--navy-700)' }} />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </>,
+        document.body,
+      )}
+    </>
+  );
+}
+
 /* ---- Pagination ----
    เลขหน้าที่จะแสดง: หน้าแรก/หน้าสุดท้ายเสมอ + หน้าข้างเคียง อย่างอื่นย่อเป็น '…'
    page เป็น index เริ่มที่ 0 */
@@ -677,14 +922,51 @@ export function pageNumbers(page, pages) {
   return out;
 }
 
+/* ช่องพิมพ์เลขหน้า — ตารางที่มี 93 หน้า กดทีละหน้าไปหน้า 50 ไม่ไหว
+   ต้องกด Enter ถึงจะกระโดด ไม่กระโดดระหว่างพิมพ์
+   เพราะพิมพ์ "50" ระหว่างทางจะผ่านเลข "5" ก่อน หน้าจะกระพริบไปหน้า 5 แวบหนึ่ง
+
+   คลิกออกจากช่องโดยไม่กด Enter = ล้างทิ้งเฉย ๆ ไม่กระโดด
+   (ถ้าให้ blur กระโดดด้วย พอพิมพ์ 50 แล้วเปลี่ยนใจไปกดปุ่มหน้า 3 มันจะวิ่งไป 50 ก่อนแล้วค่อยไป 3
+    เห็นหน้ากระพริบสองที ทั้งที่ผู้ใช้สั่งอย่างเดียว) */
+function PageJump({ page, pages, onPage, lang }) {
+  const [text, setText] = useState('');
+
+  const jump = () => {
+    const n = Number(text);
+    if (!text.trim() || !Number.isInteger(n)) { setText(''); return; }
+    // ผู้ใช้นับหน้าเริ่มที่ 1 แต่ page ข้างในเริ่มที่ 0 — ลบ 1 ตรงนี้ที่เดียว
+    // เกินช่วงก็ดึงกลับมาอยู่ในช่วง ไม่ต้องขึ้น error ให้รำคาญ
+    const target = Math.min(Math.max(n - 1, 0), pages - 1);
+    onPage(target);
+    setText('');
+  };
+
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+      <span style={{ fontSize:14.5, color:'var(--ink-500)', whiteSpace:'nowrap' }}>{t(lang,'pagination.jumpLabel')}</span>
+      <input className="input tnum" inputMode="numeric" value={text}
+        onChange={e => setText(e.target.value.replace(/[^0-9]/g, ''))}
+        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); jump(); } }}
+        onBlur={() => setText('')}
+        placeholder={String(page + 1)}
+        title={t(lang,'pagination.jumpAria', { pages })}
+        aria-label={t(lang,'pagination.jumpAria', { pages })}
+        style={{ width:62, padding:'6px 9px', fontSize:15, textAlign:'center' }} />
+    </div>
+  );
+}
+
 export function Pagination({ page, pages, onPage, lang = 'TH' }) {
   if (pages <= 1) return null;
   const tt = (key, vars) => t(lang, key, vars);
   return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12,
-      flexWrap:'wrap', padding:'12px 18px', borderTop:'1px solid var(--ink-100)' }}>
+      flexWrap:'wrap', padding:'12px 18px', borderTop:'1px solid var(--ink-100)', background:'var(--ink-50)' }}>
       <span style={{ fontSize:15, color:'var(--ink-500)' }}>{tt('officer.students.pageInfo', { page: page + 1, pages })}</span>
       <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+        {/* ช่องพิมพ์เลขหน้าโผล่เฉพาะตอนหน้าเยอะจนปุ่มตัวเลขไล่ไม่ไหว — น้อยกว่านี้ปุ่มพอแล้ว */}
+        {pages > 7 && <PageJump page={page} pages={pages} onPage={onPage} lang={lang} />}
         <button className="btn btn-ghost btn-sm" disabled={page === 0} onClick={() => onPage(page - 1)}>
           <Icon name="chevL" size={15} /> {tt('officer.students.prevBtn')}</button>
         <div style={{ display:'flex', gap:4 }}>

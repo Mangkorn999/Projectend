@@ -7,7 +7,7 @@
    ============================================================ */
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, Avatar, StatusBadge, Pagination, Modal } from './components.jsx';
+import { PageHead, Avatar, StatusBadge, Pagination, Modal, Select } from './components.jsx';
 import { apiFetch, ApiError } from './api.js';
 import { t, roomName, subjectName } from './i18n.js';
 
@@ -329,26 +329,37 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
           <Icon name="search" size={18} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--ink-400)' }} />
           <input className="input" placeholder={tt('officer.students.searchPh')} value={q} onChange={e => setQ(e.target.value)} style={{ paddingLeft: 40 }} />
         </div>
-        <select className="select" style={{ width: 'auto', minWidth: 150 }} value={status} onChange={e => setStatus(e.target.value)}>
-          <option value="ALL">{tt('officer.students.allStatus')}</option><option value="SUBMITTED">{tt('status.SUBMITTED')}</option>
-          <option value="CONFIRMED">{tt('status.CONFIRMED')}</option><option value="REJECTED">{tt('status.REJECTED')}</option><option value="DRAFT">{tt('status.DRAFT')}</option>
-        </select>
-        <select className="select" style={{ width: 'auto', minWidth: 150 }} value={examResult} onChange={e => setExamResult(e.target.value)}>
-          <option value="ALL">{tt('officer.students.allExamResult')}</option>
-          <option value="PASS">{tt('officer.students.examResultPass')}</option>
-          <option value="FAIL">{tt('officer.students.examResultFail')}</option>
-        </select>
-        <select className="select" style={{ width: 'auto', minWidth: 120 }} value={room} onChange={e => setRoom(e.target.value)}>
-          <option value="ALL">{tt('officer.students.allRoom')}</option>{rooms.map(r => <option key={r} value={r}>{roomName(lang, r)}</option>)}
-        </select>
-        <select className="select" style={{ width: 'auto', minWidth: 130 }} value={year} onChange={e => setYear(e.target.value)}>
-          <option value="ALL">{tt('officer.students.allYear')}</option>{years.map(y => <option key={y} value={String(y)}>{tt('officer.students.yearOpt', { year: y })}</option>)}
-        </select>
-        <select className="select" style={{ width: 'auto', minWidth: 150 }} value={eligible} onChange={e => setEligible(e.target.value)}>
-          <option value="ALL">{tt('officer.students.allEligible')}</option>
-          <option value="YES">{tt('officer.students.eligibleYes')}</option>
-          <option value="NO">{tt('officer.students.eligibleNo')}</option>
-        </select>
+        <Select style={{ width: 'auto', minWidth: 150 }} value={status} onChange={setStatus} lang={lang}
+          ariaLabel={tt('officer.students.allStatus')}
+          options={[
+            { value: 'ALL', label: tt('officer.students.allStatus') },
+            { value: 'SUBMITTED', label: tt('status.SUBMITTED') },
+            { value: 'CONFIRMED', label: tt('status.CONFIRMED') },
+            { value: 'REJECTED', label: tt('status.REJECTED') },
+            { value: 'DRAFT', label: tt('status.DRAFT') },
+          ]} />
+        <Select style={{ width: 'auto', minWidth: 150 }} value={examResult} onChange={setExamResult} lang={lang}
+          ariaLabel={tt('officer.students.allExamResult')}
+          options={[
+            { value: 'ALL', label: tt('officer.students.allExamResult') },
+            { value: 'PASS', label: tt('officer.students.examResultPass') },
+            { value: 'FAIL', label: tt('officer.students.examResultFail') },
+          ]} />
+        <Select style={{ width: 'auto', minWidth: 120 }} value={room} onChange={setRoom} lang={lang}
+          ariaLabel={tt('officer.students.allRoom')}
+          options={[{ value: 'ALL', label: tt('officer.students.allRoom') },
+            ...rooms.map(r => ({ value: r, label: roomName(lang, r) }))]} />
+        <Select style={{ width: 'auto', minWidth: 130 }} value={year} onChange={setYear} lang={lang}
+          ariaLabel={tt('officer.students.allYear')}
+          options={[{ value: 'ALL', label: tt('officer.students.allYear') },
+            ...years.map(y => ({ value: String(y), label: tt('officer.students.yearOpt', { year: y }) }))]} />
+        <Select style={{ width: 'auto', minWidth: 150 }} value={eligible} onChange={setEligible} lang={lang}
+          ariaLabel={tt('officer.students.allEligible')}
+          options={[
+            { value: 'ALL', label: tt('officer.students.allEligible') },
+            { value: 'YES', label: tt('officer.students.eligibleYes') },
+            { value: 'NO', label: tt('officer.students.eligibleNo') },
+          ]} />
       </div>
 
       {/* แถบจัดการสิทธิ์ — โผล่เฉพาะตอนติ๊กเลือกไว้ ไม่งั้นกินที่เปล่าๆ */}

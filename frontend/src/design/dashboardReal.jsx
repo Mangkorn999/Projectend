@@ -7,7 +7,7 @@
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
 import { PageHead, StatCard, Donut, BarRow, MultiLineChart, MultiBarChart, ColumnChart, Modal, Empty,
-  FirstAttemptSubjectTable } from './components.jsx';
+  FirstAttemptSubjectTable, Select } from './components.jsx';
 import { apiFetch } from './api.js';
 import { t, subjectName, roomName } from './i18n.js';
 
@@ -142,15 +142,11 @@ export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreVi
   const showingRound = tab !== ALL_ROUNDS && stats && String(stats.round.round_id) === tab;
 
   const yearPicker = (
-    <select className="input" value={year} onChange={e => changeYear(Number(e.target.value))}
+    <Select className="input" value={year} onChange={v => changeYear(Number(v))} lang={lang}
       style={{ width: 'auto', maxWidth: '100%', padding: '8px 30px 8px 12px', flex: 'none' }}
-      aria-label={tt('dashReal.roundSelectLabel')}>
-      {yearOptions.map(y => (
-        <option key={y} value={y}>
-          {y === currentYear ? tt('dashReal.currentYearOption', { year: y }) : tt('dashReal.yearOption', { year: y })}
-        </option>
-      ))}
-    </select>
+      ariaLabel={tt('dashReal.roundSelectLabel')}
+      options={yearOptions.map(y => ({ value: y,
+        label: y === currentYear ? tt('dashReal.currentYearOption', { year: y }) : tt('dashReal.yearOption', { year: y }) }))} />
   );
 
   // ปีของโซน "สถิติเชิงรายงาน" เท่านั้น — แยกจาก yearPicker บนสุด ไม่กระทบ/ไม่ถูกกระทบจากกัน
@@ -462,7 +458,7 @@ function StatusDonut({ total, by, not_started, perStudent, tt }) {
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 7 }}>
               <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink-700)' }}>{tt('dashReal.statusProgressLabel')}</span>
               <span style={{ fontSize: 14.5, color: 'var(--ink-500)', flex: 1 }}>
-                {tt(perStudent ? 'dashReal.statusProgressSubStudents' : 'dashReal.statusProgressSub', { done: reviewed, total: papers })}
+                {tt(perStudent ? 'dashReal.statusProgressSubStudents' : 'dashReal.statusProgressSub', { done: reviewed, total: papers, approved: by.approved, rejected: by.rejected })}
               </span>
               <span className="tnum" style={{ fontWeight: 800 }}>{reviewRate.toFixed(2)}%</span>
             </div>
@@ -730,15 +726,17 @@ function RoundBar({ round, roundInfo, submitted, eligible, fillRate, total, tt }
         </span>
       </div>
 
+      {/* flex '0 1 auto' + minWidth 0 = ยอมหดแล้วตัดบรรทัดได้บนจอแคบ
+          เดิม flex:'none' ห้ามหด บนมือถือ (390px) ข้อความยาวเลยดันการ์ดล้นขอบขวา 22px ทั้งหน้าเลื่อนแนวนอนได้ */}
       {roundInfo && (
-        <div style={{ fontSize: 15, color: 'var(--ink-500)', flex: 'none' }}>
+        <div style={{ fontSize: 15, color: 'var(--ink-500)', flex: '0 1 auto', minWidth: 0 }}>
           {tt('dashReal.roundBarClose', { date: closeText })}
           {deadlineText && <span style={{ color: deadlineTone, fontWeight: 700 }}> · {deadlineText}</span>}
         </div>
       )}
 
       {/* ข้อมูลรุ่น — ย้ายมาจากใต้หัวข้อหน้า จะได้อยู่รวมกับเรื่องรอบทั้งหมดในแถบเดียว */}
-      <div style={{ fontSize: 15, color: 'var(--ink-500)', flex: 'none' }}>
+      <div style={{ fontSize: 15, color: 'var(--ink-500)', flex: '0 1 auto', minWidth: 0 }}>
         {tt('dashReal.subInfo', { year: round.academic_year, total, eligible })}
       </div>
 

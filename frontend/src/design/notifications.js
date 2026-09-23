@@ -16,6 +16,7 @@ import { t } from './i18n.js';
 
 const READ_PREFIX = 'notif_read_';
 const TOAST_PREFIX = 'notif_toasted_'; // sessionStorage — กันเด้ง popup ซ้ำแจ้งเตือนเดิมระหว่าง session นี้
+const DISMISS_PREFIX = 'notif_dismissed_'; // ปุ่ม "ล้างทั้งหมด" — ซ่อนถาวร ไม่ใช่แค่ทำเครื่องหมายว่าอ่าน
 const NEWS_LIMIT = 5;
 
 // ใส่สถานะไว้ใน key ด้วย เพื่อให้ ตีกลับ → แก้ → ยืนยัน ขึ้นเป็นแจ้งเตือน "ใหม่"
@@ -35,6 +36,26 @@ export function markAllRead(userId, keys) {
   const merged = [...new Set([...readKeys(userId), ...keys])];
   // เก็บแค่ 200 อันล่าสุดพอ ไม่ให้ localStorage โตไม่จำกัด
   localStorage.setItem(READ_PREFIX + userId, JSON.stringify(merged.slice(-200)));
+}
+
+/* ปุ่ม "ล้างทั้งหมด" — ต่างจาก "อ่านแล้ว" ตรงที่อันนี้เอาออกจากลิสต์ไปเลย
+   ใช้ตอนกล่องแจ้งเตือนรกจนหาของใหม่ไม่เจอ
+
+   ของที่ล้างไปแล้วจะกลับมาได้ไหม ขึ้นกับ key:
+     - ประกาศ/ผลสอบ = เหตุการณ์ที่เกิดครั้งเดียว key คงที่ → ล้างแล้วหายถาวร ถูกต้องแล้ว
+     - alert ของเจ้าหน้าที่ = สถานะ ณ ตอนนี้ fromAlerts ผูกตัวเลขไว้ใน key ด้วย
+       พอตัวเลขเปลี่ยน (ค้างตรวจ 13 → 20 ใบ) key เปลี่ยนตาม แจ้งเตือนจึงโผล่กลับมาเอง */
+export function dismissedKeys(userId) {
+  try {
+    return JSON.parse(localStorage.getItem(DISMISS_PREFIX + userId) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+export function dismissAll(userId, keys) {
+  const merged = [...new Set([...dismissedKeys(userId), ...keys])];
+  localStorage.setItem(DISMISS_PREFIX + userId, JSON.stringify(merged.slice(-300)));
 }
 
 // เหมือน readKeys/markAllRead แต่เก็บที่ sessionStorage — เคลียร์เองตอนปิดแท็บ
@@ -79,10 +100,41 @@ export function fromServer(rows = []) {
   });
 }
 
+/* ---- แจ้งเตือนของเจ้าหน้าที่/ผู้บริหาร — มาจาก GET /dashboard/alerts ----
+   ก่อนหน้านี้กระดิ่งของ 2 role นี้มีแต่ "ประกาศใหม่" ที่ตัวเองเป็นคนโพสต์ ซึ่งไม่มีประโยชน์เลย
+   ตอนนี้ใช้ของจริงที่ backend คำนวณสดให้: รอบใกล้ปิด/เลยกำหนด, ค้างตรวจกี่ใบ, ยังไม่ส่งผลกี่คน
+
+   ต่างจากแจ้งเตือนอื่นตรงที่อันนี้เป็น "สถานะ ณ ตอนนี้" ไม่ใช่เหตุการณ์ที่เกิดแล้วจบ
+   เลยต้องเอาตัวเลขมาต่อท้าย key ด้วย — ถ้าใช้ key เปล่า ๆ พอกด "ล้างทั้งหมด" ตอนค้างตรวจ 13 ใบ
+   แล้ววันหลังค้าง 50 ใบ มันจะยังโดนซ่อนอยู่เพราะ key เดิม เจ้าหน้าที่จะไม่รู้เรื่องเลย */
+
+// alert แต่ละชนิดกดแล้วควรพาไปหน้าไหน — ผู้บริหารมีแค่ dashboard/reports เลยพาไป dashboard หมด
+const ALERT_PAGES = {
+  round_overdue: 'rounds',
+  round_closing: 'rounds',
+  not_submitted: 'review',
+  pending_review: 'review',
+};
+
+export function fromAlerts(alerts = [], role = 'officer') {
+  return alerts.map((a) => ({
+    // count มีเฉพาะบาง alert, detail มีทุกตัว — ใช้ตัวที่มีเป็นลายเซ็นของค่าปัจจุบัน
+    key: `alert:${a.key}:${a.count ?? a.detail ?? ''}`,
+    tone: a.tone,
+    icon: a.icon,
+    page: role === 'executive' ? 'dashboard' : (ALERT_PAGES[a.type] || 'dashboard'),
+    title: a.title,
+    sub: a.detail,
+    at: null,   // ไม่ใช่เหตุการณ์ที่มีเวลาเกิด จึงไม่โชว์วันที่
+    live: true, // ธงบอกว่าเป็นสถานะสด — app.jsx ใช้ดันขึ้นบนสุดของลิสต์
+  }));
+}
+
 // news = ประกาศทั้งหมด (ทุก role เห็นเหมือนกัน)
+// userId = คนที่ login อยู่ ใช้ตัดประกาศที่ตัวเองโพสต์ออก (เจ้าหน้าที่ไม่ต้องเตือนเรื่องที่ตัวเองเพิ่งเขียน)
 // examResults ยังรับไว้เผื่อเรียกแบบเดิม แต่ฝั่งนักศึกษาไม่ต้องส่งมาแล้ว
 // เพราะเรื่องผลสอบมาจากตาราง notifications จริงแทน ถ้าส่งมาด้วยจะขึ้นซ้ำ 2 อัน
-export function buildNotifications({ role, examResults = [], news = [], lang = 'TH' }) {
+export function buildNotifications({ role, examResults = [], news = [], lang = 'TH', userId }) {
   const tt = (key, vars) => t(lang, key, vars);
   const items = [];
 
@@ -107,7 +159,13 @@ export function buildNotifications({ role, examResults = [], news = [], lang = '
     }
   }
 
-  for (const n of news.slice(0, NEWS_LIMIT)) {
+  // ตัดประกาศที่ตัวเองโพสต์ออกก่อนค่อยตัดเหลือ 5 อัน
+  // ต้องตัดก่อน slice ไม่ใช่หลัง ไม่งั้นเจ้าหน้าที่ที่เพิ่งโพสต์รวด 5 ประกาศจะเหลือ 0 อันพอดี
+  const othersNews = userId === undefined
+    ? news
+    : news.filter((n) => n.posted_by !== userId);
+
+  for (const n of othersNews.slice(0, NEWS_LIMIT)) {
     items.push({
       key: newsKey(n), tone: 'wait', icon: 'bell', page: 'news',
       title: tt('notif.newsTitle'), sub: n.title, at: n.posted_at,

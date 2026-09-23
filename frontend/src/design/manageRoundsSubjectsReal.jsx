@@ -4,7 +4,7 @@
    ============================================================ */
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, Modal } from './components.jsx';
+import { PageHead, Modal, Select } from './components.jsx';
 import { apiFetch, ApiError } from './api.js';
 import { t } from './i18n.js';
 
@@ -43,6 +43,9 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
   const [roundModal, setRoundModal] = useState(null); // 'new' | round | null
   const [subjectModal, setSubjectModal] = useState(null); // {} (new) | subject | null
   const [deleteRound, setDeleteRound] = useState(null); // รอบที่กำลังจะลบ (ยืนยันก่อน)
+  // รายวิชาที่กำลังจะลบ — เดิมกดปุ่มถังขยะแล้วลบทันทีไม่ถามอะไรเลย พลาดคลิกทีเดียวหายทั้งวิชา
+  // (ลบรอบถามอยู่แล้ว ตรงนี้ขาดไป) วิชาถูกใช้ในรอบ/ผลสอบเก่า ลบผิดกระทบย้อนหลังทั้งระบบ
+  const [deleteSubjectTarget, setDeleteSubjectTarget] = useState(null);
   const [cohorts, setCohorts] = useState([]); // [{ year, count }] รุ่นนักศึกษาที่มีจริงในระบบ
   // กรองรายการรอบ — 'open' = เฉพาะรอบที่ยังเปิดรับ, 'all' = ทุกรอบ, หรือเลือกปีเจาะจง
   const [yearFilter, setYearFilter] = useState('open');
@@ -69,11 +72,14 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
         await apiFetch(`/rounds/${roundModal.round_id}`, { method: 'PUT', body: form });
         toast(tt('roundsMgmt.savedToast'));
       }
-      // ปิดรอบทั้งที่ตัวกรองเป็น "เฉพาะรอบที่เปิดรับ" → การ์ดจะหลุดจากตัวกรองแล้วดูเหมือนหายไป
-      // ทั้งที่ยังอยู่ครบ เลยสลับตัวกรองไปที่รุ่นของรอบนั้นให้เอง จะได้เห็นผลลัพธ์ที่เพิ่งบันทึก
-      if (yearFilter === 'open' && form.status !== 'open') {
-        setYearFilter(String(form.academic_year));
-      }
+      // รอบที่เพิ่งบันทึกต้องเห็นได้เสมอ ไม่งั้นดูเหมือนบันทึกไม่สำเร็จแล้วกดซ้ำ
+      // เกิดได้ 2 แบบ: ปิดรอบทั้งที่กรอง "เฉพาะรอบที่เปิดรับ" · สร้างรอบให้รุ่นอื่นทั้งที่กรองรุ่นใดรุ่นหนึ่งอยู่
+      // ตัวกรองไม่ครอบรอบนี้เมื่อไหร่ ก็สลับไปที่รุ่นของรอบนั้นให้เลย
+      const visibleAfterSave =
+        yearFilter === 'all' ||
+        (yearFilter === 'open' && form.status === 'open') ||
+        String(yearFilter) === String(form.academic_year);
+      if (!visibleAfterSave) setYearFilter(String(form.academic_year));
       setRoundModal(null);
       loadRounds();
     } catch (e) {
@@ -111,6 +117,7 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
     try {
       await apiFetch(`/subjects/${s.subject_id}`, { method: 'DELETE' });
       toast(tt('roundsMgmt.subjectDeletedToast'), 'info');
+      setDeleteSubjectTarget(null);
       loadSubs();
     } catch (e) {
       toast(e instanceof ApiError ? e.message : tt('roundsMgmt.deleteFailMsg'), 'error');
@@ -142,11 +149,12 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
         {/* ตัวกรองรายการ ไม่ใช่ช่องกรอกในฟอร์ม — ใช้ label คนละอันกับใน modal จะได้ไม่มี * หลอกว่าบังคับกรอก */}
         <div className="field" style={{ maxWidth: 240, marginBottom: 14 }}>
           <label>{tt('roundsMgmt.filterCohort')}</label>
-          <select className="select" value={yearFilter} onChange={e => setYearFilter(e.target.value)}>
-            <option value="open">{tt('roundsMgmt.yearFilterOpen')}</option>
-            <option value="all">{tt('roundsMgmt.yearFilterAll')}</option>
-            {filterYears.map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
+          <Select value={yearFilter} onChange={setYearFilter} lang={lang}
+            options={[
+              { value: 'open', label: tt('roundsMgmt.yearFilterOpen') },
+              { value: 'all', label: tt('roundsMgmt.yearFilterAll') },
+              ...filterYears.map(y => ({ value: String(y), label: String(y) })),
+            ]} />
         </div>
         <div className="grid g-3">
           {rounds
@@ -194,14 +202,25 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
                 <td style={{ fontWeight: 500 }}>{s.subject_name}</td>
                 <td style={{ textAlign: 'right' }}>
                   <button className="btn btn-ghost btn-sm" style={{ padding: 7, border: 'none' }} onClick={() => setSubjectModal(s)}><Icon name="edit" size={16} /></button>
-                  <button className="btn btn-ghost btn-sm" style={{ padding: 7, border: 'none', color: 'var(--fail)' }} onClick={() => deleteSubject(s)}><Icon name="trash" size={16} /></button>
+                  <button className="btn btn-ghost btn-sm" style={{ padding: 7, border: 'none', color: 'var(--fail)' }}
+                    aria-label={tt('roundsMgmt.deleteSubjectAria')} onClick={() => setDeleteSubjectTarget(s)}><Icon name="trash" size={16} /></button>
                 </td></tr>
             ))}</tbody>
           </table>
         </div>
       )}
 
-      <RoundModal round={roundModal} allSubjects={subs} cohorts={cohorts} onClose={() => setRoundModal(null)} onSave={saveRound} tt={tt} />
+      <Modal open={!!deleteSubjectTarget} onClose={() => setDeleteSubjectTarget(null)} title={tt('roundsMgmt.deleteSubjectTitle')} width={440} tone="danger"
+        footer={<><button className="btn btn-ghost" onClick={() => setDeleteSubjectTarget(null)}>{tt('roundsMgmt.cancelBtn')}</button>
+          <button className="btn btn-primary" style={{ background: 'var(--fail)', borderColor: 'var(--fail)' }}
+            onClick={() => deleteSubject(deleteSubjectTarget)}>{tt('roundsMgmt.deleteSubjectBtn')}</button></>}>
+        <p style={{ margin: 0, fontSize: 16, lineHeight: 1.7 }}>
+          {tt('roundsMgmt.deleteSubjectBody', { code: deleteSubjectTarget?.subject_code, name: deleteSubjectTarget?.subject_name })}
+        </p>
+        <p style={{ margin: '10px 0 0', fontSize: 14.5, color: 'var(--ink-500)' }}>{tt('roundsMgmt.deleteSubjectNote')}</p>
+      </Modal>
+
+      <RoundModal round={roundModal} allSubjects={subs} cohorts={cohorts} onClose={() => setRoundModal(null)} onSave={saveRound} tt={tt} lang={lang} />
       <Modal open={!!deleteRound} onClose={() => setDeleteRound(null)} title={tt('roundsMgmt.deleteRoundTitle')} width={440} tone="danger"
         footer={<><button className="btn btn-ghost" onClick={() => setDeleteRound(null)}>{tt('roundsMgmt.cancelBtn')}</button>
           <button className="btn btn-danger" onClick={confirmDeleteRound}><Icon name="trash" size={16} /> {tt('roundsMgmt.deleteRoundBtn')}</button></>}>
@@ -217,7 +236,7 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
   );
 }
 
-function RoundModal({ round, allSubjects, cohorts, onClose, onSave, tt }) {
+function RoundModal({ round, allSubjects, cohorts, onClose, onSave, tt, lang }) {
   const isNew = round === 'new';
   const r = isNew ? {} : (round || {});
   const [academicYear, setAcademicYear] = useState('');
@@ -272,12 +291,14 @@ function RoundModal({ round, allSubjects, cohorts, onClose, onSave, tt }) {
               <input className="input tnum" type="number" value={academicYear} placeholder="2568"
                 onChange={e => setAcademicYear(e.target.value)} />
             ) : (
-              <select className="select" value={academicYear}
-                onChange={e => { if (e.target.value === '__custom') { setCustomYear(true); setAcademicYear(''); } else setAcademicYear(e.target.value); }}>
-                <option value="">{tt('roundsMgmt.cohortPickOpt')}</option>
-                {cohorts.map(c => <option key={c.year} value={c.year}>{tt('roundsMgmt.cohortOpt', { year: c.year, count: c.count })}</option>)}
-                <option value="__custom">{tt('roundsMgmt.cohortCustomOpt')}</option>
-              </select>
+              <Select value={String(academicYear)} lang={lang}
+                onChange={v => { if (v === '__custom') { setCustomYear(true); setAcademicYear(''); } else setAcademicYear(v); }}
+                options={[
+                  { value: '', label: tt('roundsMgmt.cohortPickOpt') },
+                  ...cohorts.map(c => ({ value: String(c.year),
+                    label: tt('roundsMgmt.cohortOpt', { year: c.year, count: c.count }) })),
+                  { value: '__custom', label: tt('roundsMgmt.cohortCustomOpt') },
+                ]} />
             )}
             <span className="hint">
               {customYear && cohorts.length > 0
@@ -318,9 +339,43 @@ function RoundModal({ round, allSubjects, cohorts, onClose, onSave, tt }) {
         {!isNew && <label style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 16, fontWeight: 600, cursor: 'pointer' }}>
           <input type="checkbox" checked={status === 'open'} onChange={e => setStatus(e.target.checked ? 'open' : 'closed')} style={{ width: 17, height: 17 }} /> {tt('roundsMgmt.statusOpenLabel')}
         </label>}
+
+        {/* สรุปก่อนกดบันทึก: รอบนี้จะเปิดให้ใครบ้าง
+            รอบผูกกับรุ่นเดียว (backend เปิดให้เฉพาะคนที่ academic_year ตรงกับรอบ)
+            พิมพ์ปีผิดไปตัวเดียวก็เปิดให้คนผิดรุ่น/ไม่เปิดให้ใครเลย ซึ่งเดิมไม่มีทางรู้จนกว่านักศึกษาจะโทรมาถาม
+            เลขที่โชว์มาจาก cohorts (นับจากตาราง students จริง) ไม่ใช่เดาจากปี */}
+        {/* รอให้พิมพ์ครบ 4 หลักก่อน — โหมดพิมพ์ปีเองจะเตือน "ไม่มีรุ่น 25" ตั้งแต่พิมพ์ตัวที่สองถ้าไม่เช็ค */}
+        {String(academicYear).length === 4 &&
+          <CohortPreview year={Number(academicYear)} cohorts={cohorts} tt={tt} />}
+
         {!isValid && <div style={{ fontSize: 14.5, color: 'var(--ink-500)' }}>{tt('roundsMgmt.fillAllNote')}</div>}
       </div>
     </Modal>
+  );
+}
+
+/* กล่องสรุป "รอบนี้จะเปิดให้ใคร" ใต้ฟอร์มสร้าง/แก้รอบ
+   2 สถานะ:
+     มีนักศึกษาในรุ่นนั้น  → เขียว บอกจำนวนคน
+     ไม่มีเลย (0 คน)      → ส้ม เตือนว่าเปิดไปก็ไม่มีใครกรอกได้ (ปกติแปลว่าพิมพ์ปีผิด) */
+function CohortPreview({ year, cohorts, tt }) {
+  const hit = cohorts.find(c => c.year === year);
+  const count = hit ? hit.count : 0;
+  const ok = count > 0;
+  return (
+    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 14px', borderRadius: 10,
+      background: ok ? 'var(--status-ok-bg)' : 'var(--status-wait-bg)',
+      color: ok ? 'var(--status-ok-fg)' : 'var(--status-wait-fg)' }}>
+      <Icon name={ok ? 'users' : 'alert'} size={18} style={{ flex: 'none', marginTop: 1 }} />
+      <div style={{ fontSize: 15 }}>
+        <div style={{ fontWeight: 700 }}>
+          {ok ? tt('roundsMgmt.previewOk', { year, count }) : tt('roundsMgmt.previewEmpty', { year })}
+        </div>
+        <div style={{ fontSize: 14, marginTop: 2, opacity: .85 }}>
+          {ok ? tt('roundsMgmt.previewOkHint') : tt('roundsMgmt.previewEmptyHint')}
+        </div>
+      </div>
+    </div>
   );
 }
 

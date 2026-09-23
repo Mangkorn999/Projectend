@@ -4,7 +4,7 @@
    ============================================================ */
 import { useState, useEffect, useRef } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, Modal, StatusBadge } from './components.jsx';
+import { PageHead, Modal, StatusBadge, Select } from './components.jsx';
 import { apiFetch, ApiError, fetchAuthedObjectUrl } from './api.js';
 import { t } from './i18n.js';
 
@@ -208,6 +208,7 @@ export function ManageNewsReal({ toast, lang }) {
   const [rounds, setRounds] = useState([]);
   const [modal, setModal] = useState(null); // {} (new) | news | null
   const [form, setForm] = useState({ title: '', content: '', round_id: '' });
+  const [deleteTarget, setDeleteTarget] = useState(null); // ประกาศที่กำลังจะลบ (ยืนยันก่อน)
   const [saving, setSaving] = useState(false);
   const [imageFile, setImageFile] = useState(null);   // รูปใหม่ที่เพิ่งเลือก (ยังไม่อัปโหลด)
   const [dropImage, setDropImage] = useState(false);  // กดเอารูปเดิมออก
@@ -264,6 +265,7 @@ export function ManageNewsReal({ toast, lang }) {
   };
 
   const remove = async (n) => {
+    setDeleteTarget(null);
     try {
       await apiFetch(`/news/${n.news_id}`, { method: 'DELETE' });
       toast(tt('newsMgmt.deletedToast'), 'info');
@@ -290,19 +292,28 @@ export function ManageNewsReal({ toast, lang }) {
             </div>
             {n.image_path && <div style={{ width: 64, flex: 'none' }}><NewsImage newsId={n.news_id} maxHeight={64} radius={9} /></div>}
             <button className="btn btn-ghost btn-sm" onClick={() => openModal(n)}><Icon name="edit" size={15} /> {tt('newsMgmt.editBtn')}</button>
-            <button className="btn btn-ghost btn-sm" style={{ padding: 7, border: 'none', color: 'var(--fail)' }} onClick={() => remove(n)}><Icon name="trash" size={16} /></button>
+            <button className="btn btn-ghost btn-sm" style={{ padding: 7, border: 'none', color: 'var(--fail)' }}
+              aria-label={tt('newsMgmt.deleteAria')} onClick={() => setDeleteTarget(n)}><Icon name="trash" size={16} /></button>
           </div>
         ))}
       </div>
+      {/* ยืนยันก่อนลบ — เดิมกดถังขยะแล้วประกาศหายทันที ไม่มีทางเรียกคืน */}
+      <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title={tt('newsMgmt.deleteTitle')} width={440} tone="danger"
+        footer={<><button className="btn btn-ghost" onClick={() => setDeleteTarget(null)}>{tt('newsMgmt.cancelBtn')}</button>
+          <button className="btn btn-primary" style={{ background: 'var(--fail)', borderColor: 'var(--fail)' }}
+            onClick={() => remove(deleteTarget)}>{tt('newsMgmt.deleteBtn')}</button></>}>
+        <p style={{ margin: 0, fontSize: 16, lineHeight: 1.7 }}>{tt('newsMgmt.deleteBody', { title: deleteTarget?.title })}</p>
+      </Modal>
+
       <Modal open={!!modal} onClose={() => setModal(null)} title={modal?.news_id ? tt('newsMgmt.editModalTitle') : tt('newsMgmt.newModalTitle')} width={560}
         footer={<><button className="btn btn-ghost" onClick={() => setModal(null)}>{tt('newsMgmt.cancelBtn')}</button>
           <button className="btn btn-primary" disabled={saving} onClick={submit}><Icon name="send" size={16} /> {saving ? tt('newsMgmt.publishing') : tt('newsMgmt.publishBtn')}</button></>}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div className="field"><label>{tt('newsMgmt.fieldTitle')}</label><input className="input" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder={tt('newsMgmt.titlePh')} /></div>
           <div className="field"><label>{tt('newsMgmt.fieldRound')}</label>
-            <select className="select" value={form.round_id} onChange={e => setForm(f => ({ ...f, round_id: e.target.value }))}>
-              {rounds.map(r => <option key={r.round_id} value={r.round_id}>{tt('news.roundSlash', { attempt: r.attempt_number, year: r.academic_year })}</option>)}
-            </select>
+            <Select value={String(form.round_id)} onChange={v => setForm(f => ({ ...f, round_id: v }))} lang={lang}
+              options={rounds.map(r => ({ value: String(r.round_id),
+                label: tt('news.roundSlash', { attempt: r.attempt_number, year: r.academic_year }) }))} />
           </div>
           <div className="field"><label>{tt('newsMgmt.fieldContent')}</label><textarea className="input" rows={4} value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} placeholder={tt('newsMgmt.contentPh')} /></div>
           <div className="field">

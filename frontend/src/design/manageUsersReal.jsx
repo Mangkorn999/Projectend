@@ -8,7 +8,7 @@
    ============================================================ */
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, Modal, Avatar } from './components.jsx';
+import { PageHead, Modal, Avatar, Select } from './components.jsx';
 import { apiFetch, ApiError } from './api.js';
 import { t } from './i18n.js';
 
@@ -110,11 +110,12 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
           <button className="btn btn-primary" disabled={saving} onClick={submit}>{saving ? tt('usersMgmt.saving') : tt('usersMgmt.addBtn')}</button></>}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div className="field"><label>{tt('usersMgmt.fieldRole')}</label>
-            <select className="select" value={form.role_name} onChange={e => setForm(f => ({ ...f, role_name: e.target.value }))}>
-              <option value="executive">{tt('role.executive')}</option>
-              <option value="officer">{tt('role.officer')}</option>
-              <option value="reviewer">{tt('role.reviewer')}</option>
-            </select>
+            <Select value={form.role_name} onChange={v => setForm(f => ({ ...f, role_name: v }))} lang={lang}
+              options={[
+                { value: 'executive', label: tt('role.executive') },
+                { value: 'officer', label: tt('role.officer') },
+                { value: 'reviewer', label: tt('role.reviewer') },
+              ]} />
           </div>
           <div className="field"><label>{tt('usersMgmt.fieldUsername')}</label><input className="input" value={form.psu_passport_id} onChange={e => setForm(f => ({ ...f, psu_passport_id: e.target.value }))} />
             <span className="hint">{tt('usersMgmt.usernameHint')}</span></div>
