@@ -437,3 +437,127 @@ export function findAll(options) {
   ...
 }
 ```
+
+### 5.13 `Math.min` / `Math.max` ซ้อนกัน — ดึงเลขให้อยู่ในช่วง (clamp)
+
+ช่องพิมพ์เลขหน้าในตาราง ผู้ใช้พิมพ์ 999 ทั้งที่มี 93 หน้า ต้องไม่พัง — ดึงกลับมาที่หน้าสุดท้ายแทน
+
+```js
+// frontend/src/design/components.jsx (PageJump)
+const target = Math.min(Math.max(n - 1, 0), pages - 1);
+```
+อ่านจากในออกนอก:
+```js
+Math.max(n - 1, 0)        // ต่ำกว่า 0 ให้เป็น 0        → กันหน้าติดลบ
+Math.min(  ...  , pages-1) // สูงกว่าหน้าสุดท้ายให้เท่าหน้าสุดท้าย
+```
+เขียนยาว:
+```js
+let target = n - 1;
+if (target < 0) target = 0;
+if (target > pages - 1) target = pages - 1;
+```
+
+### 5.14 `.replace(/[^0-9]/g, '')` — กรองให้เหลือแต่ตัวเลข
+
+`/.../` คือ regular expression (แพตเทิร์นค้นหาข้อความ)
+
+| ส่วน | แปลว่า |
+|---|---|
+| `[0-9]` | ตัวอักษรที่เป็นเลข 0 ถึง 9 |
+| `[^0-9]` | `^` ข้างในวงเล็บเหลี่ยม = **กลับด้าน** → อะไรก็ได้ที่**ไม่ใช่**เลข |
+| `g` | global = แทนที่ทุกตัวที่เจอ ไม่ใช่แค่ตัวแรก |
+
+```js
+// frontend/src/design/components.jsx
+onChange={e => setText(e.target.value.replace(/[^0-9]/g, ''))}
+
+'12a3!'.replace(/[^0-9]/g, '')   // → '123'
+```
+
+### 5.15 `getBoundingClientRect()` — ถามตำแหน่งจริงของ element บนจอ
+
+Select ที่เขียนเองต้องวาดกล่องรายการให้ตรงใต้ปุ่มพอดี เลยต้องรู้ว่าปุ่มอยู่พิกัดไหน
+
+```js
+// frontend/src/design/components.jsx (Select)
+const r = triggerRef.current.getBoundingClientRect();
+r.top, r.bottom, r.left, r.width   // หน่วยเป็น px นับจากมุมซ้ายบนของ "ส่วนที่มองเห็น" ไม่ใช่ของทั้งหน้า
+```
+เลขจึงเปลี่ยนเมื่อเลื่อนหน้า — ต้องวัดใหม่ทุกครั้งที่เลื่อน ไม่ใช่วัดครั้งเดียวตอนเปิด
+
+### 5.16 ทำไมห้ามเรียก `setState` ใน `useEffect` (react-hooks/set-state-in-effect)
+
+`useEffect` ทำงาน **หลัง** วาดจอเสร็จแล้ว ถ้าไปสั่ง `setState` ตรงนั้นจะวาดอีกรอบ = ผู้ใช้เห็นของผิดแวบหนึ่ง
+
+```js
+// ❌ พิมพ์ค้นหาแล้วค่อยรีเซ็ตไฮไลต์ทีหลัง — วาด 2 รอบ รอบแรกไฮไลต์ยังผิด
+useEffect(() => { setActiveIndex(0); }, [query]);
+
+// ✅ ตั้งทั้งคู่ในเหตุการณ์เดียวกัน — React รวมให้เป็นรอบเดียว
+const changeQuery = (text) => {
+  setQuery(text);
+  setActiveIndex(0);
+};
+```
+หลักคิด: `useEffect` มีไว้คุยกับของนอก React (ยิง API, ฟัง event ของ browser) ไม่ใช่ไว้ไล่แก้ state ตามกัน
+
+### 5.17 `createPortal` — วาด element ไว้ที่อื่นของหน้า
+
+การ์ดหลายใบตั้ง `overflow: hidden` ไว้ ถ้าวาดกล่อง dropdown ไว้ข้างในการ์ดมันจะโดนตัดครึ่ง
+`createPortal` ย้ายไปวาดที่ `document.body` แทน แต่ยังสั่งงาน/รับค่าจาก component เดิมได้ปกติ
+
+```js
+// frontend/src/design/components.jsx
+import { createPortal } from 'react-dom';
+
+return createPortal(
+  <div className="select-panel">...</div>,   // สิ่งที่จะวาด
+  document.body,                             // วาดไว้ตรงไหน
+);
+```
+
+### 5.18 query string (`?dry_run=true`) — ค่าที่ได้เป็นข้อความเสมอ
+
+ต่อท้าย URL ด้วย `?ชื่อ=ค่า` เพื่อส่งตัวเลือกเล็กๆ ไปกับ request โดยไม่ต้องแก้ body
+Express แกะให้อยู่ใน `req.query`
+
+```js
+// POST /api/students/import?dry_run=true
+// backend/src/modules/students/student.controller.js
+const dryRun = req.query.dry_run === "true";
+```
+**กับดัก:** ทุกค่าใน `req.query` เป็น **string** — `req.query.dry_run` คือ `"true"` ไม่ใช่ `true`
+```js
+if (req.query.dry_run) { ... }            // ❌ ส่ง ?dry_run=false มาก็เข้า if เพราะ "false" เป็นข้อความที่ไม่ว่าง
+if (req.query.dry_run === "true") { ... } // ✅
+```
+
+### 5.19 ฟังก์ชันคืน `{ year }` หรือ `{ error }` แทนการ throw
+
+import CSV ต้อง "ข้ามแถวที่ผิด แล้วทำแถวต่อไป" ไม่ใช่ล้มทั้งไฟล์ — ถ้าตัวตรวจ throw ต้องห่อ try/catch ทุกที่ที่เรียก
+เลยให้คืนผลเป็น object แล้วคนเรียกเลือกเองว่าจะทำอะไรกับ error
+
+```js
+// backend/src/utils/academicYear.js
+const checked = validateGraduationYear("2566", "6610210001");
+// → { error: "ปีการศึกษาที่จบต้องไม่น้อยกว่า 2570 ..." }
+
+if (checked.error) {
+  skipped.push({ row, student_id, reason: checked.error }); // import: ข้ามแถวนี้
+  continue;
+}
+// เพิ่มทีละคน / แก้ไข: เอา checked.error ไป throw เป็น 400 แทน
+```
+
+### 5.20 Prisma — หาแถวที่ "ยังไม่มี" relation และข้อความขึ้นต้นด้วย
+
+```js
+// backend/tests/cleanupYears.mjs — user ที่ import แล้วแต่ยังไม่มีแถว students
+prisma.user.deleteMany({
+  where: {
+    student: null,                              // relation 1:0..1 ยังไม่มี = null
+    psu_passport_id: { startsWith: "87" },      // SQL: LIKE '87%'
+  },
+});
+```
