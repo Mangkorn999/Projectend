@@ -35,6 +35,22 @@ export const cleanupYears = async (years) => {
     await prisma.submissionRound.deleteMany({ where: { academic_year: { in: safe } } });
     await prisma.student.deleteMany({ where: { student_id: { in: sids } } });
     await prisma.user.deleteMany({ where: { user_id: { in: students.map((s) => s.user_id) } } });
+
+    // บัญชีที่ import แล้วแต่ยังไม่กรอกโปรไฟล์ = ยังไม่มีแถว students ข้างบนจึงหาไม่เจอ
+    // (เช่นเทสล้มกลางทางก่อนถึงขั้น complete-profile) — หาจาก 2 ทาง:
+    //   import_academic_year ตรงปีทดสอบ (เจ้าหน้าที่ใส่ปีมา)
+    //   รหัสขึ้นต้นด้วย 2 หลักของปีเข้า (ปีทดสอบ − 4) — ปี ≥ 2590 → รหัส 86 ขึ้นไป ไม่ชนข้อมูลจริง (รหัส 56–71)
+    const prefixes = safe.map((y) => String(y - 4).slice(-2));
+    await prisma.user.deleteMany({
+      where: {
+        student: null,
+        role: { role_name: "student" },
+        OR: [
+          { import_academic_year: { in: safe } },
+          ...prefixes.map((p) => ({ psu_passport_id: { startsWith: p } })),
+        ],
+      },
+    });
   } finally {
     await prisma.$disconnect();
   }

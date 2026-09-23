@@ -29,6 +29,9 @@ model User {
   last_name       String?           @db.VarChar(100)
   email           String?           @db.VarChar(100)
   phone           String?           @db.VarChar(20)
+  // นักศึกษา: ปีการศึกษาที่จบที่เจ้าหน้าที่ระบุตอนนำเข้า (เคสซ้ำชั้น/ลาพัก) — ว่าง = คำนวณจากรหัส (รหัส+4)
+  // เก็บที่ users เพราะตอน import ยังไม่มีแถว students ให้เก็บ — complete-profile อ่านค่านี้ไปตั้ง students.academic_year
+  import_academic_year Int?
   created_at      DateTime          @default(now())
   confirmed_exams ExamResult[]      @relation("UserToExamResult")
   news            News[]            @relation("UserToNews")

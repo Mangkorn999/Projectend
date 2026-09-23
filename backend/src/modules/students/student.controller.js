@@ -5,7 +5,7 @@ import * as studentRepo from "./student.repository.js";
 import * as notifRepo from "../notifications/notifications.repository.js";
 import * as subjectsRepo from "../subjects/subjects.repository.js";
 import * as roundsRepo from "../rounds/rounds.repository.js";
-import { calcGraduationYear } from "../../utils/academicYear.js";
+import { calcGraduationYear, validateGraduationYear, isBlankYear } from "../../utils/academicYear.js";
 import { buildSubjectListPdf } from "./students.pdf.js";
 
 const REQUIRED_COLUMNS = ["student_id", "national_id"];
@@ -40,17 +40,35 @@ export const getById = async (req, res, next) => {
       err.statusCode = 404;
       throw err;
     }
-    res.json({ success: true, data: student });
+
+    // 2 ค่านี้ไม่ได้อยู่ในตาราง — คำนวณให้ตอนส่งออก เพื่อให้หน้าแก้ข้อมูลรู้ว่า
+    //   academic_year_derived = ปีที่ "ควรจะจบ" ตามรหัส (เอาไว้บอกว่าค่าปัจจุบันถูกแก้มือไปแล้ว)
+    //   exam_result_count     = ส่งผลไปแล้วกี่ใบ (มากกว่า 0 = ย้ายรุ่นไม่ได้ ดู update())
+    // คำนวณฝั่ง server ที่เดียว ฝั่งหน้าเว็บห้ามคิดสูตร +4 เอง ไม่งั้นแก้สูตรทีต้องตามแก้ 2 ที่
+    const [derived, examResultCount] = await Promise.all([
+      Promise.resolve(calcGraduationYear(student.student_id)),
+      studentRepo.countExamResults(student.student_id),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        ...student,
+        academic_year_derived: derived,
+        exam_result_count: examResultCount,
+      },
+    });
   } catch (err) {
     next(err);
   }
 };
 
 // เพิ่มนักศึกษาทีละคน (พิมพ์เอง) — ทางเลือกคู่กับ import CSV เวลามีแค่ 1-2 คน
-// เจ้าหน้าที่กรอกแค่รหัสนักศึกษา + เลขบัตร ปชช — ชื่อ/ห้อง/ปีจบ นักศึกษากรอกเองตอน login ครั้งแรก (complete-profile)
+// เจ้าหน้าที่กรอกรหัสนักศึกษา + เลขบัตร ปชช (+ ปีจบ ถ้าซ้ำชั้น/ลาพัก ไม่บังคับ)
+// ชื่อ/ห้อง นักศึกษากรอกเองตอน login ครั้งแรก (complete-profile)
 export const create = async (req, res, next) => {
   try {
-    const { student_id, national_id } = req.body;
+    const { student_id, national_id, academic_year } = req.body;
 
     if (!student_id || !national_id) {
       const err = new Error("กรุณากรอกรหัสนักศึกษาและเลขบัตรประชาชน");
@@ -68,6 +86,19 @@ export const create = async (req, res, next) => {
       const err = new Error("รหัสนักศึกษาต้องเป็นตัวเลขอย่างน้อย 2 หลัก");
       err.statusCode = 400;
       throw err;
+    }
+
+    // ปีจบไม่บังคับ — กฎเดียวกับ import CSV (validateGraduationYear)
+    // เก็บเฉพาะตอนต่างจากสูตร ใส่เท่าสูตรพอดีผลเหมือนเว้นว่าง
+    let importYear = null;
+    if (!isBlankYear(academic_year)) {
+      const checked = validateGraduationYear(academic_year, student_id);
+      if (checked.error) {
+        const err = new Error(checked.error);
+        err.statusCode = 400;
+        throw err;
+      }
+      if (checked.year !== calcGraduationYear(student_id)) importYear = checked.year;
     }
 
     const existing = await studentRepo.findByPsuId(student_id);
@@ -88,6 +119,7 @@ export const create = async (req, res, next) => {
       role_id: studentRole.role_id,
       psu_passport_id: student_id,
       password_hash: await bcrypt.hash(national_id, SALT_ROUNDS),
+      import_academic_year: importYear,
     });
 
     res.status(201).json({ success: true, data: user });
@@ -97,7 +129,7 @@ export const create = async (req, res, next) => {
 };
 
 // นักศึกษากรอกโปรไฟล์ครั้งแรกหลัง login (บังคับผ่าน middleware ถ้ายังไม่มี student row)
-// ปีการศึกษาที่จบคำนวณจากรหัสนักศึกษาเองฝั่ง server เท่านั้น — ไม่รับค่าจาก client
+// ปีการศึกษาที่จบตั้งฝั่ง server เท่านั้น — ไม่รับค่าจาก client (ปีจบคุมว่าเห็นรอบสอบไหน นักศึกษาห้ามตั้งเอง)
 export const completeProfile = async (req, res, next) => {
   try {
     // authenticate แนบ req.user.studentId ไว้แล้ว — ถ้ามีค่าแปลว่ากรอกโปรไฟล์ไปแล้ว ห้ามกรอกซ้ำ
@@ -145,9 +177,12 @@ export const completeProfile = async (req, res, next) => {
       throw err;
     }
 
-    // psu_passport_id ของนักศึกษา = student_id — ใช้คำนวณปีจบด้วย
+    // psu_passport_id ของนักศึกษา = student_id
+    // ปีจบ: ใช้ปีที่เจ้าหน้าที่ระบุไว้ตอนนำเข้าก่อน (เคสซ้ำชั้น/ลาพัก) ไม่มีค่อยคำนวณจากรหัส (รหัส+4)
+    // ?? = ถ้าฝั่งซ้ายเป็น null/undefined ให้ใช้ฝั่งขวา
     const student_id = req.user.username;
-    const academic_year = calcGraduationYear(student_id);
+    const account = await studentRepo.findByPsuId(student_id);
+    const academic_year = account?.import_academic_year ?? calcGraduationYear(student_id);
 
     const result = await studentRepo.completeProfile({
       user_id: req.user.userId,
@@ -209,7 +244,40 @@ export const update = async (req, res, next) => {
     if (first_name_en !== undefined) studentData.first_name_en = first_name_en;
     if (last_name_en !== undefined) studentData.last_name_en = last_name_en;
     if (room_id !== undefined) studentData.room_id = Number(room_id);
-    if (academic_year !== undefined) studentData.academic_year = Number(academic_year);
+
+    // เปลี่ยนปีจบ = ย้ายรุ่น — ตรวจเฉพาะตอนปีเปลี่ยนจริง — ฟอร์มแก้ไขส่งปีเดิมมาด้วยทุกครั้งแม้แก้แค่เบอร์โทร
+    // ถ้าตรวจทุกครั้ง นักศึกษาเก่าที่ปีในระบบไม่ตรงสูตรปัจจุบันจะแก้ข้อมูลอะไรไม่ได้เลย
+    // ("abc" → Number = NaN ซึ่งไม่เท่ากับปีเดิม จึงเข้าเงื่อนไขนี้และโดนตรวจเสมอ)
+    if (academic_year !== undefined && Number(academic_year) !== existing.academic_year) {
+      // 1) รูปแบบ — เดิมไม่ตรวจเลย ส่ง "abc" มา Prisma พังเป็น 500
+      //    กฎเดียวกับตอน import: ห้ามน้อยกว่าปีตามรหัส (จับเคสพิมพ์ปีที่เข้าแทนปีที่จบ)
+      const checked = validateGraduationYear(academic_year, existing.student_id);
+      if (checked.error) {
+        const err = new Error(checked.error);
+        err.statusCode = 400;
+        throw err;
+      }
+
+      // 2) ย้ายรุ่น (เคสซ้ำชั้น/ลาพัก) — ทำได้เฉพาะคนที่ยังไม่เคยส่งผลสอบเลย
+      //
+      // ทำไมต้องกัน: ใบผลสอบผูกกับ "รอบ" ไม่ได้ผูกกับ "รุ่นของนักศึกษา"
+      // ถ้าย้ายคนที่ส่งผลไปแล้วออกจากรุ่น 2570 ไปรุ่น 2572 จะได้
+      //   ตัวหาร (countStudentsByYear 2570) ลดลง 1 คน
+      //   ตัวตั้ง (ใบในรอบของปี 2570)      เท่าเดิม
+      // → fillRate/passRate ของรุ่น 2570 พุ่งเกิน 100% และไม่มีทางรู้ว่าเพี้ยนเพราะอะไร
+      const resultCount = await studentRepo.countExamResults(req.params.id);
+      if (resultCount > 0) {
+        // ไม่บอกให้ "ลบผลสอบก่อน" เพราะระบบไม่มีทางลบผลสอบให้เจ้าหน้าที่ (ตั้งใจ — กันลบประวัติ)
+        // บอกแค่เหตุผลพอ ไม่ชี้ทางที่ทำไม่ได้จริง
+        const err = new Error(
+          `เปลี่ยนปีการศึกษาที่จบไม่ได้ เพราะนักศึกษาคนนี้ส่งผลสอบไปแล้ว ${resultCount} ครั้ง — ` +
+            `ถ้าย้ายรุ่นตอนนี้ สถิติของรุ่น ${existing.academic_year} จะเพี้ยน`,
+        );
+        err.statusCode = 400;
+        throw err;
+      }
+      studentData.academic_year = checked.year;
+    }
 
     const updated = await studentRepo.updateProfile(req.params.id, {
       user: userData,
@@ -250,6 +318,11 @@ export const bulkSetEligible = async (req, res, next) => {
 // แถวที่พลาด (ซ้ำ/ห้องไม่มี/ข้อมูลขาด) จะถูกข้ามและรายงานกลับ ไม่ทำให้แถวอื่นล้มไปด้วย
 export const bulkImport = async (req, res, next) => {
   try {
+    // ?dry_run=true = ตรวจไฟล์อย่างเดียว ไม่บันทึกอะไรลง DB
+    // หน้าเว็บใช้ทำกล่องสรุป "จะนำเข้ากี่คน / ข้ามกี่คน / ใครปีจบไม่ตรงกับรหัส" ก่อนให้กดยืนยันจริง
+    // ค่าจาก query string เป็นข้อความเสมอ ("true" ไม่ใช่ true) เลยต้องเทียบกับ "true"
+    const dryRun = req.query.dry_run === "true";
+
     // multer (memoryStorage) แปะไฟล์ที่ officer อัปโหลดไว้ที่ req.file.buffer — ยังไม่เขียนลง disk
     if (!req.file) {
       const err = new Error("กรุณาแนบไฟล์ CSV");
@@ -314,11 +387,15 @@ export const bulkImport = async (req, res, next) => {
 
     const imported = [];
     const skipped = [];
+    // คนที่เจ้าหน้าที่ใส่ปีจบมาไม่ตรงกับที่คำนวณจากรหัส (ซ้ำชั้น/ลาพัก) — ให้หน้าเว็บโชว์ให้ตรวจอีกรอบ
+    // ใส่ปีเท่ากับสูตรพอดีไม่นับ เพราะผลเหมือนเว้นว่าง
+    const yearOverrides = [];
     // ทำทีละแถว ไม่ใช้ transaction เดียวรวมทั้งไฟล์ — กันไฟล์ 500 แถวพังหมดเพราะแถวเดียวพลาด
     for (let i = 0; i < rows.length; i++) {
       const rowNum = i + 2; // +1 เพราะแถวแรกคือ header, +1 เพราะนับแบบ 1-indexed ให้ตรงกับที่เห็นใน Excel
       const row = rows[i];
-      const { student_id, national_id } = row;
+      // academic_year เป็นคอลัมน์ไม่บังคับ — ไฟล์เก่าที่ไม่มีคอลัมน์นี้ก็ได้ undefined ถือว่าเว้นว่าง
+      const { student_id, national_id, academic_year } = row;
 
       // validate ฟิลด์บังคับต่อแถว — ขาดฟิลด์ไหนก็ข้ามแถวนั้น ไม่ทำให้ทั้งไฟล์ล้ม
       if (!student_id || !national_id) {
@@ -344,10 +421,32 @@ export const bulkImport = async (req, res, next) => {
         continue;
       }
 
+      // ปีจบ: เว้นว่าง = ใช้สูตรรหัส+4 ตอนกรอกโปรไฟล์ · ใส่มา = ตรวจก่อน ผิดก็ข้ามแถวนี้พร้อมเหตุผล
+      let importYear = null;
+      if (!isBlankYear(academic_year)) {
+        const checked = validateGraduationYear(academic_year, student_id);
+        if (checked.error) {
+          skipped.push({ row: rowNum, student_id, reason: checked.error });
+          continue;
+        }
+        const derived = calcGraduationYear(student_id);
+        // เก็บเฉพาะตอนต่างจากสูตร — คอลัมน์นี้จะได้แปลว่า "เจ้าหน้าที่แก้ปีให้คนนี้" ตรงตัว
+        if (checked.year !== derived) {
+          importYear = checked.year;
+          yearOverrides.push({ row: rowNum, student_id, derived, academic_year: checked.year });
+        }
+      }
+
       // กัน import ซ้ำ — ถ้า student_id นี้มี user อยู่แล้วในระบบ ข้ามไปเลย (ไม่ทับข้อมูลเดิม)
       const existing = await studentRepo.findByPsuId(student_id);
       if (existing) {
         skipped.push({ row: rowNum, student_id, reason: "มีในระบบแล้ว" });
+        continue;
+      }
+
+      // dry run: ผ่านทุกด่านแล้ว = "จะนำเข้าได้" นับไว้เฉยๆ ไม่สร้างจริง
+      if (dryRun) {
+        imported.push(student_id);
         continue;
       }
 
@@ -358,6 +457,7 @@ export const bulkImport = async (req, res, next) => {
           role_id: studentRole.role_id,
           psu_passport_id: student_id,
           password_hash: await bcrypt.hash(national_id, SALT_ROUNDS),
+          import_academic_year: importYear,
         });
         imported.push(student_id);
       } catch (createErr) {
@@ -370,14 +470,21 @@ export const bulkImport = async (req, res, next) => {
       }
     }
 
+    // คนที่ปีไม่ตรงแต่สุดท้ายถูกข้าม (เช่น มีในระบบแล้ว) ไม่ได้นำเข้าจริง — ตัดออก ไม่งั้นกล่องสรุปนับเกิน
+    const importedSet = new Set(imported);
+    const overridesKept = yearOverrides.filter((o) => importedSet.has(o.student_id));
+
     // สรุปผล import กลับไปให้หน้า officer แสดง — เห็นทั้งที่สำเร็จและที่ต้องแก้ไฟล์แล้วอัปใหม่
-    res.status(201).json({
+    // dry run ตอบ 200 (ไม่ได้สร้างอะไร) · นำเข้าจริงตอบ 201 (สร้างแล้ว)
+    res.status(dryRun ? 200 : 201).json({
       success: true,
       data: {
+        dry_run: dryRun,
         imported_count: imported.length,
         skipped_count: skipped.length,
         imported,
         skipped,
+        year_overrides: overridesKept,
       },
     });
   } catch (err) {

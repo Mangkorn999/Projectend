@@ -98,15 +98,17 @@ export const setPassword = (studentId, password_hash) =>
 
 // สร้างแค่ user จากการ import — รหัสผ่าน = hash(เลขบัตร ปชช) ที่เจ้าหน้าที่กรอกมาตอน import
 // ยังไม่สร้าง student row — นักศึกษา login ครั้งแรกแล้วกรอกโปรไฟล์เองผ่าน completeProfile ถึงจะสร้างให้
-export const createFromImport = ({ role_id, psu_passport_id, password_hash }) =>
+// import_academic_year = ปีจบที่เจ้าหน้าที่ระบุมา (null = ให้ complete-profile คำนวณจากรหัสเอง)
+export const createFromImport = ({ role_id, psu_passport_id, password_hash, import_academic_year = null }) =>
   prisma.user.create({
     data: {
       role_id,
       psu_passport_id,
       password_hash,
       must_change_password: false, // ไม่มี flow ให้ตั้งรหัสใหม่ — เลขบัตร ปชช คือรหัสผ่านถาวร
+      import_academic_year,
     },
-    select: { user_id: true, psu_passport_id: true },
+    select: { user_id: true, psu_passport_id: true, import_academic_year: true },
   });
 
 // นักศึกษากรอกโปรไฟล์ครั้งแรก — update user (ชื่อ/email/เบอร์) + สร้าง student row พร้อมกัน
