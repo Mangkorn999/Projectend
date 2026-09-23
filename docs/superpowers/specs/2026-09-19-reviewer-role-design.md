@@ -12,8 +12,8 @@
 
 ## Scope
 
-- Backend: `prisma/schema.prisma` (+1 table `review_logs`, +1 migration), `prisma/seed.js` (+role row), `users` module (role allowlists), `examResults` module (repository+controller — guarded update + log), `students.routes.js` (เพิ่ม role ที่เข้าถึง `GET /:id`), `examResults.routes.js` (เพิ่ม role เข้าถึง GET all/approve/reject)
-- Frontend: `app.jsx` (`ROLE_PAGES`, `DEFAULT_PAGE`), `studentDetailReal.jsx` (แยก edit/review permission), `manageUsersReal.jsx` (เพิ่มตัวเลือก role), `i18n.js`
+- Backend: `prisma/schema.prisma` (+1 table `review_logs`, apply ด้วย `db push` — dev DB ไม่มี migration history จริงอยู่แล้ว ตาม known gap ใน `BACKEND_GUIDE.md` changelog 17 ก.ย. ไม่ใช้ `migrate dev` เพราะจะพยายามไล่ตาม drift เก่าที่ไม่เกี่ยวกับ feature นี้), `prisma/seed.js` (+role row), `users` module (role allowlists), `examResults` module (repository+controller — guarded update + log), `students.routes.js` (เพิ่ม role ที่เข้าถึง `GET /:id`), `examResults.routes.js` (เพิ่ม role เข้าถึง GET all/approve/reject), `tests/cleanupYears.mjs` (ลบ `review_logs` ก่อน `exam_results` กัน FK พัง)
+- Frontend: `app.jsx` (`ROLE_PAGES`, `DEFAULT_PAGE`, `NAV`), `studentDetailReal.jsx` (แยก edit/review permission), `manageUsersReal.jsx` (เพิ่ม role เข้า `load()` filter + `ROLE_LABEL` + dropdown — 3 จุด ดู E), `i18n.js` (+`role.reviewer` TH/EN)
 - ไม่แตะ: dashboard, rounds, subjects, news, certificates upload, student self-service flow, ตาราง `exam_results`/`students` เดิม (ไม่เพิ่ม column)
 
 ---
@@ -28,7 +28,7 @@
 { role_name: "reviewer", description: "เจ้าหน้าที่ตรวจสอบ" },
 ```
 
-(ต้องแก้ `demoSeed.js` / `seedDemoYears.js` ให้ seed role นี้ด้วยถ้ามี roles array แยก — เจอบัคลักษณะนี้มาก่อนแล้วตอน `first_name_en` ตอน 17 ก.ย.)
+(เช็คแล้ว — `demoSeed.js`/`seedDemoYears.js` ไม่มี roles array ของตัวเอง แค่ `findFirst` role ที่ `seed.js` สร้างไว้ ไม่ต้องแก้ 2 ไฟล์นี้)
 
 `users.controller.js` — เพิ่ม `"reviewer"` เข้า allowlist ทั้งสองจุด:
 
@@ -46,8 +46,13 @@ Backend route ที่ reviewer ต้องเข้าได้ (เพิ่
 | `PATCH /api/exam-results/:id/approve` | `requireRole("officer")` | `requireRole("officer", "reviewer")` |
 | `PATCH /api/exam-results/:id/reject` | `requireRole("officer")` | `requireRole("officer", "reviewer")` |
 | `GET /api/students/:id` | `requireRole("officer", "student")` | `requireRole("officer", "student", "reviewer")` |
+| `GET /api/students` | `requireRole("officer")` | `requireRole("officer", "reviewer")` |
 
-Route ที่**ไม่แตะ** (ยัง officer/executive เท่านั้น ตาม `requireRole` เดิม): `/api/dashboard/*`, `/api/rounds*`, `/api/subjects*`, `/api/users*` (ยกเว้น allowlist ข้างบน), `/api/news*` (จัดการ), `/api/students` (list ทั้งหมด), `/api/students/import`, `/api/students/bulk-eligible`
+`GET /api/students` ต้องเปิดด้วย — คิวตรวจ (`OfficerReviewReal`, reuse ตัวเดิมกับ reviewer) ต้องใช้ roster เต็มทำแท็บ "ยังไม่กรอก" (หาว่าใครในรุ่นยังไม่มีผลสอบเลย) ข้อมูลที่คืนเป็น field ปลอดภัยชุดเดียวกับที่ reviewer เห็นอยู่แล้วผ่าน exam-results (ชื่อ/ห้อง ไม่มี national_id/password_hash) ไม่ใช่ข้อมูลเพิ่มเติมจริง
+
+Route ที่**ไม่แตะ** (ยัง officer/executive เท่านั้น ตาม `requireRole` เดิม): `/api/dashboard/*` (**สำคัญ** — reviewer ต้องไม่เห็นสถิติ ตามโจทย์), `/api/rounds*`, `/api/subjects*`, `/api/users*` (ยกเว้น allowlist ข้างบน), `/api/news*` (จัดการ), `/api/students/import`, `/api/students/bulk-eligible`
+
+**ผลข้างเคียงที่ยอมรับ:** `OfficerReviewReal` ยิง `GET /dashboard/stats` คู่กับ `/exam-results` เพื่อเอา `alreadyPassedStudentIds` มาตัดคนที่ผ่านครบไปแล้วออกจากแท็บ "ยังไม่กรอก" — reviewer เรียกแล้วจะ 403 (ตั้งใจ ไม่เปิดให้ตามข้อบนนี้) โค้ดเดิมมี `.catch(() => ({}))` ดักไว้แล้วจึงไม่พังทั้งหน้า แค่แท็บนั้นของ reviewer อาจมีชื่อคนที่ผ่านครบแล้วติดมาบ้าง (เหมือนกรณี `/dashboard/stats` ล้มด้วยเหตุอื่นที่มีอยู่แล้วในโค้ดเดิม) ยอมรับได้ ไม่ต้องแก้เพิ่ม
 
 Frontend `app.jsx`:
 
@@ -63,11 +68,33 @@ const ROLE_PAGES = {
 
 `NEEDS_SELECTION` มี `'detail'` อยู่แล้ว — รีเฟรชหน้า detail ตรงๆ ไม่มี `sel` ก็เด้งกลับ `review` ให้เองเหมือน officer วันนี้ ไม่ต้องแก้
 
+`app.jsx` มีอีกจุดที่ต้องเพิ่ม `reviewer` ที่ spec รอบแรกพลาดไป — `NAV` (object คุมเมนู sidebar จริง แยกจาก `ROLE_PAGES` ที่คุมแค่ URL-refresh guard) ไม่มี key `reviewer` เลย ถ้าไม่เพิ่ม `nav = NAV(lang, pendingCount)[role]` จะได้ `undefined` แล้ว `Sidebar` พังตอน map:
+
+```js
+const NAV = (lang, pendingCount)=>({
+  student: [...],
+  officer: [...],
+  executive: [...],
+  reviewer: [
+    { k:'review', label:translate(lang,'nav.officer.review'), icon:'checkCircle' }, // ใช้ key เดิม ข้อความเดียวกับของ officer
+  ],
+});
+```
+
+และ `render()` ต้องเพิ่ม block `if(role==='reviewer')` ใหม่ทั้งก้อน (reuse component เดิม ไม่มีของใหม่):
+
+```jsx
+if(role==='reviewer'){
+  if(page==='review') return <OfficerReviewReal go={go} setSel={setSel} lang={lang} />;
+  if(page==='detail') return <StudentDetailReal student={sel} go={go} toast={showToast} canEdit={false} canReview lang={lang} />;
+}
+```
+
 ---
 
 ### B. แยกสิทธิ์ "แก้ไขข้อมูล" กับ "ตรวจสอบ" ใน `studentDetailReal.jsx`
 
-ตอนนี้ component รับ prop `readonly` ตัวเดียว (executive ใช้ = `true` → ซ่อนทั้งปุ่มแก้ไขข้อมูล **และ** ปุ่มยืนยัน/ตีกลับพร้อมกัน) reviewer ต้องการสลับกัน: **เห็นปุ่มยืนยัน/ตีกลับ แต่ไม่เห็นปุ่มแก้ไขข้อมูล** — `readonly` ตัวเดียวไม่พอ ต้องแยกเป็น 2 flag
+ตอนนี้ component รับ prop `readonly` แต่**ไม่มีใครเรียกส่ง prop นี้จริง** — `app.jsx` มี call site เดียว (officer, บรรทัด 373) ผู้บริหารไม่มีสิทธิ์เข้าหน้านี้แล้ว (data minimization, ตัดออกไปก่อนหน้านี้) คอมเมนต์ในไฟล์ที่พูดถึง executive เป็นของเก่าที่ไม่ตรงกับ `app.jsx` จริงแล้ว. reviewer ต้องการ **เห็นปุ่มยืนยัน/ตีกลับ แต่ไม่เห็นปุ่มแก้ไขข้อมูล** — `readonly` ตัวเดียวไม่พอ (all-or-nothing) ต้องแยกเป็น 2 flag
 
 ```jsx
 // เดิม
@@ -85,14 +112,12 @@ export function StudentDetailReal({ student, go, toast, canEdit, canReview, lang
   {canReview && status === 'SUBMITTED' && <div>...ปุ่มยืนยัน/ตีกลับ...</div>}
 ```
 
-จุดเรียกใน `app.jsx` (3 จุด ตาม role ที่เปิดหน้านี้ได้):
+จุดเรียกใน `app.jsx` (2 จุด — officer เดิม 1 + reviewer ใหม่ 1, executive ไม่มีเพราะเข้าหน้านี้ไม่ได้อยู่แล้ว):
 
 ```jsx
-// officer
+// officer (เดิมบรรทัด 373 — เพิ่ม canEdit canReview)
 <StudentDetailReal student={sel} go={go} toast={showToast} canEdit canReview lang={lang} />
-// executive (readonly เดิม)
-<StudentDetailReal student={sel} go={go} toast={showToast} canEdit={false} canReview={false} lang={lang} />
-// reviewer (ใหม่)
+// reviewer (ใหม่ — เพิ่ม if(role==='reviewer') block ทั้งก้อน)
 <StudentDetailReal student={sel} go={go} toast={showToast} canEdit={false} canReview lang={lang} />
 ```
 
@@ -181,13 +206,21 @@ try {
 }
 ```
 
+**ห้ามหาย:** `reviewExamResult` เดิม (ก่อนแก้) มี `notifRepo.create(...)` แจ้งนักศึกษาเจ้าของผลสอบหลัง approve/reject (ใช้ `existing.round.attempt_number`/`academic_year` ทำ label ข้อความ, fire-and-forget `.catch(...)` เดิม) — snippet C/D ข้างบนโชว์แค่ guard+updateMany+log เพื่อไม่ให้รก ไม่ได้แปลว่าตัดบล็อกนี้ทิ้ง ต้องคงไว้ต่อจาก guard `count === 0` ผ่านแล้ว ใช้ `existing` (fetch ไว้ก่อน guard) ได้เลย ไม่ต้อง fetch ซ้ำ — ถ้าตัดออกจริง นักศึกษาจะไม่ได้แจ้งเตือนตอนใบถูกยืนยัน/ตีกลับอีกเลย (silent, ไม่มี error ให้เห็น)
+
 **ไม่ทำ endpoint อ่าน log** ตอนนี้ (ดู Out of scope) — เจ้าของ repo query ผ่าน DB ตรงได้ถ้าต้องใช้ก่อนมี UI
 
 ---
 
 ### E. หน้าจัดการผู้ใช้งาน (`manageUsersReal.jsx`)
 
-เพิ่มตัวเลือก role "เจ้าหน้าที่ตรวจสอบ" ในฟอร์มสร้างบัญชี/เปลี่ยน role (dropdown เดิมที่มี officer/executive อยู่แล้ว) — งานเล็ก ใช้ pattern เดียวกับที่มีอยู่ ไม่ต้องออกแบบ UI ใหม่
+ไม่ใช่แค่เพิ่ม `<option>` — เช็คโค้ดจริงแล้วมี 3 จุดต้องแก้ ไม่งั้นสร้างบัญชี reviewer ได้แต่จัดการต่อไม่ได้เลย:
+
+1. **`load()` (บรรทัด 27)** — `apiFetch('/users').then(all => setUsers(all.filter(u => u.role.role_name === 'officer' || u.role.role_name === 'executive')))` filter ตัด reviewer ออกจากตารางตั้งแต่ดึงมา ต้องเพิ่ม `|| u.role.role_name === 'reviewer'` ไม่งั้นบัญชี reviewer ที่สร้างไปจะไม่โผล่ในตารางเลย → กด reset-password/revoke จาก row ไม่ได้ (ปุ่มพวกนี้ทำงานกับ `user.user_id` ที่มาจากตารางนี้เท่านั้น)
+2. **`ROLE_LABEL` (บรรทัด 25)** — `{ officer: tt('role.officer'), executive: tt('role.executive') }` ไม่มี key `reviewer` → chip label ในตาราง (บรรทัด 86, `ROLE_LABEL[u.role.role_name]`) จะว่างเปล่าถ้าไม่เพิ่ม `reviewer: tt('role.reviewer')`
+3. **dropdown สร้าง/เปลี่ยน role (บรรทัด 112-114)** — เพิ่ม `<option value="reviewer">{tt('role.reviewer')}</option>` ตาม pattern เดิม (อันนี้เดียวที่เป็นงานเล็กจริง)
+
+**`i18n.js`** — เพิ่ม key `role.reviewer` 2 จุด (TH บรรทัด ~32 ต่อจาก `role.executive`, EN บรรทัด ~895) จำเป็นไม่ใช่แค่หน้านี้ — `TopBar` (`app.jsx:393`, `roleLabel={translate(lang,'role.'+role)}`) ใช้โชว์ role ของ**คนที่ login เอง**ในหัวเว็บด้วย ถ้าไม่เพิ่ม reviewer login แล้วเห็น key ดิบๆ แทนชื่อ role
 
 ---
 
@@ -202,8 +235,11 @@ try {
 | 5 | reviewer เปิดหน้า detail นักศึกษา | เห็นปุ่มยืนยัน/ตีกลับ, **ไม่มี** ปุ่ม "แก้ไขข้อมูล" |
 | 6 | officer กับ reviewer เปิดใบเดียวกัน (`submitted`) พร้อมกัน — คนแรกกด approve, คนสองกด reject ตามหลัง (ไม่รีเฟรช) | คนแรกสำเร็จ, คนสองได้ 409 "ถูกตรวจไปแล้ว" ไม่ทับ |
 | 7 | ใบเดิมถูกตีกลับ → นักศึกษาส่งใหม่ → officer อีกคนยืนยัน | `review_logs` มี 2 แถวของใบเดียวกัน (reject ครั้งแรก + approve ครั้งหลัง) คนละ reviewer_id ได้ |
-| 8 | executive เปิดหน้า detail (regression) | ยังเห็น readonly เหมือนเดิม ไม่มีทั้งปุ่มแก้ไขและยืนยัน/ตีกลับ |
-| 9 | officer เปิดหน้า detail (regression) | เห็นทั้งปุ่มแก้ไขและยืนยัน/ตีกลับเหมือนเดิม |
+| 8 | officer เปิดหน้า detail (regression) | เห็นทั้งปุ่มแก้ไขและยืนยัน/ตีกลับเหมือนเดิม |
+| 9 | executive พิมพ์ URL `/students/detail` ตรงๆ (regression) | เด้งกลับ `dashboard` เหมือนเดิม — role นี้เข้าหน้านี้ไม่ได้อยู่แล้ว ไม่เกี่ยวกับ feature นี้ |
+| 10 | reviewer กด approve/reject → เช็คฝั่งนักศึกษา (หรือแถว `notifications`) | นักศึกษาได้รับแจ้งเตือนเหมือน officer กดเป๊ะ (regression ของ `notifRepo.create` เดิมใน `reviewExamResult` — ห้ามหายตอนใส่ guard/log ใหม่) |
+| 11 | officer สร้างบัญชี reviewer แล้วกลับไปหน้า "จัดการผู้ใช้งาน" | บัญชี reviewer โผล่ในตาราง, chip role ขึ้น "เจ้าหน้าที่ตรวจสอบ" ไม่ใช่ค่าว่าง, กด reset-password/revoke ได้ |
+| 12 | reviewer login แล้วดู header (TopBar) | โชว์ label role เป็นข้อความแปล ("เจ้าหน้าที่ตรวจสอบ" / EN) ไม่ใช่ key ดิบ `role.reviewer` |
 
 รัน `backend/tests/` ทั้งชุดหลังแก้ (reseed ก่อน) — ต้องเพิ่มเคส reviewer ในชุด smoke test ด้วย (ไฟล์ใหม่ `smoke-phase15-reviewer.mjs` หรือรวมเข้า phase ที่ใกล้เคียง)
 
