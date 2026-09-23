@@ -8,6 +8,7 @@
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
 import { PageHead, Avatar, StatusBadge, Pagination, Modal, Select } from './components.jsx';
+import { SkeletonTable } from './skeletons.jsx';
 import { apiFetch, ApiError, API_BASE } from './api.js';
 import { t, roomName, subjectName } from './i18n.js';
 
@@ -279,7 +280,7 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
     setEligibilityFor([s.sid], !s.eligible);
   };
 
-  if (loading) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
+  if (loading) return <div className="fade-up"><SkeletonTable rows={10} cols={5} /></div>;
   if (error) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--reject,#dc2626)' }}>{tt('statuspage.loadFailPrefix', { msg: error })}</div>;
 
   return (

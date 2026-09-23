@@ -9,6 +9,7 @@
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
 import { PageHead, Modal, Avatar, Select } from './components.jsx';
+import { SkeletonTable } from './skeletons.jsx';
 import { apiFetch, ApiError } from './api.js';
 import { t } from './i18n.js';
 
@@ -70,7 +71,7 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
     }
   };
 
-  if (!users) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
+  if (!users) return <div className="fade-up"><SkeletonTable rows={6} cols={5} /></div>;
 
   // นับจำนวนต่อบทบาทไว้โชว์บนปุ่มกรอง — นับจาก users ทั้งหมด ไม่ใช่จากที่กรองแล้ว
   const countOf = (role) => users.filter(u => u.role.role_name === role).length;

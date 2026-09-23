@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Icon } from './data.jsx';
 import { PageHead, Modal, StatusBadge, Select, Pagination } from './components.jsx';
 import { usePagedList } from './usePagedList.js';
+import { SkeletonList } from './skeletons.jsx';
 import { apiFetch, ApiError, fetchAuthedObjectUrl } from './api.js';
 import { t } from './i18n.js';
 
@@ -115,7 +116,7 @@ export function StudentNewsReal({ go, lang }) {
   // hook ต้องเรียกก่อน early-return ทุกอัน ไม่งั้นผิดกฎ React (จำนวน hook ต้องเท่ากันทุกครั้งที่ render)
   const newsPage = usePagedList(news ?? [], 10);
 
-  if (!news) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
+  if (!news) return <div className="fade-up"><SkeletonList count={4} /></div>;
 
   return (
     <div className="fade-up">
@@ -287,7 +288,7 @@ export function ManageNewsReal({ toast, lang }) {
 
   const itemsPage = usePagedList(items ?? [], 15);
 
-  if (!items) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
+  if (!items) return <div className="fade-up"><SkeletonList count={5} /></div>;
 
   return (
     <div className="fade-up">

@@ -7,6 +7,7 @@
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
 import { phaseOf, phaseLabel, phaseBadgeClass } from './roundPhase.js';
+import { SkeletonDashboard } from './skeletons.jsx';
 import { PageHead, StatCard, Donut, BarRow, MultiLineChart, MultiBarChart, ColumnChart, Modal, Empty,
   FirstAttemptSubjectTable, Select } from './components.jsx';
 import { apiFetch } from './api.js';
@@ -113,7 +114,7 @@ export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreVi
   };
 
   if (error) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--reject,#dc2626)' }}>{tt('statuspage.loadFailPrefix', { msg: error })}</div>;
-  if (loading && !history) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
+  if (loading && !history) return <div className="fade-up"><SkeletonDashboard /></div>;
   // ยังไม่มีรอบสอบสักรอบในระบบ — บอกให้รู้ว่าไม่ใช่โหลดพลาด แต่ยังไม่มีข้อมูลจริงๆ
   if (!history || year === null || rounds.length === 0) {
     return (

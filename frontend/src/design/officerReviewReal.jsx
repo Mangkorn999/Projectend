@@ -13,6 +13,7 @@
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
 import { PageHead, Avatar, Empty, Pagination, Select } from './components.jsx';
+import { SkeletonTable } from './skeletons.jsx';
 import { apiFetch } from './api.js';
 import { t, roomName } from './i18n.js';
 
@@ -74,9 +75,9 @@ export function OfficerReviewReal({ go, setSel, setDetailFrom, lang, restoreView
   const selectRound = (id) => { setRoundId(id); setPage(0); };
 
   if (error) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--reject,#dc2626)' }}>{tt('statuspage.loadFailPrefix', { msg: error })}</div>;
-  if (!rounds) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
+  if (!rounds) return <div className="fade-up"><SkeletonTable rows={8} cols={5} /></div>;
   if (!rounds.length) return <div className="fade-up" style={{ padding: 40 }}><Empty icon="calendar" title={tt('officer.review.noRoundTitle')} sub={tt('officer.review.noRoundSub')} /></div>;
-  if (!results) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
+  if (!results) return <div className="fade-up"><SkeletonTable rows={8} cols={5} /></div>;
 
   const round = rounds.find(r => String(r.round_id) === String(roundId));
   const roundLabel = r => tt('dashReal.roundLabel', { attempt: r.attempt_number, year: r.academic_year }) + (r.status === 'open' ? tt('dashReal.roundOpenSuffix') : '');

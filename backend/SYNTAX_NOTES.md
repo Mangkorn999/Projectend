@@ -669,3 +669,53 @@ const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:3000/api';
 ⚠️ 2 ข้อที่ต่างจาก backend:
 1. **ต้องขึ้นต้นด้วย `VITE_`** เท่านั้น ตัวอื่น Vite ไม่ส่งให้ (กันความลับหลุดโดยไม่ตั้งใจ)
 2. **ค่าถูกฝังลงไฟล์ที่ browser โหลด** = ทุกคนเปิดดูได้ → **ห้ามใส่รหัสผ่าน/key เด็ดขาด**
+
+### 5.28 Prisma — `{ in: undefined }` ไม่ได้แปลว่า "ไม่ตรงกับอะไร"
+
+```js
+// ตั้งใจ: อัปเดตเฉพาะนักศึกษาที่อยู่ในรายชื่อ
+prisma.student.updateMany({
+  where: { student_id: { in: studentIds } },
+  data: { exam_eligible: false },
+});
+```
+
+ถ้า `studentIds` เป็น `undefined` (client ลืมส่งมา) Prisma จะ **ตัดเงื่อนไขนั้นทิ้ง**
+→ `where` กลายเป็นก้อนว่าง → เข้าเงื่อนไข **ทุกแถวในตาราง**
+= ปิดสิทธิ์นักศึกษาทั้งระบบในคำสั่งเดียว โดยตอบ 200 เหมือนสำเร็จปกติ
+
+**กฎ:** ก่อนเรียก `updateMany` / `deleteMany` ต้องตรวจก่อนเสมอว่าเงื่อนไขมีค่าจริง
+
+```js
+if (!Array.isArray(student_ids) || student_ids.length === 0) {
+  throw httpError("ต้องระบุ student_ids อย่างน้อย 1 รายการ", 400);
+}
+if (typeof exam_eligible !== "boolean") {   // "false" (ข้อความ) ต้องไม่ผ่าน
+  throw httpError("exam_eligible ต้องเป็น true หรือ false", 400);
+}
+```
+
+`findMany` ไม่อันตรายเท่า (แค่ได้ผลเกิน) แต่ `updateMany`/`deleteMany` แก้ข้อมูลจริง
+
+### 5.29 ค่าที่คำนวณตอนส่งออก ไม่เก็บลง DB
+
+```js
+// backend/src/utils/roundPhase.js
+export const getRoundPhase = (round, now = new Date()) => {
+  if (round.status !== "open") return "closed";
+  if (now < new Date(round.open_date)) return "scheduled";
+  if (now > new Date(round.close_date)) return "expired";
+  return "active";
+};
+
+// แปะเข้าไปตอนจะส่งให้ client
+export const withPhase = (round) => ({ ...round, phase: getRoundPhase(round) });
+
+res.json({ success: true, data: rounds.map(withPhase) });
+```
+
+**ทำไมไม่เก็บเป็นคอลัมน์:** ค่ามันเปลี่ยนเองเมื่อเวลาผ่านไป โดยไม่มีใครมากดอะไรเลย
+รอบที่เป็น `scheduled` วันนี้ พรุ่งนี้กลายเป็น `active` เอง
+ถ้าเก็บลง DB ต้องมีอะไรสักอย่างคอยวิ่งอัปเดตตลอดเวลา — คำนวณตอนอ่านจบกว่า
+
+⚠️ สูตรต้องตรงกับ query ที่ใช้จริง (`findActive`) เป๊ะๆ ไม่งั้นหน้าจอจะบอกคนละเรื่องกับที่ระบบทำ

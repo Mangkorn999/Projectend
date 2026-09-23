@@ -8,6 +8,13 @@ import * as roundsRepo from "../rounds/rounds.repository.js";
 import { calcGraduationYear, validateGraduationYear, isBlankYear } from "../../utils/academicYear.js";
 import { buildSubjectListPdf } from "./students.pdf.js";
 
+// สร้าง Error พร้อม statusCode ให้ errorHandler จัดการต่อ (ท่าเดียวกับ module อื่น)
+const httpError = (message, statusCode) => {
+  const err = new Error(message);
+  err.statusCode = statusCode;
+  return err;
+};
+
 const REQUIRED_COLUMNS = ["student_id", "national_id"];
 const NATIONAL_ID_PATTERN = /^\d{13}$/;
 // รหัสนักศึกษาต้องเป็นตัวเลขล้วน อย่างน้อย 2 หลัก — 2 หลักแรกใช้คำนวณปีจบใน academicYear.js
@@ -293,6 +300,23 @@ export const update = async (req, res, next) => {
 export const bulkSetEligible = async (req, res, next) => {
   try {
     const { student_ids, exam_eligible } = req.body;
+
+    // ต้องตรวจให้ครบก่อนส่งต่อ — repository ใช้ updateMany ซึ่งอันตรายถ้าเงื่อนไขหาย
+    //
+    // Prisma ตีความ `{ in: undefined }` ว่า "ไม่มีเงื่อนไขนี้" ไม่ใช่ "ไม่ตรงกับอะไรเลย"
+    // → where กลายเป็นก้อนว่าง = เข้าเงื่อนไขทุกแถว
+    // ถ้าปล่อยผ่าน คำขอที่ส่งมาแค่ {"exam_eligible": false} (ลืมใส่ student_ids)
+    // จะปิดสิทธิ์กรอกผลสอบของนักศึกษา "ทั้งระบบ" ในคำสั่งเดียว โดยตอบ 200 เหมือนปกติ
+    if (!Array.isArray(student_ids) || student_ids.length === 0) {
+      throw httpError("ต้องระบุ student_ids เป็น array อย่างน้อย 1 รายการ", 400);
+    }
+    if (typeof exam_eligible !== "boolean") {
+      throw httpError("exam_eligible ต้องเป็น true หรือ false", 400);
+    }
+    if (student_ids.some((id) => typeof id !== "string" || !id.trim())) {
+      throw httpError("student_ids ต้องเป็นรหัสนักศึกษาที่ไม่ว่าง", 400);
+    }
+
     const result = await studentRepo.bulkSetEligible(
       student_ids,
       exam_eligible,

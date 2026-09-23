@@ -8,12 +8,19 @@ export const errorHandler = (err, req, res, next) => {
   //   1. controller ใส่ err.statusCode มาเอง → ใช้ค่านั้น
   //   2. multer โยน MulterError มาโดยไม่มี statusCode (เช่น ไฟล์ใหญ่เกิน limit) → 400 (ผู้ใช้ส่งมาผิด)
   //   3. Prisma ฟ้องว่าข้อมูลซ้ำ constraint (P2002) → 409 (ไม่ใช่ bug ของเรา คนส่งซ้ำเอง)
-  //   4. นอกนั้นคือ bug ในระบบเรา → 500
+  //   4. Prisma หาแถวที่จะแก้/ลบไม่เจอ (P2025) → 404 (ส่ง id ที่ไม่มีมา)
+  //   5. นอกนั้นคือ bug ในระบบเรา → 500
   //
   // P2002 = "Unique constraint failed" เกิดตอน 2 request เขียนของซ้ำกันพร้อมกัน
   // เช่น นักศึกษากดส่งผลสอบรัวๆ 2 ครั้ง — request แรกเขียนสำเร็จ อีกอันชน @@unique([student_id, round_id])
-  // ถ้าไม่ดักตรงนี้จะกลายเป็น 500 พร้อมข้อความ Prisma ภาษาอังกฤษยาวๆ ที่ผู้ใช้อ่านไม่รู้เรื่อง
+  //
+  // P2025 = "Record to update/delete does not exist" เกิดตอนส่ง id ที่ไม่มีอยู่จริงมา
+  // เช่น เปิด 2 แท็บแล้วลบรายการเดียวกันทั้งคู่ — แท็บที่สองลบของที่หายไปแล้ว
+  //
+  // ทั้งคู่ถ้าไม่ดักตรงนี้จะกลายเป็น 500 พร้อมข้อความ Prisma ภาษาอังกฤษยาวๆ ที่ผู้ใช้อ่านไม่รู้เรื่อง
+  // (และเผยโครงสร้างตารางภายในออกไปด้วย)
   const isDuplicate = err.code === "P2002";
+  const isNotFound = err.code === "P2025";
 
   let statusCode;
   if (err.statusCode) {
@@ -22,6 +29,8 @@ export const errorHandler = (err, req, res, next) => {
     statusCode = 400;
   } else if (isDuplicate) {
     statusCode = 409;
+  } else if (isNotFound) {
+    statusCode = 404;
   } else {
     statusCode = 500;
   }
@@ -30,6 +39,9 @@ export const errorHandler = (err, req, res, next) => {
   let message = err.message;
   if (isDuplicate) {
     message = "ข้อมูลนี้ถูกบันทึกไปแล้ว กรุณารีเฟรชหน้าแล้วลองใหม่";
+  }
+  if (isNotFound) {
+    message = "ไม่พบข้อมูลที่ต้องการ อาจถูกลบไปแล้ว กรุณารีเฟรชหน้า";
   }
   if (!message) {
     message = "เกิดข้อผิดพลาดภายใน server";

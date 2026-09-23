@@ -7,6 +7,7 @@ import { Icon } from './data.jsx';
 import { phaseOf, phaseLabel, phaseBadgeClass } from './roundPhase.js';
 import { PageHead, Modal, Select, Pagination } from './components.jsx';
 import { usePagedList } from './usePagedList.js';
+import { SkeletonCards } from './skeletons.jsx';
 import { apiFetch, ApiError } from './api.js';
 import { t } from './i18n.js';
 
@@ -142,7 +143,7 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
   const roundsPage = usePagedList(visibleRounds, 9, yearFilter);
   const subsPage = usePagedList(subs ?? [], 15);
 
-  if (!rounds || !subs) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
+  if (!rounds || !subs) return <div className="fade-up"><SkeletonCards count={6} /></div>;
 
   // ปีในตัวกรอง = ปีที่ "มีรอบอยู่จริง" ไม่ใช่รุ่นนักศึกษาทั้งหมด — เลือกปีที่ไม่มีรอบแล้วได้หน้าว่างเปล่า
   const filterYears = [...new Set(rounds.map(r => r.academic_year))].sort((a, b) => b - a);
