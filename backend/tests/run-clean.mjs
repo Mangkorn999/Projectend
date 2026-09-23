@@ -34,6 +34,7 @@ const TEST_FILES = [
   "tests/smoke-phase15-reviewer.mjs",
   "tests/smoke-phase16-cohort-year.mjs",
   "tests/smoke-phase17-import-year.mjs",
+  "tests/smoke-phase18-round-dates.mjs",
 ];
 
 // ── เตรียม URL ของ DB ชั่วคราว ────────────────────────────────

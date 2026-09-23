@@ -21,6 +21,7 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
   const [confirm, setConfirm] = useState(null); // { user, action: 'reset' | 'revoke' }
   const [resetPassword, setResetPassword] = useState(''); // รหัสชั่วคราวที่เจ้าหน้าที่ตั้งให้ตอน reset
   const [confirmError, setConfirmError] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all'); // 'all' | 'officer' | 'executive' | 'reviewer'
   const tt = (key, vars) => t(lang, key, vars);
   const ROLE_LABEL = { officer: tt('role.officer'), executive: tt('role.executive'), reviewer: tt('role.reviewer') };
 
@@ -71,14 +72,32 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
 
   if (!users) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
 
+  // นับจำนวนต่อบทบาทไว้โชว์บนปุ่มกรอง — นับจาก users ทั้งหมด ไม่ใช่จากที่กรองแล้ว
+  const countOf = (role) => users.filter(u => u.role.role_name === role).length;
+  const shown = roleFilter === 'all' ? users : users.filter(u => u.role.role_name === roleFilter);
+
   return (
     <div className="fade-up">
       <PageHead title={tt('usersMgmt.title')} sub={tt('usersMgmt.sub')}
         actions={<button className="btn btn-primary" onClick={() => setModal(true)}><Icon name="plus" size={17} /> {tt('usersMgmt.addBtn')}</button>} />
+      {/* กรองตามบทบาท — คณะมีทั้งเจ้าหน้าที่ ผู้ช่วยเจ้าหน้าที่ และผู้บริหารปนกันในตารางเดียว
+          พอบัญชีเยอะขึ้นจะหาไม่เจอว่าใครเป็นบทบาทไหน */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+        {[['all', tt('usersMgmt.filterAll'), users.length],
+          ...MANAGED_ROLES.map(r => [r, ROLE_LABEL[r], countOf(r)])
+        ].map(([key, label, n]) => (
+          <button key={key} type="button" onClick={() => setRoleFilter(key)}
+            className={'btn btn-sm ' + (roleFilter === key ? 'btn-primary' : 'btn-ghost')}
+            style={{ fontWeight: 700 }}>
+            {label} <span className="tnum" style={{ opacity: .75, marginLeft: 4 }}>{n}</span>
+          </button>
+        ))}
+      </div>
+
       <div className="card" style={{ overflow: 'hidden' }}>
         <table className="tbl">
           <thead><tr><th>{tt('usersMgmt.colName')}</th><th>{tt('usersMgmt.colUsername')}</th><th>{tt('usersMgmt.colEmail')}</th><th>{tt('usersMgmt.colRole')}</th><th>{tt('usersMgmt.colStatus')}</th><th></th></tr></thead>
-          <tbody>{users.map(u => (
+          <tbody>{shown.map(u => (
             <tr key={u.user_id}>
               <td><div style={{ display: 'flex', alignItems: 'center', gap: 11 }}><Avatar name={u.first_name} size={34} bg="var(--navy-600)" />
                 <span style={{ fontWeight: 600 }}>{u.first_name} {u.last_name}</span></div></td>
@@ -104,6 +123,11 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
             </tr>
           ))}</tbody>
         </table>
+        {shown.length === 0 && (
+          <div style={{ padding: '30px 16px', textAlign: 'center', color: 'var(--ink-500)', fontSize: 15.5 }}>
+            {tt('usersMgmt.filterEmpty')}
+          </div>
+        )}
       </div>
       <Modal open={!!modal} onClose={() => setModal(null)} title={tt('usersMgmt.modalTitle')} width={460}
         footer={<><button className="btn btn-ghost" onClick={() => setModal(null)}>{tt('usersMgmt.cancelBtn')}</button>

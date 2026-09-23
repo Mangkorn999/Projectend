@@ -31,7 +31,11 @@ const check = (name, actual, expected) => {
   console.log(`${ok ? "PASS" : "FAIL"}  ${name}  -> ${JSON.stringify(actual)} (want ${JSON.stringify(expected)})`);
 };
 
-const PAST = { open_date: "2020-01-01", close_date: "2020-01-31" };
+// ช่วงรับผลของรอบทดสอบ — ต้องเป็นอนาคต ไม่ใช่อดีต
+// backend กันไม่ให้ "เปิด" รอบที่เลยวันปิดรับไปแล้ว (เปิดไปก็ไม่มีใครกรอกได้อยู่ดี)
+// เดิมใช้ปี 2020 แล้วสั่ง status:"open" จึงติด guard นั้นและได้ 400
+// ปีการศึกษาที่เทสใช้เป็นปีสมมติ (25xx) ไม่มีนักศึกษาจริงอยู่ในรุ่นนั้น ตั้งเป็นอนาคตได้ไม่กระทบใคร
+const PAST = { open_date: "2090-01-01", close_date: "2090-12-31" };
 
 const main = async () => {
   const login = await call("POST", "/api/auth/login", {

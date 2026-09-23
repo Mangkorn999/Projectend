@@ -6,6 +6,7 @@
    ============================================================ */
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
+import { phaseOf, phaseLabel, phaseBadgeClass } from './roundPhase.js';
 import { PageHead, StatCard, Donut, BarRow, MultiLineChart, MultiBarChart, ColumnChart, Modal, Empty,
   FirstAttemptSubjectTable, Select } from './components.jsx';
 import { apiFetch } from './api.js';
@@ -293,9 +294,17 @@ function MainTabs({ items, value, onChange }) {
    ปุ่มโชว์สรุปจำนวนที่เลือก กดแล้วเปิด popover ให้ติ๊ก, ติ๊กครบ max แล้วช่องที่เหลือจะกดไม่ได้จนกว่าจะติ๊กออกก่อน */
 function YearMultiPicker({ years, selected, onChange, currentYear, tt, max = 3 }) {
   const [open, setOpen] = useState(false);
+  // ต้องเหลืออย่างน้อย 1 ปีเสมอ
+  // เดิมติ๊กออกได้หมด → selected = [] → reportHistory.years ว่าง → กราฟขึ้น "ไม่มีข้อมูล"
+  // ผู้ใช้เห็นแล้วนึกว่าพัง (ที่จริงคือไม่ได้เลือกปีไหนเลย) และไม่มีทางกลับมาได้นอกจากไปติ๊กใหม่
+  const isLastSelected = (y) => selected.includes(y) && selected.length === 1;
   const toggle = (y) => {
-    if (selected.includes(y)) onChange(selected.filter(x => x !== y));
-    else if (selected.length < max) onChange([...selected, y].sort((a, b) => b - a));
+    if (selected.includes(y)) {
+      if (selected.length === 1) return; // ปีสุดท้าย เอาออกไม่ได้
+      onChange(selected.filter(x => x !== y));
+    } else if (selected.length < max) {
+      onChange([...selected, y].sort((a, b) => b - a));
+    }
   };
   return (
     <div style={{ position: 'relative' }}>
@@ -311,16 +320,26 @@ function YearMultiPicker({ years, selected, onChange, currentYear, tt, max = 3 }
           <div style={{ fontSize: 13.5, color: 'var(--ink-500)', padding: '2px 6px 8px' }}>{tt('dashReal.yearPickerMax', { max })}</div>
           {years.map(y => {
             const checked = selected.includes(y);
-            const disabled = !checked && selected.length >= max;
+            // ติ๊กออกไม่ได้ 2 กรณี: เลือกครบ max แล้ว (ติ๊กเพิ่มไม่ได้) · เป็นปีสุดท้ายที่เหลือ (ติ๊กออกไม่ได้)
+            const atMax = !checked && selected.length >= max;
+            const lastOne = isLastSelected(y);
+            const disabled = atMax || lastOne;
             return (
-              <label key={y} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '7px 6px', borderRadius: 8,
-                cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? .45 : 1, fontSize: 15.5 }}>
+              <label key={y}
+                title={lastOne ? tt('dashReal.yearPickerKeepOne') : undefined}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '7px 6px', borderRadius: 8,
+                cursor: disabled ? 'not-allowed' : 'pointer', opacity: atMax ? .45 : 1, fontSize: 15.5 }}>
                 <input type="checkbox" checked={checked} disabled={disabled} onChange={() => toggle(y)}
                   style={{ accentColor: 'var(--navy-700)' }} />
                 {y === currentYear ? tt('dashReal.currentYearOption', { year: y }) : tt('dashReal.yearOption', { year: y })}
               </label>
             );
           })}
+          {selected.length === 1 && (
+            <div style={{ fontSize: 13, color: 'var(--ink-400)', padding: '6px 6px 2px', lineHeight: 1.45 }}>
+              {tt('dashReal.yearPickerKeepOne')}
+            </div>
+          )}
         </div>
       </>}
     </div>
@@ -332,7 +351,9 @@ function Section({ title, sub, children }) {
   return (
     <div style={{ marginTop: 28 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 14 }}>
-        <h2 style={{ margin: 0, fontSize: 19, fontWeight: 800, flex: 'none' }}>{title}</h2>
+        {/* กำหนดสีเอง ไม่ปล่อย inherit — หัวข้อโซนนี้อยู่บนพื้น canvas ไม่ได้อยู่ในการ์ด
+            ถ้าไม่ระบุ จะไปรับสีจาก element แม่แล้วจางจนอ่านไม่ออกในบางหน้า */}
+        <h2 style={{ margin: 0, fontSize: 19, fontWeight: 800, flex: 'none', color: 'var(--ink-900)' }}>{title}</h2>
         {sub && <span style={{ fontSize: 14.5, color: 'var(--ink-500)', flex: 'none' }}>{sub}</span>}
         <div style={{ height: 1, background: 'var(--ink-100)', flex: 1 }} />
       </div>
@@ -511,7 +532,7 @@ function YearRoundsView({ year, rounds, tt, statCardsOnly }) {
                   <tr key={r.round_id} style={{ borderTop: '1px solid var(--ink-100)' }}>
                     <td style={{ padding: '10px', fontWeight: 700 }}>
                       {tt('dashReal.roundOnlyLabel', { attempt: r.attempt_number })}
-                      {info && info.status === 'open' && <span className="badge ok" style={{ marginLeft: 8 }}><span className="dot" />{tt('dashReal.roundOpenLabel')}</span>}
+                      {info && <span className={`badge ${phaseBadgeClass(info)}`} style={{ marginLeft: 8 }}><span className="dot" />{phaseLabel(info, tt)}</span>}
                     </td>
                     <td className="tnum" style={{ padding: '10px', textAlign: 'center' }}>{r.subject_count}</td>
                     <td className="tnum" style={{ padding: '10px', textAlign: 'center' }}>{r.submitted}</td>
@@ -551,7 +572,9 @@ function SubjectRateCard({ perSubject, subjectPassRate, title, lang, tt, onSubje
           );
           return (
             <BarRow key={sub.subject_id} label={label} value={sub.rate} max={100}
-              color="var(--pass)" track="var(--fail)" right={`${sub.rate}%`}
+              color="var(--pass)" track="var(--fail)"
+              right={`${sub.rate}%`}
+              rightSub={tt('dashReal.subjectSatCount', { n: sub.pass + sub.fail })}
               passLabel={tt('dashReal.passCountBtn', { n: sub.pass })}
               failLabel={tt('dashReal.failCountBtn', { n: sub.fail })}
               onPassClick={onSubjectClick ? () => onSubjectClick(sub.subject_code, true, sub.subject_name) : undefined}
@@ -700,7 +723,10 @@ function RoundBar({ round, roundInfo, submitted, eligible, fillRate, total, tt }
   // เหลือน้อยกว่า 3 วัน = เตือนสีส้ม, เลยกำหนดแล้ว = สีแดง
   let deadlineTone = 'var(--ink-500)';
   let deadlineText = '';
-  if (daysLeft !== null) {
+  // รอบที่ยังไม่ถึงวันเปิด ห้ามนับถอยหลังวันปิด — เดิมขึ้น "วันนี้วันสุดท้าย"
+  // ให้รอบที่นักศึกษายังกรอกไม่ได้เลย ซึ่งอ่านแล้วเข้าใจผิดว่าใกล้หมดเวลา
+  const notOpenYet = phaseOf(roundInfo ?? round) === 'scheduled';
+  if (!notOpenYet && daysLeft !== null) {
     if (daysLeft < 0) {
       deadlineTone = 'var(--status-reject-fg)';
       deadlineText = tt('dashReal.roundBarEnded');
@@ -721,8 +747,8 @@ function RoundBar({ round, roundInfo, submitted, eligible, fillRate, total, tt }
         <span style={{ fontWeight: 800, fontSize: 17 }}>
           {tt('dashReal.roundBarTitle', { attempt: round.attempt_number, year: round.academic_year })}
         </span>
-        <span className={`badge ${round.status === 'open' ? 'ok' : 'draft'}`}>
-          <span className="dot" />{round.status === 'open' ? tt('dashReal.roundOpenLabel') : tt('dashReal.roundClosedLabel')}
+        <span className={`badge ${phaseBadgeClass(round)}`}>
+          <span className="dot" />{phaseLabel(round, tt)}
         </span>
       </div>
 
@@ -1091,7 +1117,7 @@ function RoundBreakdownTable({ year, tt }) {
             border: '1px solid var(--ink-200)', borderRadius: 16 }}>
             <div style={{ fontSize: 18, color: 'var(--ink-500)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
               {tt('dashReal.roundOnlyLabel', { attempt: r.attempt_number })}
-              {r.status === 'open' && <span className="badge ok"><span className="dot" />{tt('dashReal.roundOpenLabel')}</span>}
+              <span className={`badge ${phaseBadgeClass(r)}`}><span className="dot" />{phaseLabel(r, tt)}</span>
             </div>
             <div className="tnum" style={{ fontSize: 42, fontWeight: 800, marginBottom: 16 }}>{rate.toFixed(2)}%</div>
             <div className="pbar" style={{ height: 13, marginBottom: 18 }}><i style={{ width: `${rate}%`, background: tone }} /></div>

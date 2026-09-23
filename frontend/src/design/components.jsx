@@ -33,6 +33,8 @@ export function Avatar({ name, size = 38, bg }) {
 // notifications: ทุกตัวถูกแปลงเป็นรูปเดียวกันที่ design/notifications.js แล้ว
 //   { key, tone, icon, page, title, sub, at }
 // onNotifOpen: เรียกตอนเปิด modal — ไป mark ว่าอ่านแล้วทั้งหมด (ทั้ง DB และ localStorage)
+// onNotifGo: กดที่รายการ — ส่ง page ไปเปลี่ยนหน้า + ส่ง key ไปให้เอารายการนั้นออกจากลิสต์
+//            (กดดูแล้วต้องหายไป ไม่ใช่ค้างอยู่จนต้องกด "ล้างทั้งหมด" เอง)
 export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notifications=[], unread=0, onNotifOpen, onNotifGo, onNotifClearAll, lang='TH', setLang, langLoading=false }) {
   const [open, setOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -82,12 +84,12 @@ export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notificati
             {liveItems.length > 0 && eventItems.length > 0 &&
               <div className="sec-title" style={{ fontSize:13 }}>{t(lang,'topbar.notifActionNeeded')}</div>}
             {liveItems.map(n => <NotifRow key={n.key} n={n} lang={lang}
-              onClick={()=>{ setNotifOpen(false); onNotifGo?.(n.page); }} />)}
+              onClick={()=>{ setNotifOpen(false); onNotifGo?.(n.page, n.key); }} />)}
 
             {liveItems.length > 0 && eventItems.length > 0 &&
               <div className="sec-title" style={{ fontSize:13, marginTop:6 }}>{t(lang,'topbar.notifUpdates')}</div>}
             {eventItems.map(n => <NotifRow key={n.key} n={n} lang={lang}
-              onClick={()=>{ setNotifOpen(false); onNotifGo?.(n.page); }} />)}
+              onClick={()=>{ setNotifOpen(false); onNotifGo?.(n.page, n.key); }} />)}
           </div>
         ) : (
           <div style={{ minHeight:440, display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -234,7 +236,7 @@ export function Donut({ segments, size=180, thickness=26, center, gap=2 }) {
 // track = สีพื้นหลังของราง = ส่วนที่ "ยังไม่ถึง" ค่านี้
 // อัตราผ่านส่งสีแดงมา ส่วนที่เหลือจะได้อ่านออกว่า "ไม่ผ่าน" — ไม่งั้น 0% จะเป็นรางเปล่า
 // หน้าตาเหมือนกรณี "ไม่มีข้อมูล" จนแยกไม่ออก
-export function BarRow({ label, value, max=100, color='var(--navy-600)', track, right, sub, passLabel, failLabel, onPassClick, onFailClick }) {
+export function BarRow({ label, value, max=100, color='var(--navy-600)', track, right, rightSub, sub, passLabel, failLabel, onPassClick, onFailClick }) {
   const pct = value / max * 100;
   const failPct = 100 - pct;
   // เปิดหน้ามาแท่งค่อยๆ ไล่จาก 0 ไปค่าจริง — เขียวไล่จากซ้าย, แดง (track) ไล่จากขวา พร้อมกัน มาบรรจบกันตรงกลางพอดี
@@ -250,7 +252,12 @@ export function BarRow({ label, value, max=100, color='var(--navy-600)', track, 
     <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:10 }}>
         <span style={{ fontSize:15.5, color:'var(--ink-900)', fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{label}</span>
-        <span className="tnum" style={{ fontSize:15.5, fontWeight:700, color:'var(--ink-900)', flex:'none' }}>{right}</span>
+        {/* rightSub = ฐานที่ใช้คิด % (เช่น "จาก 8 คน") วางใต้ตัวเลขใหญ่
+            ไม่ใส่ก็ได้ แถวที่ไม่ส่งมาจะเหมือนเดิมทุกอย่าง */}
+        <span style={{ flex:'none', textAlign:'right' }}>
+          <span className="tnum" style={{ fontSize:15.5, fontWeight:700, color:'var(--ink-900)', display:'block' }}>{right}</span>
+          {rightSub && <span className="tnum" style={{ fontSize:13, color:'var(--ink-400)', display:'block', marginTop:1 }}>{rightSub}</span>}
+        </span>
       </div>
       <div className="pbar" style={{ height:9, position:'relative' }}>
         {track && <i className={onFailClick ? 'pbar-seg-fail' : undefined} onClick={onFailClick}

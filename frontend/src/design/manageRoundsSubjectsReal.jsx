@@ -4,7 +4,9 @@
    ============================================================ */
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, Modal, Select } from './components.jsx';
+import { phaseOf, phaseLabel, phaseBadgeClass } from './roundPhase.js';
+import { PageHead, Modal, Select, Pagination } from './components.jsx';
+import { usePagedList } from './usePagedList.js';
 import { apiFetch, ApiError } from './api.js';
 import { t } from './i18n.js';
 
@@ -124,6 +126,22 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
     }
   };
 
+  // กรอง+เรียงรอบก่อน แล้วค่อยแบ่งหน้า (เดิมวาดทุกรอบรวดเดียว ปีผ่านไปการ์ดจะยาวไม่สิ้นสุด)
+  const visibleRounds = (rounds ?? [])
+    .filter(r => {
+      // "รอบที่ยังเปิดอยู่" = รอบที่เจ้าหน้าที่ยังไม่ได้กดปิด (ไม่ใช่แค่รอบที่รับกรอกได้ตอนนี้)
+      // ต้องรวม scheduled (ยังไม่ถึงวันเปิด) กับ expired (เลยวันปิดแต่ยังไม่กดปิด) ด้วย
+      // ไม่งั้นรอบที่ตั้งวันผิดจะหายจากหน้าจอ แล้วเจ้าหน้าที่หาไม่เจอว่าจะไปแก้ตรงไหน
+      if (yearFilter === 'open') return phaseOf(r) !== 'closed';
+      if (yearFilter === 'all') return true;
+      return String(r.academic_year) === String(yearFilter);
+    })
+    .sort((a, b) => b.academic_year - a.academic_year || b.attempt_number - a.attempt_number);
+
+  // hook ต้องเรียกก่อน early-return เสมอ — resetKey = yearFilter ให้เด้งกลับหน้า 1 เมื่อเปลี่ยนตัวกรอง
+  const roundsPage = usePagedList(visibleRounds, 9, yearFilter);
+  const subsPage = usePagedList(subs ?? [], 15);
+
   if (!rounds || !subs) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
 
   // ปีในตัวกรอง = ปีที่ "มีรอบอยู่จริง" ไม่ใช่รุ่นนักศึกษาทั้งหมด — เลือกปีที่ไม่มีรอบแล้วได้หน้าว่างเปล่า
@@ -157,20 +175,11 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
             ]} />
         </div>
         <div className="grid g-3">
-          {rounds
-            .map(r => ({ ...r, isEffectivelyOpen: r.status === 'open' && new Date(r.close_date) >= new Date() }))
-            .filter(r => {
-              if (yearFilter === 'open') return r.isEffectivelyOpen;
-              if (yearFilter === 'all') return true;
-              return String(r.academic_year) === String(yearFilter);
-            })
-            .sort((a, b) => b.academic_year - a.academic_year || b.attempt_number - a.attempt_number)
-            .map(r => {
-            const { isEffectivelyOpen } = r;
+          {roundsPage.rows.map(r => {
             return (
             <div key={r.round_id} className="card card-pad">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                <span className={'badge ' + (isEffectivelyOpen ? 'ok' : 'draft')}><span className="dot"></span>{isEffectivelyOpen ? tt('roundsMgmt.openBadge') : tt('roundsMgmt.closedBadge')}</span>
+                <span className={'badge ' + phaseBadgeClass(r)}><span className="dot"></span>{phaseLabel(r, tt)}</span>
                 <div style={{ display: 'flex', gap: 2 }}>
                   <button className="btn btn-ghost btn-sm" style={{ padding: 7, border: 'none' }} aria-label={tt('roundsMgmt.editRoundAria')}
                     onClick={() => setRoundModal(r)}><Icon name="edit" size={16} /></button>
@@ -184,11 +193,32 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 15 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--ink-500)' }}>{tt('roundsMgmt.openDateLabel')}</span><b>{showThaiDateTime(r.open_date)}</b></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--ink-500)' }}>{tt('roundsMgmt.closeDateLabel')}</span><b>{showThaiDateTime(r.close_date)}</b></div>
+                {/* บอกให้ชัดว่าทำไมนักศึกษายังกรอกไม่ได้ ทั้งที่รอบขึ้นว่าเปิด */}
+                {phaseOf(r) === 'scheduled' && (
+                  <div style={{ fontSize: 14, color: 'var(--ink-500)', background: 'var(--status-draft-bg)', padding: '7px 10px', borderRadius: 8 }}>
+                    {tt('roundPhase.scheduledHint', { date: showThaiDateTime(r.open_date) })}
+                  </div>
+                )}
+                {phaseOf(r) === 'expired' && (
+                  <div style={{ fontSize: 14, color: 'var(--status-wait-fg)', background: 'var(--status-wait-bg)', padding: '7px 10px', borderRadius: 8 }}>
+                    {tt('roundPhase.expiredHint')}
+                  </div>
+                )}
               </div>
             </div>
             );
           })}
         </div>
+        {roundsPage.pages > 1 && (
+          <div className="card" style={{ overflow: 'hidden', marginTop: 14 }}>
+            <Pagination page={roundsPage.page} pages={roundsPage.pages} onPage={roundsPage.setPage} lang={lang} />
+          </div>
+        )}
+        {visibleRounds.length === 0 && (
+          <div style={{ padding: '30px 16px', textAlign: 'center', color: 'var(--ink-500)', fontSize: 15.5 }}>
+            {tt('roundsMgmt.noRoundInFilter')}
+          </div>
+        )}
         </>
       )}
 
@@ -196,8 +226,9 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
         <div className="card" style={{ overflow: 'hidden' }}>
           <table className="tbl">
             <thead><tr><th style={{ width: 80 }}>{tt('roundsMgmt.colOrder')}</th><th style={{ width: 120 }}>{tt('roundsMgmt.colCode')}</th><th>{tt('roundsMgmt.colName')}</th><th></th></tr></thead>
-            <tbody>{subs.map((s, i) => (
-              <tr key={s.subject_id}><td className="tnum" style={{ color: 'var(--ink-500)' }}>{i + 1}</td>
+            {/* ลำดับต้องนับต่อจากหน้าก่อน ไม่ใช่เริ่ม 1 ใหม่ทุกหน้า */}
+            <tbody>{subsPage.rows.map((s, i) => (
+              <tr key={s.subject_id}><td className="tnum" style={{ color: 'var(--ink-500)' }}>{subsPage.page * 15 + i + 1}</td>
                 <td><span className="chip mono" style={{ fontSize: 14.5 }}>{s.subject_code}</span></td>
                 <td style={{ fontWeight: 500 }}>{s.subject_name}</td>
                 <td style={{ textAlign: 'right' }}>
@@ -207,6 +238,7 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
                 </td></tr>
             ))}</tbody>
           </table>
+          <Pagination page={subsPage.page} pages={subsPage.pages} onPage={subsPage.setPage} lang={lang} />
         </div>
       )}
 

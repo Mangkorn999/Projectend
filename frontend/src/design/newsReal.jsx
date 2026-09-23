@@ -4,7 +4,8 @@
    ============================================================ */
 import { useState, useEffect, useRef } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, Modal, StatusBadge, Select } from './components.jsx';
+import { PageHead, Modal, StatusBadge, Select, Pagination } from './components.jsx';
+import { usePagedList } from './usePagedList.js';
 import { apiFetch, ApiError, fetchAuthedObjectUrl } from './api.js';
 import { t } from './i18n.js';
 
@@ -110,6 +111,10 @@ export function StudentNewsReal({ go, lang }) {
   const startBtnLabel = currentResult?.staff_status === 'approved' ? tt('news.viewStatusBtn')
     : currentResult ? tt('news.editBtn') : tt('news.startBtn');
 
+  // แบ่งหน้าประกาศ — ประกาศสะสมทุกปีทุกรอบ ปล่อยไว้จะยาวจนเลื่อนหาไม่เจอ
+  // hook ต้องเรียกก่อน early-return ทุกอัน ไม่งั้นผิดกฎ React (จำนวน hook ต้องเท่ากันทุกครั้งที่ render)
+  const newsPage = usePagedList(news ?? [], 10);
+
   if (!news) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
 
   return (
@@ -139,7 +144,7 @@ export function StudentNewsReal({ go, lang }) {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {news.length === 0 && <div style={{ color: 'var(--ink-500)', textAlign: 'center', padding: 30 }}>{tt('news.noNews')}</div>}
-        {news.map(n => (
+        {newsPage.rows.map(n => (
           <div key={n.news_id} className="card" style={{ padding: '18px 22px', cursor: 'pointer' }} onClick={() => setOpen(n)}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 15 }}>
               <div style={{ width: 44, height: 44, borderRadius: 12, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--blue-50)', color: 'var(--blue-600)' }}>
@@ -159,6 +164,11 @@ export function StudentNewsReal({ go, lang }) {
             </div>
           </div>
         ))}
+        {newsPage.pages > 1 && (
+          <div className="card" style={{ overflow: 'hidden' }}>
+            <Pagination page={newsPage.page} pages={newsPage.pages} onPage={newsPage.setPage} lang={lang} />
+          </div>
+        )}
       </div>
 
       <Modal open={!!open} onClose={() => setOpen(null)} title={open?.title} width={560}
@@ -275,6 +285,8 @@ export function ManageNewsReal({ toast, lang }) {
     }
   };
 
+  const itemsPage = usePagedList(items ?? [], 15);
+
   if (!items) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
 
   return (
@@ -283,7 +295,7 @@ export function ManageNewsReal({ toast, lang }) {
         actions={<button className="btn btn-primary" onClick={() => openModal(null)}><Icon name="plus" size={17} /> {tt('newsMgmt.writeBtn')}</button>} />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {items.length === 0 && <div style={{ color: 'var(--ink-500)', textAlign: 'center', padding: 30 }}>{tt('newsMgmt.noNews')}</div>}
-        {items.map(n => (
+        {itemsPage.rows.map(n => (
           <div key={n.news_id} className="card" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 15 }}>
             <div style={{ width: 42, height: 42, borderRadius: 11, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--blue-50)', color: 'var(--blue-600)' }}><Icon name="news" size={20} /></div>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -296,6 +308,11 @@ export function ManageNewsReal({ toast, lang }) {
               aria-label={tt('newsMgmt.deleteAria')} onClick={() => setDeleteTarget(n)}><Icon name="trash" size={16} /></button>
           </div>
         ))}
+        {itemsPage.pages > 1 && (
+          <div className="card" style={{ overflow: 'hidden' }}>
+            <Pagination page={itemsPage.page} pages={itemsPage.pages} onPage={itemsPage.setPage} lang={lang} />
+          </div>
+        )}
       </div>
       {/* ยืนยันก่อนลบ — เดิมกดถังขยะแล้วประกาศหายทันที ไม่มีทางเรียกคืน */}
       <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title={tt('newsMgmt.deleteTitle')} width={440} tone="danger"

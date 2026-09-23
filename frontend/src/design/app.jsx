@@ -263,6 +263,18 @@ export function App() {
     setUnread(0);
   };
 
+  // กดที่แจ้งเตือนสักอัน = อ่านเรื่องนั้นแล้ว → เอาออกจากลิสต์เลย
+  // เดิมกดแล้วแค่เปลี่ยนหน้า รายการยังค้างอยู่ ต้องไปกด "ล้างทั้งหมด" เองถึงจะหาย
+  // ใช้ dismiss (ไม่ใช่แค่ mark read) เพราะ "อ่านแล้ว" แค่ทำให้ badge ลด แต่ยังโชว์อยู่ในลิสต์
+  const openNotifItem = (targetPage, key) => {
+    if (key) {
+      dismissAll(currentUser.id, [key]);
+      setNotifications(items => items.filter(n => n.key !== key));
+      setUnread(u => Math.max(0, u - 1));
+    }
+    if (targetPage) go(targetPage);
+  };
+
   // ปุ่ม "ล้างทั้งหมด" — เอาออกจากลิสต์เลย ไม่ใช่แค่ทำเครื่องหมายว่าอ่านแล้ว
   // ของนักศึกษาที่อยู่ใน DB ต้องสั่ง read-all ด้วย ไม่งั้นรีเฟรชแล้วมันกลับมาเป็น "ยังไม่อ่าน" อีก
   // alert ของเจ้าหน้าที่ที่ยังเป็นจริงอยู่จะกลับมาเองเมื่อตัวเลขเปลี่ยน (ดู fromAlerts ใน notifications.js)
@@ -458,7 +470,7 @@ export function App() {
         user={{ firstName: currentUser?.name || '', lastName: '' }}
         onMenu={()=>setSbOpen(true)} onSwitchRole={switchRole}
         notifications={notifications} unread={unread}
-        onNotifOpen={openNotifications} onNotifGo={go} onNotifClearAll={clearAllNotifications}
+        onNotifOpen={openNotifications} onNotifGo={openNotifItem} onNotifClearAll={clearAllNotifications}
         lang={lang} setLang={changeLang} langLoading={langBlurring} />
       <div className={'app-shell lang-fade'+(langBlurring?' lang-fade-blur':'')+(loggingOut?' logout-blur':'')}>
         {/* บทบาทผู้ใช้แสดงที่เมนูผู้ใช้บน TopBar ที่เดียว — การ์ดใน sidebar ซ้ำโดยไม่จำเป็น */}
