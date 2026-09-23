@@ -724,10 +724,13 @@ function RoundBar({ round, roundInfo, submitted, eligible, fillRate, total, tt }
   // เหลือน้อยกว่า 3 วัน = เตือนสีส้ม, เลยกำหนดแล้ว = สีแดง
   let deadlineTone = 'var(--ink-500)';
   let deadlineText = '';
-  // รอบที่ยังไม่ถึงวันเปิด ห้ามนับถอยหลังวันปิด — เดิมขึ้น "วันนี้วันสุดท้าย"
-  // ให้รอบที่นักศึกษายังกรอกไม่ได้เลย ซึ่งอ่านแล้วเข้าใจผิดว่าใกล้หมดเวลา
-  const notOpenYet = phaseOf(roundInfo ?? round) === 'scheduled';
-  if (!notOpenYet && daysLeft !== null) {
+  // นับถอยหลังวันปิด ใช้ได้เฉพาะรอบที่ "เปิดรับอยู่จริง" เท่านั้น
+  //   scheduled — ยังไม่ถึงวันเปิด นักศึกษากรอกไม่ได้เลย บอก "เหลืออีก 6 วัน" คนอ่านเข้าใจผิด
+  //   closed    — เจ้าหน้าที่ปิดไปแล้ว ถึง close_date จะยังไม่ถึงก็ไม่มีใครกรอกได้
+  //   expired   — เลยกำหนดแล้ว ตกไปเข้าเงื่อนไข daysLeft < 0 ข้างล่างเอง (ขึ้น "สิ้นสุดแล้ว")
+  const phase = phaseOf(roundInfo ?? round);
+  const countsDown = phase === 'active' || phase === 'expired';
+  if (countsDown && daysLeft !== null) {
     if (daysLeft < 0) {
       deadlineTone = 'var(--status-reject-fg)';
       deadlineText = tt('dashReal.roundBarEnded');
