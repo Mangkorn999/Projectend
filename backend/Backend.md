@@ -346,6 +346,10 @@ npm test                # ต่อไฟล์ด้วย && — ไฟล์�
 - [x] ทุก endpoint ที่ไม่ใช่ public → ต้องผ่าน `authenticate` middleware
 - [x] ไม่มีค่า hardcode ที่ต้องแก้โค้ดตอนย้าย server — `CORS_ORIGIN` / `COOKIE_SECURE` อยู่ใน `.env`
 
+- [x] `helmet` ใส่ security header ทุก response
+- [x] rate limit ครบทั้ง `/auth/login` (2 ชั้น: id + IP) และ `/auth/password`
+- [x] ไม่มี endpoint ที่เปิด public โดยไม่จำเป็น (`/api/rooms` ใส่ `authenticate` แล้ว)
+
 **ก่อนขึ้น server จริง (HTTPS) ต้องทำ:**
 - [ ] `.env` ตั้ง `COOKIE_SECURE="true"` (ไม่งั้น token วิ่งเป็นข้อความเปล่าให้ดักอ่านได้)
 - [ ] `.env` ตั้ง `CORS_ORIGIN` เป็น domain จริง และ `NODE_ENV="production"` (ไม่ส่ง stack trace ออกไป)

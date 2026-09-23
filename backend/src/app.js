@@ -18,11 +18,27 @@ import notificationsRouter from "./modules/notifications/notifications.routes.js
 
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import helmet from "helmet";
 
 // ตรวจ .env ก่อนเริ่ม app — ถ้าขาดตัวไหน throw error ทันที
 validateEnv();
 
 const app = express();
+
+// helmet = ชุด HTTP security header มาตรฐาน ใส่ให้ทุก response อัตโนมัติ
+// เช่น X-Content-Type-Options (ห้าม browser เดาชนิดไฟล์เอง), X-Frame-Options (ห้ามเว็บอื่นเอาไป iframe)
+// ต้องอยู่บนสุดก่อน middleware อื่น จะได้ครอบทุก response รวมทั้ง error ด้วย
+//
+// ปิด 2 ตัวที่ชนกับการใช้งานจริงของระบบนี้:
+//   contentSecurityPolicy — ค่า default ของ helmet บล็อกการโหลด resource ข้าม origin
+//     ซึ่งตอน dev frontend (5174) กับ backend (3000) คนละ origin กัน
+//   crossOriginResourcePolicy — ต้องเป็น cross-origin ไม่งั้น <img>/PDF ที่ frontend ดึงจาก backend โดนบล็อก
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  }),
+);
 
 // Middleware พื้นฐาน
 // origin ที่อนุญาตให้ยิงเข้ามาได้ อ่านจาก .env (CORS_ORIGIN)

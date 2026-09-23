@@ -70,10 +70,13 @@ async function waitForServer(timeoutMs = 30000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
-      const res = await fetch(`${BASE}/api/rooms`);
-      if (res.ok) return true;
+      // ตอบอะไรกลับมาก็ถือว่าขึ้นแล้ว — ไม่เช็ค res.ok
+      // endpoint นี้ต้อง login แล้ว (401) ซึ่งก็แปลว่า server รับ request ได้เป็นปกติ
+      // ถ้าเช็ค res.ok จะรอจนหมดเวลาแล้วคิดว่า server ไม่ขึ้น
+      await fetch(`${BASE}/api/rooms`);
+      return true;
     } catch {
-      // server ยังไม่ขึ้น — รอแล้วลองใหม่
+      // ต่อไม่ได้เลย = server ยังไม่ขึ้น รอแล้วลองใหม่
     }
     await new Promise((r) => setTimeout(r, 500));
   }
