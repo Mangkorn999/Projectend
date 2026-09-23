@@ -7,18 +7,30 @@ export const errorHandler = (err, req, res, next) => {
   // หาว่าจะตอบ HTTP status อะไรกลับไป เรียงตามลำดับความสำคัญ:
   //   1. controller ใส่ err.statusCode มาเอง → ใช้ค่านั้น
   //   2. multer โยน MulterError มาโดยไม่มี statusCode (เช่น ไฟล์ใหญ่เกิน limit) → 400 (ผู้ใช้ส่งมาผิด)
-  //   3. นอกนั้นคือ bug ในระบบเรา → 500
+  //   3. Prisma ฟ้องว่าข้อมูลซ้ำ constraint (P2002) → 409 (ไม่ใช่ bug ของเรา คนส่งซ้ำเอง)
+  //   4. นอกนั้นคือ bug ในระบบเรา → 500
+  //
+  // P2002 = "Unique constraint failed" เกิดตอน 2 request เขียนของซ้ำกันพร้อมกัน
+  // เช่น นักศึกษากดส่งผลสอบรัวๆ 2 ครั้ง — request แรกเขียนสำเร็จ อีกอันชน @@unique([student_id, round_id])
+  // ถ้าไม่ดักตรงนี้จะกลายเป็น 500 พร้อมข้อความ Prisma ภาษาอังกฤษยาวๆ ที่ผู้ใช้อ่านไม่รู้เรื่อง
+  const isDuplicate = err.code === "P2002";
+
   let statusCode;
   if (err.statusCode) {
     statusCode = err.statusCode;
   } else if (err.name === "MulterError") {
     statusCode = 400;
+  } else if (isDuplicate) {
+    statusCode = 409;
   } else {
     statusCode = 500;
   }
 
   // err.message ว่าง (บาง error ไม่มีข้อความ) ค่อยใช้ข้อความกลาง
   let message = err.message;
+  if (isDuplicate) {
+    message = "ข้อมูลนี้ถูกบันทึกไปแล้ว กรุณารีเฟรชหน้าแล้วลองใหม่";
+  }
   if (!message) {
     message = "เกิดข้อผิดพลาดภายใน server";
   }

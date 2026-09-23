@@ -1,5 +1,5 @@
 // Smoke test for Phase 1-3 endpoints (auth/me, subjects CRUD, users).
-const BASE = "http://localhost:3000";
+const BASE = process.env.BASE || "http://localhost:3000"; // ตั้ง BASE ได้ตอนรันผ่าน test:clean (server ชั่วคราวอยู่คนละพอร์ต)
 const results = [];
 let failures = 0;
 

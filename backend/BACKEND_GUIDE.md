@@ -111,18 +111,26 @@ Start-Service postgresql-x64-18    # สั่งเปิดถ้าดับ�
 
 ### ทดสอบ
 ```bash
-npx prisma db seed && npm test   # ต้อง seed ใหม่ก่อนเสมอ ไม่งั้นเทสพัง
+npm run test:clean   # แนะนำ — สร้าง schema ชั่วคราวใหม่ รันครบ 11 ไฟล์ แล้วลบทิ้ง ไม่แตะข้อมูล demo
 ```
+`npm test` แบบเดิมยังมีอยู่ แต่ยิงใส่ DB ตัวที่ใช้อยู่จริง ต้อง `npx prisma db seed` ก่อนเสมอ
+และจะ fail หลายตัวถ้า DB มีข้อมูล demo ค้าง (ดูหัวข้อ 12).
 
 ### ตัวแปรลับใน `.env` (ห้าม commit)
 | ชื่อ | ใช้ทำอะไร | ขาดแล้วเป็นไง |
 |---|---|---|
 | `DATABASE_URL` | ที่อยู่ + รหัสผ่าน PostgreSQL | server ไม่ยอมเริ่ม |
 | `JWT_SECRET` | กุญแจเซ็น/ตรวจ token | server ไม่ยอมเริ่ม |
+| `CORS_ORIGIN` | URL ของ frontend ที่ยิงเข้ามาได้ (คั่น comma ได้หลายอัน) | server ไม่ยอมเริ่ม |
+| `COOKIE_SECURE` | `"true"` เมื่อเว็บเป็น HTTPS / `"false"` ตอน dev บน http | server ไม่ยอมเริ่ม |
 | `AES_KEY` | เหลือจากตอนเข้ารหัสข้อมูลสภาการพยาบาล (เลิกใช้แล้ว) | ไม่มีผล |
 | `PORT` | port ที่จะรัน (ไม่ใส่ = 3000) | ใช้ 3000 |
+| `NODE_ENV` | `"development"` = ส่ง stack trace กลับไปด้วยตอน error | ไม่ส่ง stack |
 
 ตัวที่บังคับมีกำหนดไว้ที่ `src/config/env.js` → `REQUIRED_VARS`.
+**คัดลอกค่าเริ่มต้นได้จาก `backend/.env.example`** (`cp .env.example .env` แล้วแก้ค่า).
+
+⚠️ `COOKIE_SECURE="true"` ตอนเว็บยังเป็น http จะ **login ไม่ติด** — browser ไม่ยอมส่ง cookie ที่ secure ผ่าน http
 
 ---
 
@@ -253,11 +261,13 @@ app.listen(PORT, () => { ... });
 
 > **หมายเหตุตามจริง:** ปัจจุบัน repository แต่ละไฟล์เขียน `new PrismaClient()` ของตัวเอง ไม่ได้ import ไฟล์นี้. ระบบยังทำงานปกติเพราะขนาดโปรเจกต์เล็ก แต่ถ้าจะทำให้เรียบร้อยควรเปลี่ยนทุก repository เป็น `import prisma from "../../config/db.js";`
 
-### `src/config/env.js` (12 บรรทัด)
+### `src/config/env.js`
 ```js
-const REQUIRED_VARS = ["DATABASE_URL", "JWT_SECRET"];
+const REQUIRED_VARS = ["DATABASE_URL", "JWT_SECRET", "CORS_ORIGIN", "COOKIE_SECURE"];
 const missing = REQUIRED_VARS.filter((key) => !process.env[key]);
 if (missing.length > 0) throw new Error(`Missing required environment variables: ...`);
+// COOKIE_SECURE รับแค่ "true"/"false" — พิมพ์ผิดเป็น "True"/"1" จะกลายเป็น false เงียบๆ
+if (!["true", "false"].includes(process.env.COOKIE_SECURE)) throw new Error(...);
 ```
 `process.env` = ตัวแปรจาก `.env` (โหลดด้วย `import "dotenv/config"` บรรทัดแรกของ `app.js`).
 
@@ -590,7 +600,7 @@ await reviewLogRepo.create({ result_id, reviewer_id: req.user.userId, action: st
 | Method | URL | สิทธิ์ | ทำอะไร |
 |---|---|---|---|
 | POST | `/api/exam-results/:id/certificates` | 👤 | อัปโหลด PDF (อยู่ใน routes ของ examResults) |
-| GET | `/api/certificates/:id/file` | 🔑 | เปิด/ดาวน์โหลดไฟล์ |
+| GET | `/api/certificates/:id/file` | 🔑 + 🔍 | เปิด/ดาวน์โหลดไฟล์ (เจ้าของใบ, officer, reviewer — executive ไม่ได้) |
 
 - `certificate_type` ต้องเป็น `exam_result` (ใบผลสอบ) หรือ `license` (ใบประกอบวิชาชีพ) เท่านั้น
 - **ownership:** อัปโหลดใส่ผลสอบของคนอื่นไม่ได้ (`examResult.student_id !== req.user.studentId` → 403)
@@ -996,8 +1006,27 @@ router.post("/:id/certificates", authenticate, requireRole("student"),
 ไฟล์เทสอยู่ที่ `tests/*.mjs` — เป็น **smoke test** ยิง API จริงผ่าน HTTP ไม่ใช่ unit test.
 
 ```bash
-npx prisma db seed && npm test
+npm run test:clean     # ← ใช้อันนี้
 ```
+
+`tests/run-clean.mjs` ทำให้ครบทุกขั้นเอง: สร้าง PostgreSQL schema `verify_tmp` ใหม่ →
+`migrate deploy` → `seed` → เปิด server ชั่วคราวที่พอร์ต **3100** → รันเทสทีละไฟล์ → ลบ schema ทิ้ง.
+**ไม่แตะฐานข้อมูลที่ใช้ทำ demo เลย** และไม่ต้อง seed ก่อนเอง.
+
+ทำไมต้องมี:
+- `npm test` เดิมยิงใส่ DB ตัวที่ใช้จริง ซึ่งมีนักศึกษา 900+ คนกับรอบที่เปิดค้างอยู่
+  เทสหลายตัวเขียนคาดว่า "มีนักศึกษา 1 คน" / "เปิดรอบใหม่ได้" เลย fail ทั้งที่โค้ดไม่ได้พัง
+- `npm test` ต่อไฟล์ด้วย `&&` — ไฟล์แรกพังแล้วที่เหลือไม่ได้รันเลย
+  `test:clean` รันครบทุกไฟล์เสมอแล้วค่อยสรุปว่าอันไหนไม่ผ่าน
+
+ข้อควรรู้:
+- ใช้ PostgreSQL **schema** (`verify_tmp`) ไม่ใช่ database ใหม่ เพราะ user ของเราไม่มีสิทธิ์ `CREATE DATABASE`
+  (เหตุผลเดียวกับที่ `prisma migrate dev` ใช้ไม่ได้ ต้องใช้ `migrate diff` + `migrate deploy` แทน)
+- สคริปต์**เปิด server ใหม่ก่อนทุกไฟล์** เพราะ rate limiter นับจำนวน login ไว้ใน memory
+  (officer ได้ 10 ครั้ง/15 นาที) รัน 11 ไฟล์ติดกันด้วย server ตัวเดียวแล้วไฟล์ท้ายๆ จะโดน 429
+- ถ้ามี server ค้างจองพอร์ต 3100 อยู่ สคริปต์จะเตือนแล้วหยุด — ปิดก่อนแล้วรันใหม่:
+  `netstat -ano | findstr :3100` แล้ว `taskkill /PID <เลข> /T /F`
+- เทสทุกไฟล์อ่าน `process.env.BASE` ได้ (ไม่ใส่ = `http://localhost:3000`) จะได้ชี้ไป server ชั่วคราวได้
 
 | ไฟล์ | ครอบคลุม |
 |---|---|
@@ -1080,6 +1109,8 @@ curl -H "Authorization: Bearer <token>" http://localhost:3000/api/subjects/1
 
 | วันที่ | เปลี่ยนอะไร |
 |---|---|
+| 2026-09-23 | **เก็บกวาดความเสถียร 5 เรื่อง ก่อนนำเสนอ (ยังไม่ deploy)** — (1) **PrismaClient เหลือตัวเดียวทั้งระบบ**: เดิม 13 ไฟล์ต่าง `new PrismaClient()` ของตัวเอง ทั้งที่ `config/db.js` เขียน singleton ไว้แล้วแต่ไม่มีใครใช้ แต่ละ client เปิด connection pool ของตัวเอง (default = core×2+1) เครื่อง 8 core = 17×14 ≈ 238 connection แต่ PostgreSQL `max_connections` default 100 → คนใช้พร้อมกันหลายคนแล้วเจอ `too many clients already`. ตอนนี้ทุก repository + `middlewares/auth.js` + `controllers/authController.js` `import prisma from ".../config/db.js"` (`config/db.js` เขียนกฎห้ามสร้างเองไว้ในคอมเมนต์แล้ว — `prisma/*.js` กับ `scripts/*.js` ยกเว้นได้ เพราะเป็น script รันจบแล้วปิดเอง). (2) **reviewer เปิดไฟล์ PDF หลักฐานได้แล้ว**: `certificates.controller.js` เช็ค `role === "officer"` ตัวเดียว แต่ reviewer กด approve/reject ได้ (`examResults.routes.js`) และหน้า `studentDetailReal.jsx` โชว์ปุ่มเปิดไฟล์ให้ → reviewer กดแล้วได้ 403 ตรวจโดยไม่เห็นหลักฐาน. เปลี่ยนเป็น `CAN_VIEW_OTHERS_FILES = ["officer", "reviewer"]` (executive ยังเข้าไม่ได้เหมือนเดิม). (3) **schema: `exam_results` เพิ่ม `@@unique([student_id, round_id])`** — เดิมกันใบซ้ำด้วย `findByStudentAndRound()` ใน controller อย่างเดียว กดส่งรัวๆ 2 ครั้งได้ 2 ใบในรอบเดียว แล้ว `findFirst` หยิบใบไหนก็ไม่แน่นอน. เพิ่ม index บน FK ที่ query จริงด้วย: `exam_results(round_id)`, `exam_results(staff_status)`, `subject_results(result_id)`, `subject_results(subject_id)`, `certificates(result_id)`, `review_logs(result_id)`, `notifications(student_id)`, `news(round_id)`, `students(academic_year)` (migration `20260923120000_add_exam_result_unique_and_indexes` — สร้างด้วย `prisma migrate diff` + `migrate deploy` เพราะ user DB ไม่มีสิทธิ์สร้าง shadow database, `prisma migrate dev` ใช้ไม่ได้). `findByStudentAndRound` เปลี่ยนเป็น `findUnique({ where: { student_id_round_id: {...} } })` ตาม constraint ใหม่. `errorHandler` ดัก Prisma `P2002` → 409 พร้อมข้อความไทย (เดิมหลุดเป็น 500 พร้อม error ดิบภาษาอังกฤษ). (4) **เพิ่ม 404 handler** — path ที่ไม่ตรง route ไหนเลยเคยได้หน้า HTML ของ Express แล้ว `res.json()` ฝั่ง frontend parse ไม่ได้ ผู้ใช้เห็น error มั่ว. ตอนนี้ตอบ JSON ตาม format เดิม. (5) **ย้ายค่า hardcode ไป .env** — `CORS_ORIGIN` (เดิมฝัง `http://localhost:5174` ใน `app.js`, ใส่หลายอันได้คั่น comma) + `COOKIE_SECURE` (เดิมฝัง `secure: false` ใน `authController.js` — ต้องเป็น `"true"` เมื่อขึ้น HTTPS). `config/env.js` บังคับให้มีครบ 4 ตัวก่อน server เริ่ม + ตรวจว่า `COOKIE_SECURE` เป็น `"true"`/`"false"` เท่านั้น. เพิ่ม `backend/.env.example` (ไม่เคยมี — คนใหม่ clone มา setup ไม่ได้) (`config/db.js`, `config/env.js`, `app.js`, `controllers/authController.js`, `middlewares/auth.js`, `middlewares/errorHandler.js`, `modules/*/*.repository.js` 11 ไฟล์, `modules/certificates/certificates.controller.js`, `modules/examResults/examResults.repository.js`, `prisma/schema.prisma`, `.env.example`) — frontend: `api.js` อ่าน `import.meta.env.VITE_API_BASE` + `frontend/.env.example` |
+| 2026-09-23 | **เพิ่ม `npm run test:clean` — รันเทสทั้งชุดบน schema สะอาด** (`tests/run-clean.mjs`). เดิม `npm test` ยิงใส่ DB ตัวที่ใช้ทำ demo (นักศึกษา 900+ คน, รอบเปิดค้าง) เทสหลายตัวเลย fail ทั้งที่โค้ดไม่ได้พัง — แยกไม่ออกว่าอันไหนบัคจริง (ก่อนแก้: 37/54 ที่ phase4-6, 9/13 ที่ phase9). สคริปต์สร้าง PostgreSQL schema `verify_tmp` ใหม่ทั้งก้อน → `migrate deploy` → `seed` → เปิด server ชั่วคราวพอร์ต 3100 → รันทีละไฟล์ → ลบ schema ทิ้ง (ใช้ schema ไม่ใช่ database เพราะ user ไม่มีสิทธิ์ CREATE DATABASE). 3 จุดที่ต้องระวังและแก้ไว้แล้วในสคริปต์: (ก) เทส 9 ไฟล์ hardcode `localhost:3000` — เปลี่ยนเป็น `process.env.BASE || "http://localhost:3000"` ทั้ง 11 ไฟล์ ไม่งั้นยิงผิดพอร์ต; (ข) **เปิด server ใหม่ก่อนทุกไฟล์** เพราะ rate limiter นับ login ไว้ใน memory (officer 10 ครั้ง/15 นาที) รัน 11 ไฟล์ติดกันแล้วไฟล์ท้ายๆ โดน 429; (ค) เช็คว่าพอร์ต 3100 ว่างก่อนเริ่ม — ถ้ามี server ค้างจากรอบก่อน `waitForServer` จะเห็นว่า "ต่อได้" แล้วเทสทั้งชุดวิ่งไปคุยกับ server ตัวเก่าที่ชี้ไป schema ที่ถูกลบแล้ว fail แบบงงๆ ทั้ง 11 ไฟล์. บน Windows ปิด server ต้องใช้ `taskkill /T` ฆ่าทั้ง process tree — `proc.kill()` ฆ่าแค่ cmd ตัวนอก node ข้างในรอดแล้วจองพอร์ตต่อ. **ผลหลังแก้ทั้งหมด: ผ่าน 11/11 ไฟล์ (phase1-3 19/19, phase4-6 54/54, phase9 13/13, ที่เหลือ ALL PASSED)** (`tests/run-clean.mjs` ใหม่, `tests/smoke-phase*.mjs` 11 ไฟล์, `package.json`) |
 | 2026-09-23 | **แก้เทส `smoke-phase16-cohort-year.mjs` ปิดรอบจริงทิ้งแล้วไม่เปิดคืน** — เทสต้องปิดรอบที่เปิดอยู่ก่อน (เปิดได้ทีละรอบ) แต่ลืมเปิดคืนตอนจบ → รอบ 2/2569 ที่เจ้าหน้าที่เปิดรับอยู่จริงถูกปิดทุกครั้งที่รันเทส (เจอจากการเทสผ่าน browser: dashboard ไม่มีรอบเปิด). ตอนนี้ `finally` ลบรอบทดสอบก่อนแล้วค่อยเปิดรอบเดิมคืน (ลำดับสำคัญ — เปิดคืนก่อนลบจะชนรอบทดสอบที่ยังเปิดอยู่). phase13/15 ทำถูกอยู่แล้ว. เปิดรอบ 172 คืนให้แล้วด้วยมือ (`tests/smoke-phase16-cohort-year.mjs`) |
 | 2026-09-23 | **เจ้าหน้าที่ระบุปีจบได้ตั้งแต่ตอนนำเข้า (เคสซ้ำชั้น/ลาพัก)** — เดิมปีจบคำนวณจากรหัสอย่างเดียว คนซ้ำชั้นได้ปีผิดตั้งแต่ต้น และเจ้าหน้าที่แก้ได้ก็ต่อเมื่อนักศึกษา login กรอกโปรไฟล์แล้ว (ก่อนหน้านั้นไม่มีแถว `students` ให้แก้) → ช่วงก่อน login ครั้งแรกไม่มีทางกัน. **schema:** เพิ่ม `users.import_academic_year Int?` (migration `20260922120000_add_user_import_academic_year` — ว่างได้ แถวเดิมไม่ต้อง backfill) — **data dictionary ในรายงานบท 3.4 ต้องเพิ่มคอลัมน์นี้**. `POST /api/students/import` รับคอลัมน์ `academic_year` แบบไม่บังคับ (ไฟล์เก่า 2 คอลัมน์ใช้ได้เหมือนเดิม), เพิ่ม `?dry_run=true` ตรวจอย่างเดียวไม่บันทึก (ตอบ 200, นำเข้าจริงยังตอบ 201), response เพิ่ม `dry_run` + `year_overrides` [{row, student_id, derived, academic_year}] (เพิ่มอย่างเดียว field เดิมไม่เปลี่ยน). `POST /api/students` รับ `academic_year` ไม่บังคับ. `completeProfile` ใช้ `import_academic_year ?? calcGraduationYear()`. เพิ่ม `validateGraduationYear` + `isBlankYear` (`utils/academicYear.js`) ใช้ร่วม 3 ที่: พ.ศ. 4 หลัก + ไม่น้อยกว่าปีตามรหัส. **แก้บั๊กแฝง:** `PATCH /api/students/:id` ส่ง `academic_year` เป็นตัวอักษรเดิมได้ 500 (Number→NaN) ตอนนี้ 400 — ตรวจเฉพาะตอนปีเปลี่ยนจริง ไม่งั้นนักศึกษาเก่าที่ปีในระบบน้อยกว่าสูตรปัจจุบัน (seed เก่าใช้สูตร −3) จะแก้แม้แต่เบอร์โทรไม่ได้. ข้อความ 400 ตอนย้ายรุ่นหลังส่งผลเอาประโยค "ลบผลสอบก่อน" ออก (ระบบไม่มีทางลบผลสอบ). `tests/cleanupYears.mjs` ลบบัญชีที่ import แล้วยังไม่กรอกโปรไฟล์ของปีทดสอบด้วย (หาจาก `import_academic_year` และ prefix รหัส) (`schema.prisma`, `utils/academicYear.js`, `students/student.controller.js`, `student.repository.js`, `tests/smoke-phase17-import-year.mjs` ใหม่ 21 เคส, `tests/cleanupYears.mjs`, `package.json`) — frontend: `studentImport.jsx` 2 ขั้น ตรวจไฟล์→ยืนยัน + ตารางปีไม่ตรงรหัส + ช่องปีในฟอร์มเพิ่มทีละคน, `completeProfile.jsx` โชว์ปีเฉยๆ ไม่มีกล่องเตือน, `i18n.js` |
 | 2026-09-22 | **กันสถิติเพี้ยนจากการย้ายรุ่น (เคสนักศึกษาซ้ำชั้น/ลาพัก)** — `academic_year` เป็นทั้ง "รุ่น" และตัวจับคู่ว่านักศึกษาเห็นรอบไหน (`rounds.controller.js` `getActive` หารอบที่ปีตรงกับ `student.academic_year`) ค่ามาจาก `calcGraduationYear` (รหัส+4) ซึ่งผิดสำหรับคนที่ซ้ำชั้น → รอบของรุ่นเดิมเปิดให้ทั้งที่ยังไม่จบ ส่วนรอบที่ควรสอบกลับไม่เห็น. `PATCH /api/students/:id` แก้ปีได้อยู่แล้วแต่**ไม่มีด่านกันเลย** — ย้ายรุ่นหลังส่งผลสอบแล้วทำให้ตัวหาร (`countStudentsByYear`) ลดแต่ตัวตั้ง (ใบในรอบของปีนั้น ซึ่งผูกกับ `round_id` ไม่ใช่รุ่นของนักศึกษา) เท่าเดิม → `fillRate`/`passRate` ของรุ่นเดิมทะลุ 100% เงียบๆ. ตอนนี้ `update()` เทียบกับค่าเดิมก่อน ถ้าเปลี่ยนจริงและ `countExamResults > 0` ตอบ 400 พร้อมบอกจำนวนใบ (ส่งค่าเท่าเดิมมายังผ่าน — กดบันทึกทั้งฟอร์มโดยไม่แตะช่องปีต้องไม่ติด guard). `GET /api/students/:id` เพิ่ม 2 field คำนวณตอนส่งออก (ไม่ใช่คอลัมน์ใน DB): `academic_year_derived` (ปีตามรหัส ใช้บอกหน้าจอว่าค่าปัจจุบันถูกแก้มือไปแล้ว) + `exam_result_count` (>0 = ย้ายรุ่นไม่ได้ หน้าจอปิดช่องให้ล่วงหน้าแทนที่จะให้พิมพ์จนเสร็จแล้วเด้ง error). **ไม่แตะ schema** (`students/student.controller.js`, `tests/smoke-phase16-cohort-year.mjs` ใหม่ — 22 เคส ครอบคลุมย้ายรุ่นสำเร็จ→รอบที่เห็นเปลี่ยนตามจริง, ย้ายหลังส่งผล→400, สิทธิ์ `/dashboard/alerts` และ `PATCH /students/:id` ครบ 4 role, `package.json`) — frontend ต่อครบแล้ว (`studentDetailReal.jsx` hint+ล็อกช่อง, `manageRoundsSubjectsReal.jsx` พรีวิว "รอบนี้จะเปิดให้กี่คน" ก่อนบันทึก) |

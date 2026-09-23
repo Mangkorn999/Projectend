@@ -1,8 +1,6 @@
-import { PrismaClient } from "@prisma/client";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-
-const prisma = new PrismaClient();
+import prisma from "../config/db.js";
 
 // จำนวนรอบ hash — ยิ่งสูงยิ่งช้าและยิ่งเดายาก 10 คือค่ามาตรฐาน
 const SALT_ROUNDS = 10;
@@ -11,9 +9,15 @@ const MIN_PASSWORD_LENGTH = 8;
 // ตัวเลือกของ cookie ที่ใช้เก็บ token
 // ต้องใช้ชุดเดียวกันทั้งตอน res.cookie() (ตอน login) และ res.clearCookie() (ตอน logout)
 // ถ้าสองที่ไม่ตรงกัน browser จะถือว่าเป็น cookie คนละใบ แล้วลบไม่ออก = กด logout แต่ยัง login อยู่
+// secure: true = browser จะส่ง cookie ใบนี้เฉพาะตอนเว็บเป็น HTTPS เท่านั้น
+//   dev (http://localhost) ต้องเป็น false ไม่งั้น cookie ไม่ถูกส่ง = login ไม่ติด
+//   ขึ้น server จริงที่เป็น HTTPS ต้องเป็น true ไม่งั้น token วิ่งเป็นข้อความเปล่าให้ดักอ่านได้
+// อ่านจาก .env (COOKIE_SECURE=true/false) — ไม่ต้องแก้โค้ดตอนย้ายไป server จริง
+const COOKIE_SECURE = process.env.COOKIE_SECURE === "true";
+
 const TOKEN_COOKIE_OPTIONS = {
   httpOnly: true, // JavaScript ในหน้าเว็บอ่านไม่ได้ = XSS ขโมย token ไปไม่ได้
-  secure: false, // dev ยังเป็น http ธรรมดา / ถ้าขึ้น production (HTTPS) ต้องเปลี่ยนเป็น true
+  secure: COOKIE_SECURE,
   sameSite: "lax", // เว็บอื่นยิง request ข้ามเว็บมา browser จะไม่แนบ cookie ให้ = กัน CSRF
   path: "/", // ใช้ได้ทุก path ใต้ domain นี้
   maxAge: 24 * 60 * 60 * 1000, // 1 วัน (หน่วยเป็น ms) ต้องเท่ากับ expiresIn ของ JWT

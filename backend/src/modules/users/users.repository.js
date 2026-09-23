@@ -1,5 +1,4 @@
-import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+import prisma from "../../config/db.js";
 
 // field ที่ส่งออกให้ client ได้ — ห้ามมี password_hash เด็ดขาด
 // ใช้ select แทน include เพื่อให้ column ใหม่ที่เพิ่มทีหลังไม่หลุดออกไปเอง

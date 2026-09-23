@@ -2,7 +2,12 @@
    Real backend API client — ทุกหน้าที่ต้องคุยกับ backend จริงเรียกผ่านนี่
    (ไม่ใช่ mock data — request จริง ไปหา Express+Prisma ที่ localhost:3000)
    ============================================================ */
-const API_BASE = 'http://localhost:3000/api';
+// ที่อยู่ backend อ่านจากไฟล์ .env ของ vite (ต้องขึ้นต้นด้วย VITE_ ถึงจะอ่านได้)
+// ตอน dev คือ http://localhost:3000/api — ถ้าย้ายไป server จริง/สาธิตเครื่องอื่น แก้แค่ .env
+// ?? คือ "ถ้าค่าซ้ายเป็น undefined/null ให้ใช้ค่าขวาแทน" — กันลืมสร้าง .env แล้วรันไม่ขึ้นเลย
+// export ไว้ด้วยเพราะบางหน้าโหลดไฟล์ PDF เองด้วย fetch ตรงๆ (ต้องตั้งชื่อไฟล์ตอนเซฟเอง
+// เลยใช้ apiFetch ไม่ได้ เพราะ apiFetch แปลงคำตอบเป็น JSON เสมอ) — หน้าพวกนั้นต่อ path เอาเอง
+export const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:3000/api';
 
 // JWT ไม่ได้อยู่ฝั่งนี้แล้ว — backend เก็บไว้ใน httpOnly cookie ชื่อ "token"
 // JS อ่าน/เขียน cookie ใบนั้นไม่ได้เลย (นั่นคือจุดประสงค์ — XSS ขโมย token ไปไม่ได้)

@@ -8,7 +8,7 @@ import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
 import { PageHead, StatusBadge, FirstAttemptSubjectTable, Modal, Empty, Select } from './components.jsx';
 import { Logo } from './logos.jsx';
-import { apiFetch } from './api.js';
+import { apiFetch, API_BASE } from './api.js';
 import { t, subjectName, roomName } from './i18n.js';
 
 export function ReportsReal({ toast, readonly, lang }) {
@@ -77,7 +77,7 @@ export function ReportsReal({ toast, readonly, lang }) {
     setSubjectDownloading(true);
     try {
       const res = await fetch(
-        `http://localhost:3000/api/students/export-subject?subject_code=${subjectModal.subjectCode}&passed=${subjectModal.passed}&round_id=${roundId}`,
+        `${API_BASE}/students/export-subject?subject_code=${subjectModal.subjectCode}&passed=${subjectModal.passed}&round_id=${roundId}`,
         { credentials: 'include' },
       );
       if (!res.ok) {
@@ -111,7 +111,7 @@ export function ReportsReal({ toast, readonly, lang }) {
     setDownloading(true);
     try {
       // ไฟล์ PDF ต้อง login ก่อน — fetch เป็น blob เองพร้อม credentials แทนใช้ <a href> ตรงๆ
-      const res = await fetch(`http://localhost:3000/api/dashboard/export?round_id=${roundId}`, {
+      const res = await fetch(`${API_BASE}/dashboard/export?round_id=${roundId}`, {
         credentials: 'include',
       });
       if (!res.ok) {

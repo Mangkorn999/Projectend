@@ -8,7 +8,7 @@
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
 import { PageHead, Avatar, StatusBadge, Pagination, Modal, Select } from './components.jsx';
-import { apiFetch, ApiError } from './api.js';
+import { apiFetch, ApiError, API_BASE } from './api.js';
 import { t, roomName, subjectName } from './i18n.js';
 
 // แปลง staff_status จาก backend (pending/approved/rejected) → status key ที่ StatusBadge เข้าใจ
@@ -253,7 +253,7 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
         ? `round_id=${subjectFilter.roundId}`
         : `year=${subjectFilter.year}`;
       const res = await fetch(
-        `http://localhost:3000/api/students/export-subject?subject_code=${subjectFilter.subjectCode}&passed=${subjectFilter.passed}&${scope}`,
+        `${API_BASE}/students/export-subject?subject_code=${subjectFilter.subjectCode}&passed=${subjectFilter.passed}&${scope}`,
         { credentials: 'include' },
       );
       if (!res.ok) {

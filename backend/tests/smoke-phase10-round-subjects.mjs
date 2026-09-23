@@ -1,6 +1,6 @@
 // Targeted test for round subject_ids. Creates only closed rounds with past dates
 // so it cannot become the active round and disturb anything else.
-const BASE = "http://localhost:3000";
+const BASE = process.env.BASE || "http://localhost:3000"; // ตั้ง BASE ได้ตอนรันผ่าน test:clean (server ชั่วคราวอยู่คนละพอร์ต)
 let failures = 0;
 
 const call = async (method, url, { token, body } = {}) => {

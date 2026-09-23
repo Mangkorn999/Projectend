@@ -70,8 +70,13 @@ export const upload = async (req, res, next) => {
   }
 };
 
+// role ที่เปิดไฟล์หลักฐานของนักศึกษาคนอื่นได้ — คนที่ต้องตรวจใบจริงเท่านั้น
+// reviewer ต้องอยู่ในนี้ด้วย: reviewer กด "ยืนยัน/ตีกลับ" ได้ (examResults.routes.js)
+// ถ้าเปิดไฟล์แนบไม่ได้ ก็ตรวจไม่ได้จริง — หน้า studentDetailReal.jsx โชว์ปุ่มเปิดไฟล์ให้อยู่แล้ว
+const CAN_VIEW_OTHERS_FILES = ["officer", "reviewer"];
+
 // GET /api/certificates/:id/file — เปิด/โหลดไฟล์จริง
-// เจ้าของผลสอบ (นักศึกษาคนนั้น) หรือ officer เท่านั้นที่เข้าถึงได้ — กันคนอื่นเดา id แล้วดูไฟล์คนอื่น
+// เจ้าของผลสอบ (นักศึกษาคนนั้น) หรือคนที่มีหน้าที่ตรวจเท่านั้น — กันคนอื่นเดา id แล้วดูไฟล์คนอื่น
 // executive เข้าไม่ได้ (เห็นได้แค่ภาพรวมใน dashboard)
 export const serveFile = async (req, res, next) => {
   try {
@@ -82,7 +87,7 @@ export const serveFile = async (req, res, next) => {
     if (!examResult) throw httpError("ไม่พบผลสอบที่เกี่ยวข้อง", 404);
 
     const isOwner = req.user.studentId === examResult.student_id;
-    const isStaff = req.user.role === "officer";
+    const isStaff = CAN_VIEW_OTHERS_FILES.includes(req.user.role);
     if (!isOwner && !isStaff) {
       throw httpError("ไม่มีสิทธิ์เข้าถึงไฟล์นี้", 403);
     }

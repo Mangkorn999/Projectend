@@ -1,5 +1,4 @@
-import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+import prisma from "../../config/db.js";
 
 // ข้อมูล user ที่ส่งออกได้ — ห้ามมี password_hash เด็ดขาด
 const PUBLIC_USER_FIELDS = {

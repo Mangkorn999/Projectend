@@ -561,3 +561,111 @@ prisma.user.deleteMany({
   },
 });
 ```
+
+### 5.21 Prisma — `@@unique` / `@@index` และวิธีค้นด้วย compound unique
+
+```prisma
+model ExamResult {
+  student_id String
+  round_id   Int
+  // ห้ามมี 2 แถวที่ student_id + round_id ซ้ำกัน (คู่กัน ไม่ใช่แยกตัว)
+  @@unique([student_id, round_id])
+  // index = สารบัญของตาราง ช่วยให้ค้นด้วยคอลัมน์นี้เร็วขึ้น ไม่ได้ห้ามค่าซ้ำ
+  @@index([round_id])
+}
+```
+
+พอประกาศ `@@unique` แล้ว Prisma สร้างชื่อ key ให้อัตโนมัติ = **เอาชื่อคอลัมน์มาต่อกันด้วย `_`**
+
+```js
+// ก่อนมี @@unique — findFirst เท่านั้น (Prisma ไม่รู้ว่าผลลัพธ์มีได้ตัวเดียว)
+prisma.examResult.findFirst({ where: { student_id, round_id } });
+
+// หลังมี @@unique — findUnique ได้ ต้องห่อไว้ใน key ที่ Prisma ตั้งให้
+prisma.examResult.findUnique({
+  where: { student_id_round_id: { student_id, round_id } },
+});
+```
+
+**ทำไมต้องกันซ้ำที่ DB ทั้งที่ controller เช็คแล้ว:** เช็คใน controller มีช่องว่างระหว่าง "ตรวจว่ายังไม่มี" กับ "เขียนลงไป"
+ถ้า 2 request วิ่งมาพร้อมกัน ทั้งคู่จะตรวจเจอว่า "ยังไม่มี" ก่อนที่ใครจะเขียนเสร็จ → ได้ 2 แถว
+constraint ที่ DB เป็นด่านสุดท้ายที่ไม่มีช่องว่างแบบนั้น
+
+### 5.22 Prisma error code — `P2002` (ข้อมูลซ้ำ constraint)
+
+Prisma โยน error ที่มี `.code` เป็นรหัสตายตัว เอามาแยกแยะได้ว่าเป็นความผิดผู้ใช้หรือบัคของเรา
+
+```js
+// middlewares/errorHandler.js
+const isDuplicate = err.code === "P2002";   // Unique constraint failed
+if (isDuplicate) statusCode = 409;          // ไม่ใช่บัคเรา → ไม่ควรเป็น 500
+```
+
+รหัสที่เจอบ่อย: `P2002` ซ้ำ constraint · `P2003` FK ชี้ไปหาของที่ไม่มี · `P2025` หาแถวที่จะแก้/ลบไม่เจอ
+
+### 5.23 `new URL()` — แก้ query string ของ URL โดยไม่ต้องต่อ string เอง
+
+```js
+const url = new URL("postgresql://user:pass@localhost:5432/mydb");
+url.searchParams.set("schema", "verify_tmp");
+url.toString();  // → postgresql://user:pass@localhost:5432/mydb?schema=verify_tmp
+```
+
+ดีกว่าต่อเอง (`url + "?schema=..."`) เพราะถ้า URL เดิมมี `?` อยู่แล้วต้องใช้ `&` แทน
+`searchParams` รู้เองว่าต้องใช้ตัวไหน และทับค่าเดิมให้ถ้ามี key ซ้ำ
+
+### 5.24 `spawn()` — สั่งรันโปรแกรมอื่นจากใน Node
+
+```js
+import { spawn } from "child_process";
+
+// spawn คืน object ทันที ไม่ได้รอให้จบ — ต้องห่อ Promise เองถ้าอยาก await
+function run(command, args) {
+  return new Promise((resolve) => {
+    const child = spawn(command, args, {
+      shell: true,           // จำเป็นบน Windows ไม่งั้นเรียก npx ไม่เจอ
+      stdio: "inherit",      // ให้ output ของลูกไหลออกจอเลย ("pipe" = เก็บไว้อ่านเอง)
+    });
+    child.on("close", (code) => resolve(code ?? 1)); // 0 = สำเร็จ
+  });
+}
+
+const code = await run("npx", ["prisma", "migrate", "deploy"]);
+```
+
+⚠️ **กับดักบน Windows:** `shell: true` = ได้ process ของ `cmd` ครอบโปรแกรมจริงอีกชั้น
+`child.kill()` ฆ่าแค่ `cmd` ตัวนอก ตัวข้างในรอด (แล้วจองพอร์ตค้างไว้)
+ต้องสั่งฆ่าทั้งต้นไม้: `taskkill /PID <pid> /T /F` (`/T` = ลูกหลานทั้งหมด, `/F` = บังคับ)
+
+### 5.25 `process.platform` — เช็คว่ากำลังรันบน OS ไหน
+
+```js
+if (process.platform === "win32") {
+  // Windows (เป็น "win32" เสมอ แม้เครื่องเป็น 64-bit)
+} else {
+  // "darwin" = macOS, "linux" = Linux
+}
+```
+
+### 5.26 `.split(",").map((s) => s.trim())` — แปลงข้อความคั่น comma เป็น array
+
+```js
+// CORS_ORIGIN="http://localhost:5174, http://192.168.1.10:5174"
+process.env.CORS_ORIGIN.split(",").map((o) => o.trim());
+// → ["http://localhost:5174", "http://192.168.1.10:5174"]
+```
+
+`.trim()` ตัดช่องว่างหัวท้าย — ขาดไปแล้วค่าที่ 2 จะเป็น `" http://..."` (มีเว้นวรรคนำ) แล้วเทียบไม่ตรง
+
+### 5.27 `import.meta.env` — อ่าน .env ฝั่ง frontend (Vite)
+
+```js
+// frontend/src/design/api.js
+const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:3000/api';
+```
+
+ต่างจาก backend ที่ใช้ `process.env` — ฝั่ง browser ไม่มี `process`
+
+⚠️ 2 ข้อที่ต่างจาก backend:
+1. **ต้องขึ้นต้นด้วย `VITE_`** เท่านั้น ตัวอื่น Vite ไม่ส่งให้ (กันความลับหลุดโดยไม่ตั้งใจ)
+2. **ค่าถูกฝังลงไฟล์ที่ browser โหลด** = ทุกคนเปิดดูได้ → **ห้ามใส่รหัสผ่าน/key เด็ดขาด**

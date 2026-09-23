@@ -25,10 +25,15 @@ validateEnv();
 const app = express();
 
 // Middleware พื้นฐาน
+// origin ที่อนุญาตให้ยิงเข้ามาได้ อ่านจาก .env (CORS_ORIGIN)
+// ตอน dev คือ http://localhost:5174 (vite.config.js ตั้ง dev server ไว้ที่ 5174 ไม่ใช่ default 5173)
+// ตอนขึ้น server จริง/ตอนสาธิต แค่แก้ค่าใน .env ไม่ต้องแก้โค้ด
+// ใส่หลาย origin ได้ คั่นด้วย comma เช่น CORS_ORIGIN=http://localhost:5174,http://10.0.0.5:5174
+const allowedOrigins = process.env.CORS_ORIGIN.split(",").map((o) => o.trim());
+
 app.use(
   cors({
-    // vite.config.js ตั้ง dev server ไว้ที่ 5174 (ไม่ใช่ default 5173)
-    origin: "http://localhost:5174",
+    origin: allowedOrigins,
     credentials: true,
   }),
 );
@@ -49,6 +54,17 @@ app.use("/api/dashboard", dashboardRouter);
 app.use("/api/rooms", roomsRouter);
 app.use("/api/certificates", certificatesRouter);
 app.use("/api/notifications", notificationsRouter);
+
+// ─── 404 (ไม่ตรง route ไหนเลย) ─────────────────────
+// ต้องอยู่หลัง route ทุกตัว แต่ก่อน errorHandler
+// ถ้าไม่มีตัวนี้ Express จะตอบหน้า HTML "Cannot GET /api/xxx" กลับไป
+// แล้ว res.json() ฝั่ง frontend (api.js) จะ parse ไม่ได้ → ผู้ใช้เห็น error มั่วแทนข้อความจริง
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: `ไม่พบ endpoint: ${req.method} ${req.originalUrl}`,
+  });
+});
 
 // ─── Error Handler (ต้องอยู่ท้ายสุดเสมอ) ──────────
 app.use(errorHandler);

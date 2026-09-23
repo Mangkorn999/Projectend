@@ -4,7 +4,7 @@
 // closes them again at the end -- run it after the other smoke tests.
 import { cleanupYears } from "./cleanupYears.mjs";
 
-const BASE = "http://localhost:3000";
+const BASE = process.env.BASE || "http://localhost:3000"; // ตั้ง BASE ได้ตอนรันผ่าน test:clean (server ชั่วคราวอยู่คนละพอร์ต)
 let failures = 0;
 
 const call = async (method, url, { token, body } = {}) => {

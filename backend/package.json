@@ -8,7 +8,8 @@
     "start": "node src/server.js",
     "demo:seed": "node --env-file=.env prisma/demoSeed.js",
     "seed:cohort": "node --env-file=.env prisma/seedCohort.js",
-    "seed:demo-years": "node --env-file=.env prisma/seedDemoYears.js"
+    "seed:demo-years": "node --env-file=.env prisma/seedDemoYears.js",
+    "test:clean": "node --env-file=.env tests/run-clean.mjs"
   },
   "author": "",
   "license": "ISC",

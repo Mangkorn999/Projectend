@@ -1,5 +1,4 @@
-import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+import prisma from "../../config/db.js";
 
 // ดึงข่าว — ข่าวใหม่สุดขึ้นก่อน
 // ส่ง academicYear มา = เอาเฉพาะประกาศของรุ่นนั้น (ข่าวผูกกับรอบ รอบผูกกับรุ่น)
