@@ -40,7 +40,15 @@ export const getActive = async (req, res, next) => {
     }
 
     // เฉพาะรอบของรุ่นตัวเอง — รุ่นอื่นเปิดรอบอยู่ก็ไม่เกี่ยวกับคนนี้
-    const round = await roundsRepo.findActive(student.academic_year);
+    //
+    // ใช้ findOpenForYear (ไม่กรองวันที่) ไม่ใช่ findActive
+    // เพื่อให้รอบที่เจ้าหน้าที่ตั้งเปิดไว้ล่วงหน้าส่งกลับไปด้วย นักศึกษาจะได้เห็นว่า "จะเปิดวันที่ ..."
+    // เดิมส่ง null หน้าจอขึ้นแค่ "ไม่มีรอบเปิด" ซึ่งไม่ได้บอกว่าต้องรอถึงเมื่อไหร่
+    //
+    // ความปลอดภัยไม่เปลี่ยน: ตอนรับผลสอบจริง examResults.controller ยังเรียก findActive()
+    // ที่กรองวันที่อยู่เหมือนเดิม ส่งมาตอนยังไม่ถึงวันเปิดก็ถูกปฏิเสธอยู่ดี
+    // ฝั่งหน้าจออ่าน phase เพื่อรู้ว่าตอนนี้กรอกได้จริงไหม (active เท่านั้นที่กรอกได้)
+    const round = await roundsRepo.findOpenForYear(student.academic_year);
     if (!round) return res.json({ success: true, data: null });
 
     // รอบนี้สอบวิชาไหนบ้าง + วิชาไหนที่นักศึกษาคนนี้ผ่านไปแล้วจากรอบก่อน

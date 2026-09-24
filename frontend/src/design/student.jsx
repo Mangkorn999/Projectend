@@ -91,15 +91,36 @@ export function FormIntro({ go, lang='TH' }) {
   const [loading, setLoading] = useState(true);
   const [round, setRound] = useState(null);
   const [blocked, setBlocked] = useState(''); // เหตุผลที่กรอกไม่ได้ — ว่าง = กรอกได้
+  const [blockedSub, setBlockedSub] = useState(''); // คำอธิบายใต้หัวข้อ (ว่าง = ใช้ข้อความมาตรฐาน)
   // ผ่านครบแล้ว = จบเรื่อง ไม่ต้องรอรอบถัดไป → พาไปดูผลที่หน้าสถานะ แทนที่จะบอกให้รอประกาศ
   const [allPassed, setAllPassed] = useState(false);
 
   useEffect(() => {
     apiFetch('/rounds/active')
       .then((active) => {
-        if (!active) setBlocked(tt('examform.noActiveRound'));
-        else if (active.all_passed) { setBlocked(tt('examform.allPassedRound')); setAllPassed(true); }
-        else setRound(active);
+        if (!active) { setBlocked(tt('examform.noActiveRound')); return; }
+
+        // backend ส่งรอบที่ตั้งเปิดไว้ล่วงหน้ามาด้วยแล้ว (phase = scheduled)
+        // บอกวันที่ไปเลย ดีกว่าขึ้นว่า "ไม่มีรอบเปิด" แล้วนักศึกษาต้องเดาว่าต้องรอถึงเมื่อไหร่
+        if (active.phase === 'scheduled') {
+          const openText = new Date(active.open_date).toLocaleDateString(
+            lang === 'EN' ? 'en-GB' : 'th-TH',
+            { day: 'numeric', month: 'long', year: 'numeric' },
+          );
+          setBlocked(tt('examform.scheduledRound', { attempt: active.attempt_number, date: openText }));
+          setBlockedSub(tt('examform.scheduledSub'));
+          return;
+        }
+
+        // เลยวันปิดรับแล้วแต่เจ้าหน้าที่ยังไม่กดปิด — บอกตรงๆ ว่าหมดเวลา ไม่ใช่ปล่อยให้กดแล้วเจอ error
+        if (active.phase === 'expired') {
+          setBlocked(tt('examform.expiredRound'));
+          setBlockedSub(tt('examform.expiredSub'));
+          return;
+        }
+
+        if (active.all_passed) { setBlocked(tt('examform.allPassedRound')); setAllPassed(true); return; }
+        setRound(active);
       })
       // 403 = ยังไม่ได้รับสิทธิ์กรอก — backend ส่งเหตุผลมาเป็นข้อความอยู่แล้ว เอามาโชว์ตรงๆ
       .catch((e) => setBlocked(e instanceof ApiError ? e.message : tt('examform.noActiveRound')))
@@ -130,7 +151,7 @@ export function FormIntro({ go, lang='TH' }) {
             </div>
             <h3 style={{ margin:'0 0 8px', fontSize:20, fontWeight:800 }}>{blocked}</h3>
             <p style={{ margin:'0 0 24px', color:'var(--ink-500)', fontSize:16, lineHeight:1.6 }}>
-              {allPassed ? tt('formintro.passedSub') : tt('formintro.blockedSub')}</p>
+              {blockedSub || (allPassed ? tt('formintro.passedSub') : tt('formintro.blockedSub'))}</p>
             {allPassed ? (
               <button className="btn btn-ghost btn-lg" onClick={()=>go('status')}>
                 <Icon name="clock" size={17}/> {tt('formintro.goStatusBtn')}</button>

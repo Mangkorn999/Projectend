@@ -89,6 +89,8 @@ const DICT = {
 
     'news.noOpenRound': 'ไม่มีรอบกรอกผลสอบเปิดอยู่',
     'news.openRoundBadge': 'รอบกรอกผลสอบเปิดอยู่',
+    'news.scheduledBadge': 'รอบกรอกผลสอบยังไม่ถึงวันเปิด',
+    'news.expiredBadge': 'หมดเวลากรอกผลสอบรอบนี้แล้ว',
     'news.roundSlash': 'รอบที่ {attempt}/{year}',
     'news.zoomHint': 'คลิกที่รูปเพื่อขยาย',
     'news.zoomIn': 'ขยาย',
@@ -125,6 +127,11 @@ const DICT = {
 
     'examform.editTitle': 'แก้ไขและส่งผลสอบใหม่',
     'examform.noActiveRound': 'ขณะนี้ไม่มีรอบกรอกผลสอบที่เปิดอยู่',
+    // รอบที่เจ้าหน้าที่ตั้งเปิดไว้ล่วงหน้า — บอกวันไปเลย ดีกว่าให้นักศึกษามาเช็คเองทุกวัน
+    'examform.scheduledRound': 'รอบที่ {attempt} จะเปิดให้กรอกวันที่ {date}',
+    'examform.scheduledSub': 'ยังกรอกไม่ได้ในตอนนี้ กลับมาอีกครั้งเมื่อถึงกำหนด',
+    'examform.expiredRound': 'หมดเวลากรอกผลสอบของรอบนี้แล้ว',
+    'examform.expiredSub': 'ติดต่อเจ้าหน้าที่คณะหากยังต้องส่งผลสอบ',
     'examform.allPassedRound': 'ผ่านครบทุกวิชาที่รอบนี้สอบแล้ว ไม่ต้องกรอกอีก',
     'examform.alreadySubmittedRound': 'กรอกผลสอบรอบนี้ไปแล้ว ดูสถานะได้ที่หน้าสถานะการกรอก',
     'examform.rejectedTitle': 'ผลสอบที่ส่งไปถูกตีกลับ',
@@ -1029,6 +1036,8 @@ const DICT = {
 
     'news.noOpenRound': 'No submission round is open',
     'news.openRoundBadge': 'Submission round is open',
+    'news.scheduledBadge': 'Submission round not open yet',
+    'news.expiredBadge': 'Submission period has ended',
     'news.roundSlash': 'Round {attempt}/{year}',
     'news.zoomHint': 'Click the image to zoom',
     'news.zoomIn': 'Zoom in',
@@ -1065,6 +1074,10 @@ const DICT = {
 
     'examform.editTitle': 'Edit & Resubmit Results',
     'examform.noActiveRound': 'There is no open submission round right now',
+    'examform.scheduledRound': 'Round {attempt} opens on {date}',
+    'examform.scheduledSub': 'You cannot submit yet — come back when it opens',
+    'examform.expiredRound': 'This round has closed for submissions',
+    'examform.expiredSub': 'Contact the faculty officer if you still need to submit',
     'examform.allPassedRound': 'You already passed all subjects for this round — no need to submit again',
     'examform.alreadySubmittedRound': 'You already submitted results for this round — check the status page',
     'examform.rejectedTitle': 'Your submission was rejected',

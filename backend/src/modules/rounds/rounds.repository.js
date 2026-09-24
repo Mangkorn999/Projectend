@@ -28,6 +28,18 @@ export const findActive = (academicYear) => {
   });
 };
 
+// รอบของรุ่นนี้ที่เจ้าหน้าที่ "กดเปิด" ไว้ — ไม่สนว่าถึงวันเปิดรับหรือยัง
+//
+// ต่างจาก findActive() ตรงไม่กรองวันที่เลย จึงได้รอบที่ยังไม่ถึงกำหนดเปิด (scheduled) มาด้วย
+// เอาไว้บอกนักศึกษาว่า "รอบหน้าจะเปิดวันที่ ..." แทนที่จะขึ้นว่าไม่มีรอบเฉยๆ แล้วไม่รู้ว่าต้องรอถึงเมื่อไหร่
+//
+// ⚠️ ห้ามเอาไปใช้ตอนรับผลสอบเด็ดขาด — ตรงนั้นต้องใช้ findActive() ที่กรองวันที่แล้วเท่านั้น
+export const findOpenForYear = (academicYear) =>
+  prisma.submissionRound.findFirst({
+    where: { status: "open", academic_year: academicYear },
+    orderBy: { attempt_number: "desc" },
+  });
+
 // หารอบของปีการศึกษานั้น + ครั้งที่นั้น — ใช้กันสร้าง/แก้เป็นรอบซ้ำ
 // findUnique ได้เพราะ schema ประกาศ @@unique([academic_year, attempt_number]) ไว้
 export const findByYearAndAttempt = (academicYear, attemptNumber) =>

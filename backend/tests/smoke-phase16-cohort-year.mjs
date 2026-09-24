@@ -115,6 +115,27 @@ const main = async () => {
     check("รอบของรุ่นเดิมไม่เปิดให้ (ย้ายรุ่นแล้ว)", seesWrong.json.data, null);
     await call("PUT", `/api/rounds/${wrongRound}`, { token: oToken, body: { status: "closed" } });
 
+    // ---- 4.1 รอบที่ตั้งเปิดไว้ล่วงหน้า: นักศึกษาเห็น (จะได้รู้วันเปิด) แต่ส่งผลไม่ได้ ----
+    const futureRes = await call("POST", "/api/rounds", {
+      token: oToken,
+      body: {
+        academic_year: REAL_YEAR, attempt_number: 2,
+        open_date: "2090-06-01", close_date: "2090-06-30",
+        subject_ids: subjectIds.slice(0, 3),
+      },
+    });
+    const futureRound = futureRes.json.data.round_id;
+    await call("PUT", `/api/rounds/${futureRound}`, { token: oToken, body: { status: "open" } });
+    const seesFuture = await call("GET", "/api/rounds/active", { token: sToken });
+    check("รอบตั้งล่วงหน้า: /rounds/active ส่งรอบมา", seesFuture.json.data?.round_id, futureRound);
+    check("รอบตั้งล่วงหน้า: phase = scheduled", seesFuture.json.data?.phase, "scheduled");
+    const earlySubmit = await call("POST", "/api/exam-results", {
+      token: sToken,
+      body: { subject_results: subjectIds.slice(0, 3).map((id) => ({ subject_id: id, is_passed: true })) },
+    });
+    check("ส่งผลก่อนถึงวันเปิด -> ถูกปฏิเสธ (ไม่ใช่ 200)", earlySubmit.status !== 200, true);
+    await call("PUT", `/api/rounds/${futureRound}`, { token: oToken, body: { status: "closed" } });
+
     // ---- 5. รอบของรุ่นที่จบจริง ต้องเปิดให้ ----
     const rightRound = await openRound(oToken, REAL_YEAR, 1, subjectIds.slice(0, 3));
     const seesRight = await call("GET", "/api/rounds/active", { token: sToken });
