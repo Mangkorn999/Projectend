@@ -26,7 +26,11 @@ export function CompleteProfile({ onDone }) {
   const [result, setResult] = useState(null);
 
   useEffect(() => {
-    apiFetch('/rooms').then(setRooms).catch(() => {}).finally(() => setLoadingRooms(false));
+    // โหลดห้องไม่ได้ต้องบอก — ไม่งั้น dropdown ว่างเฉยๆ นักศึกษาไม่รู้ว่าทำไมเลือกไม่ได้
+    apiFetch('/rooms')
+      .then(setRooms)
+      .catch(() => setError('โหลดรายชื่อห้องเรียนไม่สำเร็จ กรุณารีเฟรชหน้านี้'))
+      .finally(() => setLoadingRooms(false));
   }, []);
 
   const set = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }));

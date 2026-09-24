@@ -81,6 +81,12 @@ const main = async () => {
 
     const sLogin = await call("POST", "/api/auth/login", { body: { psu_passport_id: STUDENT_ID, password: NATIONAL_ID } });
     const sToken = sLogin.cookie;
+    // หน้ากรอกโปรไฟล์ครั้งแรกต้องดึงรายชื่อห้องได้ — เคยโดน 403 จน dropdown ว่าง นักศึกษาใหม่เข้าระบบไม่ได้
+    const roomsBeforeProfile = await call("GET", "/api/rooms", { token: sToken });
+    check("นักศึกษายังไม่กรอกโปรไฟล์ GET /rooms -> 200", roomsBeforeProfile.status, 200);
+    check("  ได้รายชื่อห้องมา", (roomsBeforeProfile.json.data || []).length > 0, true);
+    check("  แต่ endpoint อื่นยังโดนกัน -> 403",
+      (await call("GET", "/api/subjects", { token: sToken })).status, 403);
     await call("POST", "/api/students/complete-profile", {
       token: sToken,
       body: {

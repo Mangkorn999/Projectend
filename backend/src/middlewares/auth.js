@@ -9,6 +9,9 @@ import prisma from "../config/db.js";
 const PASSWORD_SETUP_PATHS = ["/me", "/password"];
 // path ที่ยังใช้ได้ตอนนักศึกษายังไม่กรอกโปรไฟล์ครั้งแรก (req.path นับจากจุด mount ของ router นั้นๆ)
 const PROFILE_SETUP_PATHS = ["/me", "/complete-profile"];
+// router ที่นักศึกษาช่วงกรอกโปรไฟล์ใช้ได้ทั้งก้อน (เช็คจาก req.baseUrl = จุด mount ใน app.js)
+// /api/rooms: หน้ากรอกโปรไฟล์ต้องมีรายชื่อห้องให้เลือก — ไม่เปิดไว้ นักศึกษาใหม่กรอกโปรไฟล์ไม่ได้เลยสักคน
+const PROFILE_SETUP_ROUTERS = ["/api/rooms"];
 
 export const authenticate = async (req, res, next) => {
   // token อยู่ใน httpOnly cookie ชื่อ "token" — browser แนบมาให้เองทุก request
@@ -96,7 +99,8 @@ export const authenticate = async (req, res, next) => {
     if (
       req.user.role === "student" &&
       !req.user.studentId &&
-      !PROFILE_SETUP_PATHS.includes(req.path)
+      !PROFILE_SETUP_PATHS.includes(req.path) &&
+      !PROFILE_SETUP_ROUTERS.includes(req.baseUrl)
     ) {
       return res.status(403).json({
         success: false,
