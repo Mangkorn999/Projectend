@@ -1,6 +1,8 @@
 import prisma from "../../config/db.js";
 //หา วิชา ใน datbase
-export const findAll = () => prisma.subject.findMany();
+// เรียงตามรหัสวิชาเสมอ — ไม่ใส่ ลำดับวิชาจะเปลี่ยนทุกครั้งที่แก้ชื่อวิชา (Postgres ย้ายแถวที่ถูก UPDATE ไปท้ายตาราง)
+// แล้วหน้ากรอกผลสอบของนักศึกษาก็เรียงวิชาสลับตามไปด้วย · ตรงกับที่ dashboard เรียงอยู่แล้ว
+export const findAll = () => prisma.subject.findMany({ orderBy: { subject_code: "asc" } });
 // หาวิชาหลายตัวพร้อมกันจาก id ที่ส่งมา — ใช้เช็คว่า id ที่ officer เลือกมีจริงทุกตัว
 export const findByIds = (ids) =>
   prisma.subject.findMany({ where: { subject_id: { in: ids } } });

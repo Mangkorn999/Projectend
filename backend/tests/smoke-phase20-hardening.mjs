@@ -156,6 +156,36 @@ const main = async () => {
     const garbage = await call("GET", "/api/exam-results?round_id=abc", { token: oToken });
     check("ส่ง round_id=abc -> ไม่ใช่ 500", garbage.status < 500, true);
     check("  ไม่มีชื่อตาราง/Prisma ในข้อความ", /prisma|invocation|findMany/i.test(garbage.json?.message || ""), false);
+
+    // ── 6. รอบตรวจซ้ำ 25 ก.ย.: ลำดับรายการต้องนิ่ง (เดิม Postgres คืนตามลำดับบน disk แถวที่ถูกแก้ย้ายไปท้าย) ──
+    const subs = (await call("GET", "/api/subjects", { token: oToken })).json.data.map((x) => x.subject_code);
+    check("รายวิชาเรียงตามรหัสวิชา", subs, [...subs].sort());
+    const studs = (await call("GET", "/api/students", { token: oToken })).json.data;
+    let orderOk = true;
+    for (let i = 1; i < studs.length; i++) {
+      const a = studs[i - 1], b = studs[i];
+      if (a.academic_year < b.academic_year || (a.academic_year === b.academic_year && a.student_id > b.student_id)) { orderOk = false; break; }
+    }
+    check("รายชื่อนักศึกษาเรียง รุ่นใหม่ก่อน แล้วตามรหัส", orderOk, true);
+
+    // ── 7. ข้อมูลโปรไฟล์ที่เจ้าหน้าที่แก้ ──
+    const patch = (body) => call("PATCH", `/api/students/${STUDENT_ID}`, { token: oToken, body });
+    check("แก้ชื่อเป็นช่องว่าง -> 400", (await patch({ first_name: "   " })).status, 400);
+    check("แก้อีเมลรูปแบบผิด -> 400", (await patch({ email: "not-an-email" })).status, 400);
+    check("แก้เบอร์โทรเป็นตัวอักษร -> 400", (await patch({ phone: "abc" })).status, 400);
+    check("แก้ชื่อยาวเกิน 100 -> 400", (await patch({ last_name: "ก".repeat(101) })).status, 400);
+    check("เบอร์โทรแบบ +66 81-234-5678 -> 200", (await patch({ phone: "+66 81-234-5678" })).status, 200);
+
+    // ── 8. อัปโหลดไฟล์ใหญ่เกินกำหนด: ข้อความต้องเป็นไทย ──
+    const big = new FormData();
+    big.append("file", new Blob([Buffer.alloc(6 * 1024 * 1024, "a")], { type: "text/csv" }), "big.csv");
+    const bigRes = await call("POST", "/api/students/import", { token: oToken, form: big });
+    check("import ไฟล์ 6MB (เกิน 5MB) -> 400", bigRes.status, 400);
+    check("  ข้อความเป็นไทย", bigRes.json?.message?.includes("ไฟล์ใหญ่เกินกำหนด"), true);
+
+    // ── 9. ประกาศ: ข้อความ error เป็นไทย ไม่มีชื่อ field อังกฤษ ──
+    const newsEmpty = await call("POST", "/api/news", { token: oToken, body: {} });
+    check("โพสต์ประกาศว่าง -> 400 ข้อความไทย", [newsEmpty.status, /title|content|round_id/.test(newsEmpty.json?.message || "")], [400, false]);
   } finally {
     await cleanupYears([YEAR]);
     // ลบวิชาทดสอบ (รอบที่อ้างถึงถูก cleanupYears ลบแล้ว)

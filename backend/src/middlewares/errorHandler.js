@@ -52,6 +52,15 @@ export const errorHandler = (err, req, res, next) => {
   if (isNotFound) {
     message = "ไม่พบข้อมูลที่ต้องการ อาจถูกลบไปแล้ว กรุณารีเฟรชหน้า";
   }
+  // multer (อัปโหลดไฟล์) ส่งข้อความภาษาอังกฤษมา — แปลเป็นไทยให้ผู้ใช้อ่านรู้เรื่อง (code มาจาก multer เอง)
+  if (err.name === "MulterError") {
+    const multerMessages = {
+      LIMIT_FILE_SIZE: "ไฟล์ใหญ่เกินกำหนด กรุณาลดขนาดไฟล์แล้วลองใหม่",
+      LIMIT_UNEXPECTED_FILE: "แนบไฟล์ไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง",
+      LIMIT_FILE_COUNT: "แนบไฟล์ได้ครั้งละ 1 ไฟล์",
+    };
+    message = multerMessages[err.code] ?? "อัปโหลดไฟล์ไม่สำเร็จ กรุณาลองใหม่";
+  }
   if (isForeignKey) {
     message = "ทำรายการไม่ได้ ข้อมูลที่อ้างถึงไม่มีอยู่ หรือข้อมูลนี้ยังถูกใช้งานอยู่";
   }

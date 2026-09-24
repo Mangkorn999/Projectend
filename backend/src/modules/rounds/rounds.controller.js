@@ -96,7 +96,12 @@ const END_OF_DAY = { h: 23, m: 59, s: 59, ms: 999 };
 //
 // เช็คด้วย regex ก่อนแทนที่จะโยนเข้า new Date() ตรงๆ เพราะ new Date("อะไรก็ไม่รู้")
 // จะได้ "Invalid Date" ที่หน้าตาเหมือน Date ปกติ แล้วไปพังตอนลง Prisma เป็น 500 แทนที่จะเป็น 400
-const parseThaiDateTime = (value, fieldLabel, defaultTime) => {
+//
+// missingSeconds = วินาทีที่เติมให้เมื่อผู้ใช้ระบุเวลาแค่ระดับนาที (datetime-local ไม่มีวินาที)
+//   เปิดรับ: 09:00 → 09:00:00.000 (เริ่มต้นนาทีนั้น)
+//   ปิดรับ:  23:59 → 23:59:59.999 (สิ้นสุดนาทีนั้น) — คนอ่าน "ปิดรับ 23:59" คือรับถึงสิ้นนาทีนั้น
+//   ถ้าเก็บเป็น 23:59:00 นักศึกษาที่ส่งตอน 23:59:30 จะถูกปฏิเสธทั้งที่หน้าจอบอกว่ายังไม่ปิด
+const parseThaiDateTime = (value, fieldLabel, defaultTime, missingSeconds = { s: 0, ms: 0 }) => {
   const matched = String(value ?? "").match(
     /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/,
   );
@@ -106,7 +111,9 @@ const parseThaiDateTime = (value, fieldLabel, defaultTime) => {
   // มีเวลาส่งมา → ใช้เวลานั้น. ไม่มี → ใช้ค่า default ของ field นั้น
   const time =
     hour !== undefined
-      ? { h: Number(hour), m: Number(minute), s: Number(second ?? 0), ms: 0 }
+      ? second !== undefined
+        ? { h: Number(hour), m: Number(minute), s: Number(second), ms: 0 }
+        : { h: Number(hour), m: Number(minute), ...missingSeconds }
       : defaultTime;
 
   // สร้างเป็น UTC ก่อน แล้วลบ 7 ชั่วโมง = เวลาไทยตามที่ผู้ใช้กรอกจริงๆ
@@ -133,7 +140,7 @@ const parseOpenDate = (value, fieldLabel) =>
 // ปิดรับ = 23:59:59.999 เวลาไทย ถ้าเจ้าหน้าที่ไม่ได้ระบุเวลา
 // กันรอบหมดอายุตั้งแต่เที่ยงคืนต้นวันปิด
 const parseCloseDate = (value, fieldLabel) =>
-  parseThaiDateTime(value, fieldLabel, END_OF_DAY);
+  parseThaiDateTime(value, fieldLabel, END_OF_DAY, { s: 59, ms: 999 });
 
 // เปิดรับต้องมาก่อนปิดรับเสมอ
 //

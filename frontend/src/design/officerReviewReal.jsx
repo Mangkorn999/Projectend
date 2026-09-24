@@ -157,7 +157,7 @@ export function OfficerReviewReal({ go, setSel, setDetailFrom, lang, restoreView
                       <tr key={s.student_id}>
                         <td><div style={{ display: 'flex', alignItems: 'center', gap: 11 }}><Avatar name={s.user.first_name} size={34} />
                           <div><div style={{ fontWeight: 600, fontSize: 16 }}>{s.user.first_name} {s.user.last_name}</div>
-                          <div className="mono" style={{ fontSize: 14, color: 'var(--ink-400)' }}>{s.student_id}</div></div></div></td>
+                          <div className="mono" style={{ fontSize: 14, color: 'var(--ink-500)' }}>{s.student_id}</div></div></div></td>
                         <td><span className="chip" style={{ fontSize: 14 }}>{s.room ? roomName(lang, s.room.room_name) : '-'}</span></td>
                         <td className="tnum" style={{ fontSize: 15, color: 'var(--ink-700)' }}>{s.academic_year || '—'}</td>
                       </tr>
@@ -169,7 +169,7 @@ export function OfficerReviewReal({ go, setSel, setDetailFrom, lang, restoreView
                       <tr key={s.resultId} className="clickable" onClick={() => openDetail(s)}>
                         <td><div style={{ display: 'flex', alignItems: 'center', gap: 11 }}><Avatar name={s.firstName} size={34} />
                           <div><div style={{ fontWeight: 600, fontSize: 16 }}>{s.firstName} {s.lastName}</div>
-                          <div className="mono" style={{ fontSize: 14, color: 'var(--ink-400)' }}>{s.sid}</div></div></div></td>
+                          <div className="mono" style={{ fontSize: 14, color: 'var(--ink-500)' }}>{s.sid}</div></div></div></td>
                         <td><span className="chip" style={{ fontSize: 14 }}>{roomName(lang, s.room)}</span></td>
                         <td className="tnum" style={{ fontWeight: 700, color: s.allPass ? 'var(--pass)' : 'var(--ink-800)' }}>{s.passedCount}/{s.subjectCount}</td>
                         <td>{s.files.length ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--status-reject-fg)', fontSize: 15 }}><Icon name="pdf" size={15} /> {tt('officer.review.filesCount', { n: s.files.length })}</span> : <span style={{ color: 'var(--ink-400)' }}>—</span>}</td>

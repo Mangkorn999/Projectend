@@ -24,6 +24,38 @@ const STUDENT_ID_PATTERN = /^\d{2,}$/;
 const SCIENTIFIC_NOTATION_PATTERN = /^\d+(\.\d+)?e[+-]?\d+$/i;
 const SALT_ROUNDS = 10;
 
+// ตรวจข้อมูลโปรไฟล์ที่กรอกมือ (นักศึกษากรอกครั้งแรก + เจ้าหน้าที่แก้ทีหลัง) — ใช้ร่วมกัน 2 จุด กฎจะได้ไม่เพี้ยนกัน
+// เดิมไม่ตรวจเลย: ชื่อเป็นช่องว่าง/ตัวเลข/ยาวเกิน column (VarChar 100/20) ผ่านเข้าไปได้ หรือพังเป็น 500
+// requireAll = true ตอนกรอกครั้งแรก (ต้องครบ) · false ตอนแก้ (ตรวจเฉพาะ field ที่ส่งมา)
+const PROFILE_TEXT_FIELDS = [
+  ["first_name", "ชื่อ", 100],
+  ["last_name", "นามสกุล", 100],
+  ["first_name_en", "ชื่อภาษาอังกฤษ", 100],
+  ["last_name_en", "นามสกุลภาษาอังกฤษ", 100],
+  ["email", "อีเมล", 100],
+  ["phone", "เบอร์โทร", 20],
+];
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_PATTERN = /^[0-9+\-\s]{8,20}$/; // เลข + เครื่องหมาย + - และเว้นวรรค (เช่น +66 81-234-5678)
+
+const cleanProfileInput = (body, requireAll) => {
+  const out = {};
+  for (const [field, label, max] of PROFILE_TEXT_FIELDS) {
+    const value = body?.[field];
+    if (value === undefined && !requireAll) continue;
+    if (typeof value !== "string" || !value.trim()) {
+      throw httpError(`กรุณากรอก${label}`, 400);
+    }
+    if (value.trim().length > max) {
+      throw httpError(`${label}ยาวเกินไป (ไม่เกิน ${max} ตัวอักษร)`, 400);
+    }
+    out[field] = value.trim();
+  }
+  if (out.email && !EMAIL_PATTERN.test(out.email)) throw httpError("รูปแบบอีเมลไม่ถูกต้อง", 400);
+  if (out.phone && !PHONE_PATTERN.test(out.phone)) throw httpError("เบอร์โทรไม่ถูกต้อง", 400);
+  return out;
+};
+
 export const getAll = async (req, res, next) => {
   try {
     const students = await studentRepo.findAll();
@@ -154,29 +186,10 @@ export const completeProfile = async (req, res, next) => {
       throw err;
     }
 
-    const {
-      first_name,
-      last_name,
-      first_name_en,
-      last_name_en,
-      email,
-      phone,
-      room_id,
-    } = req.body;
-
-    if (
-      !first_name ||
-      !last_name ||
-      !first_name_en ||
-      !last_name_en ||
-      !email ||
-      !phone ||
-      !room_id
-    ) {
-      const err = new Error("กรุณากรอกข้อมูลให้ครบ");
-      err.statusCode = 400;
-      throw err;
-    }
+    const { room_id } = req.body;
+    const { first_name, last_name, first_name_en, last_name_en, email, phone } =
+      cleanProfileInput(req.body, true);
+    if (!room_id) throw httpError("กรุณาเลือกห้องเรียน", 400);
 
     const room = await studentRepo.findRoomById(Number(room_id));
     if (!room) {
@@ -229,16 +242,9 @@ export const update = async (req, res, next) => {
       throw err;
     }
 
-    const {
-      first_name,
-      last_name,
-      first_name_en,
-      last_name_en,
-      email,
-      phone,
-      room_id,
-      academic_year,
-    } = req.body;
+    const { room_id, academic_year } = req.body;
+    const { first_name, last_name, first_name_en, last_name_en, email, phone } =
+      cleanProfileInput(req.body, false);
 
     if (room_id !== undefined) {
       const room = await studentRepo.findRoomById(Number(room_id));
@@ -594,7 +600,8 @@ export const resetPassword = async (req, res, next) => {
     }
 
     const { national_id } = req.body;
-    if (!NATIONAL_ID_PATTERN.test(national_id)) {
+    // ต้องเป็นข้อความ — ตัวเลข 13 หลักผ่าน regex ได้ (JS แปลงเป็นข้อความให้) แต่ bcrypt.hash รับแต่ข้อความ จะพังเป็น 500
+    if (typeof national_id !== "string" || !NATIONAL_ID_PATTERN.test(national_id)) {
       const err = new Error("เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก");
       err.statusCode = 400;
       throw err;

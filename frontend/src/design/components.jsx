@@ -46,7 +46,8 @@ export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notificati
   return (
     <header style={{ height:'var(--header-h)', background:'#fff', borderBottom:'1px solid var(--ink-200)',
       display:'flex', alignItems:'center', gap:16, padding:'0 18px 0 16px', position:'sticky', top:0, zIndex:40 }}>
-      <button className="btn btn-ghost btn-sm only-mobile" style={{ padding:8, border:'none' }} onClick={onMenu}>
+      <button className="btn btn-ghost btn-sm only-mobile" style={{ padding:8, border:'none' }} onClick={onMenu}
+        aria-label={lang === 'EN' ? 'Open menu' : 'เปิดเมนู'}>
         <Icon name="menu" />
       </button>
       <div className="only-desktop"><Logo /></div>

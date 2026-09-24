@@ -13,6 +13,9 @@ const PUBLIC_USER_FIELDS = {
 export const findAll = () => {
   return prisma.student.findMany({
     include: { user: { select: PUBLIC_USER_FIELDS }, faculty: true, room: true },
+    // ต้องเรียงเอง — ไม่ใส่ Postgres คืนตามลำดับที่เก็บจริงบน disk ซึ่งเปลี่ยนทุกครั้งที่ UPDATE
+    // (แก้ข้อมูลนักศึกษาคนหนึ่งแล้วแถวของเขาโดดไปท้ายตาราง) — รุ่นใหม่ก่อน แล้วเรียงตามรหัส
+    orderBy: [{ academic_year: "desc" }, { student_id: "asc" }],
   });
 };
 
@@ -80,7 +83,7 @@ export const findRoleByName = (role_name) =>
 
 export const findFaculty = () => prisma.faculty.findFirst();
 
-export const findAllRooms = () => prisma.room.findMany();
+export const findAllRooms = () => prisma.room.findMany({ orderBy: { room_id: "asc" } });
 
 export const findRoomById = (room_id) =>
   prisma.room.findUnique({ where: { room_id } });

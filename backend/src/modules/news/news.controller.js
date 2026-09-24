@@ -52,7 +52,7 @@ export const createNews = async (req, res, next) => {
     const { title, content, round_id } = req.body;
 
     if (!title || !content || !round_id) {
-      throw httpError("ต้องส่ง title, content และ round_id", 400);
+      throw httpError("กรุณากรอกหัวข้อ เนื้อหา และเลือกรอบสอบให้ครบ", 400);
     }
     ensureNewsText({ title, content });
     await ensureRoundExists(round_id);

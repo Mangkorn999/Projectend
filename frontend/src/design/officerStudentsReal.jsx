@@ -404,7 +404,7 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
                   </td>}
                   <td><div style={{ display: 'flex', alignItems: 'center', gap: 11 }}><Avatar name={s.firstName} size={34} />
                     <div><div style={{ fontWeight: 600, fontSize: 16 }}>{s.firstName} {s.lastName}</div>
-                    <div className="mono" style={{ fontSize: 14, color: 'var(--ink-400)' }}>{s.sid}</div></div></div></td>
+                    <div className="mono" style={{ fontSize: 14, color: 'var(--ink-500)' }}>{s.sid}</div></div></div></td>
                   <td><span className="chip" style={{ fontSize: 14 }}>{roomName(lang, s.room)}</span></td>
                   <td className="tnum" style={{ fontSize: 15, color: 'var(--ink-700)' }}>{s.year || '—'}</td>
                   <td><span className={'badge ' + (s.eligible ? 'ok' : 'draft')}><span className="dot"></span>

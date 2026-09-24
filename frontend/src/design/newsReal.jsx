@@ -332,7 +332,7 @@ export function ManageNewsReal({ toast, lang }) {
 
       <Modal open={!!modal} onClose={() => setModal(null)} title={modal?.news_id ? tt('newsMgmt.editModalTitle') : tt('newsMgmt.newModalTitle')} width={560}
         footer={<><button className="btn btn-ghost" onClick={() => setModal(null)}>{tt('newsMgmt.cancelBtn')}</button>
-          <button className="btn btn-primary" disabled={saving} onClick={submit}><Icon name="send" size={16} /> {saving ? tt('newsMgmt.publishing') : tt('newsMgmt.publishBtn')}</button></>}>
+          <button className="btn btn-primary" disabled={saving} onClick={submit}><Icon name="send" size={16} /> {saving ? tt('newsMgmt.publishing') : modal?.news_id ? tt('newsMgmt.saveEditBtn') : tt('newsMgmt.publishBtn')}</button></>}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div className="field"><label>{tt('newsMgmt.fieldTitle')}</label><input className="input" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder={tt('newsMgmt.titlePh')} /></div>
           <div className="field"><label>{tt('newsMgmt.fieldRound')}</label>
