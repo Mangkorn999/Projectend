@@ -73,6 +73,8 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
         method: 'PATCH',
         body: action === 'reject' ? { remark: reasonText } : undefined,
       });
+      // บอก app.jsx ให้นับ badge "รอตรวจ" ใหม่ทันที — ไม่งั้นเลขค้างจนกว่าจะเปลี่ยนหน้า (เจ้าหน้าที่ยังอยู่หน้านี้หลังกดตรวจ)
+      window.dispatchEvent(new Event('review-changed'));
       toast(action === 'approve' ? tt('officer.detail.confirmToast') : tt('officer.detail.rejectToast'), action === 'approve' ? 'success' : 'info');
       setReject(false);
       load(); // ดึงสถานะล่าสุดจาก backend ใหม่ ไม่เชื่อ state เดิมที่เดาเอง

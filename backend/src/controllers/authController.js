@@ -29,7 +29,13 @@ export const login = async (req, res) => {
   try {
     const { psu_passport_id, password } = req.body;
 
-    if (!psu_passport_id || !password) {
+    // ต้องเป็นข้อความ — ส่ง object มาเดิมทำให้ Prisma พังเป็น 500 แทนที่จะตอบว่าข้อมูลผิด
+    if (
+      typeof psu_passport_id !== "string" ||
+      typeof password !== "string" ||
+      !psu_passport_id ||
+      !password
+    ) {
       return res.status(400).json({
         success: false,
         message: "กรุณากรอกรหัสผู้ใช้และรหัสผ่าน",
@@ -109,7 +115,12 @@ export const changePassword = async (req, res) => {
   try {
     const { current_password, new_password } = req.body;
 
-    if (!current_password || !new_password) {
+    if (
+      typeof current_password !== "string" ||
+      typeof new_password !== "string" ||
+      !current_password ||
+      !new_password
+    ) {
       return res.status(400).json({
         success: false,
         message: "กรุณากรอกรหัสผ่านเดิมและรหัสผ่านใหม่",

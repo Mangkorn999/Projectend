@@ -75,7 +75,7 @@ export function CompleteProfile({ onDone }) {
           {step === 'done' ? (
             <div style={{ textAlign: 'center' }}>
               <div style={{ color: 'var(--pass,#16a34a)', marginBottom: 10 }}><Icon name="checkCircle" size={40} /></div>
-              <h2 style={{ margin: '0 0 8px', fontSize: 22, fontWeight: 800 }}>กรอกโปรไฟล์สำเร็จ</h2>
+              <h2 style={{ margin: '0 0 8px', fontSize: 22, fontWeight: 800, color: 'var(--ink-900)' }}>กรอกโปรไฟล์สำเร็จ</h2>
               <p style={{ color: 'var(--ink-500)', fontSize: 16, marginBottom: 4 }}>
                 ปีการศึกษาที่จบ: <b>{result?.student?.academic_year ?? '-'}</b>
               </p>

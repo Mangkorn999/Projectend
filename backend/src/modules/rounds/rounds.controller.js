@@ -70,7 +70,8 @@ export const getActive = async (req, res, next) => {
       data: {
         ...withPhase(round),
         subjects,
-        all_passed: subjects.every((s) => s.already_passed),
+        // รอบที่ไม่เหลือวิชาเลย (เช่น วิชาถูกลบ) ต้องไม่นับว่า "ผ่านครบ" — [].every() ให้ true เสมอ
+        all_passed: subjects.length > 0 && subjects.every((s) => s.already_passed),
       },
     });
   } catch (err) {

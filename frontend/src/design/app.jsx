@@ -290,9 +290,10 @@ export function App() {
   // นับผลสอบที่ยังรอตรวจใหม่ทุกครั้งที่เปลี่ยนหน้า — ตรวจเสร็จกลับมา badge ต้องลดลงเอง
   // นับเฉพาะรอบที่เปิดอยู่ (ไม่มีก็รอบล่าสุด) ให้ตรงกับที่หน้าคิวตรวจสอบเปิดมาเจอ
   // ถ้านับรวมทุกรอบทุกปี เลข badge จะไม่มีวันตรงกับลิสต์ที่เห็นจริง
+  // นับใหม่อีกเมื่อหน้ารายละเอียดยิง 'review-changed' (ยืนยัน/ตีกลับเสร็จ) — เจ้าหน้าที่ยังอยู่หน้าเดิม page ไม่เปลี่ยน
   useEffect(()=>{
     if (role !== 'officer') { setPendingCount(0); return; }
-    apiFetch('/rounds')
+    const recount = () => apiFetch('/rounds')
       .then(rounds => {
         const round = rounds.find(r => r.status === 'open') || rounds[0];
         if (!round) return setPendingCount(0);
@@ -300,6 +301,9 @@ export function App() {
           .then(rows => setPendingCount(rows.length));
       })
       .catch(()=>{});
+    recount();
+    window.addEventListener('review-changed', recount);
+    return () => window.removeEventListener('review-changed', recount);
   }, [role, page]);
 
   // เช็คใบที่ถูกตีกลับทุกครั้งที่เปลี่ยนหน้า — กรอกส่งใหม่แล้ว badge ต้องหายเอง
@@ -335,7 +339,23 @@ export function App() {
 
     const verifyCookie = async ()=>{
       try {
-        await apiFetch('/auth/me');
+        const me = await apiFetch('/auth/me');
+
+        // user ที่เก็บใน localStorage เป็นแค่ตัวช่วยวาดหน้าตอน refresh — ความจริงอยู่ที่ backend (cookie)
+        // ไม่ตรงกันเมื่อ: เจ้าหน้าที่เปลี่ยน role ให้คนนี้ระหว่างที่เขา login อยู่ (backend มีผลทันที),
+        // มีการ login บัญชีอื่นทับ cookie, หรือถูกบังคับเปลี่ยนรหัสใหม่ — ถ้าเชื่อค่าเก่า จะเห็นเมนูของ role เดิม
+        // แล้วกดอะไรก็ได้ 403 · เขียนทับด้วยค่าจากเซิร์ฟเวอร์แล้วโหลดใหม่ ให้ผ่าน flow บังคับ (เปลี่ยนรหัส/กรอกโปรไฟล์) ตามปกติ
+        const stale =
+          me.id !== stored.id ||
+          me.role !== stored.role ||
+          !!me.must_change_password !== !!stored.mustChangePassword ||
+          !!me.profile_incomplete !== !!stored.profileIncomplete;
+        if (stale) {
+          setSession({ id: me.id, name: me.name, role: me.role }, !!me.must_change_password, !!me.profile_incomplete);
+          window.location.reload();
+          return;
+        }
+
         // กลับมาที่หน้าเดิมตาม URL ที่เปิดเข้ามา ไม่ใช่เด้งไปหน้าเริ่มต้นทุกครั้ง
         // URL ที่ใช้ไม่ได้ (ของ role อื่น / พิมพ์มั่ว / ต้องมี selection) pageFromPath พากลับหน้าเริ่มต้นให้เอง
         const p = pageFromPath(stored.role, bootPath);

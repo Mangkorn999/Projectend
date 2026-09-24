@@ -12,6 +12,12 @@ export const create = (data) => prisma.subject.create({ data });
 //ลบ วิชากรอก data
 export const remove = (id) =>
   prisma.subject.delete({ where: { subject_id: Number(id) } });
+// รอบที่เลือกวิชานี้ไว้ — subject_ids ของรอบเป็น Int[] ไม่ใช่ FK จึงต้องถามตรงๆ
+export const findRoundsUsing = (id) =>
+  prisma.submissionRound.findMany({
+    where: { subject_ids: { has: Number(id) } },
+    select: { round_id: true, academic_year: true, attempt_number: true },
+  });
 // อัพเดท วิชา
 export const updata = (id, data) =>
   prisma.subject.update({ where: { subject_id: Number(id) }, data });

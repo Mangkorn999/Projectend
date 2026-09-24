@@ -139,21 +139,45 @@ const toSubjectRows = (subjectResults) =>
 
 // ส่งใหม่หลังโดนตีกลับ — ทับผลรายวิชาชุดเดิม แล้วกลับไปเข้าคิวรอตรวจ
 // ล้าง remark กับคนที่เคยตรวจทิ้ง ไม่งั้นใบที่แก้แล้วยังติดเหตุผลตีกลับรอบก่อนค้างอยู่
+//
+// ต้องกันใบที่ "ยืนยันแล้ว" ตรงนี้ด้วย ไม่ใช่เช็คแค่ใน controller
+// controller เช็คแล้วค่อยมาเรียกฟังก์ชันนี้ — ระหว่างนั้นเจ้าหน้าที่อาจกดยืนยันพอดี
+// ถ้าไม่มีด่านนี้ นักศึกษาจะเขียนทับใบที่ยืนยันแล้วและใบกลับไปเป็น "รอตรวจ" (ล็อกหลุด)
+// ใช้ updateMany + where staff_status ≠ approved ใน transaction เดียว — count = 0 แปลว่าใบถูกยืนยันไปก่อน
 export const resubmitWithSubjects = (result_id, subjectResults) =>
-  prisma.examResult.update({
-    where: { result_id: Number(result_id) },
-    data: {
-      staff_status: STAFF_STATUS.PENDING,
-      remark: null,
-      confirmed_by: null,
-      confirmed_at: null,
-      submitted_at: new Date(),
-      subject_results: {
-        deleteMany: {}, // ลบของเดิมทั้งชุดก่อน แล้วค่อยใส่ชุดใหม่
-        create: toSubjectRows(subjectResults),
+  prisma.$transaction(async (tx) => {
+    const { count } = await tx.examResult.updateMany({
+      where: {
+        result_id: Number(result_id),
+        staff_status: { not: STAFF_STATUS.APPROVED },
       },
-    },
-    include: withDetails,
+      data: {
+        staff_status: STAFF_STATUS.PENDING,
+        remark: null,
+        confirmed_by: null,
+        confirmed_at: null,
+        submitted_at: new Date(),
+      },
+    });
+    if (count === 0) {
+      const err = new Error("เจ้าหน้าที่ยืนยันผลสอบรอบนี้แล้ว แก้ไขไม่ได้");
+      err.statusCode = 409;
+      throw err;
+    }
+
+    // ลบผลรายวิชาเดิมทั้งชุดแล้วใส่ชุดใหม่
+    await tx.subjectResult.deleteMany({ where: { result_id: Number(result_id) } });
+    await tx.subjectResult.createMany({
+      data: toSubjectRows(subjectResults).map((row) => ({
+        ...row,
+        result_id: Number(result_id),
+      })),
+    });
+
+    return tx.examResult.findUnique({
+      where: { result_id: Number(result_id) },
+      include: withDetails,
+    });
   });
 
 // สร้าง exam_result + subject_results พร้อมกันใน transaction เดียว

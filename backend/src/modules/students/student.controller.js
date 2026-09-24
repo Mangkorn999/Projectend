@@ -79,7 +79,13 @@ export const create = async (req, res, next) => {
   try {
     const { student_id, national_id, academic_year } = req.body;
 
-    if (!student_id || !national_id) {
+    // ต้องเป็นข้อความ — เลขบัตรที่ส่งมาเป็นตัวเลขผ่าน regex ได้ แต่ bcrypt.hash รับแต่ข้อความ (จะพังเป็น 500)
+    if (
+      typeof student_id !== "string" ||
+      typeof national_id !== "string" ||
+      !student_id.trim() ||
+      !national_id.trim()
+    ) {
       const err = new Error("กรุณากรอกรหัสนักศึกษาและเลขบัตรประชาชน");
       err.statusCode = 400;
       throw err;

@@ -719,3 +719,45 @@ res.json({ success: true, data: rounds.map(withPhase) });
 ถ้าเก็บลง DB ต้องมีอะไรสักอย่างคอยวิ่งอัปเดตตลอดเวลา — คำนวณตอนอ่านจบกว่า
 
 ⚠️ สูตรต้องตรงกับ query ที่ใช้จริง (`findActive`) เป๊ะๆ ไม่งั้นหน้าจอจะบอกคนละเรื่องกับที่ระบบทำ
+
+### 5.30 `prisma.$transaction(async (tx) => { ... })` — หลายคำสั่งต้องสำเร็จพร้อมกัน
+
+```js
+export const resubmit = (id, rows) =>
+  prisma.$transaction(async (tx) => {
+    const { count } = await tx.examResult.updateMany({
+      where: { result_id: id, staff_status: { not: "approved" } },
+      data: { staff_status: "pending" },
+    });
+    if (count === 0) throw new Error("ถูกยืนยันไปแล้ว"); // throw = ยกเลิกทุกคำสั่งในก้อนนี้
+    await tx.subjectResult.deleteMany({ where: { result_id: id } });
+    await tx.subjectResult.createMany({ data: rows });
+  });
+```
+
+- ในก้อนนี้ใช้ `tx` แทน `prisma` ทุกที่ — ถ้า throw กลางทาง สิ่งที่ทำไปแล้วถูกย้อนกลับหมด
+- `updateMany` + เงื่อนไขใน `where` = "แก้เฉพาะถ้าสถานะยังเป็นแบบนี้" แล้วดู `count`: 0 แปลว่ามีคนแก้ไปก่อนเรา
+  (กัน 2 คนกดพร้อมกัน — เช็คใน controller อย่างเดียวไม่พอ เพราะระหว่างเช็คกับเขียนมีช่องว่าง)
+- `{ not: "approved" }` = ไม่เท่ากับ · `{ has: 5 }` = array ใน column (`Int[]`) มีเลข 5 อยู่
+
+### 5.31 `new Map()` — จำว่า "เจอค่านี้แล้วที่แถวไหน"
+
+```js
+const seen = new Map();                 // key -> value เหมือน object แต่ key เป็นอะไรก็ได้
+if (seen.has(id)) { /* ซ้ำกับแถว */ seen.get(id); }
+seen.set(id, rowNum);
+```
+
+ใช้ตอน import CSV จับรหัสซ้ำในไฟล์เดียว (`Set` ก็ได้ถ้าไม่ต้องจำค่า แต่เราอยากบอกเลขแถวแรกที่เจอ)
+
+### 5.32 อ่านไบต์แรกของไฟล์ — เช็คว่าเป็น PDF จริง ไม่เชื่อ mimetype
+
+```js
+const head = Buffer.alloc(5);
+const fh = await fs.open(path, "r");
+try { await fh.read(head, 0, 5, 0); } finally { await fh.close(); }
+head.toString("latin1") === "%PDF-";   // PDF จริงขึ้นต้นด้วย %PDF- เสมอ
+```
+
+`mimetype` มาจาก header ที่ client ส่งมา แก้เองได้ — เนื้อไฟล์จริงโกหกไม่ได้ · `finally` = ปิดไฟล์เสมอแม้ read พัง
+
