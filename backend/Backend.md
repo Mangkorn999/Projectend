@@ -303,9 +303,17 @@ body ของ `POST`: `{ "title": "...", "content": "...", "round_id": 5 }` —
 ##  การทดสอบ
 
 ```bash
-npx prisma db seed      # หรือ node prisma/seed.js — ล้าง+ใส่ข้อมูลตัวอย่าง (roles, 8 วิชา, user 3 role)
+npm run test:clean      # ← ใช้อันนี้ ทำ seed + เปิด server + รันครบ 11 ไฟล์ + เก็บกวาดให้เอง
+```
+
+ทำงานบน PostgreSQL schema ชั่วคราว (`verify_tmp`) แล้วลบทิ้ง — **ไม่แตะข้อมูล demo ที่ใช้อยู่**
+ไม่ต้อง seed เอง ไม่ต้องเปิด server เอง
+
+แบบเดิม (ยิงใส่ DB ตัวที่ใช้จริง — จะ fail หลายตัวถ้ามีข้อมูล demo ค้าง):
+```bash
+npx prisma db seed      # ล้าง+ใส่ข้อมูลตัวอย่าง (roles, 8 วิชา, user 3 role)
 npm start               # เปิด server ที่ port 3000 (คนละ terminal)
-npm test                # ยิงทุก endpoint จริง — Phase 1-6
+npm test                # ต่อไฟล์ด้วย && — ไฟล์แรกพังแล้วที่เหลือไม่ได้รัน
 ```
 
 | ไฟล์เทส | ครอบอะไร |
@@ -318,7 +326,8 @@ npm test                # ยิงทุก endpoint จริง — Phase 1-6
 
 เช็คทั้ง happy path และ 401/403/404/409/400
 
-⚠️ เทสเขียนข้อมูลจริงลง DB — รัน seed ใหม่ก่อนทุกครั้ง
+⚠️ `npm test` เขียนข้อมูลจริงลง DB — ต้องรัน seed ใหม่ก่อนทุกครั้ง
+(`npm run test:clean` ไม่มีปัญหานี้ เพราะสร้าง schema ใหม่ให้ทุกรอบ)
 
 **บัญชีตัวอย่างจาก seed** (`faculty_id` ต้องส่ง `"14"` ตอน login):
 
@@ -332,9 +341,20 @@ npm test                # ยิงทุก endpoint จริง — Phase 1-6
 
 ## 🔐 Security Checklist
 
-- [ ] อ่าน role จาก JWT payload เท่านั้น ห้ามเชื่อ body ที่ client ส่งมา
-- [ ] `JWT_SECRET`, `DATABASE_URL` → ต้องอยู่ใน `.env`
-- [ ] ทุก endpoint ที่ไม่ใช่ public → ต้องผ่าน `authenticate` middleware
+- [x] อ่าน role จาก JWT payload เท่านั้น ห้ามเชื่อ body ที่ client ส่งมา
+- [x] `JWT_SECRET`, `DATABASE_URL` → ต้องอยู่ใน `.env` (มี `.env.example` ให้คัดลอกแล้ว)
+- [x] ทุก endpoint ที่ไม่ใช่ public → ต้องผ่าน `authenticate` middleware
+- [x] ไม่มีค่า hardcode ที่ต้องแก้โค้ดตอนย้าย server — `CORS_ORIGIN` / `COOKIE_SECURE` อยู่ใน `.env`
+
+- [x] `helmet` ใส่ security header ทุก response
+- [x] rate limit ครบทั้ง `/auth/login` (2 ชั้น: id + IP) และ `/auth/password`
+- [x] ไม่มี endpoint ที่เปิด public โดยไม่จำเป็น (`/api/rooms` ใส่ `authenticate` แล้ว)
+
+**ก่อนขึ้น server จริง (HTTPS) ต้องทำ:**
+- [ ] `.env` ตั้ง `COOKIE_SECURE="true"` (ไม่งั้น token วิ่งเป็นข้อความเปล่าให้ดักอ่านได้)
+- [ ] `.env` ตั้ง `CORS_ORIGIN` เป็น domain จริง และ `NODE_ENV="production"` (ไม่ส่ง stack trace ออกไป)
+- [ ] frontend `.env` ตั้ง `VITE_API_BASE` เป็น URL จริง
+- [ ] ตัดสินใจเรื่องรหัสผ่านนักศึกษา = เลขบัตรประชาชน (ตอนนี้เป็นรหัสถาวร เปลี่ยนไม่ได้)
 
 ---
 

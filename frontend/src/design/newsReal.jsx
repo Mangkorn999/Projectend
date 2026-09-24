@@ -4,7 +4,9 @@
    ============================================================ */
 import { useState, useEffect, useRef } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, Modal, StatusBadge } from './components.jsx';
+import { PageHead, Modal, StatusBadge, Select, Pagination } from './components.jsx';
+import { usePagedList } from './usePagedList.js';
+import { SkeletonList } from './skeletons.jsx';
 import { apiFetch, ApiError, fetchAuthedObjectUrl } from './api.js';
 import { t } from './i18n.js';
 
@@ -110,7 +112,11 @@ export function StudentNewsReal({ go, lang }) {
   const startBtnLabel = currentResult?.staff_status === 'approved' ? tt('news.viewStatusBtn')
     : currentResult ? tt('news.editBtn') : tt('news.startBtn');
 
-  if (!news) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
+  // แบ่งหน้าประกาศ — ประกาศสะสมทุกปีทุกรอบ ปล่อยไว้จะยาวจนเลื่อนหาไม่เจอ
+  // hook ต้องเรียกก่อน early-return ทุกอัน ไม่งั้นผิดกฎ React (จำนวน hook ต้องเท่ากันทุกครั้งที่ render)
+  const newsPage = usePagedList(news ?? [], 10);
+
+  if (!news) return <div className="fade-up"><SkeletonList count={4} /></div>;
 
   return (
     <div className="fade-up">
@@ -139,7 +145,7 @@ export function StudentNewsReal({ go, lang }) {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {news.length === 0 && <div style={{ color: 'var(--ink-500)', textAlign: 'center', padding: 30 }}>{tt('news.noNews')}</div>}
-        {news.map(n => (
+        {newsPage.rows.map(n => (
           <div key={n.news_id} className="card" style={{ padding: '18px 22px', cursor: 'pointer' }} onClick={() => setOpen(n)}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 15 }}>
               <div style={{ width: 44, height: 44, borderRadius: 12, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--blue-50)', color: 'var(--blue-600)' }}>
@@ -159,6 +165,11 @@ export function StudentNewsReal({ go, lang }) {
             </div>
           </div>
         ))}
+        {newsPage.pages > 1 && (
+          <div className="card" style={{ overflow: 'hidden' }}>
+            <Pagination page={newsPage.page} pages={newsPage.pages} onPage={newsPage.setPage} lang={lang} />
+          </div>
+        )}
       </div>
 
       <Modal open={!!open} onClose={() => setOpen(null)} title={open?.title} width={560}
@@ -208,6 +219,7 @@ export function ManageNewsReal({ toast, lang }) {
   const [rounds, setRounds] = useState([]);
   const [modal, setModal] = useState(null); // {} (new) | news | null
   const [form, setForm] = useState({ title: '', content: '', round_id: '' });
+  const [deleteTarget, setDeleteTarget] = useState(null); // ประกาศที่กำลังจะลบ (ยืนยันก่อน)
   const [saving, setSaving] = useState(false);
   const [imageFile, setImageFile] = useState(null);   // รูปใหม่ที่เพิ่งเลือก (ยังไม่อัปโหลด)
   const [dropImage, setDropImage] = useState(false);  // กดเอารูปเดิมออก
@@ -264,6 +276,7 @@ export function ManageNewsReal({ toast, lang }) {
   };
 
   const remove = async (n) => {
+    setDeleteTarget(null);
     try {
       await apiFetch(`/news/${n.news_id}`, { method: 'DELETE' });
       toast(tt('newsMgmt.deletedToast'), 'info');
@@ -273,7 +286,9 @@ export function ManageNewsReal({ toast, lang }) {
     }
   };
 
-  if (!items) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
+  const itemsPage = usePagedList(items ?? [], 15);
+
+  if (!items) return <div className="fade-up"><SkeletonList count={5} /></div>;
 
   return (
     <div className="fade-up">
@@ -281,7 +296,7 @@ export function ManageNewsReal({ toast, lang }) {
         actions={<button className="btn btn-primary" onClick={() => openModal(null)}><Icon name="plus" size={17} /> {tt('newsMgmt.writeBtn')}</button>} />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {items.length === 0 && <div style={{ color: 'var(--ink-500)', textAlign: 'center', padding: 30 }}>{tt('newsMgmt.noNews')}</div>}
-        {items.map(n => (
+        {itemsPage.rows.map(n => (
           <div key={n.news_id} className="card" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 15 }}>
             <div style={{ width: 42, height: 42, borderRadius: 11, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--blue-50)', color: 'var(--blue-600)' }}><Icon name="news" size={20} /></div>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -290,19 +305,33 @@ export function ManageNewsReal({ toast, lang }) {
             </div>
             {n.image_path && <div style={{ width: 64, flex: 'none' }}><NewsImage newsId={n.news_id} maxHeight={64} radius={9} /></div>}
             <button className="btn btn-ghost btn-sm" onClick={() => openModal(n)}><Icon name="edit" size={15} /> {tt('newsMgmt.editBtn')}</button>
-            <button className="btn btn-ghost btn-sm" style={{ padding: 7, border: 'none', color: 'var(--fail)' }} onClick={() => remove(n)}><Icon name="trash" size={16} /></button>
+            <button className="btn btn-ghost btn-sm" style={{ padding: 7, border: 'none', color: 'var(--fail)' }}
+              aria-label={tt('newsMgmt.deleteAria')} onClick={() => setDeleteTarget(n)}><Icon name="trash" size={16} /></button>
           </div>
         ))}
+        {itemsPage.pages > 1 && (
+          <div className="card" style={{ overflow: 'hidden' }}>
+            <Pagination page={itemsPage.page} pages={itemsPage.pages} onPage={itemsPage.setPage} lang={lang} />
+          </div>
+        )}
       </div>
+      {/* ยืนยันก่อนลบ — เดิมกดถังขยะแล้วประกาศหายทันที ไม่มีทางเรียกคืน */}
+      <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title={tt('newsMgmt.deleteTitle')} width={440} tone="danger"
+        footer={<><button className="btn btn-ghost" onClick={() => setDeleteTarget(null)}>{tt('newsMgmt.cancelBtn')}</button>
+          <button className="btn btn-primary" style={{ background: 'var(--fail)', borderColor: 'var(--fail)' }}
+            onClick={() => remove(deleteTarget)}>{tt('newsMgmt.deleteBtn')}</button></>}>
+        <p style={{ margin: 0, fontSize: 16, lineHeight: 1.7 }}>{tt('newsMgmt.deleteBody', { title: deleteTarget?.title })}</p>
+      </Modal>
+
       <Modal open={!!modal} onClose={() => setModal(null)} title={modal?.news_id ? tt('newsMgmt.editModalTitle') : tt('newsMgmt.newModalTitle')} width={560}
         footer={<><button className="btn btn-ghost" onClick={() => setModal(null)}>{tt('newsMgmt.cancelBtn')}</button>
           <button className="btn btn-primary" disabled={saving} onClick={submit}><Icon name="send" size={16} /> {saving ? tt('newsMgmt.publishing') : tt('newsMgmt.publishBtn')}</button></>}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div className="field"><label>{tt('newsMgmt.fieldTitle')}</label><input className="input" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder={tt('newsMgmt.titlePh')} /></div>
           <div className="field"><label>{tt('newsMgmt.fieldRound')}</label>
-            <select className="select" value={form.round_id} onChange={e => setForm(f => ({ ...f, round_id: e.target.value }))}>
-              {rounds.map(r => <option key={r.round_id} value={r.round_id}>{tt('news.roundSlash', { attempt: r.attempt_number, year: r.academic_year })}</option>)}
-            </select>
+            <Select value={String(form.round_id)} onChange={v => setForm(f => ({ ...f, round_id: v }))} lang={lang}
+              options={rounds.map(r => ({ value: String(r.round_id),
+                label: tt('news.roundSlash', { attempt: r.attempt_number, year: r.academic_year }) }))} />
           </div>
           <div className="field"><label>{tt('newsMgmt.fieldContent')}</label><textarea className="input" rows={4} value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} placeholder={tt('newsMgmt.contentPh')} /></div>
           <div className="field">

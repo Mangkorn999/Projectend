@@ -11,12 +11,17 @@ import { apiFetch, setSession, ApiError } from './api.js';
 /* English strings suffixed with _EN for easy grep/review; Thai stays inline as the default */
 const facultyName_EN = 'Faculty of Nursing';
 const universityName_EN = 'Prince of Songkla University';
-const heroTag_EN = 'Faculty Information System';
 const heroTitle_EN = ['Nursing License', 'Record System'];
-const heroDesc_EN = 'Central hub to record, track, verify, and summarize the nursing license examination — for students, faculty officers, and executives.';
-// ตัวเลข 3 ช่องใต้คำโปรย — ฝั่ง EN เคยไม่มีตัวแปรนี้ พอสลับเป็นอังกฤษหน้า login จะพังทั้งหน้า
-const heroStats_EN = [['8', 'Exam subjects'], ['3', 'User roles'], ['100%', 'Auditable history']];
-const footerNote_EN = '© 2026 Faculty of Nursing, PSU · Prototype demo';
+// ชื่อระบบอีกภาษาวางใต้หัวเรื่อง — แบบป้ายสองภาษาของหน่วยงานราชการ ไม่ใช่คำโปรยขายของ
+const heroSubtitle_TH = 'ระบบบันทึกใบอนุญาตประกอบวิชาชีพ';
+const heroSubtitle_EN = 'Nursing License Record System';
+const footerNote_EN = '© 2026 Faculty of Nursing, Prince of Songkla University';
+
+// ── ช่องทางติดต่อเมื่อเข้าระบบไม่ได้ ────────────────────────────
+// ตั้งค่าใน frontend/.env (ดู .env.example) — ต้องเป็นอีเมล/เว็บจริงของคณะเท่านั้น
+// ไม่ตั้งค่า = แสดงเป็นข้อความเฉยๆ เหมือนเดิม ไม่ใส่ลิงก์มั่วให้นักศึกษากดไปเจอที่ผิด
+const CONTACT_EMAIL = import.meta.env.VITE_CONTACT_EMAIL || '';
+const CONTACT_URL = import.meta.env.VITE_CONTACT_URL || '';
 const signinTitle_EN = 'Sign In';
 const signinSub_EN = 'Enter your username and password to sign in';
 const usernameLabel_EN = 'Username / Student ID';
@@ -91,27 +96,20 @@ export function Login({ onLogin }) {
             <div style={{ fontSize:14.5, opacity:.8, whiteSpace:'nowrap' }}>{isEN?universityName_EN:'มหาวิทยาลัยสงขลานครินทร์'}</div>
           </div>
         </div>
+        {/* หัวเรื่อง — ชื่อระบบสองภาษาคั่นด้วยเส้นทอง ไม่มีคำโปรย/ตัวเลขโฆษณา
+            (ตั้งใจให้อ่านเหมือนป้ายชื่อระบบของหน่วยงาน ไม่ใช่หน้า landing page) */}
         <div style={{ margin:'auto 0', position:'relative' }}>
-          <div className="chip" style={{ alignSelf:'flex-start', background:'rgba(255,255,255,.12)', color:'var(--gold-500)', fontWeight:700, marginBottom:20 }}>
-            <Icon name="shield" size={15} /> {isEN?heroTag_EN:'ระบบสารสนเทศคณะ'}
-          </div>
-          <h1 style={{ fontSize:40, fontWeight:800, margin:'0 0 16px', lineHeight:1.18, letterSpacing:'-.01em', color:'#fff' }}>
+          <h1 style={{ fontSize:40, fontWeight:800, margin:0, lineHeight:1.18, letterSpacing:'-.01em', color:'#fff' }}>
             {isEN ? <>{heroTitle_EN[0]}<br/>{heroTitle_EN[1]}</> : <>ระบบบันทึก<br/>ใบอนุญาตประกอบวิชาชีพ</>}
           </h1>
-          <p style={{ fontSize:17.5, opacity:.85, maxWidth:380, lineHeight:1.6, margin:0 }}>
-            {isEN ? heroDesc_EN : <>ศูนย์กลางบันทึก ติดตาม ตรวจสอบ และสรุปผลการสอบความรู้เพื่อขึ้นทะเบียน
-            ใบประกอบวิชาชีพการพยาบาล — สำหรับนักศึกษา เจ้าหน้าที่ และผู้บริหารคณะ</>}
+          <div style={{ width:64, height:3, background:'var(--gold-50)', borderRadius:2, margin:'22px 0' }} />
+          <p style={{ fontSize:17, opacity:.8, margin:0, letterSpacing:'.01em' }}>
+            {isEN ? heroSubtitle_TH : heroSubtitle_EN}
           </p>
-          <div style={{ display:'flex', gap:26, marginTop:34 }}>
-            {(isEN?heroStats_EN:[['8','รายวิชาสอบ'],['3','บทบาทผู้ใช้'],['100%','ตรวจสอบย้อนหลังได้']]).map(([n,l])=>(
-              <div key={l}>
-                <div className="tnum" style={{ fontSize:28, fontWeight:800, color:'var(--gold-500)' }}>{n}</div>
-                <div style={{ fontSize:14.5, opacity:.78 }}>{l}</div>
-              </div>
-            ))}
-          </div>
         </div>
-        <div style={{ fontSize:14, opacity:.6, position:'relative' }}>{isEN?footerNote_EN:'© 2569 Faculty of Nursing, PSU · เดโมต้นแบบ'}</div>
+        <div style={{ fontSize:14, opacity:.6, position:'relative' }}>
+          {isEN?footerNote_EN:'© 2569 คณะพยาบาลศาสตร์ มหาวิทยาลัยสงขลานครินทร์'}
+        </div>
       </div>
 
       {/* right form */}
@@ -151,10 +149,23 @@ export function Login({ onLogin }) {
           {error && <div style={{ color:'var(--reject,#dc2626)', fontSize:15, marginBottom:12 }}>{error}</div>}
           {/* ล็อกอินไม่ได้ (ลืมรหัส/บัญชีค้าง) = ติดต่อเจ้าหน้าที่คณะเท่านั้น ไม่มี self-service ใดๆ บนหน้านี้แล้ว
               นักศึกษา: รหัสผ่าน = เลขบัตร ปชช ตั้งแต่วันนำเข้า, officer/executive: รหัสชั่วคราวที่เจ้าหน้าที่ตั้งให้ตอนสร้าง/รีเซ็ตบัญชี */}
-          <div style={{ marginBottom:18 }}>
-            <span style={{ fontSize:14.5, color:'var(--ink-500)' }}>
-              {isEN?'Trouble signing in? Ask the faculty officer for help.':'เข้าสู่ระบบไม่ได้? ติดต่อเจ้าหน้าที่คณะ'}
-            </span>
+          <div style={{ marginBottom:18, fontSize:14.5, color:'var(--ink-500)' }}>
+            <span>{isEN?'Trouble signing in? ':'เข้าสู่ระบบไม่ได้? '}</span>
+            {/* มีอีเมลคณะใน .env → เปิดโปรแกรมอีเมลให้เลย
+                มีแต่ URL → ลิงก์ไปหน้าติดต่อของคณะ
+                ไม่ตั้งทั้งคู่ → ข้อความเฉยๆ (ไม่ผูกลิงก์มั่ว ไม่งั้นนักศึกษากดไปเจอที่ผิด) */}
+            {CONTACT_EMAIL ? (
+              <a href={`mailto:${CONTACT_EMAIL}`} style={{ color:'var(--navy-700)', fontWeight:700, textDecoration:'underline' }}>
+                {isEN?'Email the faculty officer':'ติดต่อเจ้าหน้าที่คณะ'}
+              </a>
+            ) : CONTACT_URL ? (
+              <a href={CONTACT_URL} target="_blank" rel="noopener noreferrer"
+                style={{ color:'var(--navy-700)', fontWeight:700, textDecoration:'underline' }}>
+                {isEN?'Contact the faculty officer':'ติดต่อเจ้าหน้าที่คณะ'}
+              </a>
+            ) : (
+              <span>{isEN?'Ask the faculty officer for help.':'ติดต่อเจ้าหน้าที่คณะ'}</span>
+            )}
           </div>
 
           <button className="btn btn-primary btn-lg btn-block" onClick={submit} disabled={loading}>

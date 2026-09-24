@@ -56,7 +56,10 @@ const main = async () => {
   const officerToken = officerLogin.cookie;
 
   // ── rooms ────────────────────────────────────────
-  const rooms = await call("GET", "/api/rooms");
+  // ต้องส่ง token แล้ว — /api/rooms ไม่ใช่ public อีกต่อไป
+  // (เดิมเปิดไว้เพราะมีหน้าสมัครสมาชิก ตอนนี้ไม่มีแล้ว)
+  check("GET /api/rooms ไม่ login → 401", (await call("GET", "/api/rooms")).status, 401);
+  const rooms = await call("GET", "/api/rooms", { token: officerToken });
   check("GET /api/rooms → 200", rooms.status, 200);
   check("rooms มีข้อมูล seed", rooms.json?.data?.length >= 2, true);
   check(

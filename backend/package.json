@@ -4,11 +4,12 @@
   "type": "module",
   "main": "app.js",
   "scripts": {
-    "test": "node tests/smoke-phase1-3.mjs && node tests/smoke-phase4-6.mjs && node tests/smoke-phase9-import.mjs && node tests/smoke-phase10-round-subjects.mjs && node tests/smoke-phase11-carry-forward.mjs && node tests/smoke-phase12-reject-edit.mjs && node tests/smoke-phase13-duplicate-round.mjs && node tests/smoke-phase14-news-scope.mjs && node tests/smoke-phase15-reviewer.mjs",
+    "test": "node tests/smoke-phase1-3.mjs && node tests/smoke-phase4-6.mjs && node tests/smoke-phase9-import.mjs && node tests/smoke-phase10-round-subjects.mjs && node tests/smoke-phase11-carry-forward.mjs && node tests/smoke-phase12-reject-edit.mjs && node tests/smoke-phase13-duplicate-round.mjs && node tests/smoke-phase14-news-scope.mjs && node tests/smoke-phase15-reviewer.mjs && node tests/smoke-phase16-cohort-year.mjs && node tests/smoke-phase17-import-year.mjs && node tests/smoke-phase18-round-dates.mjs && node tests/smoke-phase19-guards.mjs",
     "start": "node src/server.js",
     "demo:seed": "node --env-file=.env prisma/demoSeed.js",
     "seed:cohort": "node --env-file=.env prisma/seedCohort.js",
-    "seed:demo-years": "node --env-file=.env prisma/seedDemoYears.js"
+    "seed:demo-years": "node --env-file=.env prisma/seedDemoYears.js",
+    "test:clean": "node --env-file=.env tests/run-clean.mjs"
   },
   "author": "",
   "license": "ISC",
@@ -21,6 +22,7 @@
     "csv-parse": "^7.0.1",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "helmet": "^8.3.0",
     "iconv-lite": "^0.7.3",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.2.0",

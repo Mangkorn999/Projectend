@@ -29,6 +29,9 @@ model User {
   last_name       String?           @db.VarChar(100)
   email           String?           @db.VarChar(100)
   phone           String?           @db.VarChar(20)
+  // นักศึกษา: ปีการศึกษาที่จบที่เจ้าหน้าที่ระบุตอนนำเข้า (เคสซ้ำชั้น/ลาพัก) — ว่าง = คำนวณจากรหัส (รหัส+4)
+  // เก็บที่ users เพราะตอน import ยังไม่มีแถว students ให้เก็บ — complete-profile อ่านค่านี้ไปตั้ง students.academic_year
+  import_academic_year Int?
   created_at      DateTime          @default(now())
   confirmed_exams ExamResult[]      @relation("UserToExamResult")
   news            News[]            @relation("UserToNews")
@@ -73,6 +76,8 @@ model Student {
   room                     Room         @relation(fields: [room_id], references: [room_id])
   user                     User         @relation(fields: [user_id], references: [user_id])
 
+  // dashboard กรองนักศึกษาตามรุ่นแทบทุกหน้า — ไม่มี index จะไล่อ่านทั้งตารางทุกครั้ง
+  @@index([academic_year])
   @@map("students")
 }
 
@@ -122,6 +127,15 @@ model ExamResult {
   subject_results SubjectResult[]
   review_logs     ReviewLog[]
 
+  // นักศึกษา 1 คนมีได้ใบเดียวต่อรอบ — กันที่ระดับ DB ไม่ใช่แค่ที่ controller
+  // เดิมกันด้วย findByStudentAndRound() ใน controller อย่างเดียว ซึ่งมีช่องว่าง:
+  // กดส่ง 2 ครั้งรัวๆ (หรือเน็ตกระตุกแล้ว browser ยิงซ้ำ) 2 request จะเช็ค "ยังไม่มีใบ"
+  // พร้อมกันก่อนที่ใครจะเขียนเสร็จ → ได้ 2 ใบในรอบเดียว แล้ว findFirst หยิบใบไหนก็ไม่แน่นอน
+  @@unique([student_id, round_id])
+  // unique ข้างบนใช้ค้นด้วย student_id ได้อยู่แล้ว (เป็นคอลัมน์แรก)
+  // แต่ค้นด้วย round_id อย่างเดียวใช้ไม่ได้ — คิวตรวจของเจ้าหน้าที่กรองด้วย 2 ตัวนี้เป็นหลัก
+  @@index([round_id])
+  @@index([staff_status])
   @@map("exam_results")
 }
 
@@ -136,6 +150,8 @@ model ReviewLog {
   exam_result ExamResult @relation(fields: [result_id], references: [result_id])
   reviewer    User       @relation(fields: [reviewer_id], references: [user_id])
 
+  // ดึงประวัติการตรวจของใบหนึ่ง — ตารางนี้โตเรื่อยๆ (insert-only) ต้องมี index
+  @@index([result_id])
   @@map("review_logs")
 }
 
@@ -151,6 +167,10 @@ model SubjectResult {
   exam_result       ExamResult @relation(fields: [result_id], references: [result_id])
   subject           Subject    @relation(fields: [subject_id], references: [subject_id])
 
+  // ตารางใหญ่สุดในระบบ (นักศึกษา 1 คน × 8 วิชา × ทุกรอบ)
+  // result_id ใช้ตอน join กลับไปหาใบ, subject_id ใช้ตอนทำสถิติรายวิชาใน dashboard
+  @@index([result_id])
+  @@index([subject_id])
   @@map("subject_results")
 }
 
@@ -164,6 +184,8 @@ model Certificate {
   uploaded_at      DateTime   @default(now())
   exam_result      ExamResult @relation(fields: [result_id], references: [result_id])
 
+  // หาเอกสารของใบหนึ่ง — ใช้ทั้งตอนแสดงรายการและตอนอัปโหลดทับใบเก่า
+  @@index([result_id])
   @@map("certificates")
 }
 
@@ -180,6 +202,7 @@ model News {
   poster     User            @relation("UserToNews", fields: [posted_by], references: [user_id])
   round      SubmissionRound @relation(fields: [round_id], references: [round_id])
 
+  @@index([round_id])
   @@map("news")
 }
 
@@ -192,5 +215,7 @@ model Notification {
   created_at      DateTime @default(now())
   student         Student  @relation(fields: [student_id], references: [student_id])
 
+  // นักศึกษาเปิดกระดิ่งทีนึง = query ด้วย student_id ทุกครั้ง (frontend poll ทุก 30 วิด้วย)
+  @@index([student_id])
   @@map("notifications")
 }

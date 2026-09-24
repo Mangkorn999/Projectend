@@ -111,18 +111,26 @@ Start-Service postgresql-x64-18    # สั่งเปิดถ้าดับ�
 
 ### ทดสอบ
 ```bash
-npx prisma db seed && npm test   # ต้อง seed ใหม่ก่อนเสมอ ไม่งั้นเทสพัง
+npm run test:clean   # แนะนำ — สร้าง schema ชั่วคราวใหม่ รันครบ 11 ไฟล์ แล้วลบทิ้ง ไม่แตะข้อมูล demo
 ```
+`npm test` แบบเดิมยังมีอยู่ แต่ยิงใส่ DB ตัวที่ใช้อยู่จริง ต้อง `npx prisma db seed` ก่อนเสมอ
+และจะ fail หลายตัวถ้า DB มีข้อมูล demo ค้าง (ดูหัวข้อ 12).
 
 ### ตัวแปรลับใน `.env` (ห้าม commit)
 | ชื่อ | ใช้ทำอะไร | ขาดแล้วเป็นไง |
 |---|---|---|
 | `DATABASE_URL` | ที่อยู่ + รหัสผ่าน PostgreSQL | server ไม่ยอมเริ่ม |
 | `JWT_SECRET` | กุญแจเซ็น/ตรวจ token | server ไม่ยอมเริ่ม |
+| `CORS_ORIGIN` | URL ของ frontend ที่ยิงเข้ามาได้ (คั่น comma ได้หลายอัน) | server ไม่ยอมเริ่ม |
+| `COOKIE_SECURE` | `"true"` เมื่อเว็บเป็น HTTPS / `"false"` ตอน dev บน http | server ไม่ยอมเริ่ม |
 | `AES_KEY` | เหลือจากตอนเข้ารหัสข้อมูลสภาการพยาบาล (เลิกใช้แล้ว) | ไม่มีผล |
 | `PORT` | port ที่จะรัน (ไม่ใส่ = 3000) | ใช้ 3000 |
+| `NODE_ENV` | `"development"` = ส่ง stack trace กลับไปด้วยตอน error | ไม่ส่ง stack |
 
 ตัวที่บังคับมีกำหนดไว้ที่ `src/config/env.js` → `REQUIRED_VARS`.
+**คัดลอกค่าเริ่มต้นได้จาก `backend/.env.example`** (`cp .env.example .env` แล้วแก้ค่า).
+
+⚠️ `COOKIE_SECURE="true"` ตอนเว็บยังเป็น http จะ **login ไม่ติด** — browser ไม่ยอมส่ง cookie ที่ secure ผ่าน http
 
 ---
 
@@ -253,11 +261,13 @@ app.listen(PORT, () => { ... });
 
 > **หมายเหตุตามจริง:** ปัจจุบัน repository แต่ละไฟล์เขียน `new PrismaClient()` ของตัวเอง ไม่ได้ import ไฟล์นี้. ระบบยังทำงานปกติเพราะขนาดโปรเจกต์เล็ก แต่ถ้าจะทำให้เรียบร้อยควรเปลี่ยนทุก repository เป็น `import prisma from "../../config/db.js";`
 
-### `src/config/env.js` (12 บรรทัด)
+### `src/config/env.js`
 ```js
-const REQUIRED_VARS = ["DATABASE_URL", "JWT_SECRET"];
+const REQUIRED_VARS = ["DATABASE_URL", "JWT_SECRET", "CORS_ORIGIN", "COOKIE_SECURE"];
 const missing = REQUIRED_VARS.filter((key) => !process.env[key]);
 if (missing.length > 0) throw new Error(`Missing required environment variables: ...`);
+// COOKIE_SECURE รับแค่ "true"/"false" — พิมพ์ผิดเป็น "True"/"1" จะกลายเป็น false เงียบๆ
+if (!["true", "false"].includes(process.env.COOKIE_SECURE)) throw new Error(...);
 ```
 `process.env` = ตัวแปรจาก `.env` (โหลดด้วย `import "dotenv/config"` บรรทัดแรกของ `app.js`).
 
@@ -433,12 +443,19 @@ public เพราะหน้าสมัคร/ตั้งรหัสคร
 | GET | `/api/students` | 🧑‍💼 🔍 | รายชื่อนักศึกษาทั้งหมด (reviewer ใช้ทำแท็บ "ยังไม่กรอก" ในคิวตรวจ) |
 | GET | `/api/students/subject-result-list` | 🧑‍💼 | รายชื่อคนที่ผ่าน/ไม่ผ่านวิชาหนึ่ง (JSON) — query: `subject_code`, `passed=true\|false`, และ `round_id` (รอบเดียว) **หรือ** `year` (รวมทั้งปี) |
 | GET | `/api/students/export-subject` | 🧑‍💼 | รายการเดียวกันเป็น PDF (query เหมือนข้างบน) — ต้องอยู่ก่อน `/:id` ใน routes เสมอ |
-| GET | `/api/students/:id` | 🧑‍💼 👤 🔍 | ดูรายคน (นักศึกษาดูได้แค่ตัวเอง) |
-| POST | `/api/students` | 🧑‍💼 | เพิ่มทีละคน |
+| GET | `/api/students/:id` | 🧑‍💼 👤 🔍 | ดูรายคน (นักศึกษาดูได้แค่ตัวเอง) — เพิ่ม `academic_year_derived` + `exam_result_count` ให้ด้วย (คำนวณตอนส่งออก ไม่ใช่คอลัมน์ใน DB) |
+| POST | `/api/students` | 🧑‍💼 | เพิ่มทีละคน — body: `student_id`, `national_id`, `academic_year` (ไม่บังคับ — ปีจบถ้าซ้ำชั้น/ลาพัก) |
+| PATCH | `/api/students/:id` | 🧑‍💼 | แก้ข้อมูลรายคน — **เปลี่ยน `academic_year` ได้เฉพาะคนที่ยังไม่มีผลสอบ** (มีแล้วตอบ 400) |
 | PATCH | `/api/students/bulk-eligible` | 🧑‍💼 | เปิด/ปิดสิทธิ์กรอกผลสอบหลายคนพร้อมกัน |
-| POST | `/api/students/import` | 🧑‍💼 | import CSV |
+| POST | `/api/students/import` | 🧑‍💼 | import CSV — คอลัมน์บังคับ `student_id, national_id` + `academic_year` ไม่บังคับ · `?dry_run=true` = ตรวจไฟล์อย่างเดียวไม่บันทึก (ตอบ 200) · ผลมี `year_overrides` = คนที่ปีไม่ตรงกับรหัส |
 | POST | `/api/students/:id/reset-password` | 🧑‍💼 | ล้างรหัสผ่านให้ไปตั้งใหม่ |
 | DELETE | `/api/students/:id` | 🧑‍💼 | ลบนักศึกษา (เฉพาะคนที่ยังไม่มีผลสอบ) |
+
+> **`academic_year` = รุ่น และเป็นตัวตัดสินว่านักศึกษาเห็นรอบไหน** — `GET /api/rounds/active` หารอบที่ `academic_year` ตรงกับของนักศึกษาเท่านั้น
+> ค่าถูกตั้งตอนนักศึกษากรอกโปรไฟล์ครั้งแรก: ใช้ `users.import_academic_year` (ปีที่เจ้าหน้าที่ระบุตอน import/เพิ่มทีละคน) ถ้ามี ไม่งั้นคำนวณด้วย `calcGraduationYear` (2 หลักแรกของรหัส + 4) ซึ่ง**ผิดสำหรับคนซ้ำชั้น/ลาพัก**
+> ทางหลักคือใส่ปีตั้งแต่ตอน import — แก้ทีหลังผ่าน `PATCH /api/students/:id` ได้ (เช่นลาพักหลัง import)
+> ทุกช่องทางตรวจปีด้วย `validateGraduationYear` (`utils/academicYear.js`): ต้องเป็น พ.ศ. 4 หลัก และ**ไม่น้อยกว่าปีตามรหัส** (จับเคสพิมพ์ปีที่เข้าแทนปีที่จบ)
+> แก้ได้เฉพาะตอนยังไม่มีผลสอบ เพราะใบผลสอบผูกกับ `round_id` ไม่ได้ผูกกับรุ่น — ย้ายทีหลังตัวหารลดแต่ตัวตั้งเท่าเดิม สถิติรุ่นเดิมทะลุ 100%
 
 > **executive เข้าไม่ได้ทั้ง 2 เส้น** — ผู้บริหารดูได้แค่ภาพรวมที่ `/api/dashboard/stats|history` ไม่เห็นข้อมูลนักศึกษารายบุคคล
 
@@ -583,7 +600,7 @@ await reviewLogRepo.create({ result_id, reviewer_id: req.user.userId, action: st
 | Method | URL | สิทธิ์ | ทำอะไร |
 |---|---|---|---|
 | POST | `/api/exam-results/:id/certificates` | 👤 | อัปโหลด PDF (อยู่ใน routes ของ examResults) |
-| GET | `/api/certificates/:id/file` | 🔑 | เปิด/ดาวน์โหลดไฟล์ |
+| GET | `/api/certificates/:id/file` | 🔑 + 🔍 | เปิด/ดาวน์โหลดไฟล์ (เจ้าของใบ, officer, reviewer — executive ไม่ได้) |
 
 - `certificate_type` ต้องเป็น `exam_result` (ใบผลสอบ) หรือ `license` (ใบประกอบวิชาชีพ) เท่านั้น
 - **ownership:** อัปโหลดใส่ผลสอบของคนอื่นไม่ได้ (`examResult.student_id !== req.user.studentId` → 403)
@@ -784,6 +801,7 @@ User ──1:M── SubmissionRound (creator, ผ่าน created_by)
 |---|---|---|
 | `users.password_hash` | `null` | ยังไม่เคยตั้งรหัส → login ไม่ได้ ต้องไป first-setup |
 | `users.must_change_password` | `true` | ใช้ระบบไม่ได้จนกว่าจะตั้งรหัสใหม่ (ด่านอยู่ใน `auth.js`) |
+| `users.import_academic_year` | `null` | ไม่ได้ระบุปีจบตอน import → complete-profile คำนวณจากรหัส · มีค่า = เจ้าหน้าที่ระบุไว้ (เก็บเฉพาะตอนต่างจากสูตร) — อยู่ที่ `users` เพราะตอน import ยังไม่มีแถว `students` |
 | `students.exam_eligible` | `false` (ค่าเริ่มต้น) | กรอกผลสอบไม่ได้จนเจ้าหน้าที่เปิดให้ |
 | `submission_rounds.status` | `"open"` / `"closed"` | ต้องเป็น open **และ** อยู่ในช่วงวันที่ ถึงจะกรอกได้ |
 | `submission_rounds.subject_ids` | `[]` | รอบเก่าก่อนมี column นี้ = ใช้ทุกวิชา |
@@ -808,6 +826,8 @@ User ──1:M── SubmissionRound (creator, ผ่าน created_by)
 | `20260809114723_add_notifications` | เพิ่มตาราง `notifications` |
 | `20260810171137_remove_sessions_table` | ลบตาราง `sessions` ที่ไม่ได้ใช้ |
 | `20260812000000_add_unique_round_year_attempt` | unique `submission_rounds(academic_year, attempt_number)` — กันรอบซ้ำ |
+| `20260921112343_add_reviewer_role` | `review_logs` + ชื่ออังกฤษนักศึกษา + ข้อมูล user ว่างได้ |
+| `20260922120000_add_user_import_academic_year` | เพิ่ม `users.import_academic_year` (ว่างได้) — ปีจบที่เจ้าหน้าที่ระบุตอน import |
 
 **ขั้นตอนแก้ตาราง**: แก้ `prisma/schema.prisma` → `npx prisma migrate dev --name อธิบายสั้นๆ` → Prisma สร้างโฟลเดอร์ migration ใหม่ + อัปเดต DB + สร้าง client ใหม่ให้อัตโนมัติ.
 
@@ -986,8 +1006,27 @@ router.post("/:id/certificates", authenticate, requireRole("student"),
 ไฟล์เทสอยู่ที่ `tests/*.mjs` — เป็น **smoke test** ยิง API จริงผ่าน HTTP ไม่ใช่ unit test.
 
 ```bash
-npx prisma db seed && npm test
+npm run test:clean     # ← ใช้อันนี้
 ```
+
+`tests/run-clean.mjs` ทำให้ครบทุกขั้นเอง: สร้าง PostgreSQL schema `verify_tmp` ใหม่ →
+`migrate deploy` → `seed` → เปิด server ชั่วคราวที่พอร์ต **3100** → รันเทสทีละไฟล์ → ลบ schema ทิ้ง.
+**ไม่แตะฐานข้อมูลที่ใช้ทำ demo เลย** และไม่ต้อง seed ก่อนเอง.
+
+ทำไมต้องมี:
+- `npm test` เดิมยิงใส่ DB ตัวที่ใช้จริง ซึ่งมีนักศึกษา 900+ คนกับรอบที่เปิดค้างอยู่
+  เทสหลายตัวเขียนคาดว่า "มีนักศึกษา 1 คน" / "เปิดรอบใหม่ได้" เลย fail ทั้งที่โค้ดไม่ได้พัง
+- `npm test` ต่อไฟล์ด้วย `&&` — ไฟล์แรกพังแล้วที่เหลือไม่ได้รันเลย
+  `test:clean` รันครบทุกไฟล์เสมอแล้วค่อยสรุปว่าอันไหนไม่ผ่าน
+
+ข้อควรรู้:
+- ใช้ PostgreSQL **schema** (`verify_tmp`) ไม่ใช่ database ใหม่ เพราะ user ของเราไม่มีสิทธิ์ `CREATE DATABASE`
+  (เหตุผลเดียวกับที่ `prisma migrate dev` ใช้ไม่ได้ ต้องใช้ `migrate diff` + `migrate deploy` แทน)
+- สคริปต์**เปิด server ใหม่ก่อนทุกไฟล์** เพราะ rate limiter นับจำนวน login ไว้ใน memory
+  (officer ได้ 10 ครั้ง/15 นาที) รัน 11 ไฟล์ติดกันด้วย server ตัวเดียวแล้วไฟล์ท้ายๆ จะโดน 429
+- ถ้ามี server ค้างจองพอร์ต 3100 อยู่ สคริปต์จะเตือนแล้วหยุด — ปิดก่อนแล้วรันใหม่:
+  `netstat -ano | findstr :3100` แล้ว `taskkill /PID <เลข> /T /F`
+- เทสทุกไฟล์อ่าน `process.env.BASE` ได้ (ไม่ใส่ = `http://localhost:3000`) จะได้ชี้ไป server ชั่วคราวได้
 
 | ไฟล์ | ครอบคลุม |
 |---|---|
@@ -1000,6 +1039,8 @@ npx prisma db seed && npm test
 | `smoke-phase13-duplicate-round.mjs` | ปีเดียวกัน + ครั้งที่เดียวกัน สร้างซ้ำไม่ได้ + เปิดรอบได้ทีละรอบเดียว (ลบของที่สร้างทิ้งเองตอนจบ) |
 | `smoke-phase14-news-scope.mjs` | นักศึกษาเห็นประกาศเฉพาะรุ่นตัวเอง เจ้าหน้าที่เห็นครบ (ลบของที่สร้างทิ้งเองตอนจบ) |
 | `smoke-phase15-reviewer.mjs` | reviewer role (สิทธิ์เข้า/บล็อก), guard กันตรวจซ้อนแบบ race จริง (`Promise.all`), audit log ทางอ้อม (ลบของที่สร้างทิ้งเองตอนจบ) |
+| `smoke-phase16-cohort-year.mjs` | ย้ายรุ่น → รอบที่นักศึกษาเห็นเปลี่ยนตามจริง, ส่งผลแล้วย้ายไม่ได้, สิทธิ์ `/dashboard/alerts` + `PATCH /students/:id` ครบ 4 role (ลบของที่สร้างทิ้งเองตอนจบ) |
+| `smoke-phase17-import-year.mjs` | ปีจบตอน import: dry run ไม่บันทึก, ปีที่ใส่ถูกใช้ตอนกรอกโปรไฟล์, ปีผิด/ปีเข้าแทนปีจบถูกข้าม, เพิ่มทีละคน + PATCH ใช้กฎเดียวกัน (ลบของที่สร้างทิ้งเองตอนจบ) |
 
 **ต้องรัน server ค้างไว้ก่อน** แล้วค่อยรันเทสอีกหน้าต่าง.
 
@@ -1068,6 +1109,14 @@ curl -H "Authorization: Bearer <token>" http://localhost:3000/api/subjects/1
 
 | วันที่ | เปลี่ยนอะไร |
 |---|---|
+| 2026-09-23 | **ปิด 3 ช่องโหว่ที่เหลือใน Security Checklist** — (1) **เพิ่ม `helmet`** ใส่ security header ให้ทุก response (`X-Content-Type-Options: nosniff`, `X-Frame-Options`, `Referrer-Policy`, HSTS ฯลฯ) วางไว้บนสุดก่อน middleware อื่นเพื่อให้ครอบ error response ด้วย. ปิด 2 ตัวที่ชนการใช้งานจริง: `contentSecurityPolicy` (frontend 5174 กับ backend 3000 คนละ origin) และตั้ง `crossOriginResourcePolicy: cross-origin` (ไม่งั้น PDF/รูปที่ frontend ดึงจาก backend โดนบล็อก — ทดสอบแล้วว่า `/certificates/:id/file` ยังส่ง `application/pdf` ได้ปกติ). (2) **`PATCH /api/auth/password` ไม่เคยมี rate limit เลย** — ขโมย cookie มาได้แล้วไล่เดา `current_password` กี่ครั้งก็ได้เพื่อยึดบัญชีถาวร ตอนนี้ 10 ครั้ง/15 นาที นับตาม IP (body ไม่มี id ให้แยก รู้ตัวตนจาก token อยู่แล้ว). **`POST /api/auth/login` เพิ่มชั้นที่ 2 นับตาม IP** (60 ครั้ง/15 นาที) — ชั้นเดิมนับตาม `psu_passport_id` ซึ่งกันการหมุนเปลี่ยน id ไปเรื่อยๆ ไม่ได้ (credential stuffing) ตั้งไว้สูงเผื่อทั้งห้องใช้เน็ตตัวเดียวกัน. (3) **`GET /api/rooms` ไม่ public อีกต่อไป** — เปิดไว้ตั้งแต่ตอนมีหน้าสมัครสมาชิก ซึ่งถูกตัดออกไปแล้ว ที่เรียกจริง 2 จุด (`completeProfile.jsx`, `studentDetailReal.jsx`) อยู่หลัง login ทั้งคู่. ⚠️ `tests/run-clean.mjs` ใช้ endpoint นี้เป็น health check — แก้ `waitForServer()` ให้ถือว่า "ตอบอะไรกลับมาก็คือขึ้นแล้ว" ไม่เช็ค `res.ok` (401 ก็แปลว่า server รับ request ได้) ไม่งั้นรอจนหมดเวลาแล้วคิดว่า server ไม่ขึ้น (`package.json` +helmet, `app.js`, `modules/auth/auth.routes.js`, `modules/rooms/rooms.routes.js`, `tests/run-clean.mjs`, `tests/smoke-phase9-import.mjs` เพิ่มเคส 401 ตอนไม่ login) **ผลเทส: 13/13 ไฟล์ผ่าน** |
+| 2026-09-23 | **กติกาวันที่ของรอบ + `phase` + ด่านกันคำขอไม่ครบ** — (1) **รอบ: เปิดรับต้องมาก่อนปิดรับ** เดิมไม่มีการเทียบเลยทั้ง create และ update เจอรอบจริงในระบบที่ เปิดรับ 26 ก.ย. / ปิดรับ 23 ก.ย. และ `status="open"` → `findActive()` ต้องการ `open_date <= now <= close_date` จึงหาไม่เจอตลอดกาล นักศึกษากรอกไม่ได้สักคน และเปิดรอบอื่นก็ไม่ได้ (ระบบยอมให้เปิดทีละรอบ) = ล็อกตายโดยไม่มี error ขึ้นเลย. `update` ตรวจจาก **ค่าหลังแก้** ไม่ใช่เฉพาะ field ที่ส่งมา (ส่งแค่ `close_date` ก็ทำให้ช่วงพังได้). เพิ่ม `ensureNotAlreadyExpired` — กดเปิดรอบที่เลยวันปิดแล้วไม่ได้ (เปิดไปก็ไม่มีใครกรอกได้). (2) **`phase` = สถานะจริง ณ ตอนนี้** (`utils/roundPhase.js`): `closed` / `scheduled` (ยังไม่ถึงวันเปิด) / `active` (รับกรอกได้จริง) / `expired` (เลยวันปิดแต่ยังไม่กดปิด) คำนวณตอนส่งออกทุกครั้ง ไม่ใช่คอลัมน์ใน DB (ค่าเปลี่ยนเองตามเวลาโดยไม่มีใครกดอะไร). แปะให้ `GET /rounds`, `GET /rounds/active`, `POST/PUT /rounds` และ **`/dashboard/stats` + `/dashboard/history`** — dashboard เดิมส่ง `round` มาแค่ `{round_id, academic_year, attempt_number, status}` **ไม่มีวันที่** หน้าจอเลยเขียน "เปิดรับอยู่" ให้รอบที่ยังไม่ถึงวันเปิด แล้วนับถอยหลังวันปิดด้วย. (3) **`PATCH /students/bulk-eligible` ไม่ตรวจ body เลย** — repository ใช้ `updateMany({ where: { student_id: { in: student_ids } } })` และ Prisma ตีความ `{ in: undefined }` ว่า "ไม่มีเงื่อนไขนี้" ไม่ใช่ "ไม่ตรงกับอะไร" → ส่ง `{"exam_eligible": false}` มาโดยลืม `student_ids` = **ปิดสิทธิ์กรอกผลสอบของนักศึกษาทั้งระบบในคำสั่งเดียว** แล้วตอบ 200 เหมือนปกติ. ตอนนี้บังคับ `student_ids` เป็น array ไม่ว่าง + `exam_eligible` เป็น boolean แท้. (4) **`errorHandler` ดัก Prisma `P2025` → 404** (เดิมหลุดเป็น 500 พร้อม error ดิบที่เผยชื่อตาราง/คอลัมน์) — กระทบทุก endpoint ที่ PUT/DELETE ด้วย id ที่ไม่มีจริง (`utils/roundPhase.js` ใหม่, `rounds.controller.js`, `dashboard.service.js`, `students/student.controller.js`, `middlewares/errorHandler.js`, `tests/smoke-phase18-round-dates.mjs` + `smoke-phase19-guards.mjs` ใหม่, `tests/smoke-phase10/13` เปลี่ยนวันที่รอบทดสอบจากปี 2020 เป็นอนาคต เพราะกดเปิดรอบที่หมดอายุไม่ได้แล้ว, `package.json`, `tests/run-clean.mjs`) — frontend: `roundPhase.js` ใหม่ (helper อ่าน phase + สีป้าย), `usePagedList.js` ใหม่, `skeletons.jsx` ใหม่, และ `dashboardReal/manageRoundsSubjectsReal/newsReal/manageUsersReal/components/app/login/i18n` **ผลเทส: 13/13 ไฟล์ผ่านบน schema สะอาด** |
+| 2026-09-23 | **เก็บกวาดความเสถียร 5 เรื่อง ก่อนนำเสนอ (ยังไม่ deploy)** — (1) **PrismaClient เหลือตัวเดียวทั้งระบบ**: เดิม 13 ไฟล์ต่าง `new PrismaClient()` ของตัวเอง ทั้งที่ `config/db.js` เขียน singleton ไว้แล้วแต่ไม่มีใครใช้ แต่ละ client เปิด connection pool ของตัวเอง (default = core×2+1) เครื่อง 8 core = 17×14 ≈ 238 connection แต่ PostgreSQL `max_connections` default 100 → คนใช้พร้อมกันหลายคนแล้วเจอ `too many clients already`. ตอนนี้ทุก repository + `middlewares/auth.js` + `controllers/authController.js` `import prisma from ".../config/db.js"` (`config/db.js` เขียนกฎห้ามสร้างเองไว้ในคอมเมนต์แล้ว — `prisma/*.js` กับ `scripts/*.js` ยกเว้นได้ เพราะเป็น script รันจบแล้วปิดเอง). (2) **reviewer เปิดไฟล์ PDF หลักฐานได้แล้ว**: `certificates.controller.js` เช็ค `role === "officer"` ตัวเดียว แต่ reviewer กด approve/reject ได้ (`examResults.routes.js`) และหน้า `studentDetailReal.jsx` โชว์ปุ่มเปิดไฟล์ให้ → reviewer กดแล้วได้ 403 ตรวจโดยไม่เห็นหลักฐาน. เปลี่ยนเป็น `CAN_VIEW_OTHERS_FILES = ["officer", "reviewer"]` (executive ยังเข้าไม่ได้เหมือนเดิม). (3) **schema: `exam_results` เพิ่ม `@@unique([student_id, round_id])`** — เดิมกันใบซ้ำด้วย `findByStudentAndRound()` ใน controller อย่างเดียว กดส่งรัวๆ 2 ครั้งได้ 2 ใบในรอบเดียว แล้ว `findFirst` หยิบใบไหนก็ไม่แน่นอน. เพิ่ม index บน FK ที่ query จริงด้วย: `exam_results(round_id)`, `exam_results(staff_status)`, `subject_results(result_id)`, `subject_results(subject_id)`, `certificates(result_id)`, `review_logs(result_id)`, `notifications(student_id)`, `news(round_id)`, `students(academic_year)` (migration `20260923120000_add_exam_result_unique_and_indexes` — สร้างด้วย `prisma migrate diff` + `migrate deploy` เพราะ user DB ไม่มีสิทธิ์สร้าง shadow database, `prisma migrate dev` ใช้ไม่ได้). `findByStudentAndRound` เปลี่ยนเป็น `findUnique({ where: { student_id_round_id: {...} } })` ตาม constraint ใหม่. `errorHandler` ดัก Prisma `P2002` → 409 พร้อมข้อความไทย (เดิมหลุดเป็น 500 พร้อม error ดิบภาษาอังกฤษ). (4) **เพิ่ม 404 handler** — path ที่ไม่ตรง route ไหนเลยเคยได้หน้า HTML ของ Express แล้ว `res.json()` ฝั่ง frontend parse ไม่ได้ ผู้ใช้เห็น error มั่ว. ตอนนี้ตอบ JSON ตาม format เดิม. (5) **ย้ายค่า hardcode ไป .env** — `CORS_ORIGIN` (เดิมฝัง `http://localhost:5174` ใน `app.js`, ใส่หลายอันได้คั่น comma) + `COOKIE_SECURE` (เดิมฝัง `secure: false` ใน `authController.js` — ต้องเป็น `"true"` เมื่อขึ้น HTTPS). `config/env.js` บังคับให้มีครบ 4 ตัวก่อน server เริ่ม + ตรวจว่า `COOKIE_SECURE` เป็น `"true"`/`"false"` เท่านั้น. เพิ่ม `backend/.env.example` (ไม่เคยมี — คนใหม่ clone มา setup ไม่ได้) (`config/db.js`, `config/env.js`, `app.js`, `controllers/authController.js`, `middlewares/auth.js`, `middlewares/errorHandler.js`, `modules/*/*.repository.js` 11 ไฟล์, `modules/certificates/certificates.controller.js`, `modules/examResults/examResults.repository.js`, `prisma/schema.prisma`, `.env.example`) — frontend: `api.js` อ่าน `import.meta.env.VITE_API_BASE` + `frontend/.env.example` |
+| 2026-09-23 | **เพิ่ม `npm run test:clean` — รันเทสทั้งชุดบน schema สะอาด** (`tests/run-clean.mjs`). เดิม `npm test` ยิงใส่ DB ตัวที่ใช้ทำ demo (นักศึกษา 900+ คน, รอบเปิดค้าง) เทสหลายตัวเลย fail ทั้งที่โค้ดไม่ได้พัง — แยกไม่ออกว่าอันไหนบัคจริง (ก่อนแก้: 37/54 ที่ phase4-6, 9/13 ที่ phase9). สคริปต์สร้าง PostgreSQL schema `verify_tmp` ใหม่ทั้งก้อน → `migrate deploy` → `seed` → เปิด server ชั่วคราวพอร์ต 3100 → รันทีละไฟล์ → ลบ schema ทิ้ง (ใช้ schema ไม่ใช่ database เพราะ user ไม่มีสิทธิ์ CREATE DATABASE). 3 จุดที่ต้องระวังและแก้ไว้แล้วในสคริปต์: (ก) เทส 9 ไฟล์ hardcode `localhost:3000` — เปลี่ยนเป็น `process.env.BASE || "http://localhost:3000"` ทั้ง 11 ไฟล์ ไม่งั้นยิงผิดพอร์ต; (ข) **เปิด server ใหม่ก่อนทุกไฟล์** เพราะ rate limiter นับ login ไว้ใน memory (officer 10 ครั้ง/15 นาที) รัน 11 ไฟล์ติดกันแล้วไฟล์ท้ายๆ โดน 429; (ค) เช็คว่าพอร์ต 3100 ว่างก่อนเริ่ม — ถ้ามี server ค้างจากรอบก่อน `waitForServer` จะเห็นว่า "ต่อได้" แล้วเทสทั้งชุดวิ่งไปคุยกับ server ตัวเก่าที่ชี้ไป schema ที่ถูกลบแล้ว fail แบบงงๆ ทั้ง 11 ไฟล์. บน Windows ปิด server ต้องใช้ `taskkill /T` ฆ่าทั้ง process tree — `proc.kill()` ฆ่าแค่ cmd ตัวนอก node ข้างในรอดแล้วจองพอร์ตต่อ. **ผลหลังแก้ทั้งหมด: ผ่าน 11/11 ไฟล์ (phase1-3 19/19, phase4-6 54/54, phase9 13/13, ที่เหลือ ALL PASSED)** (`tests/run-clean.mjs` ใหม่, `tests/smoke-phase*.mjs` 11 ไฟล์, `package.json`) |
+| 2026-09-23 | **แก้เทส `smoke-phase16-cohort-year.mjs` ปิดรอบจริงทิ้งแล้วไม่เปิดคืน** — เทสต้องปิดรอบที่เปิดอยู่ก่อน (เปิดได้ทีละรอบ) แต่ลืมเปิดคืนตอนจบ → รอบ 2/2569 ที่เจ้าหน้าที่เปิดรับอยู่จริงถูกปิดทุกครั้งที่รันเทส (เจอจากการเทสผ่าน browser: dashboard ไม่มีรอบเปิด). ตอนนี้ `finally` ลบรอบทดสอบก่อนแล้วค่อยเปิดรอบเดิมคืน (ลำดับสำคัญ — เปิดคืนก่อนลบจะชนรอบทดสอบที่ยังเปิดอยู่). phase13/15 ทำถูกอยู่แล้ว. เปิดรอบ 172 คืนให้แล้วด้วยมือ (`tests/smoke-phase16-cohort-year.mjs`) |
+| 2026-09-23 | **เจ้าหน้าที่ระบุปีจบได้ตั้งแต่ตอนนำเข้า (เคสซ้ำชั้น/ลาพัก)** — เดิมปีจบคำนวณจากรหัสอย่างเดียว คนซ้ำชั้นได้ปีผิดตั้งแต่ต้น และเจ้าหน้าที่แก้ได้ก็ต่อเมื่อนักศึกษา login กรอกโปรไฟล์แล้ว (ก่อนหน้านั้นไม่มีแถว `students` ให้แก้) → ช่วงก่อน login ครั้งแรกไม่มีทางกัน. **schema:** เพิ่ม `users.import_academic_year Int?` (migration `20260922120000_add_user_import_academic_year` — ว่างได้ แถวเดิมไม่ต้อง backfill) — **data dictionary ในรายงานบท 3.4 ต้องเพิ่มคอลัมน์นี้**. `POST /api/students/import` รับคอลัมน์ `academic_year` แบบไม่บังคับ (ไฟล์เก่า 2 คอลัมน์ใช้ได้เหมือนเดิม), เพิ่ม `?dry_run=true` ตรวจอย่างเดียวไม่บันทึก (ตอบ 200, นำเข้าจริงยังตอบ 201), response เพิ่ม `dry_run` + `year_overrides` [{row, student_id, derived, academic_year}] (เพิ่มอย่างเดียว field เดิมไม่เปลี่ยน). `POST /api/students` รับ `academic_year` ไม่บังคับ. `completeProfile` ใช้ `import_academic_year ?? calcGraduationYear()`. เพิ่ม `validateGraduationYear` + `isBlankYear` (`utils/academicYear.js`) ใช้ร่วม 3 ที่: พ.ศ. 4 หลัก + ไม่น้อยกว่าปีตามรหัส. **แก้บั๊กแฝง:** `PATCH /api/students/:id` ส่ง `academic_year` เป็นตัวอักษรเดิมได้ 500 (Number→NaN) ตอนนี้ 400 — ตรวจเฉพาะตอนปีเปลี่ยนจริง ไม่งั้นนักศึกษาเก่าที่ปีในระบบน้อยกว่าสูตรปัจจุบัน (seed เก่าใช้สูตร −3) จะแก้แม้แต่เบอร์โทรไม่ได้. ข้อความ 400 ตอนย้ายรุ่นหลังส่งผลเอาประโยค "ลบผลสอบก่อน" ออก (ระบบไม่มีทางลบผลสอบ). `tests/cleanupYears.mjs` ลบบัญชีที่ import แล้วยังไม่กรอกโปรไฟล์ของปีทดสอบด้วย (หาจาก `import_academic_year` และ prefix รหัส) (`schema.prisma`, `utils/academicYear.js`, `students/student.controller.js`, `student.repository.js`, `tests/smoke-phase17-import-year.mjs` ใหม่ 21 เคส, `tests/cleanupYears.mjs`, `package.json`) — frontend: `studentImport.jsx` 2 ขั้น ตรวจไฟล์→ยืนยัน + ตารางปีไม่ตรงรหัส + ช่องปีในฟอร์มเพิ่มทีละคน, `completeProfile.jsx` โชว์ปีเฉยๆ ไม่มีกล่องเตือน, `i18n.js` |
+| 2026-09-22 | **กันสถิติเพี้ยนจากการย้ายรุ่น (เคสนักศึกษาซ้ำชั้น/ลาพัก)** — `academic_year` เป็นทั้ง "รุ่น" และตัวจับคู่ว่านักศึกษาเห็นรอบไหน (`rounds.controller.js` `getActive` หารอบที่ปีตรงกับ `student.academic_year`) ค่ามาจาก `calcGraduationYear` (รหัส+4) ซึ่งผิดสำหรับคนที่ซ้ำชั้น → รอบของรุ่นเดิมเปิดให้ทั้งที่ยังไม่จบ ส่วนรอบที่ควรสอบกลับไม่เห็น. `PATCH /api/students/:id` แก้ปีได้อยู่แล้วแต่**ไม่มีด่านกันเลย** — ย้ายรุ่นหลังส่งผลสอบแล้วทำให้ตัวหาร (`countStudentsByYear`) ลดแต่ตัวตั้ง (ใบในรอบของปีนั้น ซึ่งผูกกับ `round_id` ไม่ใช่รุ่นของนักศึกษา) เท่าเดิม → `fillRate`/`passRate` ของรุ่นเดิมทะลุ 100% เงียบๆ. ตอนนี้ `update()` เทียบกับค่าเดิมก่อน ถ้าเปลี่ยนจริงและ `countExamResults > 0` ตอบ 400 พร้อมบอกจำนวนใบ (ส่งค่าเท่าเดิมมายังผ่าน — กดบันทึกทั้งฟอร์มโดยไม่แตะช่องปีต้องไม่ติด guard). `GET /api/students/:id` เพิ่ม 2 field คำนวณตอนส่งออก (ไม่ใช่คอลัมน์ใน DB): `academic_year_derived` (ปีตามรหัส ใช้บอกหน้าจอว่าค่าปัจจุบันถูกแก้มือไปแล้ว) + `exam_result_count` (>0 = ย้ายรุ่นไม่ได้ หน้าจอปิดช่องให้ล่วงหน้าแทนที่จะให้พิมพ์จนเสร็จแล้วเด้ง error). **ไม่แตะ schema** (`students/student.controller.js`, `tests/smoke-phase16-cohort-year.mjs` ใหม่ — 22 เคส ครอบคลุมย้ายรุ่นสำเร็จ→รอบที่เห็นเปลี่ยนตามจริง, ย้ายหลังส่งผล→400, สิทธิ์ `/dashboard/alerts` และ `PATCH /students/:id` ครบ 4 role, `package.json`) — frontend ต่อครบแล้ว (`studentDetailReal.jsx` hint+ล็อกช่อง, `manageRoundsSubjectsReal.jsx` พรีวิว "รอบนี้จะเปิดให้กี่คน" ก่อนบันทึก) |
+| 2026-09-22 | **กระดิ่งแจ้งเตือนของ officer/executive ใช้ `GET /api/dashboard/alerts` แล้ว** — endpoint นี้มีมาตั้งแต่เดิมแต่ frontend ไม่เคยเรียก กระดิ่ง 2 role นี้เลยมีแต่ "ประกาศใหม่" ที่ตัวเองเป็นคนโพสต์. **ฝั่ง backend ไม่เปลี่ยนโค้ด** — บันทึกไว้เพราะ `alerts` กลายเป็น contract ที่ frontend พึ่งแล้ว: เปลี่ยน `key`/`count`/`detail` ของ alert ตัวไหนต้องแจ้ง เพราะฝั่งหน้าจอเอา `count ?? detail` ไปต่อท้าย `key` เป็นลายเซ็นของค่าปัจจุบัน (ปุ่ม "ล้างทั้งหมด" ซ่อนตาม key — พอตัวเลขเปลี่ยน key เปลี่ยน แจ้งเตือนจึงโผล่กลับมาเอง) |
 | 2026-09-21 | **แก้ตัวเลข "ผ่าน/ไม่ผ่านรายวิชา" มุมมอง "รวมทั้งปี" ให้นับรายคน** — เดิม `buildYearSummary` ส่ง array ใบทั้งปีเข้า `buildPerSubject` (นับตามใบ) คนที่สอบซ้ำหลายรอบถูกนับเกิน (ทดสอบจริง: badge 9 แต่คนจริง 5) ทั้งที่คอมเมนต์หัวฟังก์ชันเดียวกันเขียนไว้ว่า "รวมทุกรอบนับรายคน". ใหม่: `buildPerSubjectByStudent` + map `passedByStudentConfirmed`/`attemptedByStudentConfirmed` (เฉพาะใบ approved, ไม่นับ carried_forward, **เคยผ่านสักรอบ = นับผ่าน ชนะเสมอ**) — ไม่แตะ `passedByStudent` เดิมที่ใช้กับ "ผ่านครบทุกวิชา" (นับ pending ด้วยโดยตั้งใจ) ลบ `yearCounted` ที่ไม่ใช้แล้ว. ตัวเลขรายรอบ (`buildPerSubject` เดิม) ไม่เปลี่ยน — 1 คนมีได้ใบเดียวต่อรอบอยู่แล้ว. **เพิ่ม endpoint** `GET /api/students/subject-result-list` (JSON) + `GET /api/students/export-subject` (PDF) รายชื่อผ่าน/ไม่ผ่านรายวิชา ใช้ logic เดียวกับตัวเลขบัตรเป๊ะ (`findMatchingSubjectResult` ใน `student.repository.js`, `resolveSubjectQuery` ใน controller ใช้ร่วมกัน 2 endpoint) เฉพาะ officer (ผู้บริหารไม่มีสิทธิ์ดูรายบุคคล). **แยกชิ้นส่วน PDF ใช้ร่วม** ออกเป็น `utils/pdfReport.js` (ฟอนต์/ตาราง/ช่องลงนาม/เลขหน้า) — `dashboard.pdf.js` ใช้ของกลางแทนโค้ดเดิม (ตรวจแล้วรายงานเดิมออกมาเหมือนเดิม) + `students/students.pdf.js` ใหม่. ชื่อไฟล์ดาวน์โหลดที่เป็นภาษาไทยต้องใส่ `filename*=UTF-8''...` (RFC 5987) คู่ `filename` ASCII สำรอง. **ข้อจำกัดที่รู้แล้ว:** เลเยอร์ข้อความที่ซ่อนใน PDF (ใช้ copy/ค้นหา) เรียงสระ+วรรณยุกต์ไทยที่ซ้อนกัน 2 ชั้นสลับตำแหน่ง (เช่น "ทั้ง") เป็นข้อจำกัดของ pdfkit/fontkit — ภาพที่มองเห็น/พิมพ์ถูกต้อง 100% (`schema.prisma` ไม่เปลี่ยน, `dashboard.service.js`, `dashboard.pdf.js`, `utils/pdfReport.js` ใหม่, `students/student.controller.js`, `student.repository.js`, `students.pdf.js` ใหม่, `students.routes.js`, `subjects.repository.js` เพิ่ม `findByCode`) |
 | 2026-09-20 | **เพิ่ม role `reviewer` (เจ้าหน้าที่ตรวจสอบ) + audit log `review_logs`** — ตามสเปก [`docs/superpowers/specs/2026-09-19-reviewer-role-design.md`](../docs/superpowers/specs/2026-09-19-reviewer-role-design.md). Pooled queue เดียวกับ officer ไม่มี assignment รายคน/รายห้อง. เพิ่ม role ใน seed (`321`/`321`), `CREATABLE_ROLES`/`ASSIGNABLE_ROLES` ใน `users.controller.js`, เปิด route ให้ reviewer เข้า `GET/PATCH /api/exam-results*` + `GET /api/students*` (`requireRole`). **แก้ guard กันตรวจซ้อน** — `examResults.controller.js` `reviewExamResult` เดิม update ตรงๆ ไม่เช็คสถานะก่อนเลย (บั๊กแฝงเดิม ไม่ใช่ของใหม่) ตอนนี้บังคับ `staff_status` ต้องเป็น `pending` เท่านั้นถึงตรวจได้ ผ่าน `updateStaffStatusIfPending` (`updateMany` + where กันชน — ด่านสองเช็ค `count===0` กัน race จริงที่ด่านแรกเช็คไม่ทัน ทดสอบยืนยันด้วย `Promise.all` ยิงพร้อมกันจริงใน `smoke-phase15-reviewer.mjs`) **ผลข้างเคียงที่ตั้งใจ (breaking change เล็กน้อย):** ใบที่ตรวจไปแล้วครั้งหนึ่งจะแก้คำตัดสินตรงๆ ผ่าน API อีกไม่ได้ (409 เสมอ) ต้องรอนักศึกษา resubmit ก่อน — เดิม reject แล้ว approve ทันทีไม่ resubmit ทำได้ (`smoke-phase4-6.mjs` แก้เพิ่ม resubmit-before-approve ตามนี้แล้ว). เพิ่ม `review_logs` (insert-only, ทุกครั้งที่ approve/reject) ผ่าน `reviewLog.repository.js` เรียกหลัง guard ผ่านเท่านั้น. **`review_logs` ต้องลบก่อน `exam_results` เสมอ** (FK) — แก้ `tests/cleanupYears.mjs` และสคริปต์ seed ทุกตัว (`seed.js`, `demoSeed.js`, `seedDemoYears.js` ×2 จุด, `seedCohort.js`) ที่ยังไม่ครอบคลุม (`schema.prisma` — `db push` ไม่มี migration file ดู 8. ฐานข้อมูล, `seed.js`, `demoSeed.js`, `seedDemoYears.js`, `seedCohort.js`, `users.controller.js`, `examResults.controller.js`, `examResults.repository.js`, `examResults/reviewLog.repository.js` ใหม่, `students.routes.js`, `examResults.routes.js`, `tests/cleanupYears.mjs`, `tests/smoke-phase4-6.mjs`, `tests/smoke-phase15-reviewer.mjs` ใหม่, `package.json`) — frontend ต่อครบแล้ว (`app.jsx`, `studentDetailReal.jsx`, `manageUsersReal.jsx`, `i18n.js`) |
 | 2026-09-17 | **แก้ bug `PATCH /api/students/:id` (`updateProfile`) 500 ทุกครั้งที่ส่ง `room_id` มา** — เดิม spread `room_id` เป็น scalar ตรงๆ ลง `prisma.student.update()` แต่ schema กำหนด `room` เป็น relation (`@relation(fields:[room_id])`) ต้องเขียนผ่าน `room:{connect:{room_id}}` เท่านั้น. จุดนี้ไม่มี smoke test คลุมเลย เจอจากทดสอบ UI จริงผ่านหน้า "แก้ไขข้อมูลนักศึกษา" ที่เพิ่งต่อ frontend เข้ากับ endpoint นี้เป็นครั้งแรก (`student.repository.js`). เพิ่ม `first_name_en`/`last_name_en` placeholder ใน `demoSeed.js`/`seedDemoYears.js` ด้วย — สองสคริปต์นี้เขียนก่อน schema บังคับ field นี้เป็น NOT NULL เลย seed ไม่ผ่านมาตั้งแต่รอบก่อนแล้วไม่มีใครรัน demo seed เจอจนตอนนี้ |

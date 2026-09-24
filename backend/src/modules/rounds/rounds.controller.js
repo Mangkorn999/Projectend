@@ -3,6 +3,7 @@ import * as studentRepo from "../students/student.repository.js";
 import * as subjectsRepo from "../subjects/subjects.repository.js";
 import * as examRepo from "../examResults/examResults.repository.js";
 import { subjectsOfRound } from "../../utils/roundSubjects.js";
+import { withPhase } from "../../utils/roundPhase.js";
 
 // สร้าง Error พร้อม statusCode ให้ errorHandler จัดการต่อ
 const httpError = (message, statusCode) => {
@@ -14,7 +15,9 @@ const httpError = (message, statusCode) => {
 export const getAll = async (req, res, next) => {
   try {
     const rounds = await roundsRepo.findAll();
-    res.json({ success: true, data: rounds });
+    // แปะ phase ให้ทุกรอบ — หน้าจัดการรอบจะได้เขียนป้ายสถานะตรงกับความจริง
+    // ("รอถึงกำหนดเปิด" / "เปิดรับอยู่" / "เลยกำหนดปิด" แทนที่จะเขียน "เปิด" เหมือนกันหมด)
+    res.json({ success: true, data: rounds.map(withPhase) });
   } catch (err) {
     next(err);
   }
@@ -57,7 +60,7 @@ export const getActive = async (req, res, next) => {
     res.json({
       success: true,
       data: {
-        ...round,
+        ...withPhase(round),
         subjects,
         all_passed: subjects.every((s) => s.already_passed),
       },
@@ -122,6 +125,33 @@ const parseOpenDate = (value, fieldLabel) =>
 // กันรอบหมดอายุตั้งแต่เที่ยงคืนต้นวันปิด
 const parseCloseDate = (value, fieldLabel) =>
   parseThaiDateTime(value, fieldLabel, END_OF_DAY);
+
+// เปิดรับต้องมาก่อนปิดรับเสมอ
+//
+// เดิมไม่มีด่านนี้เลย → เจ้าหน้าที่กรอกสลับกันได้ (เช่น เปิด 26 ก.ย. ปิด 23 ก.ย.)
+// แล้วรอบนั้นจะ "เปิด" อยู่ในตาราง แต่ findActive() หาไม่เจอตลอดกาล
+// เพราะเงื่อนไขคือ open_date <= now <= close_date ซึ่งเป็นไปไม่ได้
+// ผลคือ: นักศึกษากรอกไม่ได้สักคน + เจ้าหน้าที่เปิดรอบอื่นไม่ได้ (ระบบยอมให้เปิดทีละรอบ)
+// = ระบบล็อกตาย โดยไม่มี error อะไรขึ้นให้เห็นเลย
+const ensureValidDateRange = (openDate, closeDate) => {
+  if (openDate >= closeDate) {
+    throw httpError(
+      "วันที่เปิดรับต้องมาก่อนวันที่ปิดรับ กรุณาตรวจสอบวันที่อีกครั้ง",
+      400,
+    );
+  }
+};
+
+// กดเปิดรอบที่เลยกำหนดปิดไปแล้ว = เปิดแล้วก็ยังกรอกไม่ได้อยู่ดี
+// เช็คตอนกดเปิดเท่านั้น (ไม่ใช่ตอนบันทึกเฉยๆ) เพราะรอบที่ปิดไปแล้วต้องแก้ข้อมูลย้อนหลังได้
+const ensureNotAlreadyExpired = (closeDate) => {
+  if (closeDate < new Date()) {
+    throw httpError(
+      "เปิดรอบนี้ไม่ได้ — เลยวันที่ปิดรับไปแล้ว กรุณาแก้วันที่ปิดรับก่อน",
+      400,
+    );
+  }
+};
 
 // เช็ค subject_ids ที่ officer ส่งมาว่าใช้ได้จริง แล้วคืนเป็น array ของตัวเลข
 // ต้องเช็คเองเพราะเก็บเป็น Int[] ไม่มี foreign key คอยกันให้
@@ -209,16 +239,21 @@ export const create = async (req, res, next) => {
         ? (await subjectsRepo.findAll()).map((s) => s.subject_id)
         : await validateSubjectIds(subject_ids);
 
+    const openDate = parseOpenDate(open_date, "วันที่เปิดรับ");
+    const closeDate = parseCloseDate(close_date, "วันที่ปิดรับ");
+    ensureValidDateRange(openDate, closeDate);
+    if (status === "open") ensureNotAlreadyExpired(closeDate);
+
     const round = await roundsRepo.create({
       subject_ids: subjectIds,
       academic_year: Number(academic_year),
       attempt_number: Number(attempt_number),
-      open_date: parseOpenDate(open_date, "วันที่เปิดรับ"),
-      close_date: parseCloseDate(close_date, "วันที่ปิดรับ"),
+      open_date: openDate,
+      close_date: closeDate,
       status: status ?? "closed",
       created_by: req.user.userId, // อ่านจาก JWT เท่านั้น ไม่เชื่อ body
     });
-    res.json({ success: true, data: round });
+    res.json({ success: true, data: withPhase(round) });
   } catch (err) {
     next(asDuplicateRoundError(err));
   }
@@ -263,11 +298,21 @@ export const update = async (req, res, next) => {
     if (close_date !== undefined) data.close_date = parseCloseDate(close_date, "วันที่ปิดรับ");
     if (status !== undefined) data.status = status;
 
+    // ตรวจช่วงวันที่จาก "ค่าหลังแก้" ไม่ใช่เฉพาะค่าที่ส่งมา
+    // ส่งมาแค่ close_date อย่างเดียวก็ทำให้ช่วงพังได้ ถ้าไปเร็วกว่า open_date เดิมที่อยู่ใน DB
+    const finalOpen = data.open_date ?? current.open_date;
+    const finalClose = data.close_date ?? current.close_date;
+    ensureValidDateRange(new Date(finalOpen), new Date(finalClose));
+
     // กดเปิดรอบนี้ ต้องไม่มีรอบอื่นเปิดค้างอยู่ (รอบนี้เปิดอยู่แล้วแล้วกดบันทึกซ้ำ ไม่นับ)
-    if (status === "open") await ensureNoOtherOpenRound(current.round_id);
+    if (status === "open") {
+      await ensureNoOtherOpenRound(current.round_id);
+      // เปิดรอบที่เลยกำหนดปิดแล้วไม่ได้ — ยกเว้นรอบนี้เปิดค้างอยู่แล้ว (กดบันทึกซ้ำโดยไม่ได้ตั้งใจเปิดใหม่)
+      if (current.status !== "open") ensureNotAlreadyExpired(new Date(finalClose));
+    }
 
     const round = await roundsRepo.update(req.params.id, data);
-    res.json({ success: true, data: round });
+    res.json({ success: true, data: withPhase(round) });
   } catch (err) {
     next(asDuplicateRoundError(err));
   }

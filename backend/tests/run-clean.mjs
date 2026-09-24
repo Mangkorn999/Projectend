@@ -1,0 +1,216 @@
+// รัน smoke test ทั้งชุดบนฐานข้อมูลสะอาด — ไม่แตะข้อมูล demo ที่ใช้อยู่
+//
+// ปัญหาที่สคริปต์นี้แก้:
+//   `npm test` ยิงใส่ DB ตัวที่ใช้ทำ demo อยู่ (มีนักศึกษา 900+ คน, มีรอบเปิดค้าง)
+//   เทสหลายตัวเขียนคาดว่า "ต้องมีนักศึกษา 1 คน" / "ต้องเปิดรอบใหม่ได้" เลย fail ทั้งที่โค้ดไม่ได้พัง
+//   → แยกไม่ออกว่าอันไหนบัคจริง อันไหนแค่ข้อมูลไม่สะอาด
+//
+// วิธีแก้: สร้าง PostgreSQL schema ชื่อ verify_tmp ขึ้นมาใหม่ทั้งก้อน
+//   (schema ≈ "โฟลเดอร์ตาราง" ใน database เดียวกัน — ไม่ต้องมีสิทธิ์ CREATE DATABASE
+//    ซึ่ง user ของเราไม่มี นี่คือเหตุผลที่ prisma migrate dev ใช้ไม่ได้)
+//   แล้ว migrate + seed + รัน server ชั่วคราวชี้ไปที่ schema นั้น พอเสร็จก็ลบทิ้ง
+//
+// วิธีรัน:  npm run test:clean
+//
+// หมายเหตุ: ต้องไม่มี server ตัวอื่นจองพอร์ต TEST_PORT อยู่
+
+import { spawn } from "child_process";
+import { PrismaClient } from "@prisma/client";
+
+const TEST_SCHEMA = "verify_tmp";
+const TEST_PORT = 3100;
+const BASE = `http://localhost:${TEST_PORT}`;
+
+// รายชื่อไฟล์เทสตามลำดับที่ต้องรัน (เรียงตาม phase เหมือนใน package.json)
+const TEST_FILES = [
+  "tests/smoke-phase1-3.mjs",
+  "tests/smoke-phase4-6.mjs",
+  "tests/smoke-phase9-import.mjs",
+  "tests/smoke-phase10-round-subjects.mjs",
+  "tests/smoke-phase11-carry-forward.mjs",
+  "tests/smoke-phase12-reject-edit.mjs",
+  "tests/smoke-phase13-duplicate-round.mjs",
+  "tests/smoke-phase14-news-scope.mjs",
+  "tests/smoke-phase15-reviewer.mjs",
+  "tests/smoke-phase16-cohort-year.mjs",
+  "tests/smoke-phase17-import-year.mjs",
+  "tests/smoke-phase18-round-dates.mjs",
+  "tests/smoke-phase19-guards.mjs",
+];
+
+// ── เตรียม URL ของ DB ชั่วคราว ────────────────────────────────
+// เอา DATABASE_URL เดิมมาต่อท้ายด้วย ?schema=verify_tmp
+// (ถ้ามี ? อยู่แล้วต้องใช้ & แทน — URL object จัดการให้เองไม่ต้องเช็คเอง)
+function buildTestUrl(originalUrl) {
+  const url = new URL(originalUrl);
+  url.searchParams.set("schema", TEST_SCHEMA);
+  return url.toString();
+}
+
+// ── รันคำสั่งภายนอกแล้วรอจนจบ ────────────────────────────────
+// คืนค่า exit code (0 = สำเร็จ)
+function run(command, args, env, { quiet = false } = {}) {
+  return new Promise((resolve) => {
+    const child = spawn(command, args, {
+      env: { ...process.env, ...env },
+      // shell: true จำเป็นบน Windows ไม่งั้นเรียก npx ไม่เจอ
+      shell: true,
+      stdio: quiet ? ["ignore", "pipe", "pipe"] : "inherit",
+    });
+    if (quiet) {
+      child.stdout.on("data", () => {});
+      child.stderr.on("data", () => {});
+    }
+    child.on("close", (code) => resolve(code ?? 1));
+  });
+}
+
+// ── รอจน server ชั่วคราวพร้อมรับ request ─────────────────────
+async function waitForServer(timeoutMs = 30000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      // ตอบอะไรกลับมาก็ถือว่าขึ้นแล้ว — ไม่เช็ค res.ok
+      // endpoint นี้ต้อง login แล้ว (401) ซึ่งก็แปลว่า server รับ request ได้เป็นปกติ
+      // ถ้าเช็ค res.ok จะรอจนหมดเวลาแล้วคิดว่า server ไม่ขึ้น
+      await fetch(`${BASE}/api/rooms`);
+      return true;
+    } catch {
+      // ต่อไม่ได้เลย = server ยังไม่ขึ้น รอแล้วลองใหม่
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  return false;
+}
+
+// ── เปิด server ชั่วคราว ─────────────────────────────────────
+// คืน object ที่มี .kill() ไว้ปิด และ .log() ไว้ดูว่ามันพ่นอะไรออกมา
+async function startServer(testEnv) {
+  const proc = spawn("node", ["src/server.js"], {
+    env: { ...process.env, ...testEnv, PORT: String(TEST_PORT) },
+    shell: true,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let output = "";
+  proc.stdout.on("data", (d) => (output += d));
+  proc.stderr.on("data", (d) => (output += d));
+
+  if (!(await waitForServer())) {
+    proc.kill();
+    throw new Error(`server ไม่ขึ้นใน 30 วินาที\n${output}`);
+  }
+  return { proc, log: () => output };
+}
+
+// ── ปิด server แล้วรอจนพอร์ตว่างจริง ─────────────────────────
+// ถ้าเปิดตัวใหม่เร็วเกินไปจะชนพอร์ตเดิมที่ยังปิดไม่เสร็จ
+async function stopServer(server) {
+  if (!server) return;
+
+  // บน Windows spawn ด้วย shell: true = ได้ process ของ cmd ครอบ node อีกที
+  // proc.kill() จะฆ่าแค่ cmd ตัวนอก ส่วน node ข้างในรอดแล้วจองพอร์ตต่อ
+  // taskkill /T สั่งฆ่าทั้งต้นไม้ (ตัวมันเอง + ลูกทั้งหมด) /F = บังคับ
+  if (process.platform === "win32") {
+    await run("taskkill", ["/PID", String(server.proc.pid), "/T", "/F"], {}, {
+      quiet: true,
+    });
+  } else {
+    server.proc.kill();
+  }
+
+  const deadline = Date.now() + 10000;
+  while (Date.now() < deadline) {
+    try {
+      await fetch(`${BASE}/api/rooms`);
+    } catch {
+      return; // ต่อไม่ได้แล้ว = ปิดสนิท
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+}
+
+async function main() {
+  if (!process.env.DATABASE_URL) {
+    console.error("ไม่พบ DATABASE_URL — ต้องรันด้วย: npm run test:clean");
+    process.exit(1);
+  }
+
+  // กันเคสที่เจ็บที่สุด: มี server ค้างจากรอบก่อนจองพอร์ตนี้อยู่
+  // ถ้าปล่อยผ่าน server ตัวใหม่จะ bind ไม่ได้ แต่ waitForServer จะเห็นว่า "ต่อได้" เพราะตัวเก่าตอบแทน
+  // → เทสทั้งชุดวิ่งไปคุยกับ server ตัวเก่าที่ชี้ไป schema ซึ่งถูกลบไปแล้ว แล้ว fail แบบงงๆ ทั้ง 11 ไฟล์
+  try {
+    await fetch(`${BASE}/api/rooms`);
+    console.error(
+      `\nมี server ค้างอยู่ที่พอร์ต ${TEST_PORT} แล้ว — ปิดก่อนแล้วค่อยรันใหม่\n` +
+        `  Windows:  netstat -ano | findstr :${TEST_PORT}   แล้ว  taskkill /PID <เลข> /T /F`,
+    );
+    process.exit(1);
+  } catch {
+    // ต่อไม่ได้ = พอร์ตว่าง ถูกต้องแล้ว
+  }
+
+  const testUrl = buildTestUrl(process.env.DATABASE_URL);
+  const testEnv = { DATABASE_URL: testUrl };
+
+  // client ตัวนี้ชี้ไป schema เดิม (public) — ใช้แค่สั่ง CREATE/DROP SCHEMA เท่านั้น
+  const admin = new PrismaClient();
+  let server = null;
+
+  try {
+    console.log(`\n[1/4] สร้าง schema ${TEST_SCHEMA} ใหม่`);
+    // ลบก่อนเผื่อรอบที่แล้วค้างไว้ (เช่นกด Ctrl+C กลางคัน)
+    await admin.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${TEST_SCHEMA}" CASCADE`);
+    await admin.$executeRawUnsafe(`CREATE SCHEMA "${TEST_SCHEMA}"`);
+
+    console.log(`[2/4] migrate`);
+    const migrateCode = await run("npx", ["prisma", "migrate", "deploy"], testEnv, {
+      quiet: true,
+    });
+    if (migrateCode !== 0) throw new Error("prisma migrate deploy ล้มเหลว");
+
+    console.log(`[3/4] seed`);
+    const seedCode = await run("node", ["prisma/seed.js"], testEnv, { quiet: true });
+    if (seedCode !== 0) throw new Error("seed ล้มเหลว");
+
+    console.log(`[4/4] รันเทส ${TEST_FILES.length} ไฟล์ (พอร์ต ${TEST_PORT})\n`);
+    const failed = [];
+    for (const file of TEST_FILES) {
+      // เปิด server ใหม่ก่อนทุกไฟล์ — ไม่ใช่เปิดทิ้งไว้ตัวเดียวรันยาว
+      //
+      // เหตุผล: rate limiter เก็บจำนวนครั้งที่ login ไว้ใน memory ของ process
+      // (ดู middlewares/rateLimit.js — officer ยิง login ได้ 10 ครั้ง/15 นาที)
+      // เทสทุกไฟล์ login ด้วยบัญชี officer ตัวเดียวกัน พอรันติดกัน 11 ไฟล์
+      // ไฟล์ท้ายๆ จะโดน 429 "ลองมากเกินไป" ทั้งที่โค้ดไม่ได้พัง
+      // เปิด process ใหม่ = ตัวนับเริ่มจาก 0 ใหม่ (ข้อมูลใน DB ยังอยู่เหมือนเดิม)
+      server = await startServer(testEnv);
+
+      // ไม่ใช้ && ต่อกันเหมือน npm test — ไฟล์ไหนพังก็ให้ไฟล์ที่เหลือรันต่อ
+      // จะได้เห็นภาพรวมทั้งชุดในรอบเดียว ไม่ต้องไล่แก้ทีละอัน
+      const code = await run("node", [file], { ...testEnv, BASE });
+      if (code !== 0) failed.push(file);
+
+      await stopServer(server);
+      server = null;
+      console.log("");
+    }
+
+    console.log("═".repeat(60));
+    if (failed.length === 0) {
+      console.log(`ผ่านทั้งหมด ${TEST_FILES.length} ไฟล์`);
+    } else {
+      console.log(`ไม่ผ่าน ${failed.length}/${TEST_FILES.length} ไฟล์:`);
+      for (const f of failed) console.log(`  - ${f}`);
+    }
+    console.log("═".repeat(60));
+
+    process.exitCode = failed.length === 0 ? 0 : 1;
+  } finally {
+    // ต้องเก็บกวาดเสมอ ถึงจะพังกลางทางก็ตาม ไม่งั้น schema ค้างไว้ในฐานข้อมูล
+    await stopServer(server);
+    await admin.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${TEST_SCHEMA}" CASCADE`);
+    await admin.$disconnect();
+    console.log(`ลบ schema ${TEST_SCHEMA} แล้ว`);
+  }
+}
+
+main();

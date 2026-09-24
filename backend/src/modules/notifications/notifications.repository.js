@@ -1,5 +1,4 @@
-import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+import prisma from "../../config/db.js";
 
 export const create = ({ student_id, type, message }) =>
   prisma.notification.create({ data: { student_id, type, message } });

@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { Icon, ROUNDS, NEWS, SUBJECTS, ME } from './data.jsx';
 import { PageHead, Modal, StatusBadge, PassBadge, Donut, Stepper } from './components.jsx';
 import { t, pick } from './i18n.js';
+import { apiFetch, ApiError } from './api.js';
 
 /* ---------- News / Announcements ---------- */
 export function StudentNews({ go, lang='TH' }) {
@@ -81,29 +82,85 @@ export function StudentNews({ go, lang='TH' }) {
 }
 
 /* ---------- Exam form intro (landing before the wizard) ---------- */
+/* หน้าเกริ่นก่อนกรอกผลสอบ — ถามรอบที่เปิดอยู่จาก backend ก่อน (GET /rounds/active)
+   เดิมหน้านี้เป็นข้อความตายตัว ชวนกด "เริ่มกรอกผลสอบ" ทุกคนแม้รุ่นตัวเองยังไม่มีรอบเปิด
+   (เช่นคนซ้ำชั้นที่รุ่นยังไม่ถึงปีสอบ) → กดเข้าไปแล้วค่อยเจอว่ากรอกไม่ได้ เสียเวลาไป 1 หน้า
+   ตอนนี้บอกตั้งแต่หน้านี้เลย และบอกจำนวนวิชาตามรอบจริง (บางรอบสอบไม่ครบ 8 วิชา) */
 export function FormIntro({ go, lang='TH' }) {
+  const tt = (key, vars) => t(lang, key, vars);
+  const [loading, setLoading] = useState(true);
+  const [round, setRound] = useState(null);
+  const [blocked, setBlocked] = useState(''); // เหตุผลที่กรอกไม่ได้ — ว่าง = กรอกได้
+  // ผ่านครบแล้ว = จบเรื่อง ไม่ต้องรอรอบถัดไป → พาไปดูผลที่หน้าสถานะ แทนที่จะบอกให้รอประกาศ
+  const [allPassed, setAllPassed] = useState(false);
+
+  useEffect(() => {
+    apiFetch('/rounds/active')
+      .then((active) => {
+        if (!active) setBlocked(tt('examform.noActiveRound'));
+        else if (active.all_passed) { setBlocked(tt('examform.allPassedRound')); setAllPassed(true); }
+        else setRound(active);
+      })
+      // 403 = ยังไม่ได้รับสิทธิ์กรอก — backend ส่งเหตุผลมาเป็นข้อความอยู่แล้ว เอามาโชว์ตรงๆ
+      .catch((e) => setBlocked(e instanceof ApiError ? e.message : tt('examform.noActiveRound')))
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const closeText = round?.close_date
+    ? new Date(round.close_date).toLocaleDateString(lang === 'EN' ? 'en-GB' : 'th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
+    : '';
+
   return (
     <div className="fade-up">
-      <PageHead title={t(lang,'formintro.title')}
-        crumb={<><a onClick={()=>go('news')} style={{cursor:'pointer'}}>{t(lang,'examform.crumbHome')}</a> <Icon name="chevR" size={13}/> {t(lang,'examform.crumbForm')}</>} />
+      <PageHead title={tt('formintro.title')}
+        sub={round ? tt('formintro.sub', { attempt: round.attempt_number, year: round.academic_year, close: closeText }) : undefined}
+        crumb={<><a onClick={()=>go('news')} style={{cursor:'pointer'}}>{tt('examform.crumbHome')}</a> <Icon name="chevR" size={13}/> {tt('examform.crumbForm')}</>} />
       <div className="card card-pad" style={{ maxWidth:960, margin:'0 auto', textAlign:'center', padding:'40px 32px' }}>
-        <div style={{ width:64, height:64, borderRadius:16, background:'var(--blue-50)', color:'var(--navy-700)',
-          display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 18px' }}>
-          <Icon name="edit" size={30} />
-        </div>
-        <h3 style={{ margin:'0 0 8px', fontSize:20, fontWeight:800 }}>{t(lang,'formintro.cardTitle')}</h3>
-        <p style={{ margin:'0 0 24px', color:'var(--ink-500)', fontSize:16, lineHeight:1.6 }}>{t(lang,'formintro.cardSub')}</p>
-        <div style={{ display:'flex', flexDirection:'column', gap:10, textAlign:'left', marginBottom:26 }}>
-          {[1,2,3].map(i=>(
-            <div key={i} style={{ display:'flex', alignItems:'center', gap:11, fontSize:15.5, color:'var(--ink-900)' }}>
-              <span style={{ width:24, height:24, borderRadius:'50%', background:'var(--ink-100)', color:'var(--ink-600)',
-                display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:700, flex:'none' }}>{i}</span>
-              {t(lang,'examform.steps.'+i)}
+        {loading ? (
+          <div style={{ padding:'30px 0', color:'var(--ink-500)' }}>{tt('common.loading')}</div>
+        ) : blocked ? (
+          // กรอกไม่ได้ — ไม่มีปุ่มเริ่ม มีแค่ทางกลับไปดูประกาศ (เจ้าหน้าที่ประกาศตอนเปิดรอบ)
+          <>
+            <div style={{ width:64, height:64, borderRadius:16, margin:'0 auto 18px',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              background: allPassed ? 'var(--status-ok-bg)' : 'var(--ink-100)',
+              color: allPassed ? 'var(--status-ok-fg)' : 'var(--ink-500)' }}>
+              <Icon name={allPassed ? 'checkCircle' : 'calendar'} size={30} />
             </div>
-          ))}
-        </div>
-        <button className="btn btn-primary btn-lg" style={{ width:'100%', justifyContent:'center' }} onClick={()=>go('form')}>
-          {t(lang,'news.startBtn')} <Icon name="arrowR" size={17}/></button>
+            <h3 style={{ margin:'0 0 8px', fontSize:20, fontWeight:800 }}>{blocked}</h3>
+            <p style={{ margin:'0 0 24px', color:'var(--ink-500)', fontSize:16, lineHeight:1.6 }}>
+              {allPassed ? tt('formintro.passedSub') : tt('formintro.blockedSub')}</p>
+            {allPassed ? (
+              <button className="btn btn-ghost btn-lg" onClick={()=>go('status')}>
+                <Icon name="clock" size={17}/> {tt('formintro.goStatusBtn')}</button>
+            ) : (
+              <button className="btn btn-ghost btn-lg" onClick={()=>go('news')}>
+                <Icon name="news" size={17}/> {tt('formintro.goNewsBtn')}</button>
+            )}
+          </>
+        ) : (
+          <>
+            <div style={{ width:64, height:64, borderRadius:16, background:'var(--blue-50)', color:'var(--navy-700)',
+              display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 18px' }}>
+              <Icon name="edit" size={30} />
+            </div>
+            <h3 style={{ margin:'0 0 8px', fontSize:20, fontWeight:800 }}>{tt('formintro.cardTitle')}</h3>
+            <p style={{ margin:'0 0 24px', color:'var(--ink-500)', fontSize:16, lineHeight:1.6 }}>
+              {tt('formintro.cardSub', { n: round.subjects?.length ?? 8 })}</p>
+            <div style={{ display:'flex', flexDirection:'column', gap:10, textAlign:'left', marginBottom:26 }}>
+              {[1,2,3].map(i=>(
+                <div key={i} style={{ display:'flex', alignItems:'center', gap:11, fontSize:15.5, color:'var(--ink-900)' }}>
+                  <span style={{ width:24, height:24, borderRadius:'50%', background:'var(--ink-100)', color:'var(--ink-600)',
+                    display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:700, flex:'none' }}>{i}</span>
+                  {tt('examform.steps.'+i)}
+                </div>
+              ))}
+            </div>
+            <button className="btn btn-primary btn-lg" style={{ width:'100%', justifyContent:'center' }} onClick={()=>go('form')}>
+              {tt('news.startBtn')} <Icon name="arrowR" size={17}/></button>
+          </>
+        )}
       </div>
     </div>
   );

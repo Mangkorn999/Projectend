@@ -164,6 +164,36 @@ select.input, select.select {
   background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat:no-repeat; background-position:right 13px center; cursor:pointer; }
 
+/* Select ที่เขียนเอง (components.jsx) — ปุ่มตัวเปิดหน้าตาต้องเหมือน <select> เดิมเป๊ะ
+   จะได้สลับมาใช้ทีละที่ได้โดยหน้าไม่เพี้ยน ใช้ลูกศรอันเดียวกับข้างบน */
+.select-trigger {
+  appearance:none; -webkit-appearance:none;
+  display:block; line-height:1.45; padding-right:36px;
+  background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 13px center; }
+.select-trigger:focus-visible { outline:none; border-color:var(--navy-600); box-shadow:0 0 0 3px var(--gold-100); }
+.select-trigger:disabled { background-color:var(--ink-50); color:var(--ink-400); }
+/* ตัวเลือกที่ยาวเกินปุ่มต้องตัดด้วย … ไม่ใช่ดันปุ่มให้กว้างจนแถวฟิลเตอร์แตกบรรทัด */
+.select-trigger-text { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+.select-panel { border-radius:var(--r-md); padding:0; animation:selectIn .12s ease-out; }
+@keyframes selectIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
+.select-option {
+  display:flex; align-items:center; gap:9; width:100%; text-align:left;
+  padding:9px 11px; border:none; border-radius:var(--r-sm); cursor:pointer;
+  font-family:inherit; font-size:16px; color:var(--ink-900); transition:background .1s; }
+
+/* Scrollbar — ของ Windows เป็นแถบเทาหนาสไตล์ระบบปฏิบัติการ ดูแปลกแยกจากหน้าจอที่เหลือ
+   โดยเฉพาะแถบเลื่อนแนวนอนใต้ตารางที่กว้างเกินการ์ด (หน้าข้อมูลนักศึกษา)
+   ทำให้บางลงและใช้สีเดียวกับเส้นขอบในระบบ จะได้กลืนไปกับดีไซน์แทนที่จะโดดออกมา
+   ใช้ได้กับ Chrome/Edge/Safari — Firefox ใช้ scrollbar-width/color ข้างล่างแทน */
+* { scrollbar-width: thin; scrollbar-color: var(--ink-300) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--ink-200); border-radius: 999px;
+  border: 2px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--ink-300); background-clip: content-box; }
+
 /* Tables */
 .tbl { width:100%; border-collapse:separate; border-spacing:0; font-size:16px; }
 .tbl th { text-align:left; font-weight:700; color:#fff; font-size:14.5px;
@@ -284,3 +314,35 @@ select.input, select.select {
 .empty { text-align:center; padding:48px 24px; color:var(--ink-500); }
 .empty .ico { width:56px; height:56px; border-radius:16px; background:var(--ink-100); display:flex;
   align-items:center; justify-content:center; margin:0 auto 14px; color:var(--ink-400); }
+
+/* ---- Skeleton loading ----
+   แทนข้อความ "กำลังโหลด…" กลางจอ ด้วยโครงร่างเทาๆ รูปร่างเหมือนของจริงที่กำลังจะมา
+   ทำไมดีกว่า: ตาเห็นโครงหน้าตั้งแต่แรก พอข้อมูลมาถึงมันไปแทนที่ในตำแหน่งเดิมพอดี
+   ไม่ใช่จอว่างแล้วอยู่ๆ ของโผล่มาทั้งหน้า (เนื้อหากระโดด = รู้สึกกระตุก)
+
+   prefers-reduced-motion: ผู้ใช้ที่ตั้งค่าเครื่องว่าไม่เอา animation จะเห็นเป็นเทานิ่งๆ แทน */
+@keyframes skeletonShimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg,
+    var(--ink-100) 25%, var(--ink-50) 37%, var(--ink-100) 63%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.4s ease-in-out infinite;
+  border-radius: 8px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; background: var(--ink-100); }
+}
+
+/* ---- ปุ่มที่กำลังทำงานอยู่ ----
+   กดแล้วต้องเห็นทันทีว่าระบบรับคำสั่งแล้ว ไม่ใช่กดค้างแล้วสงสัยว่ากดติดไหม */
+.btn[data-busy="true"] { position: relative; color: transparent !important; pointer-events: none; }
+.btn[data-busy="true"]::after {
+  content: ""; position: absolute; inset: 0; margin: auto;
+  width: 15px; height: 15px; border-radius: 50%;
+  border: 2px solid currentColor; border-top-color: transparent;
+  color: #fff; animation: langSpin .6s linear infinite;
+}
+.btn-ghost[data-busy="true"]::after, .btn-subtle[data-busy="true"]::after { color: var(--ink-700); }

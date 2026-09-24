@@ -437,3 +437,285 @@ export function findAll(options) {
   ...
 }
 ```
+
+### 5.13 `Math.min` / `Math.max` ซ้อนกัน — ดึงเลขให้อยู่ในช่วง (clamp)
+
+ช่องพิมพ์เลขหน้าในตาราง ผู้ใช้พิมพ์ 999 ทั้งที่มี 93 หน้า ต้องไม่พัง — ดึงกลับมาที่หน้าสุดท้ายแทน
+
+```js
+// frontend/src/design/components.jsx (PageJump)
+const target = Math.min(Math.max(n - 1, 0), pages - 1);
+```
+อ่านจากในออกนอก:
+```js
+Math.max(n - 1, 0)        // ต่ำกว่า 0 ให้เป็น 0        → กันหน้าติดลบ
+Math.min(  ...  , pages-1) // สูงกว่าหน้าสุดท้ายให้เท่าหน้าสุดท้าย
+```
+เขียนยาว:
+```js
+let target = n - 1;
+if (target < 0) target = 0;
+if (target > pages - 1) target = pages - 1;
+```
+
+### 5.14 `.replace(/[^0-9]/g, '')` — กรองให้เหลือแต่ตัวเลข
+
+`/.../` คือ regular expression (แพตเทิร์นค้นหาข้อความ)
+
+| ส่วน | แปลว่า |
+|---|---|
+| `[0-9]` | ตัวอักษรที่เป็นเลข 0 ถึง 9 |
+| `[^0-9]` | `^` ข้างในวงเล็บเหลี่ยม = **กลับด้าน** → อะไรก็ได้ที่**ไม่ใช่**เลข |
+| `g` | global = แทนที่ทุกตัวที่เจอ ไม่ใช่แค่ตัวแรก |
+
+```js
+// frontend/src/design/components.jsx
+onChange={e => setText(e.target.value.replace(/[^0-9]/g, ''))}
+
+'12a3!'.replace(/[^0-9]/g, '')   // → '123'
+```
+
+### 5.15 `getBoundingClientRect()` — ถามตำแหน่งจริงของ element บนจอ
+
+Select ที่เขียนเองต้องวาดกล่องรายการให้ตรงใต้ปุ่มพอดี เลยต้องรู้ว่าปุ่มอยู่พิกัดไหน
+
+```js
+// frontend/src/design/components.jsx (Select)
+const r = triggerRef.current.getBoundingClientRect();
+r.top, r.bottom, r.left, r.width   // หน่วยเป็น px นับจากมุมซ้ายบนของ "ส่วนที่มองเห็น" ไม่ใช่ของทั้งหน้า
+```
+เลขจึงเปลี่ยนเมื่อเลื่อนหน้า — ต้องวัดใหม่ทุกครั้งที่เลื่อน ไม่ใช่วัดครั้งเดียวตอนเปิด
+
+### 5.16 ทำไมห้ามเรียก `setState` ใน `useEffect` (react-hooks/set-state-in-effect)
+
+`useEffect` ทำงาน **หลัง** วาดจอเสร็จแล้ว ถ้าไปสั่ง `setState` ตรงนั้นจะวาดอีกรอบ = ผู้ใช้เห็นของผิดแวบหนึ่ง
+
+```js
+// ❌ พิมพ์ค้นหาแล้วค่อยรีเซ็ตไฮไลต์ทีหลัง — วาด 2 รอบ รอบแรกไฮไลต์ยังผิด
+useEffect(() => { setActiveIndex(0); }, [query]);
+
+// ✅ ตั้งทั้งคู่ในเหตุการณ์เดียวกัน — React รวมให้เป็นรอบเดียว
+const changeQuery = (text) => {
+  setQuery(text);
+  setActiveIndex(0);
+};
+```
+หลักคิด: `useEffect` มีไว้คุยกับของนอก React (ยิง API, ฟัง event ของ browser) ไม่ใช่ไว้ไล่แก้ state ตามกัน
+
+### 5.17 `createPortal` — วาด element ไว้ที่อื่นของหน้า
+
+การ์ดหลายใบตั้ง `overflow: hidden` ไว้ ถ้าวาดกล่อง dropdown ไว้ข้างในการ์ดมันจะโดนตัดครึ่ง
+`createPortal` ย้ายไปวาดที่ `document.body` แทน แต่ยังสั่งงาน/รับค่าจาก component เดิมได้ปกติ
+
+```js
+// frontend/src/design/components.jsx
+import { createPortal } from 'react-dom';
+
+return createPortal(
+  <div className="select-panel">...</div>,   // สิ่งที่จะวาด
+  document.body,                             // วาดไว้ตรงไหน
+);
+```
+
+### 5.18 query string (`?dry_run=true`) — ค่าที่ได้เป็นข้อความเสมอ
+
+ต่อท้าย URL ด้วย `?ชื่อ=ค่า` เพื่อส่งตัวเลือกเล็กๆ ไปกับ request โดยไม่ต้องแก้ body
+Express แกะให้อยู่ใน `req.query`
+
+```js
+// POST /api/students/import?dry_run=true
+// backend/src/modules/students/student.controller.js
+const dryRun = req.query.dry_run === "true";
+```
+**กับดัก:** ทุกค่าใน `req.query` เป็น **string** — `req.query.dry_run` คือ `"true"` ไม่ใช่ `true`
+```js
+if (req.query.dry_run) { ... }            // ❌ ส่ง ?dry_run=false มาก็เข้า if เพราะ "false" เป็นข้อความที่ไม่ว่าง
+if (req.query.dry_run === "true") { ... } // ✅
+```
+
+### 5.19 ฟังก์ชันคืน `{ year }` หรือ `{ error }` แทนการ throw
+
+import CSV ต้อง "ข้ามแถวที่ผิด แล้วทำแถวต่อไป" ไม่ใช่ล้มทั้งไฟล์ — ถ้าตัวตรวจ throw ต้องห่อ try/catch ทุกที่ที่เรียก
+เลยให้คืนผลเป็น object แล้วคนเรียกเลือกเองว่าจะทำอะไรกับ error
+
+```js
+// backend/src/utils/academicYear.js
+const checked = validateGraduationYear("2566", "6610210001");
+// → { error: "ปีการศึกษาที่จบต้องไม่น้อยกว่า 2570 ..." }
+
+if (checked.error) {
+  skipped.push({ row, student_id, reason: checked.error }); // import: ข้ามแถวนี้
+  continue;
+}
+// เพิ่มทีละคน / แก้ไข: เอา checked.error ไป throw เป็น 400 แทน
+```
+
+### 5.20 Prisma — หาแถวที่ "ยังไม่มี" relation และข้อความขึ้นต้นด้วย
+
+```js
+// backend/tests/cleanupYears.mjs — user ที่ import แล้วแต่ยังไม่มีแถว students
+prisma.user.deleteMany({
+  where: {
+    student: null,                              // relation 1:0..1 ยังไม่มี = null
+    psu_passport_id: { startsWith: "87" },      // SQL: LIKE '87%'
+  },
+});
+```
+
+### 5.21 Prisma — `@@unique` / `@@index` และวิธีค้นด้วย compound unique
+
+```prisma
+model ExamResult {
+  student_id String
+  round_id   Int
+  // ห้ามมี 2 แถวที่ student_id + round_id ซ้ำกัน (คู่กัน ไม่ใช่แยกตัว)
+  @@unique([student_id, round_id])
+  // index = สารบัญของตาราง ช่วยให้ค้นด้วยคอลัมน์นี้เร็วขึ้น ไม่ได้ห้ามค่าซ้ำ
+  @@index([round_id])
+}
+```
+
+พอประกาศ `@@unique` แล้ว Prisma สร้างชื่อ key ให้อัตโนมัติ = **เอาชื่อคอลัมน์มาต่อกันด้วย `_`**
+
+```js
+// ก่อนมี @@unique — findFirst เท่านั้น (Prisma ไม่รู้ว่าผลลัพธ์มีได้ตัวเดียว)
+prisma.examResult.findFirst({ where: { student_id, round_id } });
+
+// หลังมี @@unique — findUnique ได้ ต้องห่อไว้ใน key ที่ Prisma ตั้งให้
+prisma.examResult.findUnique({
+  where: { student_id_round_id: { student_id, round_id } },
+});
+```
+
+**ทำไมต้องกันซ้ำที่ DB ทั้งที่ controller เช็คแล้ว:** เช็คใน controller มีช่องว่างระหว่าง "ตรวจว่ายังไม่มี" กับ "เขียนลงไป"
+ถ้า 2 request วิ่งมาพร้อมกัน ทั้งคู่จะตรวจเจอว่า "ยังไม่มี" ก่อนที่ใครจะเขียนเสร็จ → ได้ 2 แถว
+constraint ที่ DB เป็นด่านสุดท้ายที่ไม่มีช่องว่างแบบนั้น
+
+### 5.22 Prisma error code — `P2002` (ข้อมูลซ้ำ constraint)
+
+Prisma โยน error ที่มี `.code` เป็นรหัสตายตัว เอามาแยกแยะได้ว่าเป็นความผิดผู้ใช้หรือบัคของเรา
+
+```js
+// middlewares/errorHandler.js
+const isDuplicate = err.code === "P2002";   // Unique constraint failed
+if (isDuplicate) statusCode = 409;          // ไม่ใช่บัคเรา → ไม่ควรเป็น 500
+```
+
+รหัสที่เจอบ่อย: `P2002` ซ้ำ constraint · `P2003` FK ชี้ไปหาของที่ไม่มี · `P2025` หาแถวที่จะแก้/ลบไม่เจอ
+
+### 5.23 `new URL()` — แก้ query string ของ URL โดยไม่ต้องต่อ string เอง
+
+```js
+const url = new URL("postgresql://user:pass@localhost:5432/mydb");
+url.searchParams.set("schema", "verify_tmp");
+url.toString();  // → postgresql://user:pass@localhost:5432/mydb?schema=verify_tmp
+```
+
+ดีกว่าต่อเอง (`url + "?schema=..."`) เพราะถ้า URL เดิมมี `?` อยู่แล้วต้องใช้ `&` แทน
+`searchParams` รู้เองว่าต้องใช้ตัวไหน และทับค่าเดิมให้ถ้ามี key ซ้ำ
+
+### 5.24 `spawn()` — สั่งรันโปรแกรมอื่นจากใน Node
+
+```js
+import { spawn } from "child_process";
+
+// spawn คืน object ทันที ไม่ได้รอให้จบ — ต้องห่อ Promise เองถ้าอยาก await
+function run(command, args) {
+  return new Promise((resolve) => {
+    const child = spawn(command, args, {
+      shell: true,           // จำเป็นบน Windows ไม่งั้นเรียก npx ไม่เจอ
+      stdio: "inherit",      // ให้ output ของลูกไหลออกจอเลย ("pipe" = เก็บไว้อ่านเอง)
+    });
+    child.on("close", (code) => resolve(code ?? 1)); // 0 = สำเร็จ
+  });
+}
+
+const code = await run("npx", ["prisma", "migrate", "deploy"]);
+```
+
+⚠️ **กับดักบน Windows:** `shell: true` = ได้ process ของ `cmd` ครอบโปรแกรมจริงอีกชั้น
+`child.kill()` ฆ่าแค่ `cmd` ตัวนอก ตัวข้างในรอด (แล้วจองพอร์ตค้างไว้)
+ต้องสั่งฆ่าทั้งต้นไม้: `taskkill /PID <pid> /T /F` (`/T` = ลูกหลานทั้งหมด, `/F` = บังคับ)
+
+### 5.25 `process.platform` — เช็คว่ากำลังรันบน OS ไหน
+
+```js
+if (process.platform === "win32") {
+  // Windows (เป็น "win32" เสมอ แม้เครื่องเป็น 64-bit)
+} else {
+  // "darwin" = macOS, "linux" = Linux
+}
+```
+
+### 5.26 `.split(",").map((s) => s.trim())` — แปลงข้อความคั่น comma เป็น array
+
+```js
+// CORS_ORIGIN="http://localhost:5174, http://192.168.1.10:5174"
+process.env.CORS_ORIGIN.split(",").map((o) => o.trim());
+// → ["http://localhost:5174", "http://192.168.1.10:5174"]
+```
+
+`.trim()` ตัดช่องว่างหัวท้าย — ขาดไปแล้วค่าที่ 2 จะเป็น `" http://..."` (มีเว้นวรรคนำ) แล้วเทียบไม่ตรง
+
+### 5.27 `import.meta.env` — อ่าน .env ฝั่ง frontend (Vite)
+
+```js
+// frontend/src/design/api.js
+const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:3000/api';
+```
+
+ต่างจาก backend ที่ใช้ `process.env` — ฝั่ง browser ไม่มี `process`
+
+⚠️ 2 ข้อที่ต่างจาก backend:
+1. **ต้องขึ้นต้นด้วย `VITE_`** เท่านั้น ตัวอื่น Vite ไม่ส่งให้ (กันความลับหลุดโดยไม่ตั้งใจ)
+2. **ค่าถูกฝังลงไฟล์ที่ browser โหลด** = ทุกคนเปิดดูได้ → **ห้ามใส่รหัสผ่าน/key เด็ดขาด**
+
+### 5.28 Prisma — `{ in: undefined }` ไม่ได้แปลว่า "ไม่ตรงกับอะไร"
+
+```js
+// ตั้งใจ: อัปเดตเฉพาะนักศึกษาที่อยู่ในรายชื่อ
+prisma.student.updateMany({
+  where: { student_id: { in: studentIds } },
+  data: { exam_eligible: false },
+});
+```
+
+ถ้า `studentIds` เป็น `undefined` (client ลืมส่งมา) Prisma จะ **ตัดเงื่อนไขนั้นทิ้ง**
+→ `where` กลายเป็นก้อนว่าง → เข้าเงื่อนไข **ทุกแถวในตาราง**
+= ปิดสิทธิ์นักศึกษาทั้งระบบในคำสั่งเดียว โดยตอบ 200 เหมือนสำเร็จปกติ
+
+**กฎ:** ก่อนเรียก `updateMany` / `deleteMany` ต้องตรวจก่อนเสมอว่าเงื่อนไขมีค่าจริง
+
+```js
+if (!Array.isArray(student_ids) || student_ids.length === 0) {
+  throw httpError("ต้องระบุ student_ids อย่างน้อย 1 รายการ", 400);
+}
+if (typeof exam_eligible !== "boolean") {   // "false" (ข้อความ) ต้องไม่ผ่าน
+  throw httpError("exam_eligible ต้องเป็น true หรือ false", 400);
+}
+```
+
+`findMany` ไม่อันตรายเท่า (แค่ได้ผลเกิน) แต่ `updateMany`/`deleteMany` แก้ข้อมูลจริง
+
+### 5.29 ค่าที่คำนวณตอนส่งออก ไม่เก็บลง DB
+
+```js
+// backend/src/utils/roundPhase.js
+export const getRoundPhase = (round, now = new Date()) => {
+  if (round.status !== "open") return "closed";
+  if (now < new Date(round.open_date)) return "scheduled";
+  if (now > new Date(round.close_date)) return "expired";
+  return "active";
+};
+
+// แปะเข้าไปตอนจะส่งให้ client
+export const withPhase = (round) => ({ ...round, phase: getRoundPhase(round) });
+
+res.json({ success: true, data: rounds.map(withPhase) });
+```
+
+**ทำไมไม่เก็บเป็นคอลัมน์:** ค่ามันเปลี่ยนเองเมื่อเวลาผ่านไป โดยไม่มีใครมากดอะไรเลย
+รอบที่เป็น `scheduled` วันนี้ พรุ่งนี้กลายเป็น `active` เอง
+ถ้าเก็บลง DB ต้องมีอะไรสักอย่างคอยวิ่งอัปเดตตลอดเวลา — คำนวณตอนอ่านจบกว่า
+
+⚠️ สูตรต้องตรงกับ query ที่ใช้จริง (`findActive`) เป๊ะๆ ไม่งั้นหน้าจอจะบอกคนละเรื่องกับที่ระบบทำ

@@ -9,7 +9,7 @@
    ============================================================ */
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, Modal, StatusBadge, PassBadge, Empty } from './components.jsx';
+import { PageHead, Modal, StatusBadge, PassBadge, Empty, Select } from './components.jsx';
 import { apiFetch, ApiError, openAuthedFile } from './api.js';
 import { t, subjectName, roomName } from './i18n.js';
 
@@ -56,8 +56,15 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
 
   const examResult = results.find(r => r.result_id === selectedId) || null;
   const status = examResult ? STAFF_STATUS_TO_BADGE[examResult.staff_status] : 'DRAFT';
-  const passedCount = examResult ? examResult.subject_results.filter(r => r.is_passed).length : 0;
-  const allPass = examResult && passedCount === subjects.length;
+  // ตัวหาร = จำนวนวิชา "ของรอบนั้น" ไม่ใช่วิชาทั้งระบบ — รอบที่สอบ 3 วิชาเคยขึ้น "ผ่าน 2/8 วิชา"
+  // (subject_ids ว่าง = รอบเก่าก่อนมี field นี้ ถือว่าสอบทุกวิชา)
+  const roundSubjectIds = examResult?.round?.subject_ids?.length
+    ? examResult.round.subject_ids
+    : subjects.map(s => s.subject_id);
+  const passedCount = examResult
+    ? examResult.subject_results.filter(r => r.is_passed && roundSubjectIds.includes(r.subject_id)).length
+    : 0;
+  const allPass = examResult && roundSubjectIds.length > 0 && passedCount === roundSubjectIds.length;
 
   const review = async (action, reasonText) => {
     setBusy(true);
@@ -100,7 +107,10 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
         method: 'PATCH',
         body: { ...editForm, room_id: Number(editForm.room_id), academic_year: Number(editForm.academic_year) },
       });
-      setStudentFull(updated);
+      // PATCH ตอบกลับมาเป็นแถว student ดิบ ไม่มี academic_year_derived / exam_result_count
+      // (2 ตัวนั้น GET /students/:id คำนวณเพิ่มให้ตอนส่งออก) — ถ้า setStudentFull(updated) ตรง ๆ
+      // ค่าจะหายไป แล้ว hint ใต้ช่องปีจะขึ้น '—' ทันทีหลังกดบันทึก เลยต้องรวมของเดิมไว้ด้วย
+      setStudentFull(prev => ({ ...prev, ...updated }));
       toast(tt('officer.detail.editSuccessToast'), 'success');
       setEditOpen(false);
     } catch (e) {
@@ -116,6 +126,9 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
   const displayName = studentFull ? `${studentFull.user.first_name} ${studentFull.user.last_name}` : `${student.firstName} ${student.lastName}`;
   const displayRoom = studentFull?.room?.room_name || student.room;
   const displayYear = studentFull?.academic_year || student.year;
+  // ส่งผลสอบไปแล้ว = ย้ายรุ่นไม่ได้ (backend บล็อกอยู่แล้ว ตรงนี้แค่ทำให้ช่องกดไม่ได้ + บอกเหตุผล
+  // ดีกว่าปล่อยให้พิมพ์จนเสร็จแล้วค่อยเด้ง error ตอนกดบันทึก)
+  const yearLocked = (studentFull?.exam_result_count ?? 0) > 0;
 
   return (
     <div className="fade-up">
@@ -132,7 +145,7 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
           <div className="card" style={{ overflow: 'hidden' }}>
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--ink-100)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{tt('officer.detail.resultsTitle')}</h3>
-              <span className="tnum chip" style={{ background: allPass ? 'var(--status-ok-bg)' : 'var(--ink-100)', color: allPass ? 'var(--status-ok-fg)' : 'var(--ink-900)', fontWeight: 700 }}>{tt('officer.detail.passChip', { passed: passedCount })}</span>
+              <span className="tnum chip" style={{ background: allPass ? 'var(--status-ok-bg)' : 'var(--ink-100)', color: allPass ? 'var(--status-ok-fg)' : 'var(--ink-900)', fontWeight: 700 }}>{tt('officer.detail.passChip', { passed: passedCount, total: roundSubjectIds.length })}</span>
             </div>
             <table className="tbl">
               <thead><tr><th style={{ width: 80 }}>{tt('officer.detail.colCode')}</th><th>{tt('officer.detail.colSubject')}</th><th style={{ textAlign: 'right' }}>{tt('officer.detail.colResult')}</th></tr></thead>
@@ -267,12 +280,36 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
               <input className="input tnum" value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} /></div>
             <div style={{ display: 'flex', gap: 10 }}>
               <div className="field" style={{ flex: 1 }}><label>{tt('officer.detail.fieldRoom')}</label>
-                <select className="select" value={editForm.room_id} onChange={e => setEditForm(f => ({ ...f, room_id: e.target.value }))}>
-                  {rooms.map(r => <option key={r.room_id} value={r.room_id}>{r.room_name}</option>)}
-                </select></div>
+                <Select value={String(editForm.room_id)} onChange={v => setEditForm(f => ({ ...f, room_id: v }))} lang={lang}
+                  options={rooms.map(r => ({ value: String(r.room_id), label: r.room_name }))} /></div>
+              {/* ปีการศึกษาที่จบ = รุ่นของนักศึกษา และเป็นตัวตัดสินว่าจะเห็นฟอร์มของรอบไหน
+                  (backend เปิดรอบให้เฉพาะคนที่ academic_year ตรงกับรอบนั้น)
+                  เคสซ้ำชั้น/ลาพัก ค่าที่คำนวณจากรหัสจะผิด เจ้าหน้าที่ต้องแก้ตรงนี้ให้ตรงปีที่จบจริง
+                  แต่แก้ได้เฉพาะคนที่ยังไม่เคยส่งผลสอบ — ย้ายรุ่นทีหลังทำให้สถิติรุ่นเดิมเพี้ยน (ดู update() ฝั่ง backend) */}
               <div className="field" style={{ flex: 1 }}><label>{tt('officer.detail.fieldYear')}</label>
-                <input className="input tnum" type="number" value={editForm.academic_year} onChange={e => setEditForm(f => ({ ...f, academic_year: e.target.value }))} /></div>
+                <input className="input tnum" type="number" value={editForm.academic_year}
+                  disabled={yearLocked}
+                  // แก้ปีแล้วล้าง error เดิมทิ้ง — ไม่งั้นข้อความแดงของค่าก่อนหน้า ("ต้องไม่น้อยกว่า 2592")
+                  // ค้างอยู่คู่กับกล่องเตือนย้ายรุ่นของค่าใหม่ อ่านแล้วนึกว่าค่าใหม่ก็ผิด
+                  onChange={e => { setEditForm(f => ({ ...f, academic_year: e.target.value })); setEditError(''); }} />
+                <span className="hint">
+                  {yearLocked
+                    ? tt('officer.detail.yearLockedHint', { n: studentFull.exam_result_count })
+                    : tt('officer.detail.yearDerivedHint', { year: studentFull?.academic_year_derived ?? '—' })}
+                </span>
+              </div>
             </div>
+            {/* เตือนตอนกรอกค่าที่ต่างจากที่คำนวณได้ — กันพิมพ์ผิดแล้วนักศึกษาหายไปจากรุ่นทั้งรุ่น */}
+            {!yearLocked && studentFull?.academic_year_derived != null
+              && Number(editForm.academic_year) !== studentFull.academic_year_derived
+              && String(editForm.academic_year).length === 4 && (
+              <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 10,
+                background: 'var(--status-wait-bg)', color: 'var(--status-wait-fg)', fontSize: 14.5 }}>
+                <Icon name="alert" size={17} style={{ flex: 'none', marginTop: 1 }} />
+                <span>{tt('officer.detail.yearOverrideWarn', {
+                  derived: studentFull.academic_year_derived, picked: editForm.academic_year })}</span>
+              </div>
+            )}
             {editError && <div style={{ color: 'var(--reject,#dc2626)', fontSize: 15 }}>{editError}</div>}
           </div>
         )}

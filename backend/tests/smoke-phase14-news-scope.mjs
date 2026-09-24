@@ -1,7 +1,7 @@
 // Targeted test: a student sees only the announcements of their own cohort.
 // Officers and executives keep seeing every announcement (they manage them).
 // Creates its own year/round/news/student and deletes all of it at the end.
-const BASE = "http://localhost:3000";
+const BASE = process.env.BASE || "http://localhost:3000"; // ตั้ง BASE ได้ตอนรันผ่าน test:clean (server ชั่วคราวอยู่คนละพอร์ต)
 let failures = 0;
 
 const call = async (method, url, { token, body } = {}) => {

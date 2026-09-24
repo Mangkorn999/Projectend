@@ -1,5 +1,6 @@
 import * as dashRepo from "./dashboard.repository.js";
 import { subjectsOfRound } from "../../utils/roundSubjects.js";
+import { getRoundPhase } from "../../utils/roundPhase.js";
 
 // ปัดเป็น % จำนวนเต็ม กันหารด้วย 0
 const percent = (part, whole) => (whole ? Math.round((part / whole) * 100) : 0);
@@ -316,6 +317,12 @@ export const buildStats = async (roundId) => {
       academic_year: round.academic_year,
       attempt_number: round.attempt_number,
       status: round.status,
+      // ต้องส่งวันที่ + phase ไปด้วย ไม่ใช่แค่ status
+      // เดิมส่งแค่ status → หน้า dashboard เขียน "เปิดรับอยู่" ให้รอบที่ยังไม่ถึงวันเปิด
+      // เพราะฝั่งหน้าจอไม่มีวันที่ให้เทียบ เลยเดาว่า active ตลอด
+      open_date: round.open_date,
+      close_date: round.close_date,
+      phase: getRoundPhase(round),
     },
     total, // นักศึกษาทั้งรุ่นที่ import เข้าระบบ = ตัวหารของทุก % ในหน้านี้
     eligible, // เปิดสิทธิ์กรอกอยู่กี่คน — ข้อมูลประกอบ ไม่ใช่ตัวหาร
@@ -434,6 +441,9 @@ const buildYearSummary = async (year, allSubjects) => {
       round_id: round.round_id,
       attempt_number: round.attempt_number,
       status: round.status,
+      open_date: round.open_date,
+      close_date: round.close_date,
+      phase: getRoundPhase(round),
       subject_count: subjectIds.length,
       // submitted นับใบที่ถูกตีกลับด้วย (ส่งมาแล้วจริง) แต่ fullyPassed ต้องไม่นับ — ใบนั้นยังเชื่อไม่ได้
       submitted: sent.length,

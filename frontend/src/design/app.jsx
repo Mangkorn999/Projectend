@@ -10,7 +10,7 @@ import { Login } from './login.jsx';
 import { ForceChangePassword } from './forceChangePassword.jsx';
 import { CompleteProfile } from './completeProfile.jsx';
 import { getStoredUser, logout, setSession, apiFetch } from './api.js';
-import { buildNotifications, fromServer, sortByNewest, countUnread, readKeys, markAllRead, toastedKeys, markToasted } from './notifications.js';
+import { buildNotifications, fromServer, fromAlerts, sortByNewest, countUnread, readKeys, markAllRead, toastedKeys, markToasted, dismissedKeys, dismissAll } from './notifications.js';
 import { FormIntro } from './student.jsx';
 import { StudentImport } from './studentImport.jsx';
 import { OfficerStudentsReal } from './officerStudentsReal.jsx';
@@ -71,6 +71,8 @@ const NAV = (lang, pendingCount)=>({
   ],
 });
 const DEFAULT_PAGE = { student:'news', officer:'dashboard', executive:'dashboard', reviewer:'review' };
+// แจ้งเตือนเด้ง (toast) พร้อมกันได้สูงสุดกี่อัน — ที่เกินรวบเป็นการ์ด "มีอีก N รายการ"
+const MAX_TOASTS = 3;
 
 /* ============================================================
    URL ของแต่ละหน้า
@@ -112,8 +114,9 @@ const PATH_PAGE = Object.fromEntries(
 // (นี่เป็นแค่ UX ฝั่งหน้าจอ ตัวจริงที่กันข้อมูลคือ requireRole ฝั่ง backend)
 const ROLE_PAGES = {
   student: ['news', 'formIntro', 'form', 'status', 'history'],
-  officer: ['dashboard', 'review', 'students', 'import', 'detail', 'rounds', 'usermgmt', 'newsmgmt', 'reports'],
-  executive: ['dashboard', 'reports'],
+  // 'manual' ต้องอยู่ด้วย — เดิมขาดไป รีเฟรชตอนอยู่หน้าคู่มือแล้วเด้งกลับ dashboard
+  officer: ['dashboard', 'review', 'students', 'import', 'detail', 'rounds', 'usermgmt', 'newsmgmt', 'reports', 'manual'],
+  executive: ['dashboard', 'reports', 'manual'],
   reviewer: ['review', 'detail'],
 };
 
@@ -184,22 +187,35 @@ export function App() {
   const [notifToasts, pushNotifToasts, setNotifToasts] = useNotifToasts();
 
   // แจ้งเตือน — ดึงใหม่ทุกครั้งที่เปลี่ยนหน้า + poll ทุก 30 วิระหว่างอยู่หน้าเดิม
-  // นักศึกษา: ของจริงจากตาราง notifications + ประกาศ
-  // role อื่น: ประกาศอย่างเดียว (ยังไม่มีแจ้งเตือนใน DB ให้)
+  // นักศึกษา:        ตาราง notifications (ผลถูกยืนยัน/ตีกลับ, เปิดสิทธิ์) + ประกาศ
+  // เจ้าหน้าที่/ผู้บริหาร: alert สดจาก /dashboard/alerts (รอบใกล้ปิด, ค้างตรวจ, ยังไม่ส่งผล) + ประกาศของคนอื่น
+  // reviewer:        ประกาศอย่างเดียว (ไม่มีสิทธิ์เรียก /dashboard/alerts)
   useEffect(()=>{
     if (!role || !currentUser) { setNotifications([]); setUnread(0); return; }
     let dropped = false;
+    const wantsAlerts = role === 'officer' || role === 'executive';
     const fetchNotifs = async () => {
-      const news = await apiFetch('/news').catch(()=>[]);
-      const rows = role === 'student'
-        ? await apiFetch('/notifications/me').catch(()=>[])
-        : [];
-      if (dropped) return; // เปลี่ยนหน้า/ออกจากระบบระหว่างรอ — ทิ้งผลไปเลย
-      // ไม่ส่ง examResults เข้า buildNotifications แล้ว เรื่องผลสอบมาจาก DB ทางเดียว
-      const items = sortByNewest([
-        ...fromServer(rows),
-        ...buildNotifications({ role, news, lang }),
+      // ยิงพร้อมกันทั้ง 3 เส้น ไม่ใช่รอทีละเส้น — กระดิ่งจะได้ไม่ค้างนานตอนเปลี่ยนหน้า
+      // .catch(()=>[]) ทุกเส้น เพราะเส้นไหนล้มก็ไม่ควรทำให้กระดิ่งว่างทั้งอัน
+      const [news, rows, alertRes] = await Promise.all([
+        apiFetch('/news').catch(()=>[]),
+        role === 'student' ? apiFetch('/notifications/me').catch(()=>[]) : Promise.resolve([]),
+        wantsAlerts ? apiFetch('/dashboard/alerts').catch(()=>null) : Promise.resolve(null),
       ]);
+      if (dropped) return; // เปลี่ยนหน้า/ออกจากระบบระหว่างรอ — ทิ้งผลไปเลย
+
+      // ไม่ส่ง examResults เข้า buildNotifications แล้ว เรื่องผลสอบมาจาก DB ทางเดียว
+      // userId ส่งไปด้วยเพื่อตัดประกาศที่ตัวเองโพสต์ออก
+      const events = sortByNewest([
+        ...fromServer(rows),
+        ...buildNotifications({ role, news, lang, userId: currentUser.id }),
+      ]);
+      // alert เป็นเรื่องที่ "ต้องลงมือทำ" ดันไว้บนสุดเสมอ ไม่เอาไปเรียงปนกับประกาศตามวันที่
+      // (alert ไม่มีวันที่ ถ้าเรียงรวมจะตกไปท้ายสุดทุกครั้ง ซึ่งกลับหัวกลับหางกับความสำคัญจริง)
+      const live = fromAlerts(alertRes?.alerts || [], role);
+      const hidden = dismissedKeys(currentUser.id);
+      const items = [...live, ...events].filter(n => !hidden.includes(n.key));
+
       setNotifications(items);
       setUnread(countUnread(items, readKeys(currentUser.id)));
 
@@ -209,7 +225,22 @@ export function App() {
       const isUnread = (n) => n.is_read === undefined ? !seenReadKeys.includes(n.key) : !n.is_read;
       const toShow = items.filter(n => isUnread(n) && !seenToastKeys.includes(n.key));
       if (toShow.length) {
-        pushNotifToasts(toShow);
+        // เด้งพร้อมกันได้ไม่เกิน MAX_TOASTS อัน — login ครั้งแรกทุกอย่างยัง "ไม่อ่าน" หมด
+        // เคยเด้ง 7 อันซ้อนกันบังครึ่งจอ (และบังปุ่มเลือกรอบมุมขวาบนจนกดไม่ได้)
+        // เกินโควตา → โชว์ (MAX-1) อันแรก + การ์ดสรุป "มีอีก N รายการ" ที่เหลือดูในกระดิ่ง
+        // toShow เรียง alert สด (เรื่องต้องทำ) ไว้ก่อนแล้ว ตัดท้ายทิ้งจึงเสียแต่เรื่องสำคัญน้อย
+        let batch = toShow;
+        if (toShow.length > MAX_TOASTS) {
+          const extra = toShow.length - (MAX_TOASTS - 1);
+          batch = [
+            ...toShow.slice(0, MAX_TOASTS - 1),
+            { key: 'more', tone: 'wait', icon: 'bell', page: null,
+              title: translate(lang, 'notif.moreTitle', { n: extra }),
+              sub: translate(lang, 'notif.moreSub') },
+          ];
+        }
+        pushNotifToasts(batch);
+        // จำว่าเด้งแล้ว "ทุกตัว" รวมที่ถูกรวบไว้ในการ์ดสรุป — ไม่งั้นรอบ poll ถัดไปเด้งตัวที่เหลือซ้ำ
         markToasted(currentUser.id, toShow.map(n => n.key));
       }
     };
@@ -229,6 +260,30 @@ export function App() {
       setNotifications(items => items.map(n =>
         n.is_read === undefined ? n : { ...n, is_read: true }));
     }
+    setUnread(0);
+  };
+
+  // กดที่แจ้งเตือนสักอัน = อ่านเรื่องนั้นแล้ว → เอาออกจากลิสต์เลย
+  // เดิมกดแล้วแค่เปลี่ยนหน้า รายการยังค้างอยู่ ต้องไปกด "ล้างทั้งหมด" เองถึงจะหาย
+  // ใช้ dismiss (ไม่ใช่แค่ mark read) เพราะ "อ่านแล้ว" แค่ทำให้ badge ลด แต่ยังโชว์อยู่ในลิสต์
+  const openNotifItem = (targetPage, key) => {
+    if (key) {
+      dismissAll(currentUser.id, [key]);
+      setNotifications(items => items.filter(n => n.key !== key));
+      setUnread(u => Math.max(0, u - 1));
+    }
+    if (targetPage) go(targetPage);
+  };
+
+  // ปุ่ม "ล้างทั้งหมด" — เอาออกจากลิสต์เลย ไม่ใช่แค่ทำเครื่องหมายว่าอ่านแล้ว
+  // ของนักศึกษาที่อยู่ใน DB ต้องสั่ง read-all ด้วย ไม่งั้นรีเฟรชแล้วมันกลับมาเป็น "ยังไม่อ่าน" อีก
+  // alert ของเจ้าหน้าที่ที่ยังเป็นจริงอยู่จะกลับมาเองเมื่อตัวเลขเปลี่ยน (ดู fromAlerts ใน notifications.js)
+  const clearAllNotifications = () => {
+    dismissAll(currentUser.id, notifications.map(n => n.key));
+    if (role === 'student' && notifications.some(n => n.is_read === false)) {
+      apiFetch('/notifications/read-all', { method:'PATCH' }).catch(()=>{});
+    }
+    setNotifications([]);
     setUnread(0);
   };
 
@@ -350,7 +405,11 @@ export function App() {
   if(!role) return <Login onLogin={handleLogin} />;
 
   const nav = role==='student' ? navStudent(lang, rejectedCount) : NAV(lang, pendingCount)[role];
-  const go = (p, step=0)=>{ setPage(p); setFormStep(step); pushUrl(PAGE_PATH[p] || '/'); window.scrollTo(0,0); };
+  const go = (p, step=0)=>{
+    // ออกไปหน้าอื่นที่ไม่ใช่ review/detail (เช่น กด sidebar ไป Dashboard) — ทิ้งตำแหน่งคิวที่จำไว้ ไม่งั้นกลับมาหน้า review ทีหลังจะเด้งไปแท็บเก่า
+    if (p !== 'review' && p !== 'detail') setReviewRestore(null);
+    setPage(p); setFormStep(step); pushUrl(PAGE_PATH[p] || '/'); window.scrollTo(0,0);
+  };
   // ไม่มีสลับ role ปลอมอีกแล้ว — 'logout' คือทางเดียวที่เหลือ
   // เบลอหน้าจอ 280ms เหมือนตอนสลับภาษา ระหว่างนั้นยิง POST /auth/logout ให้ backend ลบ cookie
   // (clearSession() อย่างเดียวไม่พอ — cookie เป็น httpOnly ฝั่ง JS ลบเองไม่ได้)
@@ -411,7 +470,7 @@ export function App() {
         user={{ firstName: currentUser?.name || '', lastName: '' }}
         onMenu={()=>setSbOpen(true)} onSwitchRole={switchRole}
         notifications={notifications} unread={unread}
-        onNotifOpen={openNotifications} onNotifGo={go}
+        onNotifOpen={openNotifications} onNotifGo={openNotifItem} onNotifClearAll={clearAllNotifications}
         lang={lang} setLang={changeLang} langLoading={langBlurring} />
       <div className={'app-shell lang-fade'+(langBlurring?' lang-fade-blur':'')+(loggingOut?' logout-blur':'')}>
         {/* บทบาทผู้ใช้แสดงที่เมนูผู้ใช้บน TopBar ที่เดียว — การ์ดใน sidebar ซ้ำโดยไม่จำเป็น */}
@@ -422,7 +481,7 @@ export function App() {
       </div>
       <Toast toast={toast} />
       <NotifToastStack items={notifToasts} lang={lang}
-        onGo={(p)=>{ go(p); }} onDismiss={dismissNotifToast} />
+        onGo={(p)=>{ if (p) go(p); }} onDismiss={dismissNotifToast} />
     </div>
   );
 }

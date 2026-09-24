@@ -4,7 +4,10 @@
    ============================================================ */
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, Modal } from './components.jsx';
+import { phaseOf, phaseLabel, phaseBadgeClass } from './roundPhase.js';
+import { PageHead, Modal, Select, Pagination } from './components.jsx';
+import { usePagedList } from './usePagedList.js';
+import { SkeletonCards } from './skeletons.jsx';
 import { apiFetch, ApiError } from './api.js';
 import { t, subjectName } from './i18n.js';
 
@@ -43,6 +46,9 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
   const [roundModal, setRoundModal] = useState(null); // 'new' | round | null
   const [subjectModal, setSubjectModal] = useState(null); // {} (new) | subject | null
   const [deleteRound, setDeleteRound] = useState(null); // รอบที่กำลังจะลบ (ยืนยันก่อน)
+  // รายวิชาที่กำลังจะลบ — เดิมกดปุ่มถังขยะแล้วลบทันทีไม่ถามอะไรเลย พลาดคลิกทีเดียวหายทั้งวิชา
+  // (ลบรอบถามอยู่แล้ว ตรงนี้ขาดไป) วิชาถูกใช้ในรอบ/ผลสอบเก่า ลบผิดกระทบย้อนหลังทั้งระบบ
+  const [deleteSubjectTarget, setDeleteSubjectTarget] = useState(null);
   const [cohorts, setCohorts] = useState([]); // [{ year, count }] รุ่นนักศึกษาที่มีจริงในระบบ
   // กรองรายการรอบ — 'open' = เฉพาะรอบที่ยังเปิดรับ, 'all' = ทุกรอบ, หรือเลือกปีเจาะจง
   const [yearFilter, setYearFilter] = useState('open');
@@ -69,11 +75,14 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
         await apiFetch(`/rounds/${roundModal.round_id}`, { method: 'PUT', body: form });
         toast(tt('roundsMgmt.savedToast'));
       }
-      // ปิดรอบทั้งที่ตัวกรองเป็น "เฉพาะรอบที่เปิดรับ" → การ์ดจะหลุดจากตัวกรองแล้วดูเหมือนหายไป
-      // ทั้งที่ยังอยู่ครบ เลยสลับตัวกรองไปที่รุ่นของรอบนั้นให้เอง จะได้เห็นผลลัพธ์ที่เพิ่งบันทึก
-      if (yearFilter === 'open' && form.status !== 'open') {
-        setYearFilter(String(form.academic_year));
-      }
+      // รอบที่เพิ่งบันทึกต้องเห็นได้เสมอ ไม่งั้นดูเหมือนบันทึกไม่สำเร็จแล้วกดซ้ำ
+      // เกิดได้ 2 แบบ: ปิดรอบทั้งที่กรอง "เฉพาะรอบที่เปิดรับ" · สร้างรอบให้รุ่นอื่นทั้งที่กรองรุ่นใดรุ่นหนึ่งอยู่
+      // ตัวกรองไม่ครอบรอบนี้เมื่อไหร่ ก็สลับไปที่รุ่นของรอบนั้นให้เลย
+      const visibleAfterSave =
+        yearFilter === 'all' ||
+        (yearFilter === 'open' && form.status === 'open') ||
+        String(yearFilter) === String(form.academic_year);
+      if (!visibleAfterSave) setYearFilter(String(form.academic_year));
       setRoundModal(null);
       loadRounds();
     } catch (e) {
@@ -111,13 +120,30 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
     try {
       await apiFetch(`/subjects/${s.subject_id}`, { method: 'DELETE' });
       toast(tt('roundsMgmt.subjectDeletedToast'), 'info');
+      setDeleteSubjectTarget(null);
       loadSubs();
     } catch (e) {
       toast(e instanceof ApiError ? e.message : tt('roundsMgmt.deleteFailMsg'), 'error');
     }
   };
 
-  if (!rounds || !subs) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
+  // กรอง+เรียงรอบก่อน แล้วค่อยแบ่งหน้า (เดิมวาดทุกรอบรวดเดียว ปีผ่านไปการ์ดจะยาวไม่สิ้นสุด)
+  const visibleRounds = (rounds ?? [])
+    .filter(r => {
+      // "รอบที่ยังเปิดอยู่" = รอบที่เจ้าหน้าที่ยังไม่ได้กดปิด (ไม่ใช่แค่รอบที่รับกรอกได้ตอนนี้)
+      // ต้องรวม scheduled (ยังไม่ถึงวันเปิด) กับ expired (เลยวันปิดแต่ยังไม่กดปิด) ด้วย
+      // ไม่งั้นรอบที่ตั้งวันผิดจะหายจากหน้าจอ แล้วเจ้าหน้าที่หาไม่เจอว่าจะไปแก้ตรงไหน
+      if (yearFilter === 'open') return phaseOf(r) !== 'closed';
+      if (yearFilter === 'all') return true;
+      return String(r.academic_year) === String(yearFilter);
+    })
+    .sort((a, b) => b.academic_year - a.academic_year || b.attempt_number - a.attempt_number);
+
+  // hook ต้องเรียกก่อน early-return เสมอ — resetKey = yearFilter ให้เด้งกลับหน้า 1 เมื่อเปลี่ยนตัวกรอง
+  const roundsPage = usePagedList(visibleRounds, 9, yearFilter);
+  const subsPage = usePagedList(subs ?? [], 15);
+
+  if (!rounds || !subs) return <div className="fade-up"><SkeletonCards count={6} /></div>;
 
   // ปีในตัวกรอง = ปีที่ "มีรอบอยู่จริง" ไม่ใช่รุ่นนักศึกษาทั้งหมด — เลือกปีที่ไม่มีรอบแล้วได้หน้าว่างเปล่า
   const filterYears = [...new Set(rounds.map(r => r.academic_year))].sort((a, b) => b - a);
@@ -142,27 +168,19 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
         {/* ตัวกรองรายการ ไม่ใช่ช่องกรอกในฟอร์ม — ใช้ label คนละอันกับใน modal จะได้ไม่มี * หลอกว่าบังคับกรอก */}
         <div className="field" style={{ maxWidth: 240, marginBottom: 14 }}>
           <label>{tt('roundsMgmt.filterCohort')}</label>
-          <select className="select" value={yearFilter} onChange={e => setYearFilter(e.target.value)}>
-            <option value="open">{tt('roundsMgmt.yearFilterOpen')}</option>
-            <option value="all">{tt('roundsMgmt.yearFilterAll')}</option>
-            {filterYears.map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
+          <Select value={yearFilter} onChange={setYearFilter} lang={lang}
+            options={[
+              { value: 'open', label: tt('roundsMgmt.yearFilterOpen') },
+              { value: 'all', label: tt('roundsMgmt.yearFilterAll') },
+              ...filterYears.map(y => ({ value: String(y), label: String(y) })),
+            ]} />
         </div>
         <div className="grid g-3">
-          {rounds
-            .map(r => ({ ...r, isEffectivelyOpen: r.status === 'open' && new Date(r.close_date) >= new Date() }))
-            .filter(r => {
-              if (yearFilter === 'open') return r.isEffectivelyOpen;
-              if (yearFilter === 'all') return true;
-              return String(r.academic_year) === String(yearFilter);
-            })
-            .sort((a, b) => b.academic_year - a.academic_year || b.attempt_number - a.attempt_number)
-            .map(r => {
-            const { isEffectivelyOpen } = r;
+          {roundsPage.rows.map(r => {
             return (
             <div key={r.round_id} className="card card-pad">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                <span className={'badge ' + (isEffectivelyOpen ? 'ok' : 'draft')}><span className="dot"></span>{isEffectivelyOpen ? tt('roundsMgmt.openBadge') : tt('roundsMgmt.closedBadge')}</span>
+                <span className={'badge ' + phaseBadgeClass(r)}><span className="dot"></span>{phaseLabel(r, tt)}</span>
                 <div style={{ display: 'flex', gap: 2 }}>
                   <button className="btn btn-ghost btn-sm" style={{ padding: 7, border: 'none' }} aria-label={tt('roundsMgmt.editRoundAria')}
                     onClick={() => setRoundModal(r)}><Icon name="edit" size={16} /></button>
@@ -176,11 +194,32 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 15 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--ink-500)' }}>{tt('roundsMgmt.openDateLabel')}</span><b>{showThaiDateTime(r.open_date)}</b></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--ink-500)' }}>{tt('roundsMgmt.closeDateLabel')}</span><b>{showThaiDateTime(r.close_date)}</b></div>
+                {/* บอกให้ชัดว่าทำไมนักศึกษายังกรอกไม่ได้ ทั้งที่รอบขึ้นว่าเปิด */}
+                {phaseOf(r) === 'scheduled' && (
+                  <div style={{ fontSize: 14, color: 'var(--ink-500)', background: 'var(--status-draft-bg)', padding: '7px 10px', borderRadius: 8 }}>
+                    {tt('roundPhase.scheduledHint', { date: showThaiDateTime(r.open_date) })}
+                  </div>
+                )}
+                {phaseOf(r) === 'expired' && (
+                  <div style={{ fontSize: 14, color: 'var(--status-wait-fg)', background: 'var(--status-wait-bg)', padding: '7px 10px', borderRadius: 8 }}>
+                    {tt('roundPhase.expiredHint')}
+                  </div>
+                )}
               </div>
             </div>
             );
           })}
         </div>
+        {roundsPage.pages > 1 && (
+          <div className="card" style={{ overflow: 'hidden', marginTop: 14 }}>
+            <Pagination page={roundsPage.page} pages={roundsPage.pages} onPage={roundsPage.setPage} lang={lang} />
+          </div>
+        )}
+        {visibleRounds.length === 0 && (
+          <div style={{ padding: '30px 16px', textAlign: 'center', color: 'var(--ink-500)', fontSize: 15.5 }}>
+            {tt('roundsMgmt.noRoundInFilter')}
+          </div>
+        )}
         </>
       )}
 
@@ -188,18 +227,31 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
         <div className="card" style={{ overflow: 'hidden' }}>
           <table className="tbl">
             <thead><tr><th style={{ width: 80 }}>{tt('roundsMgmt.colOrder')}</th><th style={{ width: 120 }}>{tt('roundsMgmt.colCode')}</th><th>{tt('roundsMgmt.colName')}</th><th></th></tr></thead>
-            <tbody>{subs.map((s, i) => (
-              <tr key={s.subject_id}><td className="tnum" style={{ color: 'var(--ink-500)' }}>{i + 1}</td>
+            {/* ลำดับต้องนับต่อจากหน้าก่อน ไม่ใช่เริ่ม 1 ใหม่ทุกหน้า */}
+            <tbody>{subsPage.rows.map((s, i) => (
+              <tr key={s.subject_id}><td className="tnum" style={{ color: 'var(--ink-500)' }}>{subsPage.page * 15 + i + 1}</td>
                 <td><span className="chip mono" style={{ fontSize: 14.5 }}>{s.subject_code}</span></td>
                 <td style={{ fontWeight: 500 }}>{subjectName(lang, s.subject_code, s.subject_name)}</td>
                 <td style={{ textAlign: 'right' }}>
                   <button className="btn btn-ghost btn-sm" style={{ padding: 7, border: 'none' }} onClick={() => setSubjectModal(s)}><Icon name="edit" size={16} /></button>
-                  <button className="btn btn-ghost btn-sm" style={{ padding: 7, border: 'none', color: 'var(--fail)' }} onClick={() => deleteSubject(s)}><Icon name="trash" size={16} /></button>
+                  <button className="btn btn-ghost btn-sm" style={{ padding: 7, border: 'none', color: 'var(--fail)' }}
+                    aria-label={tt('roundsMgmt.deleteSubjectAria')} onClick={() => setDeleteSubjectTarget(s)}><Icon name="trash" size={16} /></button>
                 </td></tr>
             ))}</tbody>
           </table>
+          <Pagination page={subsPage.page} pages={subsPage.pages} onPage={subsPage.setPage} lang={lang} />
         </div>
       )}
+
+      <Modal open={!!deleteSubjectTarget} onClose={() => setDeleteSubjectTarget(null)} title={tt('roundsMgmt.deleteSubjectTitle')} width={440} tone="danger"
+        footer={<><button className="btn btn-ghost" onClick={() => setDeleteSubjectTarget(null)}>{tt('roundsMgmt.cancelBtn')}</button>
+          <button className="btn btn-primary" style={{ background: 'var(--fail)', borderColor: 'var(--fail)' }}
+            onClick={() => deleteSubject(deleteSubjectTarget)}>{tt('roundsMgmt.deleteSubjectBtn')}</button></>}>
+        <p style={{ margin: 0, fontSize: 16, lineHeight: 1.7 }}>
+          {tt('roundsMgmt.deleteSubjectBody', { code: deleteSubjectTarget?.subject_code, name: deleteSubjectTarget?.subject_name })}
+        </p>
+        <p style={{ margin: '10px 0 0', fontSize: 14.5, color: 'var(--ink-500)' }}>{tt('roundsMgmt.deleteSubjectNote')}</p>
+      </Modal>
 
       <RoundModal round={roundModal} allSubjects={subs} cohorts={cohorts} onClose={() => setRoundModal(null)} onSave={saveRound} tt={tt} lang={lang} />
       <Modal open={!!deleteRound} onClose={() => setDeleteRound(null)} title={tt('roundsMgmt.deleteRoundTitle')} width={440} tone="danger"
@@ -272,12 +324,14 @@ function RoundModal({ round, allSubjects, cohorts, onClose, onSave, tt, lang }) 
               <input className="input tnum" type="number" value={academicYear} placeholder="2568"
                 onChange={e => setAcademicYear(e.target.value)} />
             ) : (
-              <select className="select" value={academicYear}
-                onChange={e => { if (e.target.value === '__custom') { setCustomYear(true); setAcademicYear(''); } else setAcademicYear(e.target.value); }}>
-                <option value="">{tt('roundsMgmt.cohortPickOpt')}</option>
-                {cohorts.map(c => <option key={c.year} value={c.year}>{tt('roundsMgmt.cohortOpt', { year: c.year, count: c.count })}</option>)}
-                <option value="__custom">{tt('roundsMgmt.cohortCustomOpt')}</option>
-              </select>
+              <Select value={String(academicYear)} lang={lang}
+                onChange={v => { if (v === '__custom') { setCustomYear(true); setAcademicYear(''); } else setAcademicYear(v); }}
+                options={[
+                  { value: '', label: tt('roundsMgmt.cohortPickOpt') },
+                  ...cohorts.map(c => ({ value: String(c.year),
+                    label: tt('roundsMgmt.cohortOpt', { year: c.year, count: c.count }) })),
+                  { value: '__custom', label: tt('roundsMgmt.cohortCustomOpt') },
+                ]} />
             )}
             <span className="hint">
               {customYear && cohorts.length > 0
@@ -318,9 +372,43 @@ function RoundModal({ round, allSubjects, cohorts, onClose, onSave, tt, lang }) 
         {!isNew && <label style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 16, fontWeight: 600, cursor: 'pointer' }}>
           <input type="checkbox" checked={status === 'open'} onChange={e => setStatus(e.target.checked ? 'open' : 'closed')} style={{ width: 17, height: 17 }} /> {tt('roundsMgmt.statusOpenLabel')}
         </label>}
+
+        {/* สรุปก่อนกดบันทึก: รอบนี้จะเปิดให้ใครบ้าง
+            รอบผูกกับรุ่นเดียว (backend เปิดให้เฉพาะคนที่ academic_year ตรงกับรอบ)
+            พิมพ์ปีผิดไปตัวเดียวก็เปิดให้คนผิดรุ่น/ไม่เปิดให้ใครเลย ซึ่งเดิมไม่มีทางรู้จนกว่านักศึกษาจะโทรมาถาม
+            เลขที่โชว์มาจาก cohorts (นับจากตาราง students จริง) ไม่ใช่เดาจากปี */}
+        {/* รอให้พิมพ์ครบ 4 หลักก่อน — โหมดพิมพ์ปีเองจะเตือน "ไม่มีรุ่น 25" ตั้งแต่พิมพ์ตัวที่สองถ้าไม่เช็ค */}
+        {String(academicYear).length === 4 &&
+          <CohortPreview year={Number(academicYear)} cohorts={cohorts} tt={tt} />}
+
         {!isValid && <div style={{ fontSize: 14.5, color: 'var(--ink-500)' }}>{tt('roundsMgmt.fillAllNote')}</div>}
       </div>
     </Modal>
+  );
+}
+
+/* กล่องสรุป "รอบนี้จะเปิดให้ใคร" ใต้ฟอร์มสร้าง/แก้รอบ
+   2 สถานะ:
+     มีนักศึกษาในรุ่นนั้น  → เขียว บอกจำนวนคน
+     ไม่มีเลย (0 คน)      → ส้ม เตือนว่าเปิดไปก็ไม่มีใครกรอกได้ (ปกติแปลว่าพิมพ์ปีผิด) */
+function CohortPreview({ year, cohorts, tt }) {
+  const hit = cohorts.find(c => c.year === year);
+  const count = hit ? hit.count : 0;
+  const ok = count > 0;
+  return (
+    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 14px', borderRadius: 10,
+      background: ok ? 'var(--status-ok-bg)' : 'var(--status-wait-bg)',
+      color: ok ? 'var(--status-ok-fg)' : 'var(--status-wait-fg)' }}>
+      <Icon name={ok ? 'users' : 'alert'} size={18} style={{ flex: 'none', marginTop: 1 }} />
+      <div style={{ fontSize: 15 }}>
+        <div style={{ fontWeight: 700 }}>
+          {ok ? tt('roundsMgmt.previewOk', { year, count }) : tt('roundsMgmt.previewEmpty', { year })}
+        </div>
+        <div style={{ fontSize: 14, marginTop: 2, opacity: .85 }}>
+          {ok ? tt('roundsMgmt.previewOkHint') : tt('roundsMgmt.previewEmptyHint')}
+        </div>
+      </div>
+    </div>
   );
 }
 

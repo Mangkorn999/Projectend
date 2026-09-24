@@ -1,5 +1,4 @@
-import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+import prisma from "../../config/db.js";
 
 // ค่าที่ใช้ในคอลัมน์สถานะ (ใช้ให้ตรงกันทั้งระบบ)
 export const STUDENT_STATUS = { DRAFT: "draft", SUBMITTED: "submitted" };
@@ -33,9 +32,13 @@ const studentSafeSelect = {
 };
 
 // หาผลสอบของนักศึกษาในรอบนั้น — ใช้กันกรอกซ้ำรอบเดิม
+// findUnique ได้เพราะ schema ประกาศ @@unique([student_id, round_id]) ไว้แล้ว
+// ชื่อ key `student_id_round_id` เป็นชื่อที่ Prisma ตั้งให้เอง = เอาชื่อคอลัมน์ใน @@unique มาต่อกันด้วย _
 export const findByStudentAndRound = (student_id, round_id) =>
-  prisma.examResult.findFirst({
-    where: { student_id, round_id: Number(round_id) },
+  prisma.examResult.findUnique({
+    where: {
+      student_id_round_id: { student_id, round_id: Number(round_id) },
+    },
   });
 
 // วิชาที่นักศึกษาคนนี้เคยสอบผ่านมาแล้ว (จากรอบอื่น) — ไม่ต้องกรอกซ้ำอีก

@@ -1,7 +1,5 @@
 import jwt from "jsonwebtoken";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import prisma from "../config/db.js";
 
 // ตรวจสอบ JWT ทุก request ที่ผ่านมา
 // ถ้า token ไม่มี/หมดอายุ/ผิด → ส่ง 401 กลับทันที

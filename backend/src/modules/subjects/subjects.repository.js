@@ -1,5 +1,4 @@
-import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+import prisma from "../../config/db.js";
 //หา วิชา ใน datbase
 export const findAll = () => prisma.subject.findMany();
 // หาวิชาหลายตัวพร้อมกันจาก id ที่ส่งมา — ใช้เช็คว่า id ที่ officer เลือกมีจริงทุกตัว
