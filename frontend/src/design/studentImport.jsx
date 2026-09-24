@@ -54,6 +54,7 @@ function tabBtnStyle(active) {
 // (รายละเอียดเต็มยังอยู่ในคอลัมน์ "เหตุผล" เหมือนเดิม อันนี้แค่ช่วยจัดหมวด)
 const REASON_MATCHERS = [
   { match: 'มีในระบบแล้ว', labelKey: 'importReal.reasonExists', tone: 'wait' },
+  { match: 'ในไฟล์เดียวกัน', labelKey: 'importReal.reasonDupInFile', tone: 'wait' },
   { match: 'ปีการศึกษาที่จบ', labelKey: 'importReal.reasonYear', tone: 'reject' },
   { match: 'เลขบัตรประชาชน', labelKey: 'importReal.reasonInvalidId', tone: 'reject' },
   { match: 'รหัสนักศึกษาต้องเป็นตัวเลข', labelKey: 'importReal.reasonInvalidId', tone: 'reject' },

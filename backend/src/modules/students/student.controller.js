@@ -20,6 +20,8 @@ const NATIONAL_ID_PATTERN = /^\d{13}$/;
 // รหัสนักศึกษาต้องเป็นตัวเลขล้วน อย่างน้อย 2 หลัก — 2 หลักแรกใช้คำนวณปีจบใน academicYear.js
 // (ไม่ล็อกความยาวตายตัวเป็น 10 หลัก เพราะ smoke test สร้างรหัสทดสอบสั้นกว่านั้น)
 const STUDENT_ID_PATTERN = /^\d{2,}$/;
+// รูปแบบที่ Excel แปลงเลขยาวให้ เช่น 1.23457E+12
+const SCIENTIFIC_NOTATION_PATTERN = /^\d+(\.\d+)?e[+-]?\d+$/i;
 const SALT_ROUNDS = 10;
 
 export const getAll = async (req, res, next) => {
@@ -372,8 +374,13 @@ export const bulkImport = async (req, res, next) => {
     let rows;
     try {
       rows = parse(csvText, {
-        columns: true,
+        // ชื่อคอลัมน์: ตัดช่องว่าง + แปลงเป็นตัวเล็ก — "Student_ID" / " national_id" จาก Excel ก็อ่านได้
+        columns: (header) => header.map((h) => String(h).trim().toLowerCase()),
+        // Excel ที่ตั้งภาษา/ภูมิภาคบางแบบ save CSV คั่นด้วย ; หรือ tab แทน , — รับทั้งสามแบบ
+        delimiter: [",", ";", "	"],
         skip_empty_lines: true,
+        // Excel มักทิ้งแถวที่มีแต่ , ว่างๆ ท้ายไฟล์ (",,") — skip_empty_lines ไม่ถือว่าว่าง ต้องข้ามด้วยตัวนี้
+        skip_records_with_empty_values: true,
         trim: true, // ตัดช่องว่างหัว-ท้ายทุกฟิลด์ กัน " 6610210631" มาจาก copy-paste
         bom: true, // เผื่อยังเหลือ BOM ติดมาในสตริง
       });
@@ -395,7 +402,7 @@ export const bulkImport = async (req, res, next) => {
     );
     if (missingCols.length > 0) {
       const err = new Error(
-        `ไฟล์ CSV ขาดคอลัมน์: ${missingCols.join(", ")}`,
+        `ไฟล์ CSV ขาดคอลัมน์: ${missingCols.join(", ")} (คอลัมน์ที่พบในไฟล์: ${Object.keys(rows[0]).join(", ")})`,
       );
       err.statusCode = 400;
       throw err;
@@ -414,12 +421,18 @@ export const bulkImport = async (req, res, next) => {
     // คนที่เจ้าหน้าที่ใส่ปีจบมาไม่ตรงกับที่คำนวณจากรหัส (ซ้ำชั้น/ลาพัก) — ให้หน้าเว็บโชว์ให้ตรวจอีกรอบ
     // ใส่ปีเท่ากับสูตรพอดีไม่นับ เพราะผลเหมือนเว้นว่าง
     const yearOverrides = [];
+    // รหัสที่เจอมาแล้วในไฟล์นี้ (เก็บเลขแถวแรกที่เจอ) — จับแถวซ้ำกันเองในไฟล์
+    // dry run ไม่ได้เขียน DB จึงเช็คซ้ำจาก DB ไม่ได้ ถ้าไม่มีอันนี้ใบตรวจจะบอกว่านำเข้าได้ทั้งคู่ แต่ตอนนำเข้าจริงเข้าแค่คนเดียว
+    const seenInFile = new Map();
     // ทำทีละแถว ไม่ใช้ transaction เดียวรวมทั้งไฟล์ — กันไฟล์ 500 แถวพังหมดเพราะแถวเดียวพลาด
     for (let i = 0; i < rows.length; i++) {
       const rowNum = i + 2; // +1 เพราะแถวแรกคือ header, +1 เพราะนับแบบ 1-indexed ให้ตรงกับที่เห็นใน Excel
       const row = rows[i];
       // academic_year เป็นคอลัมน์ไม่บังคับ — ไฟล์เก่าที่ไม่มีคอลัมน์นี้ก็ได้ undefined ถือว่าเว้นว่าง
-      const { student_id, national_id, academic_year } = row;
+      const { academic_year } = row;
+      // ตัดช่องว่างซ้ำอีกชั้น — csv-parse ไม่ตัดช่องว่างที่อยู่ในเครื่องหมายคำพูด (เช่น "1234567890123 ")
+      const student_id = row.student_id?.trim();
+      const national_id = row.national_id?.trim();
 
       // validate ฟิลด์บังคับต่อแถว — ขาดฟิลด์ไหนก็ข้ามแถวนั้น ไม่ทำให้ทั้งไฟล์ล้ม
       if (!student_id || !national_id) {
@@ -428,10 +441,15 @@ export const bulkImport = async (req, res, next) => {
       }
 
       if (!NATIONAL_ID_PATTERN.test(national_id)) {
+        // Excel เก็บเลข 13 หลักเป็น "1.23457E+12" ถ้าคอลัมน์ไม่ได้ตั้งเป็น Text แล้วตัวเลขจริงหายไปแล้ว กู้คืนไม่ได้
+        // บอกสาเหตุตรงๆ ไม่งั้นเจ้าหน้าที่เห็นแค่ "ต้องเป็นตัวเลข 13 หลัก" ทั้งที่ในช่อง Excel ดูเป็นตัวเลขอยู่
+        const looksLikeExcelSci = SCIENTIFIC_NOTATION_PATTERN.test(national_id);
         skipped.push({
           row: rowNum,
           student_id,
-          reason: "เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก",
+          reason: looksLikeExcelSci
+            ? "เลขบัตรประชาชนถูก Excel แปลงเป็นรูปแบบวิทยาศาสตร์ (เช่น 1.23E+12) — ตั้งคอลัมน์เป็นข้อความ (Text) แล้วกรอกเลขใหม่"
+            : "เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก",
         });
         continue;
       }
@@ -444,6 +462,17 @@ export const bulkImport = async (req, res, next) => {
         });
         continue;
       }
+
+      // รหัสซ้ำในไฟล์เดียวกัน — เอาแถวแรก ข้ามแถวหลัง (ตรงกับที่นำเข้าจริงจะเกิดอยู่แล้ว แต่ต้องบอกตั้งแต่ขั้นตรวจไฟล์)
+      if (seenInFile.has(student_id)) {
+        skipped.push({
+          row: rowNum,
+          student_id,
+          reason: `รหัสนักศึกษาซ้ำกับแถว ${seenInFile.get(student_id)} ในไฟล์เดียวกัน`,
+        });
+        continue;
+      }
+      seenInFile.set(student_id, rowNum);
 
       // ปีจบ: เว้นว่าง = ใช้สูตรรหัส+4 ตอนกรอกโปรไฟล์ · ใส่มา = ตรวจก่อน ผิดก็ข้ามแถวนี้พร้อมเหตุผล
       let importYear = null;

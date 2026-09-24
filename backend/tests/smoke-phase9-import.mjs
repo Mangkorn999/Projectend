@@ -137,6 +137,37 @@ const main = async () => {
   check("import CSV เลขบัตรผิดรูปแบบ → 201 (แต่ skip)", badIdImport.status, 201);
   check("import CSV เลขบัตรผิดรูปแบบ → skipped_count 1", badIdImport.json?.data?.skipped_count, 1);
 
+  // ── ไฟล์ที่ Excel สร้างจริง — ใช้ dry_run ไม่เขียน DB ─────────────────
+  // ทุกเคสต้อง "ตรวจแล้วบอกตรงกับที่นำเข้าจริงจะเกิด" ไม่งั้นหน้า "ตรวจไฟล์" โกหกเจ้าหน้าที่
+  const dryRun = async (csvText) => {
+    const f = new FormData();
+    f.append("file", new Blob([Buffer.from(csvText, "utf8")], { type: "text/csv" }), "excel.csv");
+    return call("POST", "/api/students/import?dry_run=true", { token: officerToken, form: f });
+  };
+
+  // รหัสซ้ำกันเองในไฟล์: เดิมใบตรวจนับได้ 2 แต่นำเข้าจริงเข้าแค่ 1
+  const dup = (await dryRun("student_id,national_id\r\n6699990011,1234567890123\r\n6699990011,1234567890124\r\n")).json?.data;
+  check("dry_run แถวรหัสซ้ำในไฟล์ → นำเข้าได้ 1", dup?.imported_count, 1);
+  check("dry_run แถวรหัสซ้ำในไฟล์ → ข้าม 1 พร้อมบอกว่าซ้ำกับแถว 2", dup?.skipped?.[0]?.reason?.includes("ซ้ำกับแถว 2"), true);
+
+  // Excel แปลงเลข 13 หลักเป็น 1.23457E+12 — ต้องบอกสาเหตุ ไม่ใช่แค่ "ต้องเป็น 13 หลัก"
+  const sci = (await dryRun("student_id,national_id\r\n6699990012,1.23457E+12\r\n")).json?.data;
+  check("dry_run เลขบัตร E+12 → ข้าม", sci?.skipped_count, 1);
+  check("  เหตุผลพูดถึง Excel", sci?.skipped?.[0]?.reason?.includes("Excel"), true);
+
+  // Excel บางภาษา save คั่นด้วย ; + หัวคอลัมน์ตัวพิมพ์ใหญ่ + แถวว่าง ; ท้ายไฟล์
+  const semi = (await dryRun("Student_ID;National_ID\r\n6699990013;1234567890123\r\n;\r\n;\r\n")).json?.data;
+  check("dry_run คั่นด้วย ; + หัวตัวใหญ่ + แถวว่าง → นำเข้าได้ 1 ไม่มีแถวขยะ", `${semi?.imported_count},${semi?.skipped_count}`, "1,0");
+
+  // เลขบัตรมีช่องว่างท้ายในเครื่องหมายคำพูด (csv-parse ไม่ตัดให้)
+  const spaced = (await dryRun('student_id,national_id\r\n6699990014,"1234567890123 "\r\n')).json?.data;
+  check("dry_run เลขบัตรมีช่องว่างท้าย → นำเข้าได้", spaced?.imported_count, 1);
+
+  // หัวคอลัมน์ผิดจริง → ข้อความต้องบอกว่าไฟล์มีคอลัมน์อะไรบ้าง
+  const wrongHead = await dryRun("รหัส,เลขบัตร\r\n6699990015,1234567890123\r\n");
+  check("dry_run หัวคอลัมน์ผิด → 400", wrongHead.status, 400);
+  check("  ข้อความบอกคอลัมน์ที่พบ", wrongHead.json?.message?.includes("คอลัมน์ที่พบในไฟล์"), true);
+
   console.log(results.join("\n"));
   console.log(`\n${results.length - failures}/${results.length} passed`);
   if (failures > 0) process.exit(1);
