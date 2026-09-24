@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
 import { PageHead, Modal } from './components.jsx';
 import { apiFetch, ApiError } from './api.js';
-import { t } from './i18n.js';
+import { t, subjectName } from './i18n.js';
 
 /* ---- วันที่/เวลา: ยึดเวลาไทยเสมอ ----
    backend เก็บลง DB เป็น UTC และตีความค่าที่ส่งไปเป็นเวลาไทยเสมอ (ดู rounds.controller.js)
@@ -191,7 +191,7 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
             <tbody>{subs.map((s, i) => (
               <tr key={s.subject_id}><td className="tnum" style={{ color: 'var(--ink-500)' }}>{i + 1}</td>
                 <td><span className="chip mono" style={{ fontSize: 14.5 }}>{s.subject_code}</span></td>
-                <td style={{ fontWeight: 500 }}>{s.subject_name}</td>
+                <td style={{ fontWeight: 500 }}>{subjectName(lang, s.subject_code, s.subject_name)}</td>
                 <td style={{ textAlign: 'right' }}>
                   <button className="btn btn-ghost btn-sm" style={{ padding: 7, border: 'none' }} onClick={() => setSubjectModal(s)}><Icon name="edit" size={16} /></button>
                   <button className="btn btn-ghost btn-sm" style={{ padding: 7, border: 'none', color: 'var(--fail)' }} onClick={() => deleteSubject(s)}><Icon name="trash" size={16} /></button>
@@ -201,7 +201,7 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
         </div>
       )}
 
-      <RoundModal round={roundModal} allSubjects={subs} cohorts={cohorts} onClose={() => setRoundModal(null)} onSave={saveRound} tt={tt} />
+      <RoundModal round={roundModal} allSubjects={subs} cohorts={cohorts} onClose={() => setRoundModal(null)} onSave={saveRound} tt={tt} lang={lang} />
       <Modal open={!!deleteRound} onClose={() => setDeleteRound(null)} title={tt('roundsMgmt.deleteRoundTitle')} width={440} tone="danger"
         footer={<><button className="btn btn-ghost" onClick={() => setDeleteRound(null)}>{tt('roundsMgmt.cancelBtn')}</button>
           <button className="btn btn-danger" onClick={confirmDeleteRound}><Icon name="trash" size={16} /> {tt('roundsMgmt.deleteRoundBtn')}</button></>}>
@@ -217,7 +217,7 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
   );
 }
 
-function RoundModal({ round, allSubjects, cohorts, onClose, onSave, tt }) {
+function RoundModal({ round, allSubjects, cohorts, onClose, onSave, tt, lang }) {
   const isNew = round === 'new';
   const r = isNew ? {} : (round || {});
   const [academicYear, setAcademicYear] = useState('');
@@ -309,7 +309,7 @@ function RoundModal({ round, allSubjects, cohorts, onClose, onSave, tt }) {
                   onChange={() => toggleSubject(s.subject_id)}
                   style={{ width: 16, height: 16, flex: 'none' }} />
                 <span className="mono" style={{ fontSize: 14, color: 'var(--ink-400)', width: 52, flex: 'none' }}>{s.subject_code}</span>
-                <span>{s.subject_name}</span>
+                <span>{subjectName(lang, s.subject_code, s.subject_name)}</span>
               </label>
             ))}
           </div>
