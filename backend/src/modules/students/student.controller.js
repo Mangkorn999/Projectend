@@ -369,7 +369,7 @@ const COLUMN_KEYWORDS = {
   // ถ้าจับคู่มั่วนักศึกษาจะเห็นรอบสอบของรุ่นผิดโดยไม่มีใครรู้
   academic_year: ["academic_year", "academicyear", "graduation", "ปีที่จบ", "ปีจบ", "จบการศึกษา"],
 };
-const EXACT_NAMES = { academic_year: ["ปีการศึกษา"] };
+const EXACT_NAMES = { student_id: ["รหัส"], academic_year: ["ปีการศึกษา"] };
 const normalizeHeader = (raw) => String(raw ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
 
 // เดาจากชื่อหัว → { student_id: "หัวจริงในไฟล์" | null, ... }
@@ -422,6 +422,23 @@ const parseMappingParam = (raw) => {
     // ตกไปข้างล่าง
   }
   throw httpError("รูปแบบการเลือกคอลัมน์ไม่ถูกต้อง", 400);
+};
+
+// ตัวเลขที่โปรแกรมตารางคำนวณเขียนมาเป็นข้อความรูปแปลก → ตัวเลขล้วน
+//   "1412.0"            → "1412"        (Google Sheets เขียนตัวเลขในไฟล์ .xlsx เป็นทศนิยม .0)
+//   "6.610210001E9"     → "6610210001"  (Sheets เขียนเลขยาวเป็น E-notation แต่ครบทุกหลัก)
+//
+// แปลงเฉพาะเมื่อตัวเลขหลังจุดทศนิยม "ครบตามเลขชี้กำลังพอดี" (ไม่มีหลักไหนหายไป) และ **ไม่เติม 0 ให้เด็ดขาด**
+//   "1.23457E+12" (Excel เขียน CSV — หายไปแล้ว) และ "1.9299E12" ต้องถูกปฏิเสธ ไม่ใช่เดาเป็น 1234570000000
+//   เหตุผล: ไฟล์ที่เคยเป็น CSV แล้วเปิดใน Excel บันทึกเป็น .xlsx จะได้เซลล์ตัวเลข 1234570000000 หน้าตาเหมือนเลขจริงทุกอย่าง
+//   แยกไม่ออกว่าเลขเต็มหรือหายไปแล้ว — เดาผิด = เลขบัตร (ซึ่งเป็นรหัสผ่าน) ผิดคนเงียบๆ
+const plainNumberText = (text) => {
+  if (typeof text !== "string") return text;
+  const t = text.trim();
+  if (/^\d+\.0+$/.test(t)) return t.replace(/\.0+$/, "");
+  const m = t.match(/^(\d+)\.(\d+)e\+?(\d+)$/i);
+  if (m && m[2].length === Number(m[3])) return m[1] + m[2];
+  return t;
 };
 
 // รหัสนักศึกษา/เลขบัตรที่คนกรอกเอง (เช่น Google Form) มักมีขีดคั่น ช่องว่าง หรือเป็นเลขไทย
@@ -492,13 +509,8 @@ const rowsFromXlsx = async (buffer) => {
   const cellText = (v) => {
     if (v === null || v === undefined || v instanceof Date) return "";
     const text = String(v).trim();
-    // บางเวอร์ชัน/โปรแกรมเขียนตัวเลขในไฟล์ .xlsx เป็นรูป 1.929900326091E+12 — ใน .xlsx ค่านี้คือเลข "เต็ม" (ต่างจาก CSV ที่เป็นแค่ข้อความที่แสดง)
-    // แปลงกลับเป็นจำนวนเต็มได้อย่างปลอดภัย ถ้าเป็นจำนวนเต็มที่ JS เก็บได้แม่นยำ
-    if (SCIENTIFIC_NOTATION_PATTERN.test(text)) {
-      const n = Number(text);
-      if (Number.isSafeInteger(n)) return String(n);
-    }
-    return text;
+    // Google Sheets เขียนตัวเลขเป็น "1412.0" / "6.610210001E9" — แปลงกลับเป็นตัวเลขล้วน (ดู plainNumberText)
+    return plainNumberText(text);
   };
 
   return body
@@ -582,10 +594,10 @@ export const bulkImport = async (req, res, next) => {
       const rowNum = i + 2; // +1 เพราะแถวแรกคือ header, +1 เพราะนับแบบ 1-indexed ให้ตรงกับที่เห็นใน Excel
       const row = rows[i];
       // academic_year เป็นคอลัมน์ไม่บังคับ — ไฟล์เก่าที่ไม่มีคอลัมน์นี้ก็ได้ undefined ถือว่าเว้นว่าง
-      const academic_year = mapping.academic_year ? row[mapping.academic_year] : undefined;
+      const academic_year = mapping.academic_year ? plainNumberText(row[mapping.academic_year]) : undefined;
       // ตัดช่องว่างซ้ำอีกชั้น — csv-parse ไม่ตัดช่องว่างที่อยู่ในเครื่องหมายคำพูด (เช่น "1234567890123 ")
-      const student_id = cleanIdText(row[mapping.student_id]);
-      const national_id = cleanIdText(row[mapping.national_id]);
+      const student_id = plainNumberText(cleanIdText(row[mapping.student_id]));
+      const national_id = plainNumberText(cleanIdText(row[mapping.national_id]));
 
       // validate ฟิลด์บังคับต่อแถว — ขาดฟิลด์ไหนก็ข้ามแถวนั้น ไม่ทำให้ทั้งไฟล์ล้ม
       if (!student_id || !national_id) {

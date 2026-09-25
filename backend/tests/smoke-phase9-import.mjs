@@ -238,6 +238,21 @@ const main = async () => {
   check("'ปีการศึกษาที่เข้า' ไม่ถูกจับเป็นปีจบ", admitYear.json?.data?.columns_used?.academic_year, null);
   check("  ยังนำเข้าได้ปกติ (คำนวณปีจบจากรหัส)", admitYear.json?.data?.imported_count, 1);
 
+  // ── ไฟล์ที่ Google Sheets ส่งออกจริง (เทสจากไฟล์จริงของเจ้าหน้าที่ 25 ก.ย.) ──
+  // Sheets เขียนตัวเลขใน .xlsx เป็น "1412.0" / "2570.0" และเลขยาวเป็น E-notation "6.610210001E9" ที่ครบทุกหลัก
+  // (ต่างจาก Excel ที่เขียน CSV เป็น 1.23457E+12 ตัดเหลือ 6 หลัก — อันนี้ต้องยังถูกปฏิเสธ ห้ามเดาเติม 0)
+  const gs = await sendXlsx(readFileSync(new URL("./fixtures/students-google-sheets-style.xlsx", import.meta.url)));
+  check("Google Sheets .xlsx: '1412.0' + E-notation ครบหลัก -> นำเข้าได้ 2 ข้าม 1", `${gs.json?.data?.imported_count},${gs.json?.data?.skipped_count}`, "2,1");
+  check("  E-notation ที่ตัดหลักแล้ว (1.92990E+12) ยังถูกปฏิเสธ พร้อมบอกสาเหตุ", gs.json?.data?.skipped?.[0]?.reason?.includes("Excel"), true);
+  const gsCsv = (await dryRun(
+    "ประทับเวลา,student_id(รหัสนักศึกษา),national_id(เลขบัตรปชช),academic_year(ปีจบการศึกษา)\r\n" +
+    "2026/09/25 10:00,6699991701.0,1.929900326093E12,2570.0\r\n" +
+    "2026/09/25 10:01,6699991702,1.92990E+12,\r\n",
+  )).json?.data;
+  check("CSV จาก Sheets: '.0' + E-notation ครบหลัก -> นำเข้าได้ 1 ข้าม 1 (E-notation ตัดหลัก ไม่เดา)", `${gsCsv?.imported_count},${gsCsv?.skipped_count}`, "1,1");
+  const bareCode = (await dryRunMap("รหัส,เลขบัตรประชาชน\r\n6699991703,1929900326094\r\n")).json?.data;
+  check("หัวคอลัมน์ 'รหัส' เฉยๆ = รหัสนักศึกษา", `${bareCode?.imported_count},${bareCode?.columns_used?.student_id}`, "1,รหัส");
+
   console.log(results.join("\n"));
   console.log(`\n${results.length - failures}/${results.length} passed`);
   if (failures > 0) process.exit(1);
