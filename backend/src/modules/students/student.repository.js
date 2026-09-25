@@ -237,3 +237,27 @@ export const removePendingAccounts = (psuIds) =>
     where: { psu_passport_id: { in: psuIds }, role: { role_name: "student" }, student: null },
   });
 
+
+// ข้อมูลนักศึกษาสำหรับ export Excel — ระบุเป็นรายชื่อ (ids) หรือทั้งรุ่น (year)
+// ไม่ดึง national_id (เลขบัตร = รหัสผ่านเริ่มต้น ห้ามหลุดออกไปอยู่ในไฟล์ที่แชร์ต่อได้) และไม่มี password_hash
+// ใบผลสอบดึงมาทุกรอบแล้วให้ controller เลือก "ใบล่าสุด" เอง (เรียงตามปี/ครั้งที่สอบของรอบ ไม่ใช่วันที่ส่ง)
+export const findForExport = ({ ids, year }) =>
+  prisma.student.findMany({
+    where: ids ? { student_id: { in: ids } } : { academic_year: year },
+    select: {
+      student_id: true,
+      academic_year: true,
+      exam_eligible: true,
+      room: { select: { room_name: true } },
+      user: { select: { first_name: true, last_name: true, email: true, phone: true } },
+      exam_results: {
+        select: {
+          student_status: true,
+          staff_status: true,
+          round: { select: { academic_year: true, attempt_number: true } },
+          subject_results: { select: { is_passed: true } },
+        },
+      },
+    },
+    orderBy: [{ academic_year: "desc" }, { student_id: "asc" }],
+  });

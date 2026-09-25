@@ -249,6 +249,8 @@ body ของ `POST`: `{ "title": "...", "content": "...", "round_id": 5 }` —
 | `GET` | `/api/dashboard/stats?round_id=` | officer, executive | สรุปสถิติของรอบ (ไม่ส่ง `round_id` = รอบที่เปิดรับอยู่) |
 | `GET` | `/api/dashboard/history?years=3` | officer, executive | สรุปรายปีย้อนหลังไว้เทียบรุ่นต่อรุ่น (1–10 ปี) |
 | `GET` | `/api/dashboard/export?round_id=` | officer | export รายงาน PDF (ตอบเป็นไฟล์ ไม่ใช่ JSON) |
+| `GET` | `/api/dashboard/export-first-attempt?year=&passed=&format=` | officer | รายชื่อผ่าน/ไม่ผ่านครั้งแรกของปีการศึกษา (`format=xlsx\|pdf`) |
+| `POST` | `/api/students/export` | officer | ข้อมูลนักศึกษาเป็น Excel — body `{ student_ids }` หรือ `{ year }` (ไม่มีเลขบัตรประชาชน) |
 
 **shape ของ `/stats`**:
 

@@ -713,3 +713,71 @@ export const buildStudentRows = async (roundId) => {
     };
   });
 };
+
+// สถานะของ "ใบผลสอบ" ที่แสดงในรายชื่อ export
+const paperStatusLabel = (result) => {
+  if (!result) return "ยังไม่ได้กรอก";
+  if (result.student_status === "draft") return "ยังกรอกไม่เสร็จ";
+  if (result.staff_status === "approved") return "ยืนยันแล้ว";
+  if (result.staff_status === "rejected") return "ถูกตีกลับ";
+  return "รอตรวจสอบ";
+};
+
+// รายชื่อนักศึกษา "ผ่านครั้งแรก" หรือ "ไม่ผ่านครั้งแรก" ของปีการศึกษาหนึ่ง — ใช้ export
+// **กฎเดียวกับ buildYearSummary เป๊ะ** (firstAttempt.passed) ยอดในไฟล์จะได้ตรงกับตัวเลขบนการ์ดเทียบรายปี:
+//   - รอบแรก = attempt_number 1 ของปีนั้น, วิชาที่ต้องผ่าน = วิชาของรอบนั้น
+//   - ผ่าน = ส่งแล้ว (ไม่ใช่ draft) + ไม่ถูกตีกลับ + ผ่านครบทุกวิชา (ใบรอตรวจก็นับ เหมือนตัวเลขบนการ์ด)
+//   - ไม่ผ่าน = นักศึกษาทั้งรุ่นที่ไม่เข้าเงื่อนไขข้างบน → รวมคนที่ยังไม่ส่ง/ค้าง draft/ถูกตีกลับ ด้วย
+//     (จึงมีคอลัมน์ "สถานะใบผลสอบ" บอกว่าแต่ละคนไม่ผ่านเพราะอะไร) ผ่าน + ไม่ผ่าน = ทั้งรุ่นเสมอ
+export const buildFirstAttemptList = async (year, wantPassed) => {
+  const [rounds, students, allSubjects] = await Promise.all([
+    dashRepo.findRoundsByYears([year]),
+    dashRepo.findStudentsByYear(year),
+    dashRepo.findAllSubjects(),
+  ]);
+
+  const firstRound = rounds.find(
+    (r) => r.academic_year === year && r.attempt_number === 1,
+  );
+  if (!firstRound) {
+    const err = new Error(`ปีการศึกษา ${year} ยังไม่มีรอบสอบครั้งที่ 1 ในระบบ`);
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const results = await dashRepo.findResultsByRound(firstRound.round_id);
+  const resultOf = new Map(results.map((r) => [r.student_id, r]));
+  const subjects = subjectsOfRound(firstRound, allSubjects);
+
+  const rows = [];
+  for (const s of students) {
+    const result = resultOf.get(s.student_id);
+    // ใช้เงื่อนไขเดียวกับ onlySent + notRejected ด้านบน
+    const counted = !!result && result.student_status !== "draft" && result.staff_status !== "rejected";
+
+    const passedSubjects = counted
+      ? subjects.filter((sub) =>
+          result.subject_results.some((sr) => sr.subject_id === sub.subject_id && sr.is_passed),
+        )
+      : [];
+    const passedAll = counted && passedSubjects.length === subjects.length;
+    if (passedAll !== wantPassed) continue;
+
+    rows.push({
+      student_id: s.student_id,
+      first_name: s.user.first_name,
+      last_name: s.user.last_name,
+      room_name: s.room?.room_name ?? "",
+      paper_status: paperStatusLabel(result),
+      passed_text: counted ? `${passedSubjects.length}/${subjects.length}` : "",
+      failed_subjects: counted
+        ? subjects
+            .filter((sub) => !passedSubjects.includes(sub))
+            .map((sub) => sub.subject_code)
+            .join(", ")
+        : "",
+    });
+  }
+
+  return { year, round: firstRound, total: students.length, wantPassed, rows };
+};

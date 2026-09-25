@@ -16,6 +16,7 @@ import {
   bulkRemove,
   removePendingAccounts,
   exportSubjectList,
+  exportStudents,
   getSubjectResultList,
 } from "./student.controller.js";
 
@@ -32,6 +33,8 @@ router.get("/", authenticate, requireRole("officer", "reviewer"), getAll);
 // ต้องอยู่ก่อน "/:id" เสมอ ไม่งั้น express จับ "export-subject"/"subject-result-list" เป็นค่า :id แทน
 // เฉพาะ officer เท่านั้น (เหมือน /api/dashboard/export) — ดูรายชื่อรายบุคคล ผู้บริหารไม่มีสิทธิ์ (data minimization)
 router.get("/export-subject", authenticate, requireRole("officer"), exportSubjectList);
+// รายชื่อ/ข้อมูลนักศึกษาเป็น Excel (ไม่มีเลขบัตร) — POST เพราะส่งรายชื่อรหัสที่กรองอยู่มาเป็น body
+router.post("/export", authenticate, requireRole("officer"), exportStudents);
 router.get("/subject-result-list", authenticate, requireRole("officer"), getSubjectResultList);
 // บัญชีที่ import แล้วยังไม่กรอกโปรไฟล์ — ต้องอยู่ก่อน /:id ไม่งั้น "pending-accounts" ถูกตีเป็นรหัสนักศึกษา
 router.get("/pending-accounts", authenticate, requireRole("officer"), listPendingAccounts);

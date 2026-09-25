@@ -10,6 +10,7 @@ import * as subjectsRepo from "../subjects/subjects.repository.js";
 import * as roundsRepo from "../rounds/rounds.repository.js";
 import { calcGraduationYear, validateGraduationYear, isBlankYear } from "../../utils/academicYear.js";
 import { buildSubjectListPdf } from "./students.pdf.js";
+import { buildXlsx, sendXlsx } from "../../utils/xlsxExport.js";
 
 // สร้าง Error พร้อม statusCode ให้ errorHandler จัดการต่อ (ท่าเดียวกับ module อื่น)
 const httpError = (message, statusCode) => {
@@ -957,10 +958,39 @@ export const getSubjectResultList = async (req, res, next) => {
 export const exportSubjectList = async (req, res, next) => {
   try {
     const { subject, wantPassed, scopeLabel, rows } = await resolveSubjectQuery(req.query);
+    const format = req.query.format ?? "pdf"; // ไม่ส่ง format = PDF เหมือนเดิม (ปุ่มเดิมของหน้าจอไม่พัง)
+    if (format !== "pdf" && format !== "xlsx") throw httpError("format ต้องเป็น pdf หรือ xlsx", 400);
+
+    const fileName = `รายชื่อ-${wantPassed ? "ผ่าน" : "ไม่ผ่าน"}-${subject.subject_code}.${format}`;
+
+    if (format === "xlsx") {
+      const buffer = await buildXlsx({
+        sheetName: `${wantPassed ? "ผ่าน" : "ไม่ผ่าน"} ${subject.subject_code}`,
+        columns: [
+          { header: "ลำดับ", key: "no", width: 8, type: "number" },
+          { header: "รหัสนักศึกษา", key: "student_id", width: 16 },
+          { header: "ชื่อ", key: "first_name", width: 18 },
+          { header: "นามสกุล", key: "last_name", width: 20 },
+          { header: "ห้อง", key: "room_name", width: 14 },
+          { header: "ปีการศึกษา", key: "academic_year", width: 12 },
+          { header: "ส่งผลเมื่อ", key: "submitted_at", width: 14 },
+        ],
+        rows: rows.map((r, i) => ({
+          no: i + 1,
+          student_id: r.student.student_id,
+          first_name: r.student.user.first_name,
+          last_name: r.student.user.last_name,
+          room_name: r.student.room?.room_name ?? "",
+          academic_year: r.student.academic_year,
+          submitted_at: new Date(r.submitted_at).toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok" }),
+        })),
+      });
+      sendXlsx(res, fileName, buffer);
+      return;
+    }
 
     // ชื่อไฟล์มีภาษาไทย — filename="..." เฉยๆ ใช้ไม่ได้กับ non-ASCII (บางเบราว์เซอร์เพี้ยน)
     // ต้องมี filename ASCII สำรอง + filename*=UTF-8''... (RFC 5987) คู่กันเสมอ
-    const fileName = `รายชื่อ-${wantPassed ? "ผ่าน" : "ไม่ผ่าน"}-${subject.subject_code}.pdf`;
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
@@ -968,6 +998,91 @@ export const exportSubjectList = async (req, res, next) => {
     );
 
     buildSubjectListPdf({ subject, passed: wantPassed, scopeLabel, rows, res });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// สถานะของใบผลสอบ (ภาษาไทย) สำหรับคอลัมน์ในไฟล์ export
+const paperStatusLabel = (r) => {
+  if (r.student_status === "draft") return "ยังกรอกไม่เสร็จ";
+  if (r.staff_status === "approved") return "ยืนยันแล้ว";
+  if (r.staff_status === "rejected") return "ถูกตีกลับ";
+  return "รอตรวจสอบ";
+};
+
+// POST /api/students/export — officer เท่านั้น
+// body: { student_ids: [...] } = รายชื่อที่กรองอยู่บนหน้าจอ (ตัวกรองทำฝั่งหน้าจอ ส่งมาเป็นรายชื่อ ไม่ต้องเขียนตัวกรองซ้ำที่นี่)
+//       หรือ { year: 2569 } = ทั้งรุ่นของปีนั้น (ใช้จากหน้ารายงานสรุป)
+// ใช้ POST เพราะรายชื่อรหัสยาวเกินขนาด URL — ไฟล์ Excel ที่ได้ไม่มีเลขบัตรประชาชน
+const EXPORT_MAX_IDS = 5000;
+export const exportStudents = async (req, res, next) => {
+  try {
+    const { student_ids, year } = req.body ?? {};
+    let where;
+    let scopeName;
+    if (student_ids !== undefined) {
+      if (
+        !Array.isArray(student_ids) ||
+        student_ids.length === 0 ||
+        student_ids.length > EXPORT_MAX_IDS ||
+        !student_ids.every((id) => typeof id === "string" && id.length > 0 && id.length <= 20)
+      ) {
+        throw httpError(`student_ids ต้องเป็นรายการรหัสนักศึกษา 1-${EXPORT_MAX_IDS} รายการ`, 400);
+      }
+      where = { ids: [...new Set(student_ids)] };
+      scopeName = "ตามที่เลือก";
+    } else if (Number.isInteger(year) && year >= 2400 && year <= 2700) {
+      where = { year };
+      scopeName = `รุ่น ${year}`;
+    } else {
+      throw httpError("ต้องระบุ student_ids หรือ year (พ.ศ. 4 หลัก) อย่างใดอย่างหนึ่ง", 400);
+    }
+
+    const students = await studentRepo.findForExport(where);
+
+    const rows = students.map((s) => {
+      // ใบล่าสุด = ปีล่าสุด แล้วครั้งที่สอบมากสุด (ไม่ดูวันที่ส่ง — คนแก้ใบเก่าไม่ทำให้ใบเก่ากลายเป็น "ล่าสุด")
+      const latest = [...s.exam_results].sort(
+        (a, b) =>
+          b.round.academic_year - a.round.academic_year ||
+          b.round.attempt_number - a.round.attempt_number,
+      )[0];
+      return {
+        student_id: s.student_id,
+        first_name: s.user.first_name,
+        last_name: s.user.last_name,
+        room_name: s.room?.room_name ?? "",
+        academic_year: s.academic_year,
+        email: s.user.email,
+        phone: s.user.phone,
+        eligible: s.exam_eligible ? "เปิดสิทธิ์แล้ว" : "ยังไม่เปิดสิทธิ์",
+        latest_round: latest ? `รอบที่ ${latest.round.attempt_number}/${latest.round.academic_year}` : "",
+        paper_status: latest ? paperStatusLabel(latest) : "ยังไม่ได้กรอก",
+        passed_text: latest
+          ? `${latest.subject_results.filter((sr) => sr.is_passed).length}/${latest.subject_results.length}`
+          : "",
+      };
+    });
+
+    const buffer = await buildXlsx({
+      sheetName: "ข้อมูลนักศึกษา",
+      columns: [
+        { header: "รหัสนักศึกษา", key: "student_id", width: 16 },
+        { header: "ชื่อ", key: "first_name", width: 18 },
+        { header: "นามสกุล", key: "last_name", width: 20 },
+        { header: "ห้อง", key: "room_name", width: 14 },
+        { header: "ปีการศึกษาที่จบ", key: "academic_year", width: 16 },
+        { header: "อีเมล", key: "email", width: 28 },
+        { header: "เบอร์โทร", key: "phone", width: 14 },
+        { header: "สิทธิ์กรอกผลสอบ", key: "eligible", width: 18 },
+        { header: "รอบล่าสุดที่ส่ง", key: "latest_round", width: 16 },
+        { header: "สถานะใบล่าสุด", key: "paper_status", width: 18 },
+        { header: "ผ่านกี่วิชา (ใบล่าสุด)", key: "passed_text", width: 20 },
+      ],
+      rows,
+    });
+    sendXlsx(res, `ข้อมูลนักศึกษา-${scopeName}.xlsx`, buffer);
   } catch (err) {
     next(err);
   }
