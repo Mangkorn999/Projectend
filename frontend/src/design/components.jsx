@@ -622,7 +622,7 @@ export function useToast(){
    ต่างจาก Toast ด้านบน: อันนี้เด้งหลายอันซ้อนกันได้ (แจ้งเตือนเข้ามาพร้อมกันหลายรายการ)
    กดที่การ์ด = ไปหน้าที่เกี่ยวข้อง, ไม่กด = หายเองใน TOAST_MS (ยังนับว่ายังไม่อ่าน ดูต่อได้ในกระดิ่ง)
    เดิม 30 วิ นานเกิน — การ์ดอยู่มุมขวาบนทับปุ่มของหัวหน้าเพจ (เช่นเลือกรอบในคิวตรวจ) ครึ่งนาทีกดอะไรไม่ได้ */
-const TOAST_MS = 8000;
+const TOAST_MS = 6000;
 export function useNotifToasts(){
   const [items,setItems]=useState([]);
   const push=(notifs)=>{
@@ -638,26 +638,27 @@ export function useNotifToasts(){
 export function NotifToastStack({ items=[], onGo, onDismiss, lang='TH' }) {
   if(!items.length) return null;
   return (
-    // มุมขวา "ล่าง" ไม่ใช่ขวาบน — ขวาบนคือที่วางปุ่มหลักของทุกหน้า (เลือกรอบ/เลือกปี/ปุ่มเพิ่ม) toast เคยทับจนกดไม่ได้
-    // กล่องแม่ pointerEvents:none — ช่องว่างระหว่างการ์ดต้องคลิกทะลุไปโดนของข้างใต้ได้ (การ์ดเปิดคืนเป็น auto เอง)
-    // aria-live = โปรแกรมอ่านหน้าจออ่านแจ้งเตือนที่เด้งเข้ามาใหม่ให้เอง
+    // ห้อยใต้กระดิ่ง (ขวาบน) เพื่อให้รู้ว่าเป็นของกระดิ่ง — เคยย้ายไปขวาล่างเพราะทับปุ่มเลือกรอบ/ปีของหัวหน้าหน้าจนกดไม่ได้
+    // จึงทำให้เล็กกว่าเดิม หายเร็ว (TOAST_MS) กดปิด/ข้ามได้ และกล่องแม่ pointerEvents:none — ช่องว่างระหว่างการ์ดคลิกทะลุไปโดนของข้างใต้ได้
+    // (การ์ดเปิดคืนเป็น auto เอง) เปิดกระดิ่งเมื่อไรให้เคลียร์ toast ทิ้ง (openNotifications ใน app.jsx) จะได้ไม่บังรายการ
+    // top:70 = ใต้ TopBar (สูง 64) · aria-live = โปรแกรมอ่านหน้าจออ่านแจ้งเตือนที่เด้งเข้ามาใหม่ให้เอง
     <div aria-live="polite" aria-label={t(lang,'topbar.notifToastRegion')}
-      style={{ position:'fixed', bottom:16, right:16, zIndex:250, pointerEvents:'none',
-      display:'flex', flexDirection:'column', gap:9, width:320, maxWidth:'92vw' }}>
+      style={{ position:'fixed', top:70, right:16, zIndex:250, pointerEvents:'none',
+      display:'flex', flexDirection:'column', gap:8, width:290, maxWidth:'92vw' }}>
       {items.map(n=>(
         // div (ไม่ใช่ button) เพราะข้างในมีปุ่ม "ปิด" ซ้อนอยู่ — button ในปุ่มไม่ใช่ HTML ที่ถูกต้อง (browser จะ auto-correct
         // แล้ว DOM จริงเพี้ยนไปจาก JSX ที่เขียน ปุ่มปิดหลุดออกไปอยู่นอก element แม่ ทำให้ click/layout ผิดที่ผิดทาง)
         <div key={n._toastId} className="fade-up" role="button" tabIndex={0}
           onClick={()=>{ onDismiss?.(n._toastId); onGo?.(n.page); }}
           onKeyDown={e=>{ if(e.key==='Enter'||e.key===' '){ onDismiss?.(n._toastId); onGo?.(n.page); } }}
-          style={{ display:'flex', alignItems:'flex-start', gap:11, padding:'12px 13px', width:'100%', pointerEvents:'auto',
+          style={{ display:'flex', alignItems:'flex-start', gap:10, padding:'9px 11px', width:'100%', pointerEvents:'auto',
             border:'1px solid var(--navy-800)', borderRadius:12, textAlign:'left', cursor:'pointer', fontFamily:'inherit',
             background:'var(--navy-800)', boxShadow:'0 0 10px 2px rgba(232,114,15,.5), var(--sh-lg)' }}>
-          <div style={{ width:34, height:34, borderRadius:9, flex:'none', display:'flex', alignItems:'center', justifyContent:'center',
-            background:'rgba(255,255,255,.22)', color:'#fff' }}><Icon name={n.icon} size={16}/></div>
+          <div style={{ width:30, height:30, borderRadius:8, flex:'none', display:'flex', alignItems:'center', justifyContent:'center',
+            background:'rgba(255,255,255,.22)', color:'#fff' }}><Icon name={n.icon} size={15}/></div>
           <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontSize:15.5, fontWeight:700, color:'#fff' }}>{n.title}</div>
-            {n.sub && <div style={{ fontSize:14, fontWeight:400, color:'rgba(255,255,255,.85)', marginTop:2 }}>{n.sub}</div>}
+            <div style={{ fontSize:14.5, fontWeight:700, color:'#fff' }}>{n.title}</div>
+            {n.sub && <div style={{ fontSize:13, fontWeight:400, color:'rgba(255,255,255,.85)', marginTop:2 }}>{n.sub}</div>}
           </div>
           <button onClick={(e)=>{ e.stopPropagation(); onDismiss?.(n._toastId); }}
             style={{ border:'none', background:'transparent', padding:2, flex:'none', cursor:'pointer', color:'rgba(255,255,255,.85)' }}>
