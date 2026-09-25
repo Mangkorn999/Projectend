@@ -14,6 +14,10 @@ const BOM = '\uFEFF';
 
 export function StudentImport({ toast, lang }) {
   const [tab, setTab] = useState('csv'); // 'csv' | 'manual' | 'pending'
+  // จำนวนบัญชีที่นำเข้าแล้วยังไม่เข้าระบบ — โชว์บนแท็บให้เจ้าหน้าที่เห็นตั้งแต่ยังไม่กดเข้าไปดู (null = ยังไม่รู้)
+  // แท็บรายชื่อรายงานค่าใหม่กลับมาทุกครั้งที่โหลด/ลบ เลขบนแท็บจึงตรงเสมอ
+  const [pendingCount, setPendingCount] = useState(null);
+  useEffect(() => { apiFetch('/students/pending-accounts').then(d => setPendingCount(d.length)).catch(() => {}); }, []);
   const tt = (key, vars) => t(lang, key, vars);
 
   return (
@@ -30,12 +34,13 @@ export function StudentImport({ toast, lang }) {
           </button>
           <button onClick={()=>setTab('pending')} style={tabBtnStyle(tab==='pending')}>
             <Icon name="users" size={15}/> {tt('importReal.tabPending')}
+            {pendingCount > 0 && <span className="chip" style={{ fontSize: 13, padding: '1px 8px', background: 'var(--gold-100)', color: 'var(--status-wait-fg)', fontWeight: 800 }}>{pendingCount}</span>}
           </button>
         </div>
       </div>
       {tab==='csv' ? <CsvImport toast={toast} tt={tt} />
         : tab==='manual' ? <ManualAdd toast={toast} tt={tt} />
-        : <PendingAccounts toast={toast} tt={tt} lang={lang} />}
+        : <PendingAccounts toast={toast} tt={tt} lang={lang} onCount={setPendingCount} />}
     </div>
   );
 }
@@ -43,16 +48,18 @@ export function StudentImport({ toast, lang }) {
 /* บัญชีที่ import แล้วแต่ "ยังไม่กรอกโปรไฟล์" — ยังไม่มีแถวในตารางนักศึกษา จึงไม่โผล่ในหน้า "ข้อมูลนักศึกษา"
    ไว้ตรวจว่า import ถูกไหม และลบรหัสที่ใส่ผิดได้ (เช่น จาก Google Form) ก่อนที่จะมีใคร login
    คนที่กรอกโปรไฟล์แล้วไปลบที่หน้า "ข้อมูลนักศึกษา" (backend ก็กันไว้: บัญชีที่มีโปรไฟล์แล้วจะไม่ถูกลบจากหน้านี้) */
-function PendingAccounts({ toast, tt, lang }) {
+function PendingAccounts({ toast, tt, lang, onCount }) {
   const [rows, setRows] = useState(null);      // null = กำลังโหลด
   const [q, setQ] = useState('');
   const [picked, setPicked] = useState(() => new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // "ตอนนี้" จับครั้งเดียวตอนเปิดแท็บ — เรียก Date.now() ตรงๆ ระหว่าง render ไม่ได้ (ผลไม่นิ่ง ทุก render ได้ค่าใหม่)
+  const [now] = useState(() => Date.now());
 
   const load = () => apiFetch('/students/pending-accounts')
-    .then(data => { setRows(data); setPicked(new Set()); setError(''); })
+    .then(data => { setRows(data); onCount && onCount(data.length); setPicked(new Set()); setError(''); })
     .catch(e => setError(e instanceof ApiError ? e.message : tt('importReal.importFailMsg')));
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -79,6 +86,21 @@ function PendingAccounts({ toast, tt, lang }) {
   };
 
   const fmt = (iso) => new Date(iso).toLocaleDateString('th-TH');
+  // นำเข้ามากี่วันแล้ว — ยิ่งนานยิ่งควรตามให้เข้ามากรอก (นับวันปฏิทินคร่าวๆ แค่ใช้ประกอบการตาม ไม่ใช่กติกาของระบบ)
+  const daysSince = (iso) => Math.max(0, Math.floor((now - new Date(iso).getTime()) / 86400000));
+  const daysText = (iso) => { const d = daysSince(iso); return d === 0 ? tt('importReal.pendingToday') : tt('importReal.pendingDays', { n: d }); };
+
+  // ดาวน์โหลดรายชื่อที่กำลังแสดง (ตามคำค้น) เป็น CSV ไว้เอาไปตามนักศึกษา — บัญชีกลุ่มนี้ยังไม่มีชื่อ/เบอร์ (ยังไม่กรอกโปรไฟล์) มีแค่รหัส
+  const downloadList = () => {
+    const header = 'student_id,academic_year,imported_at,days_since_import\n';
+    const body = filtered.map(r => `${r.student_id},${r.academic_year},${new Date(r.imported_at).toISOString().slice(0, 10)},${daysSince(r.imported_at)}`).join('\n');
+    const blob = new Blob([BOM + header + body + '\n'], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'students_not_signed_in.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="card" style={{ padding: 22 }}>
@@ -93,6 +115,8 @@ function PendingAccounts({ toast, tt, lang }) {
             <input className="input" style={{ maxWidth: 260 }} placeholder={tt('importReal.pendingSearch')} value={q} onChange={e => setQ(e.target.value)} />
             <span style={{ fontSize: 15, color: 'var(--ink-500)' }}>{tt('importReal.pendingCount', { shown: filtered.length, total: rows.length })}</span>
             <span style={{ flex: 1 }} />
+            <button className="btn btn-ghost btn-sm" onClick={downloadList} disabled={filtered.length === 0}>
+              <Icon name="download" size={15}/> {tt('importReal.pendingDownloadBtn')}</button>
             {filtered.length > 0 && picked.size < filtered.length && (
               <button className="btn btn-ghost btn-sm" onClick={() => setPicked(new Set(filtered.map(r => r.student_id)))}>{tt('importReal.pendingSelectAll', { n: filtered.length })}</button>
             )}
@@ -110,6 +134,7 @@ function PendingAccounts({ toast, tt, lang }) {
                 <th>{tt('importReal.pendingColId')}</th>
                 <th>{tt('importReal.pendingColYear')}</th>
                 <th>{tt('importReal.pendingColAt')}</th>
+                <th>{tt('importReal.pendingColDays')}</th>
               </tr></thead>
               <tbody>
                 {pageList.rows.map(r => (
@@ -118,9 +143,10 @@ function PendingAccounts({ toast, tt, lang }) {
                     <td className="mono">{r.student_id}</td>
                     <td>{r.academic_year}{r.year_overridden && <span className="chip" style={{ marginLeft: 8, fontSize: 13 }}>{tt('importReal.pendingYearSet')}</span>}</td>
                     <td style={{ color: 'var(--ink-600)' }}>{fmt(r.imported_at)}</td>
+                    <td style={{ color: daysSince(r.imported_at) >= 3 ? 'var(--status-wait-fg)' : 'var(--ink-600)', fontWeight: daysSince(r.imported_at) >= 3 ? 700 : 400 }}>{daysText(r.imported_at)}</td>
                   </tr>
                 ))}
-                {pageList.rows.length === 0 && <tr><td colSpan={4} style={{ textAlign:'center', color:'var(--ink-500)', padding:24 }}>{tt('importReal.pendingNoMatch')}</td></tr>}
+                {pageList.rows.length === 0 && <tr><td colSpan={5} style={{ textAlign:'center', color:'var(--ink-500)', padding:24 }}>{tt('importReal.pendingNoMatch')}</td></tr>}
               </tbody>
             </table>
           </div>
