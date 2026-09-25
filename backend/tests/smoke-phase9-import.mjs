@@ -168,6 +168,25 @@ const main = async () => {
   check("dry_run หัวคอลัมน์ผิด → 400", wrongHead.status, 400);
   check("  ข้อความบอกคอลัมน์ที่พบ", wrongHead.json?.message?.includes("คอลัมน์ที่พบในไฟล์"), true);
 
+  // ── ไฟล์ Excel (.xlsx) ตรงๆ — เลข 13 หลักที่เป็น "ตัวเลข" ในเซลล์ต้องเข้าครบทุกหลัก ──
+  // ที่มา: ถ้าบันทึกเป็น CSV Excel เขียนเลขเป็น 1.23457E+12 (หายไปแล้ว กู้ไม่ได้) แต่ .xlsx เก็บเลขเต็มไว้
+  // fixture = 3 แถว: เลขบัตรเป็น Number 2 แถว, เป็นข้อความ 1 แถว, หัวคอลัมน์ตัวพิมพ์ใหญ่, แถวที่ 3 ใส่ปีจบ 2572 (ซ้ำชั้น)
+  const { readFileSync } = await import("node:fs");
+  const xlsxBuf = readFileSync(new URL("./fixtures/students-numeric-ids.xlsx", import.meta.url));
+  const sendXlsx = async (buf, name = "students.xlsx") => {
+    const f = new FormData();
+    f.append("file", new Blob([buf], { type: "application/octet-stream" }), name);
+    return call("POST", "/api/students/import?dry_run=true", { token: officerToken, form: f });
+  };
+  const xl = await sendXlsx(xlsxBuf);
+  check("dry_run .xlsx -> 200", xl.status, 200);
+  check("  เลขบัตรที่เป็น Number อ่านได้ครบ นำเข้าได้ 3 ข้าม 0", `${xl.json?.data?.imported_count},${xl.json?.data?.skipped_count}`, "3,0");
+  check("  อ่านปีจบ 2572 ของแถวซ้ำชั้นได้", xl.json?.data?.year_overrides?.[0]?.academic_year, 2572);
+  // เปลี่ยนชื่อเป็น .csv ก็ยังอ่านได้ — ดูจากเนื้อไฟล์ ไม่ใช่นามสกุล
+  check("  ตั้งชื่อไฟล์เป็น .csv แต่เนื้อเป็น xlsx -> ยังอ่านได้", (await sendXlsx(xlsxBuf, "students.csv")).json?.data?.imported_count, 3);
+  const badXlsx = await sendXlsx(Buffer.concat([Buffer.from("PK"), Buffer.from("ไม่ใช่ zip จริง")]));
+  check("  ไฟล์ xlsx เสีย -> 400 ข้อความไทย", `${badXlsx.status},${badXlsx.json?.message?.includes("อ่านไฟล์ Excel ไม่ได้")}`, "400,true");
+
   console.log(results.join("\n"));
   console.log(`\n${results.length - failures}/${results.length} passed`);
   if (failures > 0) process.exit(1);

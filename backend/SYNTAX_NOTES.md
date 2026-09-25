@@ -761,3 +761,18 @@ head.toString("latin1") === "%PDF-";   // PDF จริงขึ้นต้น�
 
 `mimetype` มาจาก header ที่ client ส่งมา แก้เองได้ — เนื้อไฟล์จริงโกหกไม่ได้ · `finally` = ปิดไฟล์เสมอแม้ read พัง
 
+### 5.33 อ่านไฟล์ Excel (.xlsx) — `readSheet` + เก็บตัวเลขเป็นข้อความ
+
+```js
+import { readSheet } from "read-excel-file/node";
+
+const sheet = await readSheet(buffer, { parseNumber: (text) => text });
+// sheet = [["student_id","national_id"], ["6610210001","1234567890123"], ...]  (แถวละ array)
+```
+
+- `.xlsx` คือไฟล์ zip ที่ข้างในเป็น XML — เลข 13 หลักที่พิมพ์ลงเซลล์ถูกเก็บครบ Excel แค่ *แสดง* เป็น `1.23457E+12`
+- แต่ถ้า "บันทึกเป็น CSV" Excel เขียนตามที่แสดง เลขหลังหลักที่ 6 หายจริง กู้คืนไม่ได้ → อ่าน `.xlsx` ตรงๆ
+- `parseNumber: (text) => text` = ไม่แปลงเป็น `number` ของ JS (ตัวเลขยาวๆ อาจเพี้ยน) เอาข้อความตามที่เก็บในไฟล์
+- ตรวจว่าเป็น xlsx จากไบต์แรก `PK` (zip) ไม่เชื่อนามสกุลไฟล์ — ดู 5.32
+- ทำแถวเป็น object: `Object.fromEntries(names.map((n, i) => [n, cells[i]]))` (`fromEntries` = แปลง array ของ `[key, value]` เป็น object)
+

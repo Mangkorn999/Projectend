@@ -26,7 +26,8 @@
     "iconv-lite": "^0.7.3",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.2.0",
-    "pdfkit": "^0.19.1"
+    "pdfkit": "^0.19.1",
+    "read-excel-file": "^9.3.10"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",

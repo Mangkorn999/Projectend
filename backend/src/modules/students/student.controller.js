@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { parse } from "csv-parse/sync";
 import iconv from "iconv-lite";
+import { readSheet } from "read-excel-file/node";
 import * as studentRepo from "./student.repository.js";
 import * as notifRepo from "../notifications/notifications.repository.js";
 import * as subjectsRepo from "../subjects/subjects.repository.js";
@@ -352,6 +353,72 @@ export const bulkSetEligible = async (req, res, next) => {
   }
 };
 
+// ไฟล์ .xlsx คือ zip ขึ้นต้นด้วย "PK" — เช็คจากเนื้อไฟล์ ไม่เชื่อนามสกุล/mimetype ที่ client ส่งมา
+const isXlsxFile = (buffer) => buffer.length > 4 && buffer[0] === 0x50 && buffer[1] === 0x4b;
+
+// อ่านรายชื่อจาก CSV -> array ของ object (key = ชื่อคอลัมน์ตัวเล็ก)
+const rowsFromCsv = (buffer) => {
+  let csvText;
+  try {
+    csvText = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+  } catch {
+    csvText = iconv.decode(buffer, "win874");
+  }
+
+  // csv-parse แปลง text → array of object โดยใช้แถวแรกเป็นชื่อ column (columns:true)
+  let rows;
+  try {
+    rows = parse(csvText, {
+      // ชื่อคอลัมน์: ตัดช่องว่าง + แปลงเป็นตัวเล็ก — "Student_ID" / " national_id" จาก Excel ก็อ่านได้
+      columns: (header) => header.map((h) => String(h).trim().toLowerCase()),
+      // Excel ที่ตั้งภาษา/ภูมิภาคบางแบบ save CSV คั่นด้วย ; หรือ tab แทน , — รับทั้งสามแบบ
+      delimiter: [",", ";", "\t"],
+      skip_empty_lines: true,
+      // Excel มักทิ้งแถวที่มีแต่ , ว่างๆ ท้ายไฟล์ (",,") — skip_empty_lines ไม่ถือว่าว่าง ต้องข้ามด้วยตัวนี้
+      skip_records_with_empty_values: true,
+      trim: true, // ตัดช่องว่างหัว-ท้ายทุกฟิลด์ กัน " 6610210631" มาจาก copy-paste
+      bom: true, // เผื่อยังเหลือ BOM ติดมาในสตริง
+    });
+  } catch (parseErr) {
+    const err = new Error(`อ่านไฟล์ CSV ไม่ได้: ${parseErr.message}`);
+    err.statusCode = 400;
+    throw err;
+  }
+  return rows;
+};
+
+// อ่านรายชื่อจากไฟล์ Excel (.xlsx) ตรงๆ — เจ้าหน้าที่ไม่ต้อง "บันทึกเป็น CSV"
+//
+// ทำไมต้องมี: เลขบัตร 13 หลักใน Excel ทั่วไปแสดงเป็น 1.23457E+12 และ **ตอนบันทึกเป็น CSV Excel เขียนตามที่แสดง**
+// ตัวเลขหลังหลักที่ 6 หายไปจริง ระบบกู้กลับไม่ได้ (เดาเลขเองแล้วผิดคน = รหัสผ่านและตัวตนนักศึกษาผิดเงียบๆ)
+// แต่ไฟล์ .xlsx เก็บเลขเต็ม 13 หลักไว้ครบ แค่ "แสดง" ย่อ — อ่าน .xlsx ตรงๆ จึงไม่มีปัญหานี้เลย
+//
+// อ่านชีตแรกเท่านั้น · parseNumber: (s) => s = เอาตัวเลขเป็น "ข้อความตามที่เก็บในไฟล์" ไม่ผ่าน float ให้เพี้ยน
+const rowsFromXlsx = async (buffer) => {
+  let sheet;
+  try {
+    sheet = await readSheet(buffer, { parseNumber: (text) => text });
+  } catch {
+    throw httpError("อ่านไฟล์ Excel ไม่ได้ กรุณาตรวจสอบว่าเป็นไฟล์ .xlsx ที่ไม่เสียหาย", 400);
+  }
+  if (!sheet || sheet.length === 0) return [];
+
+  const [header, ...body] = sheet;
+  const names = header.map((h) => String(h ?? "").trim().toLowerCase());
+  // ค่าในเซลล์ -> ข้อความ (วันที่/ว่าง = ข้อความว่าง ให้ด่านตรวจแถวด้านล่างตีเป็น "ข้อมูลไม่ครบ" เอง)
+  const cellText = (v) => (v === null || v === undefined || v instanceof Date ? "" : String(v).trim());
+
+  return body
+    .filter((cells) => cells.some((c) => cellText(c) !== "")) // ข้ามแถวว่างท้ายไฟล์
+    .map((cells) => {
+      const row = {};
+      names.forEach((name, i) => {
+        if (name) row[name] = cellText(cells[i]);
+      });
+      return row;
+    });
+};
+
 // นำเข้ารายชื่อนักศึกษาจากไฟล์ CSV — สร้าง user(ยังไม่มี password)+student พร้อมกันทีละแถว
 // แถวที่พลาด (ซ้ำ/ห้องไม่มี/ข้อมูลขาด) จะถูกข้ามและรายงานกลับ ไม่ทำให้แถวอื่นล้มไปด้วย
 export const bulkImport = async (req, res, next) => {
@@ -363,7 +430,7 @@ export const bulkImport = async (req, res, next) => {
 
     // multer (memoryStorage) แปะไฟล์ที่ officer อัปโหลดไว้ที่ req.file.buffer — ยังไม่เขียนลง disk
     if (!req.file) {
-      const err = new Error("กรุณาแนบไฟล์ CSV");
+      const err = new Error("กรุณาแนบไฟล์ CSV หรือ Excel (.xlsx)");
       err.statusCode = 400;
       throw err;
     }
@@ -375,35 +442,12 @@ export const bulkImport = async (req, res, next) => {
     // เดาจาก "มี BOM ไหม" อย่างเดียวไม่พอ (เคสสุดท้ายไม่มี BOM แต่ก็เป็น UTF-8) —
     // เลยต้อง "ลองถอดเป็น UTF-8 จริงๆ" ก่อน ถ้า byte ไม่ตรงกฎ UTF-8 (fatal: true จะ throw)
     // ค่อยถือว่าเป็น win874 แล้ว decode แบบนั้นแทน
-    let csvText;
-    try {
-      csvText = new TextDecoder("utf-8", { fatal: true }).decode(req.file.buffer);
-    } catch {
-      csvText = iconv.decode(req.file.buffer, "win874");
-    }
-
-    // csv-parse แปลง text → array of object โดยใช้แถวแรกเป็นชื่อ column (columns:true)
-    let rows;
-    try {
-      rows = parse(csvText, {
-        // ชื่อคอลัมน์: ตัดช่องว่าง + แปลงเป็นตัวเล็ก — "Student_ID" / " national_id" จาก Excel ก็อ่านได้
-        columns: (header) => header.map((h) => String(h).trim().toLowerCase()),
-        // Excel ที่ตั้งภาษา/ภูมิภาคบางแบบ save CSV คั่นด้วย ; หรือ tab แทน , — รับทั้งสามแบบ
-        delimiter: [",", ";", "	"],
-        skip_empty_lines: true,
-        // Excel มักทิ้งแถวที่มีแต่ , ว่างๆ ท้ายไฟล์ (",,") — skip_empty_lines ไม่ถือว่าว่าง ต้องข้ามด้วยตัวนี้
-        skip_records_with_empty_values: true,
-        trim: true, // ตัดช่องว่างหัว-ท้ายทุกฟิลด์ กัน " 6610210631" มาจาก copy-paste
-        bom: true, // เผื่อยังเหลือ BOM ติดมาในสตริง
-      });
-    } catch (parseErr) {
-      const err = new Error(`อ่านไฟล์ CSV ไม่ได้: ${parseErr.message}`);
-      err.statusCode = 400;
-      throw err;
-    }
+    const rows = isXlsxFile(req.file.buffer)
+      ? await rowsFromXlsx(req.file.buffer)
+      : rowsFromCsv(req.file.buffer);
 
     if (rows.length === 0) {
-      const err = new Error("ไฟล์ CSV ไม่มีข้อมูล");
+      const err = new Error("ไฟล์ไม่มีข้อมูล");
       err.statusCode = 400;
       throw err;
     }
@@ -414,7 +458,7 @@ export const bulkImport = async (req, res, next) => {
     );
     if (missingCols.length > 0) {
       const err = new Error(
-        `ไฟล์ CSV ขาดคอลัมน์: ${missingCols.join(", ")} (คอลัมน์ที่พบในไฟล์: ${Object.keys(rows[0]).join(", ")})`,
+        `ไฟล์ขาดคอลัมน์: ${missingCols.join(", ")} (คอลัมน์ที่พบในไฟล์: ${Object.keys(rows[0]).join(", ")})`,
       );
       err.statusCode = 400;
       throw err;
@@ -460,7 +504,7 @@ export const bulkImport = async (req, res, next) => {
           row: rowNum,
           student_id,
           reason: looksLikeExcelSci
-            ? "เลขบัตรประชาชนถูก Excel แปลงเป็นรูปแบบวิทยาศาสตร์ (เช่น 1.23E+12) — ตั้งคอลัมน์เป็นข้อความ (Text) แล้วกรอกเลขใหม่"
+            ? "เลขบัตรประชาชนถูก Excel แปลงเป็นรูปแบบวิทยาศาสตร์ (เช่น 1.23E+12) เลขหายไปแล้วในไฟล์ CSV — อัปโหลดไฟล์ Excel (.xlsx) ต้นฉบับแทน (ไม่ต้องบันทึกเป็น CSV) หรือกรอกเลขใหม่"
             : "เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก",
         });
         continue;

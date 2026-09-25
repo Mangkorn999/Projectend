@@ -152,6 +152,27 @@ const main = async () => {
     const mine = (await call("GET", "/api/exam-results/me", { token: sToken })).json.data || [];
     check("ผลที่ยืนยันแล้วยังเป็นผ่าน + approved", [mine[0]?.staff_status, mine[0]?.subject_results?.[0]?.is_passed], ["approved", true]);
 
+    // ── 4.5 ถอนการยืนยัน (เจ้าหน้าที่ยืนยันผิด) ──
+    const revokeUrl = `/api/exam-results/${resultId}/revoke-approval`;
+    const rvToken = (await call("POST", "/api/auth/login", { body: { psu_passport_id: "321", password: "321" } })).cookie;
+    check("reviewer ถอนการยืนยันไม่ได้ -> 403", (await call("PATCH", revokeUrl, { token: rvToken, body: { remark: "x" } })).status, 403);
+    check("นักศึกษาถอนการยืนยันไม่ได้ -> 403", (await call("PATCH", revokeUrl, { token: sToken, body: { remark: "x" } })).status, 403);
+    check("ถอนโดยไม่ใส่เหตุผล -> 400", (await call("PATCH", revokeUrl, { token: oToken, body: {} })).status, 400);
+    const revoked = await call("PATCH", revokeUrl, { token: oToken, body: { remark: "กดยืนยันผิดใบ" } });
+    check("officer ถอนการยืนยัน -> 200", revoked.status, 200);
+    check("  ใบกลับเป็น pending + ล้างผู้ตรวจ", [revoked.json?.data?.staff_status, revoked.json?.data?.confirmed_by], ["pending", null]);
+    check("ถอนซ้ำ (ไม่ใช่ approved แล้ว) -> 409", (await call("PATCH", revokeUrl, { token: oToken, body: { remark: "x" } })).status, 409);
+    const notifs = (await call("GET", "/api/notifications/me", { token: sToken })).json.data || [];
+    check("นักศึกษาได้แจ้งเตือน revoked", notifs.some((n) => n.type === "revoked" && n.message.includes("กดยืนยันผิดใบ")), true);
+    // กติกาเดิมของใบ pending: รอบยังเปิด = นักศึกษาแก้ได้
+    const redo = await call("POST", "/api/exam-results", {
+      token: sToken, body: { subject_results: [{ subject_id: subjectId, is_passed: true }] },
+    });
+    check("ถอนแล้วรอบยังเปิด -> นักศึกษาแก้/ส่งใหม่ได้", redo.status, 200);
+    check("เจ้าหน้าที่ยืนยันใหม่ได้", (await call("PATCH", `/api/exam-results/${resultId}/approve`, { token: oToken, body: {} })).status, 200);
+    check("ยืนยันใหม่แล้วล็อกอีกครั้ง -> 409", (await call("POST", "/api/exam-results", {
+      token: sToken, body: { subject_results: [{ subject_id: subjectId, is_passed: false }] } })).status, 409);
+
     // ── 5. 500 ต้องไม่หลุดข้อความดิบ (ยิง endpoint ที่ id เป็นขยะ) ──
     const garbage = await call("GET", "/api/exam-results?round_id=abc", { token: oToken });
     check("ส่ง round_id=abc -> ไม่ใช่ 500", garbage.status < 500, true);

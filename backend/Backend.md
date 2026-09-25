@@ -216,6 +216,7 @@ body: `{ "subject_results": [{ "subject_id": 1, "is_passed": true }, ... ] }`
 | `GET` | `/api/exam-results` | officer | ดูผลสอบทุกคน + filter (executive ไม่ได้ — ดูได้แค่ dashboard) |
 | `PATCH` | `/api/exam-results/:id/approve` | officer | ยืนยัน |
 | `PATCH` | `/api/exam-results/:id/reject` | officer | ตีกลับ + remark (บังคับ) |
+| `PATCH` | `/api/exam-results/:id/revoke-approval` | officer | ถอนการยืนยัน (ยืนยันผิด) approved → pending + remark (บังคับ) |
 
 filter ของ `GET /api/exam-results` ใช้ query string: `?round_id=&staff_status=&student_id=`
 

@@ -116,6 +116,20 @@ export const updateStaffStatusIfPending = (result_id, { staff_status, remark, co
     },
   });
 
+// ถอนการยืนยัน (เจ้าหน้าที่ยืนยันผิด) — approved → pending ให้ตรวจใหม่ได้
+// updateMany + where staff_status = approved: ถ้ามีใครถอน/แก้ไปก่อนแล้ว count = 0 (กดซ้ำ/กดพร้อมกันไม่ทับกัน)
+// ล้าง confirmed_by/at เหมือนตอน resubmit — ใบกลับไปเป็น "ยังไม่มีใครตรวจ" จริงๆ ประวัติเก็บไว้ที่ review_logs
+export const revokeApprovalIfApproved = (result_id) =>
+  prisma.examResult.updateMany({
+    where: { result_id: Number(result_id), staff_status: STAFF_STATUS.APPROVED },
+    data: {
+      staff_status: STAFF_STATUS.PENDING,
+      remark: null,
+      confirmed_by: null,
+      confirmed_at: null,
+    },
+  });
+
 export const findByStudent = (student_id) =>
   prisma.examResult.findMany({
     where: { student_id },

@@ -27,6 +27,9 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
   const [error, setError] = useState('');
   const [reject, setReject] = useState(false);
   const [remark, setRemark] = useState('');
+  // ถอนการยืนยัน (ยืนยันผิด) — เฉพาะ officer (canEdit)
+  const [revokeOpen, setRevokeOpen] = useState(false);
+  const [revokeRemark, setRevokeRemark] = useState('');
   const [busy, setBusy] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState(null);
@@ -84,6 +87,40 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
       setBusy(false);
     }
   };
+
+  const revoke = async () => {
+    setBusy(true);
+    try {
+      await apiFetch(`/exam-results/${examResult.result_id}/revoke-approval`, {
+        method: 'PATCH',
+        body: { remark: revokeRemark },
+      });
+      window.dispatchEvent(new Event('review-changed')); // badge "รอตรวจ" ต้องนับใหม่ — ใบกลับมารอตรวจแล้ว
+      toast(tt('officer.detail.revokeToast'), 'info');
+      setRevokeOpen(false);
+      setRevokeRemark('');
+      load();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : tt('detailReal.actionFailMsg'), 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // เตือนก่อนตีกลับ/ถอนการยืนยัน ถ้ารอบปิดแล้วหรือใกล้ปิด — นักศึกษาแก้ได้เฉพาะตอนรอบยังเปิดรับ
+  // ตีกลับตอนรอบปิดแล้ว ใบจะค้าง (นักศึกษาส่งใหม่ไม่ได้) จนกว่าเจ้าหน้าที่จะเลื่อนวันปิดรอบ
+  const roundWarn = (() => {
+    const r = examResult?.round;
+    if (!r) return null;
+    const msLeft = new Date(r.close_date).getTime() - Date.now();
+    if (r.status !== 'open' || msLeft < 0) return 'closed';
+    return msLeft < 3 * 24 * 60 * 60 * 1000 ? 'soon' : null;
+  })();
+  const roundWarnBox = roundWarn && (
+    <div style={{ marginTop: 14, padding: '11px 13px', background: 'var(--status-wait-bg)', color: 'var(--status-wait-fg)', borderRadius: 10, fontSize: 15, lineHeight: 1.6, display: 'flex', gap: 8 }}>
+      <Icon name="alert" size={17} style={{ flex: 'none', marginTop: 3 }} /> <span>{tt(roundWarn === 'closed' ? 'officer.detail.roundClosedWarn' : 'officer.detail.roundSoonWarn')}</span>
+    </div>
+  );
 
   const openEdit = () => {
     if (!studentFull) return;
@@ -188,6 +225,8 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
             </div>}
             {canReview && status === 'CONFIRMED' && <div style={{ marginTop: 14, padding: '11px 13px', background: 'var(--status-ok-bg)', borderRadius: 10, fontSize: 15, color: 'var(--status-ok-fg)', display: 'flex', gap: 8, alignItems: 'center' }}>
               <Icon name="checkCircle" size={17} /> {tt('status.CONFIRMED')}</div>}
+            {canEdit && status === 'CONFIRMED' && <button className="btn btn-ghost btn-block" style={{ marginTop: 10 }} disabled={busy} onClick={() => setRevokeOpen(true)}>
+              <Icon name="xCircle" size={16} /> {tt('officer.detail.revokeBtn')}</button>}
             {status === 'DRAFT' && <div style={{ marginTop: 12, fontSize: 15, color: 'var(--ink-500)' }}>{tt('detailReal.notFilledYet')}</div>}
           </div>
 
@@ -248,6 +287,7 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
             onClick={() => review('reject', remark)}>
             <Icon name="send" size={16} /> {tt('officer.detail.confirmRejectBtn')}</button></>}>
         <p style={{ margin: '0 0 14px', color: 'var(--ink-600)', fontSize: 16 }}>{tt('officer.detail.rejectHint')}</p>
+        {roundWarnBox && <div style={{ marginBottom: 14, marginTop: -4 }}>{roundWarnBox}</div>}
         <div className="field"><label>{tt('officer.detail.rejectFieldLabel')}</label>
           <textarea className="input" rows={3} placeholder={tt('officer.detail.rejectPlaceholder')} value={remark} onChange={e => setRemark(e.target.value)} />
         </div>
@@ -256,6 +296,17 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
             <button key={r} className="chip" style={{ cursor: 'pointer', border: '1px solid var(--ink-200)' }} onClick={() => setRemark(r)}>{r}</button>
           ))}
         </div>
+      </Modal>
+
+      <Modal open={revokeOpen} onClose={() => setRevokeOpen(false)} title={tt('officer.detail.revokeModalTitle')} tone="var(--status-reject-fg)"
+        footer={<><button className="btn btn-ghost" onClick={() => setRevokeOpen(false)}>{tt('officer.detail.cancelBtn')}</button>
+          <button className="btn" style={{ background: 'var(--fail)', color: '#fff' }} disabled={!revokeRemark.trim() || busy} onClick={revoke}>
+            <Icon name="send" size={16} /> {tt('officer.detail.revokeConfirmBtn')}</button></>}>
+        <p style={{ margin: '0 0 14px', color: 'var(--ink-600)', fontSize: 16, lineHeight: 1.6 }}>{tt('officer.detail.revokeHint')}</p>
+        <div className="field"><label>{tt('officer.detail.revokeFieldLabel')}</label>
+          <textarea className="input" rows={3} maxLength={500} placeholder={tt('officer.detail.revokePlaceholder')} value={revokeRemark} onChange={e => setRevokeRemark(e.target.value)} />
+        </div>
+        {roundWarnBox && <div style={{ marginTop: -4 }}>{roundWarnBox}</div>}
       </Modal>
 
       <Modal open={editOpen} onClose={() => setEditOpen(false)} title={tt('officer.detail.editModalTitle')} width={480}

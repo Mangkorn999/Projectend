@@ -162,7 +162,8 @@ function CsvImport({ toast, tt }) {
           <div style={{ fontSize:15, color:'var(--ink-700)', lineHeight:1.7 }}>
             {tt('importReal.csvColumnsNote').replace('{cols}', '')}<span className="mono" style={{ fontSize:14 }}>student_id, national_id</span><br/>
             {tt('importReal.yearColumnNote')}<br/>
-            {tt('importReal.noPasswordNote')}
+            {tt('importReal.noPasswordNote')}<br/>
+            <b>{tt('importReal.excelNote')}</b>
           </div>
         </div>
         <div style={{ display:'flex', gap:12, alignItems:'center', flexWrap:'wrap' }}>
@@ -181,7 +182,7 @@ function CsvImport({ toast, tt }) {
           ) : (
             <label className="btn btn-ghost" style={{ cursor:'pointer' }}>
               <Icon name="upload" size={16}/> {tt('importReal.chooseCsvBtn')}
-              <input type="file" accept=".csv,text/csv" style={{ display:'none' }}
+              <input type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style={{ display:'none' }}
                 onChange={e=>pickFile(e.target.files?.[0]||null)} />
             </label>
           )}

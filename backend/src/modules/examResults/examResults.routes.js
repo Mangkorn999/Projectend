@@ -8,6 +8,7 @@ import {
   getAll,
   approve,
   reject,
+  revokeApproval,
 } from "./examResults.controller.js";
 import { upload as uploadCertificate } from "../certificates/certificates.controller.js";
 
@@ -28,5 +29,7 @@ router.post(
 router.get("/", authenticate, requireRole("officer", "reviewer"), getAll);
 router.patch("/:id/approve", authenticate, requireRole("officer", "reviewer"), approve);
 router.patch("/:id/reject", authenticate, requireRole("officer", "reviewer"), reject);
+// ถอนการยืนยัน (ยืนยันผิด) — เฉพาะ officer
+router.patch("/:id/revoke-approval", authenticate, requireRole("officer"), revokeApproval);
 
 export default router;
