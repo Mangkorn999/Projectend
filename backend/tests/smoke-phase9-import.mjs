@@ -195,6 +195,17 @@ const main = async () => {
   const aliasCsv = (await dryRun("Student ID,เลขบัตรประชาชน,ปีการศึกษา\r\n6699991201,1929900326091,\r\n")).json?.data;
   check("CSV หัวคอลัมน์ 'Student ID' / ไทย -> นำเข้าได้", `${aliasCsv?.imported_count},${aliasCsv?.skipped_count}`, "1,0");
 
+  // ── ข้อมูลจาก Google Form: คนกรอกเอง มีขีดคั่น/ช่องว่าง/เลขไทย ──
+  const formCsv = (await dryRun(
+    "Timestamp,รหัสนักศึกษา,เลขบัตรประชาชน,ชื่อ\r\n" +
+    "2026/09/25 10:00,6699991301,1-9299-00326-09-1,สมชาย\r\n" +
+    "2026/09/25 10:01,๖๖๙๙๙๙๑๓๐๒,๑๙๒๙๙๐๐๓๒๖๐๙๒,สมหญิง\r\n" +
+    "2026/09/25 10:02,6699991303,1 9299 00326 09 3,สมศรี\r\n" +
+    "2026/09/25 10:03,6699991304,1-9299-00326-09,ตัวเลขไม่ครบ\r\n",
+  )).json?.data;
+  check("Google Form: ขีดคั่น/เลขไทย/ช่องว่าง นำเข้าได้ 3 (คอลัมน์เกิน Timestamp/ชื่อ ถูกข้าม)", formCsv?.imported_count, 3);
+  check("  เลขไม่ครบ 13 หลัก ยังถูกปฏิเสธ", `${formCsv?.skipped_count},${formCsv?.skipped?.[0]?.student_id}`, "1,6699991304");
+
   console.log(results.join("\n"));
   console.log(`\n${results.length - failures}/${results.length} passed`);
   if (failures > 0) process.exit(1);

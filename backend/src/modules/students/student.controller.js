@@ -372,6 +372,18 @@ const canonicalColumn = (raw) => {
   return key;
 };
 
+// รหัสนักศึกษา/เลขบัตรที่คนกรอกเอง (เช่น Google Form) มักมีขีดคั่น ช่องว่าง หรือเป็นเลขไทย
+//   "1-9299-00326-09-1" / "1 9299 00326 09 1" / "๑๙๒๙๙๐๐๓๒๖๐๙๑" → ตัวเลขล้วน
+// แค่ตัดตัวคั่นและแปลงเลขไทยเป็นเลขอารบิก ไม่ได้เดาตัวเลขเอง จึงปลอดภัย (ถ้ายังไม่ครบ 13 หลักก็ถูกปฏิเสธเหมือนเดิม)
+const THAI_DIGITS = "๐๑๒๓๔๕๖๗๘๙";
+const cleanIdText = (value) => {
+  if (typeof value !== "string") return value;
+  return value
+    .trim()
+    .replace(/[๐-๙]/g, (d) => String(THAI_DIGITS.indexOf(d)))
+    .replace(/[\s-]/g, "");
+};
+
 // ไฟล์ .xlsx คือ zip ขึ้นต้นด้วย "PK" — เช็คจากเนื้อไฟล์ ไม่เชื่อนามสกุล/mimetype ที่ client ส่งมา
 const isXlsxFile = (buffer) => buffer.length > 4 && buffer[0] === 0x50 && buffer[1] === 0x4b;
 
@@ -516,8 +528,8 @@ export const bulkImport = async (req, res, next) => {
       // academic_year เป็นคอลัมน์ไม่บังคับ — ไฟล์เก่าที่ไม่มีคอลัมน์นี้ก็ได้ undefined ถือว่าเว้นว่าง
       const { academic_year } = row;
       // ตัดช่องว่างซ้ำอีกชั้น — csv-parse ไม่ตัดช่องว่างที่อยู่ในเครื่องหมายคำพูด (เช่น "1234567890123 ")
-      const student_id = row.student_id?.trim();
-      const national_id = row.national_id?.trim();
+      const student_id = cleanIdText(row.student_id);
+      const national_id = cleanIdText(row.national_id);
 
       // validate ฟิลด์บังคับต่อแถว — ขาดฟิลด์ไหนก็ข้ามแถวนั้น ไม่ทำให้ทั้งไฟล์ล้ม
       if (!student_id || !national_id) {
