@@ -171,6 +171,26 @@ export const updateProfile = (student_id, { user: userData, student: studentData
 export const countExamResults = (studentId) =>
   prisma.examResult.count({ where: { student_id: studentId } });
 
+// ลบนักศึกษาหลายคน + บัญชี user — เฉพาะคนที่ "ยังไม่มีผลสอบ" (exam_results: { none: {} } อยู่ใน where เอง)
+// คนที่มีผลสอบแล้วถูกข้ามเงียบๆ ไม่ลบ (กฎเดียวกับลบทีละคน: ลบแล้วสถิติของรุ่นเปลี่ยนย้อนหลัง)
+// คืนรหัสที่ลบจริง ให้หน้าจอเอาออกจากตารางได้ตรงตัว
+// ทำใน transaction เดียว — ถ้าระหว่างนั้นมีคนส่งผลสอบเข้ามา FK จะพัง ทั้งก้อนย้อนกลับ ไม่เหลือลบครึ่งๆ กลางๆ
+export const removeManyWithUsers = async (studentIds) => {
+  const targets = await prisma.student.findMany({
+    where: { student_id: { in: studentIds }, exam_results: { none: {} } },
+    select: { student_id: true, user_id: true },
+  });
+  if (targets.length === 0) return [];
+  const sids = targets.map((t) => t.student_id);
+  const uids = targets.map((t) => t.user_id);
+  await prisma.$transaction([
+    prisma.notification.deleteMany({ where: { student_id: { in: sids } } }),
+    prisma.student.deleteMany({ where: { student_id: { in: sids } } }),
+    prisma.user.deleteMany({ where: { user_id: { in: uids } } }),
+  ]);
+  return sids;
+};
+
 // บัญชีนักศึกษาที่ import มาแล้วแต่ "ยังไม่กรอกโปรไฟล์" — มีแค่แถว users ยังไม่มีแถว students
 // เลยไม่โผล่ในรายชื่อนักศึกษา (findAll) และลบผ่าน DELETE /students/:id ไม่ได้ ทั้งที่อาจเป็นรหัสที่ import ผิด
 export const findPendingAccounts = () =>

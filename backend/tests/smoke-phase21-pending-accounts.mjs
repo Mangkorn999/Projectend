@@ -38,6 +38,7 @@ const ID_B = `${PREFIX}${STAMP}02`; // pending
 const ID_C = `${PREFIX}${STAMP}03`; // กรอกโปรไฟล์แล้ว
 const nid = (i) => `1${STAMP}0000${i}`.slice(0, 13).padEnd(13, "0");
 
+let parkedRounds = [];
 const main = async () => {
   const oToken = (await call("POST", "/api/auth/login", { body: { psu_passport_id: "456", password: "456" } })).cookie;
   check("login officer", !!oToken, true);
@@ -98,8 +99,57 @@ const main = async () => {
     // ลบซ้ำ = 404 ไม่ใช่ 500
     check("ลบ A ซ้ำ -> 404", (await del({ student_ids: [ID_A] })).status, 404);
     check("ลบ B -> 200", (await del({ student_ids: [ID_B] })).status, 200);
+
+    // ── 3. ลบนักศึกษาหลายคนพร้อมกัน (POST /students/bulk-delete) — คนที่กรอกโปรไฟล์แล้ว ──
+    const mk = async (id, i) => {
+      await call("POST", "/api/students", { token: oToken, body: { student_id: id, national_id: nid(i) } });
+      const l = await call("POST", "/api/auth/login", { body: { psu_passport_id: id, password: nid(i) } });
+      await call("POST", "/api/students/complete-profile", {
+        token: l.cookie,
+        body: { first_name: "ก", last_name: "ข", first_name_en: "A", last_name_en: "B", email: `${id}@test.local`, phone: "0800000000", room_id: rooms[0].room_id },
+      });
+      return l.cookie;
+    };
+    const ID_D = `${PREFIX}${STAMP}04`, ID_E = `${PREFIX}${STAMP}05`, ID_F = `${PREFIX}${STAMP}06`;
+    await mk(ID_D, 4);
+    await mk(ID_E, 5);
+    const fToken = await mk(ID_F, 6);
+
+    // F มีผลสอบ: ต้องมีรอบเปิดของรุ่น 2593 ก่อน (ปิดรอบจริงที่เปิดค้างไว้ชั่วคราว แล้วเปิดคืนใน finally)
+    const roundsNow = (await call("GET", "/api/rounds", { token: oToken })).json.data || [];
+    parkedRounds = roundsNow.filter((r) => r.status === "open").map((r) => r.round_id);
+    for (const id of parkedRounds) await call("PUT", `/api/rounds/${id}`, { token: oToken, body: { status: "closed" } });
+    const subj = (await call("GET", "/api/subjects", { token: oToken })).json.data[0].subject_id;
+    const rnd = await call("POST", "/api/rounds", { token: oToken, body: { academic_year: YEAR, attempt_number: 1, open_date: "2020-01-01", close_date: "2099-12-31", subject_ids: [subj] } });
+    await call("PUT", `/api/rounds/${rnd.json.data.round_id}`, { token: oToken, body: { status: "open" } });
+    await call("PATCH", "/api/students/bulk-eligible", { token: oToken, body: { student_ids: [ID_F], exam_eligible: true } });
+    check("F ส่งผลสอบ -> 200", (await call("POST", "/api/exam-results", { token: fToken, body: { subject_results: [{ subject_id: subj, is_passed: true }] } })).status, 200);
+
+    const bulk = (body, token = oToken) => call("POST", "/api/students/bulk-delete", { token, body });
+    check("bulk-delete ไม่ส่ง student_ids -> 400", (await bulk({})).status, 400);
+    check("bulk-delete student_ids ไม่ใช่ข้อความ -> 400", (await bulk({ student_ids: [1] })).status, 400);
+    for (const [who, login] of [["reviewer", ["321", "321"]], ["executive", ["789", "789"]]]) {
+      const t = (await call("POST", "/api/auth/login", { body: { psu_passport_id: login[0], password: login[1] } })).cookie;
+      check(`${who} bulk-delete -> 403`, (await bulk({ student_ids: [ID_D] }, t)).status, 403);
+    }
+    check("นักศึกษา bulk-delete -> 403", (await bulk({ student_ids: [ID_D] }, fToken)).status, 403);
+    check("เลือกแต่คนที่มีผลสอบ (F) -> 409 ไม่ลบ", (await bulk({ student_ids: [ID_F] })).status, 409);
+    check("  F ยังอยู่", (await call("GET", `/api/students/${ID_F}`, { token: oToken })).status, 200);
+
+    const mixedBulk = await bulk({ student_ids: [ID_D, ID_F, ID_E, ID_D] });
+    check("ลบ D + E ปน F (มีผลสอบ) -> 200", mixedBulk.status, 200);
+    check("  ลบ 2 ข้าม 1", [mixedBulk.json?.data?.deleted_count, mixedBulk.json?.data?.skipped_count], [2, 1]);
+    check("  deleted_ids = D และ E", (mixedBulk.json?.data?.deleted_ids || []).sort(), [ID_D, ID_E].sort());
+    check("  D ถูกลบ (404) login ไม่ได้", [
+      (await call("GET", `/api/students/${ID_D}`, { token: oToken })).status,
+      (await call("POST", "/api/auth/login", { body: { psu_passport_id: ID_D, password: nid(4) } })).status,
+    ], [404, 401]);
+    check("  F ยังอยู่ ผลสอบยังอยู่", (await call("GET", `/api/students/${ID_F}`, { token: oToken })).json?.data?.exam_result_count, 1);
+    check("ลบซ้ำ D+E -> 409 (ไม่มีใครถูกลบ)", (await bulk({ student_ids: [ID_D, ID_E] })).status, 409);
   } finally {
     await cleanupYears([YEAR]);
+    // เปิดรอบจริงที่ปิดไว้ชั่วคราวคืน (ลบรอบทดสอบไปแล้วก่อนหน้านี้ ไม่งั้นติดกติกา "เปิดได้ทีละรอบ")
+    for (const id of parkedRounds) await call("PUT", `/api/rounds/${id}`, { token: oToken, body: { status: "open" } });
   }
 
   console.log(failures === 0 ? "\nALL PASSED" : `\n${failures} FAILED`);

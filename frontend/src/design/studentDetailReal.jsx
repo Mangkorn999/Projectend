@@ -27,6 +27,9 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
   const [error, setError] = useState('');
   const [reject, setReject] = useState(false);
   const [remark, setRemark] = useState('');
+  const [deleteOpen, setDeleteOpen] = useState(false); // ยืนยันลบนักศึกษา (เฉพาะ officer)
+  // "ตอนนี้" จับครั้งเดียวตอนเปิดหน้า ไว้เทียบกับวันปิดรอบ — เรียก Date.now() ตรงๆ ระหว่าง render ไม่ได้ (ผลไม่นิ่ง)
+  const [nowMs] = useState(() => Date.now());
   // ถอนการยืนยัน (ยืนยันผิด) — เฉพาะ officer (canEdit)
   const [revokeOpen, setRevokeOpen] = useState(false);
   const [revokeRemark, setRevokeRemark] = useState('');
@@ -112,7 +115,7 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
   const roundWarn = (() => {
     const r = examResult?.round;
     if (!r) return null;
-    const msLeft = new Date(r.close_date).getTime() - Date.now();
+    const msLeft = new Date(r.close_date).getTime() - nowMs;
     if (r.status !== 'open' || msLeft < 0) return 'closed';
     return msLeft < 3 * 24 * 60 * 60 * 1000 ? 'soon' : null;
   })();
@@ -121,6 +124,20 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
       <Icon name="alert" size={17} style={{ flex: 'none', marginTop: 3 }} /> <span>{tt(roundWarn === 'closed' ? 'officer.detail.roundClosedWarn' : 'officer.detail.roundSoonWarn')}</span>
     </div>
   );
+
+  // ลบนักศึกษาออกจากระบบ — ได้เฉพาะคนที่ยังไม่มีผลสอบ (ลบแล้วสถิติของรุ่นเปลี่ยนย้อนหลัง) backend กันซ้ำอีกชั้น
+  const removeStudent = async () => {
+    setBusy(true);
+    try {
+      await apiFetch(`/students/${student.sid}`, { method: 'DELETE' });
+      toast(tt('officer.students.deletedToast', { name: `${student.firstName} ${student.lastName}` }));
+      setDeleteOpen(false);
+      go(backTo); // คนนี้ไม่อยู่แล้ว อยู่หน้าเดิมต่อไม่ได้ — กลับไปหน้ารายชื่อ
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : tt('officer.students.deleteFailMsg'), 'error');
+      setBusy(false);
+    }
+  };
 
   const openEdit = () => {
     if (!studentFull) return;
@@ -168,6 +185,8 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
   // ส่งผลสอบไปแล้ว = ย้ายรุ่นไม่ได้ (backend บล็อกอยู่แล้ว ตรงนี้แค่ทำให้ช่องกดไม่ได้ + บอกเหตุผล
   // ดีกว่าปล่อยให้พิมพ์จนเสร็จแล้วค่อยเด้ง error ตอนกดบันทึก)
   const yearLocked = (studentFull?.exam_result_count ?? 0) > 0;
+  // มีผลสอบในระบบแล้วไหม — ดูทั้งจำนวนจาก backend และรายการที่โหลดมา (อันไหนรู้ก่อนใช้อันนั้น)
+  const hasResults = yearLocked || results.length > 0;
 
   return (
     <div className="fade-up">
@@ -176,6 +195,10 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
         sub={<span className="mono">{student.sid} · {tt('officer.detail.subInfo', { room: roomName(lang, displayRoom), year: displayYear })}</span>}
         actions={<div style={{ display: 'flex', gap: 8 }}>
           {canEdit && <button className="btn btn-ghost" onClick={openEdit}><Icon name="edit" size={16} /> {tt('officer.detail.editBtn')}</button>}
+          {/* คนที่มีผลสอบแล้วลบไม่ได้ — โชว์ปุ่มแบบกดไม่ได้พร้อมเหตุผล ดีกว่าซ่อนแล้วเจ้าหน้าที่หาไม่เจอว่าทำไมลบไม่ได้ */}
+          {canEdit && <button className="btn btn-ghost" style={{ color: hasResults ? undefined : 'var(--fail)' }}
+            disabled={hasResults} title={hasResults ? tt('officer.detail.deleteBlockedHint') : tt('officer.students.deleteHint')}
+            onClick={() => setDeleteOpen(true)}><Icon name="trash" size={16} /> {tt('officer.detail.deleteStudentBtn')}</button>}
           <button className="btn btn-ghost" onClick={() => go(backTo)}><Icon name="chevL" size={16} /> {tt('officer.detail.backBtn')}</button>
         </div>} />
 
@@ -296,6 +319,15 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
             <button key={r} className="chip" style={{ cursor: 'pointer', border: '1px solid var(--ink-200)' }} onClick={() => setRemark(r)}>{r}</button>
           ))}
         </div>
+      </Modal>
+
+      <Modal open={deleteOpen} onClose={() => !busy && setDeleteOpen(false)} width={430} title={tt('officer.students.deleteTitle')} tone="danger"
+        footer={<><button className="btn btn-ghost" disabled={busy} onClick={() => setDeleteOpen(false)}>{tt('officer.detail.cancelBtn')}</button>
+          <button className="btn btn-danger" disabled={busy} onClick={removeStudent}>
+            {busy ? tt('officer.students.deleting') : tt('officer.detail.deleteStudentBtn')}</button></>}>
+        <p style={{ margin: 0, fontSize: 16, lineHeight: 1.6, color: 'var(--ink-700)' }}>
+          {tt('officer.students.deleteBody', { name: `${student.firstName} ${student.lastName}`, sid: student.sid })}
+        </p>
       </Modal>
 
       <Modal open={revokeOpen} onClose={() => setRevokeOpen(false)} title={tt('officer.detail.revokeModalTitle')} tone="var(--status-reject-fg)"

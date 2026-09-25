@@ -49,6 +49,7 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
   const [selected, setSelected] = useState(() => new Set()); // student_id ที่ติ๊กไว้
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(null); // นักศึกษาที่กำลังจะลบ (รอยืนยันในโมดัล)
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false); // ยืนยันลบคนที่ติ๊กเลือกไว้หลายคน
   const [resetting, setResetting] = useState(null); // นักศึกษาที่กำลังจะรีเซ็ตรหัส (รอยืนยันในโมดัล)
   const [resetNationalId, setResetNationalId] = useState('');
   const [resetError, setResetError] = useState('');
@@ -219,6 +220,26 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
     }
   };
 
+  // ลบหลายคนที่ติ๊กไว้ — ส่งเฉพาะคนที่ยังไม่มีผลสอบ (status DRAFT) คนที่มีผลสอบแล้วถูกข้าม (backend กันซ้ำอีกชั้น)
+  const bulkTargets = students.filter(s => selected.has(s.sid));
+  const bulkDeletable = bulkTargets.filter(s => s.status === 'DRAFT');
+  const bulkBlocked = bulkTargets.length - bulkDeletable.length;
+  const confirmBulkDelete = async () => {
+    setSaving(true);
+    try {
+      const data = await apiFetch('/students/bulk-delete', { method: 'POST', body: { student_ids: bulkDeletable.map(s => s.sid) } });
+      const gone = new Set(data.deleted_ids);
+      setStudents(prev => prev.filter(s => !gone.has(s.sid)));
+      setSelected(new Set());
+      setBulkDeleteOpen(false);
+      toast?.(tt('officer.students.bulkDeletedToast', { n: data.deleted_count }));
+    } catch (e) {
+      toast?.(e instanceof ApiError ? e.message : tt('officer.students.deleteFailMsg'), 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // รีเซ็ตรหัสผ่านนักศึกษา = กรอกเลขบัตร ปชช เดิมซ้ำ (password นักศึกษา = hash(เลขบัตร ปชช) เสมอ ไม่มีรหัสชั่วคราว)
   // endpoint แยกจาก officer/executive (POST /students/:id/reset-password) เพราะ semantics ไม่เหมือนกัน
   const confirmReset = async () => {
@@ -360,6 +381,9 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
           <span style={{ fontSize: 16, fontWeight: 600 }}>{tt('officer.students.selectedCount', { n: selected.size })}</span>
           <button className="btn btn-ghost btn-sm" onClick={() => setSelected(new Set())} disabled={saving}>{tt('officer.students.clearSelection')}</button>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+            <button className="btn btn-ghost btn-sm" style={{ color: 'var(--fail)' }} onClick={() => setBulkDeleteOpen(true)} disabled={saving}>
+              <Icon name="trash" size={15} /> {tt('officer.students.bulkDeleteBtn')}
+            </button>
             <button className="btn btn-ghost btn-sm" onClick={() => setEligibility(false)} disabled={saving}>
               <Icon name="xCircle" size={15} /> {tt('officer.students.revokeBtn')}
             </button>
@@ -436,6 +460,18 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
           <p style={{ margin: 0, fontSize: 16, lineHeight: 1.6, color: 'var(--ink-700)' }}>
             {tt('officer.students.deleteBody', { name: `${deleting.firstName} ${deleting.lastName}`, sid: deleting.sid })}
           </p>
+        )}
+      </Modal>
+
+      <Modal open={bulkDeleteOpen} onClose={() => !saving && setBulkDeleteOpen(false)} width={460} title={tt('officer.students.bulkDeleteTitle')} tone="danger"
+        footer={<><button className="btn btn-ghost" disabled={saving} onClick={() => setBulkDeleteOpen(false)}>{tt('officer.students.cancelBtn')}</button>
+          <button className="btn btn-danger" disabled={saving || bulkDeletable.length === 0} onClick={confirmBulkDelete}>
+            {saving ? tt('officer.students.deleting') : tt('officer.students.bulkDeleteConfirm', { n: bulkDeletable.length })}</button></>}>
+        <p style={{ margin: 0, fontSize: 16, lineHeight: 1.7, color: 'var(--ink-700)' }}>
+          {bulkDeletable.length > 0 ? tt('officer.students.bulkDeleteBody', { n: bulkDeletable.length }) : tt('officer.students.bulkDeleteNone')}
+        </p>
+        {bulkBlocked > 0 && bulkDeletable.length > 0 && (
+          <p style={{ margin: '12px 0 0', fontSize: 15, lineHeight: 1.6, color: 'var(--status-wait-fg)' }}>{tt('officer.students.bulkDeleteSkip', { n: bulkBlocked })}</p>
         )}
       </Modal>
 

@@ -711,6 +711,40 @@ export const bulkImport = async (req, res, next) => {
   }
 };
 
+// ลบนักศึกษาหลายคนพร้อมกัน (ติ๊กเลือกในหน้ารายชื่อ) — body { student_ids: [...] }
+// ลบเฉพาะคนที่ยังไม่มีผลสอบ คนที่มีผลสอบแล้วถูกข้าม + นับให้ดู (ไม่ใช่ error ทั้งก้อน เพราะที่เหลือลบได้ปกติ)
+export const bulkRemove = async (req, res, next) => {
+  try {
+    const ids = req.body?.student_ids;
+    if (
+      !Array.isArray(ids) ||
+      ids.length === 0 ||
+      ids.some((id) => typeof id !== "string" || !id.trim())
+    ) {
+      throw httpError("ต้องระบุ student_ids เป็น array ของรหัสนักศึกษาอย่างน้อย 1 รายการ", 400);
+    }
+    if (ids.length > MAX_BULK_DELETE) {
+      throw httpError(`ลบได้ครั้งละไม่เกิน ${MAX_BULK_DELETE} คน`, 400);
+    }
+
+    const unique = [...new Set(ids.map((id) => id.trim()))];
+    const deletedIds = await studentRepo.removeManyWithUsers(unique);
+    if (deletedIds.length === 0) {
+      throw httpError("ลบไม่ได้ — นักศึกษาที่เลือกมีผลสอบในระบบแล้วทุกคน (หรือไม่พบในระบบ)", 409);
+    }
+    res.json({
+      success: true,
+      data: {
+        deleted_count: deletedIds.length,
+        deleted_ids: deletedIds,
+        skipped_count: unique.length - deletedIds.length, // มีผลสอบแล้ว หรือไม่พบ
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // รายชื่อบัญชีที่ import แล้วยังไม่กรอกโปรไฟล์ — ไว้ตรวจว่า import ถูกไหม / ลบรหัสที่พิมพ์ผิด
 export const listPendingAccounts = async (req, res, next) => {
   try {
