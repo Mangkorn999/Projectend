@@ -32,6 +32,12 @@ export function ExamFormReal({ go, toast, lang }) {
           setBlocked(tt('examform.noActiveRound'));
           return;
         }
+        // backend ส่งรอบที่ยังไม่ถึงวันเปิด / เลยวันปิดมาด้วย — กรอกได้เฉพาะ phase active
+        // ไม่กันตรงนี้ นักศึกษาจะกรอกจนเสร็จแล้วค่อยโดน backend ปฏิเสธตอนกดส่ง
+        if (activeRound.phase === 'scheduled' || activeRound.phase === 'expired') {
+          setBlocked(tt(activeRound.phase === 'scheduled' ? 'examform.scheduledSub' : 'examform.expiredRound'));
+          return;
+        }
         setRound(activeRound);
         setSubjects(activeRound.subjects || []);
         if (activeRound.all_passed) {

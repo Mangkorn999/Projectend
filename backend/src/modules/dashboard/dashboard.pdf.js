@@ -37,7 +37,7 @@ export const buildReportPdf = (stats, rows, res, yearStats) => {
     });
   doc
     .fontSize(10)
-    .text(`ออกรายงานเมื่อ ${new Date().toLocaleString("th-TH")}`, {
+    .text(`ออกรายงานเมื่อ ${new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}`, {
       align: "center",
     });
   doc.moveDown(1.5);

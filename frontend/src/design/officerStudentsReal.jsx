@@ -30,7 +30,6 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
   const [room, setRoom] = useState('ALL');
   const [year, setYear] = useState(() => initialFilter?.year ? String(initialFilter.year) : 'ALL');
   const [eligible, setEligible] = useState('ALL');
-  const [examResult, setExamResult] = useState('ALL');
   // กรองรายวิชา — มาจากการคลิก "ผ่าน/ไม่ผ่าน" ในการ์ดอัตราผ่านรายวิชาที่ Dashboard เท่านั้น ไม่มี dropdown ให้เลือกเอง
   // ตั้งค่าเริ่มต้นจาก initialFilter ตรงๆ (lazy init) ไม่ต้อง setState ใน effect
   // roundId = null หมายถึง "รวมทั้งปี" (initialFilter.tab === 'all') — ไม่งั้นเป็น round_id ของรอบที่กดมาจาก Dashboard
@@ -50,6 +49,7 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
   const [selected, setSelected] = useState(() => new Set()); // student_id ที่ติ๊กไว้
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(null); // นักศึกษาที่กำลังจะลบ (รอยืนยันในโมดัล)
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false); // ยืนยันลบคนที่ติ๊กเลือกไว้หลายคน
   const [resetting, setResetting] = useState(null); // นักศึกษาที่กำลังจะรีเซ็ตรหัส (รอยืนยันในโมดัล)
   const [resetNationalId, setResetNationalId] = useState('');
   const [resetError, setResetError] = useState('');
@@ -131,8 +131,6 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
     if (room !== 'ALL' && s.room !== room) return false;
     if (year !== 'ALL' && String(s.year) !== year) return false;
     if (eligible !== 'ALL' && s.eligible !== (eligible === 'YES')) return false;
-    if (examResult === 'PASS' && !(s.allPass && s.status === 'CONFIRMED')) return false;
-    if (examResult === 'FAIL' && !(s.subjectCount > 0 && s.passedCount === 0 && s.status === 'CONFIRMED')) return false;
     // มาจากคลิก "ผ่าน/ไม่ผ่าน" ในการ์ดอัตราผ่านรายวิชาที่ Dashboard — ต้องคำนวณด้วยกฎ**เดียวกันเป๊ะ**กับที่
     // dashboard.service.js ใช้คิดเลขบนบัตร ไม่งั้นตัวเลขบัตรกับจำนวนคนในลิสต์นี้จะไม่ตรงกัน (เจอบั๊กนี้มาแล้ว 2 รอบ):
     //
@@ -162,7 +160,7 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
   const pageRows = filtered.slice(page * per, (page + 1) * per);
   const pages = Math.ceil(filtered.length / per);
 
-  useEffect(() => setPage(0), [q, status, room, year, eligible, examResult, subjectFilter, firstAttemptFilter]);
+  useEffect(() => setPage(0), [q, status, room, year, eligible, subjectFilter, firstAttemptFilter]);
 
   // ปีการศึกษา (พ.ศ.) ของนักศึกษาที่มีจริงในระบบ เรียงใหม่→เก่า
   const years = [...new Set(students.map(s => s.year).filter(Boolean))].sort((a, b) => b - a);
@@ -210,12 +208,35 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
     if (!deleting) return;
     setSaving(true);
     try {
-      await apiFetch(`/students/${deleting.sid}`, { method: 'DELETE' });
+      // มีผลสอบแล้ว (status ไม่ใช่ DRAFT) = ผู้ใช้เห็นคำเตือนแรงในโมดัลแล้ว ส่งค่ายืนยันไปด้วย ไม่งั้น backend ตอบ 409
+      const withResults = deleting.status !== 'DRAFT';
+      await apiFetch(`/students/${deleting.sid}${withResults ? '?delete_results=true' : ''}`, { method: 'DELETE' });
       setStudents(prev => prev.filter(s => s.sid !== deleting.sid));
       toast?.(tt('officer.students.deletedToast', { name: `${deleting.firstName} ${deleting.lastName}` }));
       setDeleting(null);
     } catch (e) {
       // backend ตอบ 409 พร้อมเหตุผลถ้าคนนี้มีผลสอบแล้ว — โชว์ข้อความนั้นตรงๆ
+      toast?.(e instanceof ApiError ? e.message : tt('officer.students.deleteFailMsg'), 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ลบหลายคนที่ติ๊กไว้ — ส่งเฉพาะคนที่ยังไม่มีผลสอบ (status DRAFT) คนที่มีผลสอบแล้วถูกข้าม (backend กันซ้ำอีกชั้น)
+  const bulkTargets = students.filter(s => selected.has(s.sid));
+  const bulkWithResults = bulkTargets.filter(s => s.status !== 'DRAFT').length; // มีผลสอบแล้ว — ลบได้แต่ต้องเตือนแรง
+  const confirmBulkDelete = async () => {
+    setSaving(true);
+    try {
+      // ส่ง delete_results: true เฉพาะตอนมีคนมีผลสอบปนอยู่ (ผู้ใช้เห็นคำเตือนแรงในโมดัลแล้ว) — ไม่มีคนมีผลสอบ ไม่ต้องส่ง
+      const body = { student_ids: bulkTargets.map(s => s.sid), ...(bulkWithResults > 0 ? { delete_results: true } : {}) };
+      const data = await apiFetch('/students/bulk-delete', { method: 'POST', body });
+      const gone = new Set(data.deleted_ids);
+      setStudents(prev => prev.filter(s => !gone.has(s.sid)));
+      setSelected(new Set());
+      setBulkDeleteOpen(false);
+      toast?.(tt(data.deleted_result_count > 0 ? 'officer.students.bulkDeletedWithResultsToast' : 'officer.students.bulkDeletedToast', { n: data.deleted_count, r: data.deleted_result_count }));
+    } catch (e) {
       toast?.(e instanceof ApiError ? e.message : tt('officer.students.deleteFailMsg'), 'error');
     } finally {
       setSaving(false);
@@ -339,13 +360,6 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
             { value: 'REJECTED', label: tt('status.REJECTED') },
             { value: 'DRAFT', label: tt('status.DRAFT') },
           ]} />
-        <Select style={{ width: 'auto', minWidth: 150 }} value={examResult} onChange={setExamResult} lang={lang}
-          ariaLabel={tt('officer.students.allExamResult')}
-          options={[
-            { value: 'ALL', label: tt('officer.students.allExamResult') },
-            { value: 'PASS', label: tt('officer.students.examResultPass') },
-            { value: 'FAIL', label: tt('officer.students.examResultFail') },
-          ]} />
         <Select style={{ width: 'auto', minWidth: 120 }} value={room} onChange={setRoom} lang={lang}
           ariaLabel={tt('officer.students.allRoom')}
           options={[{ value: 'ALL', label: tt('officer.students.allRoom') },
@@ -370,6 +384,9 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
           <span style={{ fontSize: 16, fontWeight: 600 }}>{tt('officer.students.selectedCount', { n: selected.size })}</span>
           <button className="btn btn-ghost btn-sm" onClick={() => setSelected(new Set())} disabled={saving}>{tt('officer.students.clearSelection')}</button>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+            <button className="btn btn-ghost btn-sm" style={{ color: 'var(--fail)' }} onClick={() => setBulkDeleteOpen(true)} disabled={saving}>
+              <Icon name="trash" size={15} /> {tt('officer.students.bulkDeleteBtn')}
+            </button>
             <button className="btn btn-ghost btn-sm" onClick={() => setEligibility(false)} disabled={saving}>
               <Icon name="xCircle" size={15} /> {tt('officer.students.revokeBtn')}
             </button>
@@ -404,7 +421,7 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
                   </td>}
                   <td><div style={{ display: 'flex', alignItems: 'center', gap: 11 }}><Avatar name={s.firstName} size={34} />
                     <div><div style={{ fontWeight: 600, fontSize: 16 }}>{s.firstName} {s.lastName}</div>
-                    <div className="mono" style={{ fontSize: 14, color: 'var(--ink-400)' }}>{s.sid}</div></div></div></td>
+                    <div className="mono" style={{ fontSize: 14, color: 'var(--ink-500)' }}>{s.sid}</div></div></div></td>
                   <td><span className="chip" style={{ fontSize: 14 }}>{roomName(lang, s.room)}</span></td>
                   <td className="tnum" style={{ fontSize: 15, color: 'var(--ink-700)' }}>{s.year || '—'}</td>
                   <td><span className={'badge ' + (s.eligible ? 'ok' : 'draft')}><span className="dot"></span>
@@ -420,14 +437,11 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
                     {s.eligible && <button disabled={saving} onClick={() => toggleOneEligibility(s)}
                       className="badge reject" style={{ border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
                       <Icon name="xCircle" size={13} /> {tt('officer.students.revokeBtn')}</button>}
-                    {/* ลบได้เฉพาะคนที่ยังไม่มีผลสอบ — คนที่กรอกแล้วลบไม่ได้ ไม่งั้นสถิติปีนั้นเปลี่ยนย้อนหลัง
-                        backend กันซ้ำอีกชั้น ตรงนี้แค่ไม่โชว์ปุ่มให้กดเปล่าๆ */}
-                    {s.status === 'DRAFT' && (
-                      <button disabled={saving} onClick={() => setDeleting(s)} title={tt('officer.students.deleteHint')}
-                        className="badge" style={{ border: 'none', cursor: 'pointer', fontFamily: 'inherit', marginLeft: 6,
-                          background: 'var(--ink-100)', color: 'var(--ink-600)' }}>
-                        <Icon name="trash" size={13} /> {tt('officer.students.deleteBtn')}</button>
-                    )}
+                    {/* ลบได้ทุกคน รวมคนที่มีผลสอบแล้ว (ลบผลสอบ/เอกสารทั้งหมดของเขาด้วย สถิติของรุ่นเปลี่ยนย้อนหลัง) — โมดัลยืนยันเตือนแรง + backend บังคับค่ายืนยัน */}
+                    <button disabled={saving} onClick={() => setDeleting(s)} title={tt('officer.students.deleteHint')}
+                      className="badge" style={{ border: 'none', cursor: 'pointer', fontFamily: 'inherit', marginLeft: 6,
+                        background: 'var(--ink-100)', color: 'var(--ink-600)' }}>
+                      <Icon name="trash" size={13} /> {tt('officer.students.deleteBtn')}</button>
                   </td>}
                   <td style={{ textAlign: 'right' }}><Icon name="chevR" size={18} style={{ color: 'var(--ink-300)' }} /></td>
                 </tr>
@@ -446,6 +460,23 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
           <p style={{ margin: 0, fontSize: 16, lineHeight: 1.6, color: 'var(--ink-700)' }}>
             {tt('officer.students.deleteBody', { name: `${deleting.firstName} ${deleting.lastName}`, sid: deleting.sid })}
           </p>
+        )}
+        {deleting && deleting.status !== 'DRAFT' && (
+          <div role="alert" style={{ marginTop: 14, padding: '12px 14px', borderRadius: 10, background: 'var(--status-reject-bg)', color: 'var(--status-reject-fg)', fontSize: 15, lineHeight: 1.65, fontWeight: 600 }}>
+            {tt('officer.students.deleteWithResultsWarn')}
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={bulkDeleteOpen} onClose={() => !saving && setBulkDeleteOpen(false)} width={460} title={tt('officer.students.bulkDeleteTitle')} tone="danger"
+        footer={<><button className="btn btn-ghost" disabled={saving} onClick={() => setBulkDeleteOpen(false)}>{tt('officer.students.cancelBtn')}</button>
+          <button className="btn btn-danger" disabled={saving || bulkTargets.length === 0} onClick={confirmBulkDelete}>
+            {saving ? tt('officer.students.deleting') : tt('officer.students.bulkDeleteConfirm', { n: bulkTargets.length })}</button></>}>
+        <p style={{ margin: 0, fontSize: 16, lineHeight: 1.7, color: 'var(--ink-700)' }}>{tt('officer.students.bulkDeleteBody', { n: bulkTargets.length })}</p>
+        {bulkWithResults > 0 && (
+          <div role="alert" style={{ marginTop: 14, padding: '12px 14px', borderRadius: 10, background: 'var(--status-reject-bg)', color: 'var(--status-reject-fg)', fontSize: 15, lineHeight: 1.65, fontWeight: 600 }}>
+            {tt('officer.students.bulkDeleteWithResultsWarn', { n: bulkWithResults })}
+          </div>
         )}
       </Modal>
 

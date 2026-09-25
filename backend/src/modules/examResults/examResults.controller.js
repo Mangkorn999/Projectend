@@ -224,6 +224,55 @@ const reviewExamResult = async (req, res, next, { staff_status, requireRemark })
   }
 };
 
+// เจ้าหน้าที่ "ถอนการยืนยัน" — กรณียืนยันผิด/กดพลาด ใบที่ approved แล้วนักศึกษาแก้ไม่ได้และตรวจซ้ำไม่ได้ (409)
+// ถอนแล้วใบกลับเป็น "รอตรวจ" → เจ้าหน้าที่ยืนยัน/ตีกลับใหม่ได้ตามปกติ
+//
+// ต้องใส่เหตุผลเสมอ และบันทึกลง review_logs (action = "revoked") — เป็นการกลับคำตัดสินที่เคยเซ็นแล้ว ต้องตรวจย้อนหลังได้
+// เฉพาะ officer (routes) ไม่รวม reviewer: reviewer ตรวจใบที่รอตรวจได้ แต่ไม่ควรกลับคำตัดสินของคนอื่น
+//
+// นักศึกษาแก้ผลได้อีกหรือไม่ = กติกาเดิมของใบ "รอตรวจ": แก้ได้เฉพาะตอนรอบยังเปิดรับ
+// ถ้ารอบปิด/หมดเวลาแล้ว เจ้าหน้าที่ต้องเลื่อนวันปิดรอบก่อนนักศึกษาถึงจะแก้ได้ (ไม่มีข้อยกเว้นรายคน)
+export const revokeApproval = async (req, res, next) => {
+  try {
+    const existing = await examRepo.findById(req.params.id);
+    if (!existing) throw httpError("ไม่พบผลสอบที่ระบุ", 404);
+    if (existing.staff_status !== STAFF_STATUS.APPROVED) {
+      throw httpError("ถอนการยืนยันได้เฉพาะใบที่ยืนยันแล้วเท่านั้น", 409);
+    }
+
+    const remark = typeof req.body?.remark === "string" ? req.body.remark.trim() : "";
+    if (!remark) throw httpError("ต้องระบุเหตุผลที่ถอนการยืนยัน", 400);
+    if (remark.length > 500) throw httpError("เหตุผลยาวเกินไป (ไม่เกิน 500 ตัวอักษร)", 400);
+
+    const { count } = await examRepo.revokeApprovalIfApproved(req.params.id);
+    if (count === 0) throw httpError("ใบนี้ถูกเปลี่ยนสถานะไปแล้ว กรุณารีเฟรชหน้า", 409);
+
+    try {
+      await reviewLogRepo.create({
+        result_id: Number(req.params.id),
+        reviewer_id: req.user.userId, // อ่านจาก JWT เท่านั้น
+        action: "revoked",
+        remark,
+      });
+    } catch (e) {
+      console.error("บันทึก review_logs ไม่สำเร็จ:", e.message);
+    }
+
+    const roundLabel = `รอบ ${existing.round.attempt_number}/${existing.round.academic_year}`;
+    notifRepo
+      .create({
+        student_id: existing.student_id,
+        type: "revoked",
+        message: `ผลสอบ${roundLabel}ถูกเปลี่ยนกลับเป็นรอตรวจสอบ: ${remark}\nเจ้าหน้าที่จะตรวจสอบใหม่อีกครั้ง`,
+      })
+      .catch((e) => console.error("สร้างแจ้งเตือนไม่สำเร็จ:", e.message));
+
+    res.json({ success: true, data: await examRepo.findById(req.params.id) });
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const approve = (req, res, next) =>
   reviewExamResult(req, res, next, {
     staff_status: STAFF_STATUS.APPROVED,

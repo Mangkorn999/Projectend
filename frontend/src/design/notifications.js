@@ -79,6 +79,8 @@ const SERVER_TYPES = {
   approved: { tone: 'ok', icon: 'checkCircle', page: 'status' },
   rejected: { tone: 'reject', icon: 'xCircle', page: 'form' },
   eligible: { tone: 'wait', icon: 'key', page: 'form' },
+  // เจ้าหน้าที่ถอนการยืนยัน ใบกลับเป็นรอตรวจ — พาไปดูสถานะ
+  revoked: { tone: 'wait', icon: 'clock', page: 'status' },
 };
 const FALLBACK_TYPE = { tone: 'wait', icon: 'bell', page: 'news' };
 

@@ -21,6 +21,11 @@ export const errorHandler = (err, req, res, next) => {
   // (และเผยโครงสร้างตารางภายในออกไปด้วย)
   const isDuplicate = err.code === "P2002";
   const isNotFound = err.code === "P2025";
+  // P2003 = อ้างอิงข้อมูลที่ไม่มีอยู่ หรือ ลบ/แก้ข้อมูลที่ยังมีตารางอื่นอ้างถึงอยู่
+  const isForeignKey = err.code === "P2003";
+  // ค่าที่ส่งมา Prisma รับไม่ได้ (ผิดชนิด / ยาวเกิน / เป็น NaN) = ความผิดของ request ไม่ใช่ server พัง
+  const isBadInput =
+    err.name === "PrismaClientValidationError" || err.code === "P2000";
 
   let statusCode;
   if (err.statusCode) {
@@ -31,6 +36,10 @@ export const errorHandler = (err, req, res, next) => {
     statusCode = 409;
   } else if (isNotFound) {
     statusCode = 404;
+  } else if (isForeignKey) {
+    statusCode = 409;
+  } else if (isBadInput) {
+    statusCode = 400;
   } else {
     statusCode = 500;
   }
@@ -42,6 +51,25 @@ export const errorHandler = (err, req, res, next) => {
   }
   if (isNotFound) {
     message = "ไม่พบข้อมูลที่ต้องการ อาจถูกลบไปแล้ว กรุณารีเฟรชหน้า";
+  }
+  // multer (อัปโหลดไฟล์) ส่งข้อความภาษาอังกฤษมา — แปลเป็นไทยให้ผู้ใช้อ่านรู้เรื่อง (code มาจาก multer เอง)
+  if (err.name === "MulterError") {
+    const multerMessages = {
+      LIMIT_FILE_SIZE: "ไฟล์ใหญ่เกินกำหนด กรุณาลดขนาดไฟล์แล้วลองใหม่",
+      LIMIT_UNEXPECTED_FILE: "แนบไฟล์ไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง",
+      LIMIT_FILE_COUNT: "แนบไฟล์ได้ครั้งละ 1 ไฟล์",
+    };
+    message = multerMessages[err.code] ?? "อัปโหลดไฟล์ไม่สำเร็จ กรุณาลองใหม่";
+  }
+  if (isForeignKey) {
+    message = "ทำรายการไม่ได้ ข้อมูลที่อ้างถึงไม่มีอยู่ หรือข้อมูลนี้ยังถูกใช้งานอยู่";
+  }
+  if (isBadInput) {
+    message = "ข้อมูลที่ส่งมาไม่ถูกต้อง กรุณาตรวจสอบแล้วลองใหม่";
+  }
+  // 500 = โค้ดเราพังเอง — ข้อความดิบมักมีชื่อตาราง/คอลัมน์/query ของ Prisma ห้ามส่งให้ผู้ใช้ (ดูได้ใน log ของ server)
+  if (statusCode === 500 && process.env.NODE_ENV !== "development") {
+    message = "เกิดข้อผิดพลาดภายใน server";
   }
   if (!message) {
     message = "เกิดข้อผิดพลาดภายใน server";

@@ -13,6 +13,9 @@ const PUBLIC_USER_FIELDS = {
 export const findAll = () => {
   return prisma.student.findMany({
     include: { user: { select: PUBLIC_USER_FIELDS }, faculty: true, room: true },
+    // ต้องเรียงเอง — ไม่ใส่ Postgres คืนตามลำดับที่เก็บจริงบน disk ซึ่งเปลี่ยนทุกครั้งที่ UPDATE
+    // (แก้ข้อมูลนักศึกษาคนหนึ่งแล้วแถวของเขาโดดไปท้ายตาราง) — รุ่นใหม่ก่อน แล้วเรียงตามรหัส
+    orderBy: [{ academic_year: "desc" }, { student_id: "asc" }],
   });
 };
 
@@ -80,7 +83,7 @@ export const findRoleByName = (role_name) =>
 
 export const findFaculty = () => prisma.faculty.findFirst();
 
-export const findAllRooms = () => prisma.room.findMany();
+export const findAllRooms = () => prisma.room.findMany({ orderBy: { room_id: "asc" } });
 
 export const findRoomById = (room_id) =>
   prisma.room.findUnique({ where: { room_id } });
@@ -168,12 +171,69 @@ export const updateProfile = (student_id, { user: userData, student: studentData
 export const countExamResults = (studentId) =>
   prisma.examResult.count({ where: { student_id: studentId } });
 
-// ลบนักศึกษา + บัญชี user ของเขา (เรียกได้เฉพาะตอนไม่มีผลสอบเท่านั้น)
-// ลบแจ้งเตือนก่อนเพราะ FK ชี้มาที่ student ถ้าไม่ลบ Prisma จะไม่ยอมลบแถวแม่
-// ใช้ transaction ให้ 3 คำสั่งสำเร็จหรือล้มไปพร้อมกัน จะได้ไม่เหลือ user ค้างที่ไม่มี student
-export const removeWithUser = (studentId, userId) =>
-  prisma.$transaction([
-    prisma.notification.deleteMany({ where: { student_id: studentId } }),
-    prisma.student.delete({ where: { student_id: studentId } }),
-    prisma.user.delete({ where: { user_id: userId } }),
+// จำนวนผลสอบของนักศึกษาที่ระบุ — ไว้เตือน/บังคับยืนยันก่อนลบ (ลบแล้วผลสอบและสถิติของรุ่นหายไปด้วย)
+export const summarizeResults = async (studentIds) => {
+  const rows = await prisma.examResult.groupBy({
+    by: ["student_id"],
+    where: { student_id: { in: studentIds } },
+    _count: { _all: true },
+  });
+  return {
+    studentsWithResults: rows.length,
+    resultCount: rows.reduce((n, r) => n + r._count._all, 0),
+  };
+};
+
+// ลบนักศึกษา "พร้อมทุกอย่างที่ผูกอยู่" — ผลสอบ, ผลรายวิชา, เอกสารหลักฐาน, ประวัติการตรวจ, แจ้งเตือน, ตัวนักศึกษา, บัญชี user
+// (เจ้าของระบบตัดสินใจให้ลบได้หมดทุกกรณี รวมคนที่มีผลสอบแล้ว — สถิติของรุ่นจะเปลี่ยนย้อนหลัง controller บังคับให้ยืนยันก่อนเสมอ)
+//
+// ลำดับต้องลบจากตารางลูกขึ้นมาหาแม่ (FK) และทำใน transaction เดียว — พังกลางทางแล้วย้อนกลับทั้งก้อน ไม่เหลือลบครึ่งๆ กลางๆ
+// คืน { deletedIds, resultCount, filePaths } — filePaths = ไฟล์ PDF บน disk ที่ต้องลบตามหลัง transaction สำเร็จ (ลบไฟล์ก่อนแล้ว DB พัง = หลักฐานหาย)
+export const removeStudentsCascade = async (studentIds) => {
+  const students = await prisma.student.findMany({
+    where: { student_id: { in: studentIds } },
+    select: { student_id: true, user_id: true },
+  });
+  if (students.length === 0) return { deletedIds: [], resultCount: 0, filePaths: [] };
+
+  const sids = students.map((x) => x.student_id);
+  const uids = students.map((x) => x.user_id);
+  const results = await prisma.examResult.findMany({
+    where: { student_id: { in: sids } },
+    select: { result_id: true },
+  });
+  const rids = results.map((r) => r.result_id);
+  const certs = await prisma.certificate.findMany({
+    where: { result_id: { in: rids } },
+    select: { file_path: true },
+  });
+
+  await prisma.$transaction([
+    prisma.reviewLog.deleteMany({ where: { result_id: { in: rids } } }),
+    prisma.certificate.deleteMany({ where: { result_id: { in: rids } } }),
+    prisma.subjectResult.deleteMany({ where: { result_id: { in: rids } } }),
+    prisma.examResult.deleteMany({ where: { result_id: { in: rids } } }),
+    prisma.notification.deleteMany({ where: { student_id: { in: sids } } }),
+    prisma.student.deleteMany({ where: { student_id: { in: sids } } }),
+    prisma.user.deleteMany({ where: { user_id: { in: uids } } }),
   ]);
+  return { deletedIds: sids, resultCount: rids.length, filePaths: certs.map((c) => c.file_path) };
+};
+
+// บัญชีนักศึกษาที่ import มาแล้วแต่ "ยังไม่กรอกโปรไฟล์" — มีแค่แถว users ยังไม่มีแถว students
+// เลยไม่โผล่ในรายชื่อนักศึกษา (findAll) และลบผ่าน DELETE /students/:id ไม่ได้ ทั้งที่อาจเป็นรหัสที่ import ผิด
+export const findPendingAccounts = () =>
+  prisma.user.findMany({
+    where: { role: { role_name: "student" }, student: null },
+    select: { user_id: true, psu_passport_id: true, import_academic_year: true, created_at: true },
+    orderBy: [{ created_at: "desc" }, { psu_passport_id: "asc" }],
+  });
+
+// ลบบัญชีที่ยังไม่กรอกโปรไฟล์ตามรหัสที่ส่งมา — where กันไว้ในตัว: เฉพาะ role นักศึกษาที่ "ยังไม่มีแถว students" เท่านั้น
+// คนที่กรอกโปรไฟล์แล้ว (มี student row) จะไม่ถูกลบแม้ส่งรหัสมา ต้องไปลบผ่านหน้านักศึกษา (ซึ่งกันคนที่มีผลสอบไว้ให้)
+// ตารางอื่นไม่ได้ชี้มาที่ user กลุ่มนี้ (ไม่มีผลสอบ/แจ้งเตือน/ประกาศ) จึงลบได้ตรงๆ ไม่ติด FK
+export const removePendingAccounts = (psuIds) =>
+  prisma.user.deleteMany({
+    where: { psu_passport_id: { in: psuIds }, role: { role_name: "student" }, student: null },
+  });
+

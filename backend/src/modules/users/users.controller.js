@@ -44,6 +44,13 @@ export const create = async (req, res, next) => {
       throw err;
     }
 
+    // ทุกช่องต้องเป็นข้อความ — ส่งตัวเลข/object มา bcrypt กับ Prisma จะพังเป็น 500
+    if ([psu_passport_id, password, first_name, last_name, email, phone].some((v) => typeof v !== "string")) {
+      const err = new Error("ข้อมูลที่ส่งมาต้องเป็นข้อความทั้งหมด");
+      err.statusCode = 400;
+      throw err;
+    }
+
     if (!CREATABLE_ROLES.includes(role_name)) {
       const err = new Error(
         `role_name ต้องเป็นหนึ่งใน: ${CREATABLE_ROLES.join(", ")}`,
@@ -187,7 +194,7 @@ export const resetPassword = async (req, res, next) => {
     }
 
     const { new_password } = req.body;
-    if (!new_password) {
+    if (typeof new_password !== "string" || !new_password) {
       const err = new Error("กรุณากรอกรหัสผ่านชั่วคราวให้ผู้ใช้");
       err.statusCode = 400;
       throw err;

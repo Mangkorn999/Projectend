@@ -144,7 +144,7 @@ export function Login({ onLogin }) {
           </div>
           <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:15, cursor:'pointer', marginBottom:8 }}>
             <input type="checkbox" checked={rememberMe} onChange={e=>setRememberMe(e.target.checked)} style={{ accentColor:'var(--navy-700)' }} />
-            {isEN?'Remember username':'จดจำรหัสผ่าน'}
+            {isEN?'Remember username':'จดจำรหัสผู้ใช้'}
           </label>
           {error && <div style={{ color:'var(--reject,#dc2626)', fontSize:15, marginBottom:12 }}>{error}</div>}
           {/* ล็อกอินไม่ได้ (ลืมรหัส/บัญชีค้าง) = ติดต่อเจ้าหน้าที่คณะเท่านั้น ไม่มี self-service ใดๆ บนหน้านี้แล้ว

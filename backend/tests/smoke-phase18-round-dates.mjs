@@ -64,9 +64,9 @@ const main = async () => {
   const swapped = await mk({ attempt_number: 1, open_date: "2090-09-26T22:44", close_date: "2090-09-23T23:59" });
   check("เปิดรับหลังปิดรับ -> 400", swapped.status, 400);
 
-  // ── 2. เปิดรับ = ปิดรับ พอดี = ปฏิเสธ (ช่วงกว้าง 0 วินาที ไม่มีใครกรอกทัน) ──
-  const same = await mk({ attempt_number: 1, open_date: "2090-09-26T10:00", close_date: "2090-09-26T10:00" });
-  check("เปิดรับ = ปิดรับ -> 400", same.status, 400);
+  // ── 2. ปิดรับก่อนเปิดรับ 1 นาที = ปฏิเสธ (เวลาเท่ากันไม่ใช่เคสนี้แล้ว: ปิด 10:00 = รับถึง 10:00:59 เป็นช่วง 1 นาทีที่ถูกต้อง) ──
+  const same = await mk({ attempt_number: 1, open_date: "2090-09-26T10:00", close_date: "2090-09-26T09:59" });
+  check("ปิดรับก่อนเปิดรับ 1 นาที -> 400", same.status, 400);
 
   // ── 3. ช่วงปกติ = ผ่าน และได้ phase มาด้วย ──
   const ok = await mk({ attempt_number: 1, open_date: "2090-06-01", close_date: "2090-06-30" });
@@ -80,6 +80,15 @@ const main = async () => {
   // (ต้องตรวจจาก "ค่าหลังแก้" ไม่ใช่เฉพาะ field ที่ส่งมา)
   const halfBad = await call("PUT", `/api/rounds/${roundId}`, { token, body: { close_date: "2090-01-01" } });
   check("ส่งแค่ close_date ให้เร็วกว่า open_date เดิม -> 400", halfBad.status, 400);
+
+  // ── 4.1 เวลาปิดรับที่ระบุแค่ระดับนาที (จาก datetime-local) ต้องรับถึงสิ้นนาทีนั้น ──
+  // เดิมเก็บ 23:59:00 → นักศึกษาที่ส่งตอน 23:59:30 ถูกปฏิเสธทั้งที่หน้าจอบอกว่ายังไม่ปิด
+  const minuteClose = await call("PUT", `/api/rounds/${roundId}`, { token, body: { close_date: "2090-06-30T23:59" } });
+  check("close_date ระดับนาที 23:59 -> เก็บเป็น 23:59:59.999 ไทย", minuteClose.json?.data?.close_date, "2090-06-30T16:59:59.999Z");
+  const secondClose = await call("PUT", `/api/rounds/${roundId}`, { token, body: { close_date: "2090-06-30T23:59:30" } });
+  check("close_date ระบุวินาทีมา -> ใช้ตามนั้น", secondClose.json?.data?.close_date, "2090-06-30T16:59:30.000Z");
+  const minuteOpen = await call("PUT", `/api/rounds/${roundId}`, { token, body: { open_date: "2090-06-01T09:30" } });
+  check("open_date ระดับนาที -> ต้นนาที :00.000", minuteOpen.json?.data?.open_date, "2090-06-01T02:30:00.000Z");
 
   // ── 5. กดเปิดรอบที่ช่วงยังไม่มาถึง -> phase scheduled (ไม่ใช่ active) ──
   const opened = await call("PUT", `/api/rounds/${roundId}`, { token, body: { status: "open" } });

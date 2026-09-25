@@ -17,7 +17,9 @@
 
   font: 18px/145% var(--sans);
   letter-spacing: 0.18px;
-  color-scheme: light dark;
+  /* แอปนี้ออกแบบโหมดสว่างอย่างเดียว — ห้ามเป็น "light dark" ไม่งั้นเครื่องที่ตั้ง dark mode ไว้
+     จะได้ scrollbar / ช่องเลือกวันที่ / ช่องกรอกเป็นสีมืด และตัวอักษรที่ไม่ได้ระบุสีเองกลายเป็นสีอ่อนบนพื้นสว่าง */
+  color-scheme: light;
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
@@ -30,25 +32,7 @@
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
-}
+/* (ตัดบล็อก prefers-color-scheme: dark ของ template Vite ออก — แอปไม่มีโหมดมืด) */
 
 body {
   margin: 0;

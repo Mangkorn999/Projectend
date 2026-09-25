@@ -24,7 +24,7 @@ export const buildSubjectListPdf = ({ subject, passed, scopeLabel, rows, res }) 
     { align: "center" },
   );
   doc.fontSize(12).fillColor("#555").text(`คณะพยาบาลศาสตร์ — ${scopeLabel}`, { align: "center" });
-  doc.fillColor("#000").fontSize(10).text(`ออกรายงานเมื่อ ${new Date().toLocaleString("th-TH")}`, { align: "center" });
+  doc.fillColor("#000").fontSize(10).text(`ออกรายงานเมื่อ ${new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}`, { align: "center" });
   doc.moveDown(1.5);
 
   // ── สรุปสั้นๆ ──
@@ -47,7 +47,7 @@ export const buildSubjectListPdf = ({ subject, passed, scopeLabel, rows, res }) 
         `${r.student.user.first_name} ${r.student.user.last_name}`,
         r.student.room?.room_name ?? "-",
         r.student.academic_year,
-        new Date(r.submitted_at).toLocaleDateString("th-TH"),
+        new Date(r.submitted_at).toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok" }),
       ]),
     });
     doc.y = endY;

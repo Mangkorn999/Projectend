@@ -133,6 +133,9 @@ src/modules/subjects/
 | `POST` | `/api/users/:id/role` | staff | เปลี่ยน role ผู้ใช้ |
 | `GET` | `/api/students` | officer | ดูรายชื่อนักศึกษา (executive ไม่ได้) |
 | `GET` | `/api/students/:id` | officer, student | ดูข้อมูลนักศึกษา (executive ไม่ได้) |
+| `POST` | `/api/students/bulk-delete` | officer | ลบนักศึกษาหลายคนพร้อมผลสอบ `{ student_ids, delete_results? }` (มีผลสอบต้องยืนยัน `delete_results: true`) |
+| `GET` | `/api/students/pending-accounts` | officer | บัญชีที่ import แล้วยังไม่กรอกโปรไฟล์ |
+| `POST` | `/api/students/pending-accounts/delete` | officer | ลบบัญชีกลุ่มนั้น `{ student_ids: [...] }` (ไม่ลบคนที่มีโปรไฟล์แล้ว) |
 
 ---
 
@@ -216,6 +219,7 @@ body: `{ "subject_results": [{ "subject_id": 1, "is_passed": true }, ... ] }`
 | `GET` | `/api/exam-results` | officer | ดูผลสอบทุกคน + filter (executive ไม่ได้ — ดูได้แค่ dashboard) |
 | `PATCH` | `/api/exam-results/:id/approve` | officer | ยืนยัน |
 | `PATCH` | `/api/exam-results/:id/reject` | officer | ตีกลับ + remark (บังคับ) |
+| `PATCH` | `/api/exam-results/:id/revoke-approval` | officer | ถอนการยืนยัน (ยืนยันผิด) approved → pending + remark (บังคับ) |
 
 filter ของ `GET /api/exam-results` ใช้ query string: `?round_id=&staff_status=&student_id=`
 

@@ -40,6 +40,25 @@ export const upload = async (req, res, next) => {
       throw httpError("ไม่มีสิทธิ์อัปโหลดเอกสารของผลสอบนี้", 403);
     }
 
+    // ใบที่เจ้าหน้าที่ยืนยันแล้วต้องล็อกหลักฐานด้วย — ไม่งั้นเปลี่ยนไฟล์ทีหลังได้ ทั้งที่ผลถูกเซ็นรับรองไปแล้ว
+    if (examResult.staff_status === "approved") {
+      await discard(req.file);
+      throw httpError("เจ้าหน้าที่ยืนยันผลสอบนี้แล้ว เปลี่ยนเอกสารไม่ได้", 409);
+    }
+
+    // multer เชื่อ mimetype ที่ client บอกมา (แก้ header เองได้) — เช็คเนื้อไฟล์จริงว่าขึ้นต้นด้วย %PDF-
+    const head = Buffer.alloc(5);
+    const fh = await fs.open(req.file.path, "r");
+    try {
+      await fh.read(head, 0, 5, 0);
+    } finally {
+      await fh.close();
+    }
+    if (head.toString("latin1") !== "%PDF-") {
+      await discard(req.file);
+      throw httpError("ไฟล์ที่แนบไม่ใช่ PDF จริง", 400);
+    }
+
     // อัปโหลดเอกสารประเภทเดิมซ้ำ = แทนที่ใบเก่า ไม่ใช่เพิ่มใบที่สอง
     // เคสที่เกิดจริง: ถูกตีกลับแล้วส่งใหม่ — resubmit ใช้ result_id เดิม ใบเก่าเลยยังผูกอยู่
     // ถ้าไม่ลบ เจ้าหน้าที่จะเห็นเอกสาร 2 ใบในผลสอบเดียว แล้วไม่รู้ว่าใบไหนคือใบล่าสุด
@@ -47,13 +66,7 @@ export const upload = async (req, res, next) => {
       examResult.result_id,
       certificate_type,
     );
-    for (const old of previous) {
-      await certRepo.removeById(old.certificate_id);
-      // ลบไฟล์ที่ disk ด้วย ไม่งั้นไฟล์ที่ไม่มีใครอ้างถึงจะค้างสะสมไปเรื่อยๆ
-      // force: true = ไฟล์หายไปแล้วก็ไม่ต้อง error
-      await fs.rm(path.resolve(old.file_path), { force: true });
-    }
-
+    // สร้างใบใหม่ให้สำเร็จก่อน แล้วค่อยลบใบเก่า — ถ้า create พัง นักศึกษายังมีใบเดิมอยู่ ไม่ใช่หายไปทั้งคู่
     const certificate = await certRepo.create({
       result_id: examResult.result_id,
       certificate_type,
@@ -63,6 +76,13 @@ export const upload = async (req, res, next) => {
       file_path: path.relative(process.cwd(), req.file.path).split(path.sep).join("/"),
       file_type: "pdf",
     });
+
+    for (const old of previous) {
+      await certRepo.removeById(old.certificate_id);
+      // ลบไฟล์ที่ disk ด้วย ไม่งั้นไฟล์ที่ไม่มีใครอ้างถึงจะค้างสะสมไปเรื่อยๆ
+      // force: true = ไฟล์หายไปแล้วก็ไม่ต้อง error
+      await fs.rm(path.resolve(old.file_path), { force: true });
+    }
 
     res.json({ success: true, data: certificate });
   } catch (err) {
@@ -96,7 +116,8 @@ export const serveFile = async (req, res, next) => {
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
-      `inline; filename="${encodeURIComponent(certificate.file_name)}"`,
+      // filename*=UTF-8 = มาตรฐานสำหรับชื่อไฟล์ภาษาไทย (แบบเดิมใส่ %E0%B8... ลงใน filename="" ตรงๆ ชื่อไฟล์ตอนโหลดเลยเพี้ยน)
+      "inline; filename*=UTF-8''" + encodeURIComponent(certificate.file_name),
     );
     res.sendFile(absolutePath, (err) => {
       // ไฟล์หายจาก disk (ลบทิ้งนอกระบบ) — ตอบ 404 แทนปล่อยให้ Express โยน error ดิบ

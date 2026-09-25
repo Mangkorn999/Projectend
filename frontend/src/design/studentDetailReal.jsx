@@ -27,6 +27,12 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
   const [error, setError] = useState('');
   const [reject, setReject] = useState(false);
   const [remark, setRemark] = useState('');
+  const [deleteOpen, setDeleteOpen] = useState(false); // ยืนยันลบนักศึกษา (เฉพาะ officer)
+  // "ตอนนี้" จับครั้งเดียวตอนเปิดหน้า ไว้เทียบกับวันปิดรอบ — เรียก Date.now() ตรงๆ ระหว่าง render ไม่ได้ (ผลไม่นิ่ง)
+  const [nowMs] = useState(() => Date.now());
+  // ถอนการยืนยัน (ยืนยันผิด) — เฉพาะ officer (canEdit)
+  const [revokeOpen, setRevokeOpen] = useState(false);
+  const [revokeRemark, setRevokeRemark] = useState('');
   const [busy, setBusy] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState(null);
@@ -73,12 +79,63 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
         method: 'PATCH',
         body: action === 'reject' ? { remark: reasonText } : undefined,
       });
+      // บอก app.jsx ให้นับ badge "รอตรวจ" ใหม่ทันที — ไม่งั้นเลขค้างจนกว่าจะเปลี่ยนหน้า (เจ้าหน้าที่ยังอยู่หน้านี้หลังกดตรวจ)
+      window.dispatchEvent(new Event('review-changed'));
       toast(action === 'approve' ? tt('officer.detail.confirmToast') : tt('officer.detail.rejectToast'), action === 'approve' ? 'success' : 'info');
       setReject(false);
       load(); // ดึงสถานะล่าสุดจาก backend ใหม่ ไม่เชื่อ state เดิมที่เดาเอง
     } catch (e) {
       toast(e instanceof ApiError ? e.message : tt('detailReal.actionFailMsg'), 'error');
     } finally {
+      setBusy(false);
+    }
+  };
+
+  const revoke = async () => {
+    setBusy(true);
+    try {
+      await apiFetch(`/exam-results/${examResult.result_id}/revoke-approval`, {
+        method: 'PATCH',
+        body: { remark: revokeRemark },
+      });
+      window.dispatchEvent(new Event('review-changed')); // badge "รอตรวจ" ต้องนับใหม่ — ใบกลับมารอตรวจแล้ว
+      toast(tt('officer.detail.revokeToast'), 'info');
+      setRevokeOpen(false);
+      setRevokeRemark('');
+      load();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : tt('detailReal.actionFailMsg'), 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // เตือนก่อนตีกลับ/ถอนการยืนยัน ถ้ารอบปิดแล้วหรือใกล้ปิด — นักศึกษาแก้ได้เฉพาะตอนรอบยังเปิดรับ
+  // ตีกลับตอนรอบปิดแล้ว ใบจะค้าง (นักศึกษาส่งใหม่ไม่ได้) จนกว่าเจ้าหน้าที่จะเลื่อนวันปิดรอบ
+  const roundWarn = (() => {
+    const r = examResult?.round;
+    if (!r) return null;
+    const msLeft = new Date(r.close_date).getTime() - nowMs;
+    if (r.status !== 'open' || msLeft < 0) return 'closed';
+    return msLeft < 3 * 24 * 60 * 60 * 1000 ? 'soon' : null;
+  })();
+  const roundWarnBox = roundWarn && (
+    <div style={{ marginTop: 14, padding: '11px 13px', background: 'var(--status-wait-bg)', color: 'var(--status-wait-fg)', borderRadius: 10, fontSize: 15, lineHeight: 1.6, display: 'flex', gap: 8 }}>
+      <Icon name="alert" size={17} style={{ flex: 'none', marginTop: 3 }} /> <span>{tt(roundWarn === 'closed' ? 'officer.detail.roundClosedWarn' : 'officer.detail.roundSoonWarn')}</span>
+    </div>
+  );
+
+  // ลบนักศึกษาออกจากระบบ — ลบได้ทุกคน รวมคนที่มีผลสอบแล้ว (ลบผลสอบ/เอกสารทั้งหมดของเขาด้วย สถิติของรุ่นเปลี่ยนย้อนหลัง)
+  const removeStudent = async () => {
+    setBusy(true);
+    try {
+      // มีผลสอบแล้ว = ผู้ใช้เห็นคำเตือนแรงในโมดัลแล้ว ส่งค่ายืนยันไปด้วย ไม่งั้น backend ตอบ 409
+      await apiFetch(`/students/${student.sid}${hasResults ? '?delete_results=true' : ''}`, { method: 'DELETE' });
+      toast(tt('officer.students.deletedToast', { name: `${student.firstName} ${student.lastName}` }));
+      setDeleteOpen(false);
+      go(backTo); // คนนี้ไม่อยู่แล้ว อยู่หน้าเดิมต่อไม่ได้ — กลับไปหน้ารายชื่อ
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : tt('officer.students.deleteFailMsg'), 'error');
       setBusy(false);
     }
   };
@@ -129,6 +186,8 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
   // ส่งผลสอบไปแล้ว = ย้ายรุ่นไม่ได้ (backend บล็อกอยู่แล้ว ตรงนี้แค่ทำให้ช่องกดไม่ได้ + บอกเหตุผล
   // ดีกว่าปล่อยให้พิมพ์จนเสร็จแล้วค่อยเด้ง error ตอนกดบันทึก)
   const yearLocked = (studentFull?.exam_result_count ?? 0) > 0;
+  // มีผลสอบในระบบแล้วไหม — ดูทั้งจำนวนจาก backend และรายการที่โหลดมา (อันไหนรู้ก่อนใช้อันนั้น)
+  const hasResults = yearLocked || results.length > 0;
 
   return (
     <div className="fade-up">
@@ -137,6 +196,8 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
         sub={<span className="mono">{student.sid} · {tt('officer.detail.subInfo', { room: roomName(lang, displayRoom), year: displayYear })}</span>}
         actions={<div style={{ display: 'flex', gap: 8 }}>
           {canEdit && <button className="btn btn-ghost" onClick={openEdit}><Icon name="edit" size={16} /> {tt('officer.detail.editBtn')}</button>}
+          {canEdit && <button className="btn btn-ghost" style={{ color: 'var(--fail)' }}
+            title={tt('officer.students.deleteHint')} onClick={() => setDeleteOpen(true)}><Icon name="trash" size={16} /> {tt('officer.detail.deleteStudentBtn')}</button>}
           <button className="btn btn-ghost" onClick={() => go(backTo)}><Icon name="chevL" size={16} /> {tt('officer.detail.backBtn')}</button>
         </div>} />
 
@@ -186,6 +247,8 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
             </div>}
             {canReview && status === 'CONFIRMED' && <div style={{ marginTop: 14, padding: '11px 13px', background: 'var(--status-ok-bg)', borderRadius: 10, fontSize: 15, color: 'var(--status-ok-fg)', display: 'flex', gap: 8, alignItems: 'center' }}>
               <Icon name="checkCircle" size={17} /> {tt('status.CONFIRMED')}</div>}
+            {canEdit && status === 'CONFIRMED' && <button className="btn btn-ghost btn-block" style={{ marginTop: 10 }} disabled={busy} onClick={() => setRevokeOpen(true)}>
+              <Icon name="xCircle" size={16} /> {tt('officer.detail.revokeBtn')}</button>}
             {status === 'DRAFT' && <div style={{ marginTop: 12, fontSize: 15, color: 'var(--ink-500)' }}>{tt('detailReal.notFilledYet')}</div>}
           </div>
 
@@ -246,6 +309,7 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
             onClick={() => review('reject', remark)}>
             <Icon name="send" size={16} /> {tt('officer.detail.confirmRejectBtn')}</button></>}>
         <p style={{ margin: '0 0 14px', color: 'var(--ink-600)', fontSize: 16 }}>{tt('officer.detail.rejectHint')}</p>
+        {roundWarnBox && <div style={{ marginBottom: 14, marginTop: -4 }}>{roundWarnBox}</div>}
         <div className="field"><label>{tt('officer.detail.rejectFieldLabel')}</label>
           <textarea className="input" rows={3} placeholder={tt('officer.detail.rejectPlaceholder')} value={remark} onChange={e => setRemark(e.target.value)} />
         </div>
@@ -254,6 +318,31 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
             <button key={r} className="chip" style={{ cursor: 'pointer', border: '1px solid var(--ink-200)' }} onClick={() => setRemark(r)}>{r}</button>
           ))}
         </div>
+      </Modal>
+
+      <Modal open={deleteOpen} onClose={() => !busy && setDeleteOpen(false)} width={430} title={tt('officer.students.deleteTitle')} tone="danger"
+        footer={<><button className="btn btn-ghost" disabled={busy} onClick={() => setDeleteOpen(false)}>{tt('officer.detail.cancelBtn')}</button>
+          <button className="btn btn-danger" disabled={busy} onClick={removeStudent}>
+            {busy ? tt('officer.students.deleting') : tt('officer.detail.deleteStudentBtn')}</button></>}>
+        <p style={{ margin: 0, fontSize: 16, lineHeight: 1.6, color: 'var(--ink-700)' }}>
+          {tt('officer.students.deleteBody', { name: `${student.firstName} ${student.lastName}`, sid: student.sid })}
+        </p>
+        {hasResults && (
+          <div role="alert" style={{ marginTop: 14, padding: '12px 14px', borderRadius: 10, background: 'var(--status-reject-bg)', color: 'var(--status-reject-fg)', fontSize: 15, lineHeight: 1.65, fontWeight: 600 }}>
+            {tt('officer.students.deleteWithResultsWarn')}
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={revokeOpen} onClose={() => setRevokeOpen(false)} title={tt('officer.detail.revokeModalTitle')} tone="var(--status-reject-fg)"
+        footer={<><button className="btn btn-ghost" onClick={() => setRevokeOpen(false)}>{tt('officer.detail.cancelBtn')}</button>
+          <button className="btn" style={{ background: 'var(--fail)', color: '#fff' }} disabled={!revokeRemark.trim() || busy} onClick={revoke}>
+            <Icon name="send" size={16} /> {tt('officer.detail.revokeConfirmBtn')}</button></>}>
+        <p style={{ margin: '0 0 14px', color: 'var(--ink-600)', fontSize: 16, lineHeight: 1.6 }}>{tt('officer.detail.revokeHint')}</p>
+        <div className="field"><label>{tt('officer.detail.revokeFieldLabel')}</label>
+          <textarea className="input" rows={3} maxLength={500} placeholder={tt('officer.detail.revokePlaceholder')} value={revokeRemark} onChange={e => setRevokeRemark(e.target.value)} />
+        </div>
+        {roundWarnBox && <div style={{ marginTop: -4 }}>{roundWarnBox}</div>}
       </Modal>
 
       <Modal open={editOpen} onClose={() => setEditOpen(false)} title={tt('officer.detail.editModalTitle')} width={480}

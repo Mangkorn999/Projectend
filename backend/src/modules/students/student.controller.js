@@ -1,6 +1,9 @@
+import fs from "fs/promises";
+import path from "path";
 import bcrypt from "bcryptjs";
 import { parse } from "csv-parse/sync";
 import iconv from "iconv-lite";
+import { readSheet } from "read-excel-file/node";
 import * as studentRepo from "./student.repository.js";
 import * as notifRepo from "../notifications/notifications.repository.js";
 import * as subjectsRepo from "../subjects/subjects.repository.js";
@@ -20,7 +23,41 @@ const NATIONAL_ID_PATTERN = /^\d{13}$/;
 // รหัสนักศึกษาต้องเป็นตัวเลขล้วน อย่างน้อย 2 หลัก — 2 หลักแรกใช้คำนวณปีจบใน academicYear.js
 // (ไม่ล็อกความยาวตายตัวเป็น 10 หลัก เพราะ smoke test สร้างรหัสทดสอบสั้นกว่านั้น)
 const STUDENT_ID_PATTERN = /^\d{2,}$/;
+// รูปแบบที่ Excel แปลงเลขยาวให้ เช่น 1.23457E+12
+const SCIENTIFIC_NOTATION_PATTERN = /^\d+(\.\d+)?e[+-]?\d+$/i;
 const SALT_ROUNDS = 10;
+
+// ตรวจข้อมูลโปรไฟล์ที่กรอกมือ (นักศึกษากรอกครั้งแรก + เจ้าหน้าที่แก้ทีหลัง) — ใช้ร่วมกัน 2 จุด กฎจะได้ไม่เพี้ยนกัน
+// เดิมไม่ตรวจเลย: ชื่อเป็นช่องว่าง/ตัวเลข/ยาวเกิน column (VarChar 100/20) ผ่านเข้าไปได้ หรือพังเป็น 500
+// requireAll = true ตอนกรอกครั้งแรก (ต้องครบ) · false ตอนแก้ (ตรวจเฉพาะ field ที่ส่งมา)
+const PROFILE_TEXT_FIELDS = [
+  ["first_name", "ชื่อ", 100],
+  ["last_name", "นามสกุล", 100],
+  ["first_name_en", "ชื่อภาษาอังกฤษ", 100],
+  ["last_name_en", "นามสกุลภาษาอังกฤษ", 100],
+  ["email", "อีเมล", 100],
+  ["phone", "เบอร์โทร", 20],
+];
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_PATTERN = /^[0-9+\-\s]{8,20}$/; // เลข + เครื่องหมาย + - และเว้นวรรค (เช่น +66 81-234-5678)
+
+const cleanProfileInput = (body, requireAll) => {
+  const out = {};
+  for (const [field, label, max] of PROFILE_TEXT_FIELDS) {
+    const value = body?.[field];
+    if (value === undefined && !requireAll) continue;
+    if (typeof value !== "string" || !value.trim()) {
+      throw httpError(`กรุณากรอก${label}`, 400);
+    }
+    if (value.trim().length > max) {
+      throw httpError(`${label}ยาวเกินไป (ไม่เกิน ${max} ตัวอักษร)`, 400);
+    }
+    out[field] = value.trim();
+  }
+  if (out.email && !EMAIL_PATTERN.test(out.email)) throw httpError("รูปแบบอีเมลไม่ถูกต้อง", 400);
+  if (out.phone && !PHONE_PATTERN.test(out.phone)) throw httpError("เบอร์โทรไม่ถูกต้อง", 400);
+  return out;
+};
 
 export const getAll = async (req, res, next) => {
   try {
@@ -77,7 +114,13 @@ export const create = async (req, res, next) => {
   try {
     const { student_id, national_id, academic_year } = req.body;
 
-    if (!student_id || !national_id) {
+    // ต้องเป็นข้อความ — เลขบัตรที่ส่งมาเป็นตัวเลขผ่าน regex ได้ แต่ bcrypt.hash รับแต่ข้อความ (จะพังเป็น 500)
+    if (
+      typeof student_id !== "string" ||
+      typeof national_id !== "string" ||
+      !student_id.trim() ||
+      !national_id.trim()
+    ) {
       const err = new Error("กรุณากรอกรหัสนักศึกษาและเลขบัตรประชาชน");
       err.statusCode = 400;
       throw err;
@@ -146,29 +189,10 @@ export const completeProfile = async (req, res, next) => {
       throw err;
     }
 
-    const {
-      first_name,
-      last_name,
-      first_name_en,
-      last_name_en,
-      email,
-      phone,
-      room_id,
-    } = req.body;
-
-    if (
-      !first_name ||
-      !last_name ||
-      !first_name_en ||
-      !last_name_en ||
-      !email ||
-      !phone ||
-      !room_id
-    ) {
-      const err = new Error("กรุณากรอกข้อมูลให้ครบ");
-      err.statusCode = 400;
-      throw err;
-    }
+    const { room_id } = req.body;
+    const { first_name, last_name, first_name_en, last_name_en, email, phone } =
+      cleanProfileInput(req.body, true);
+    if (!room_id) throw httpError("กรุณาเลือกห้องเรียน", 400);
 
     const room = await studentRepo.findRoomById(Number(room_id));
     if (!room) {
@@ -221,16 +245,9 @@ export const update = async (req, res, next) => {
       throw err;
     }
 
-    const {
-      first_name,
-      last_name,
-      first_name_en,
-      last_name_en,
-      email,
-      phone,
-      room_id,
-      academic_year,
-    } = req.body;
+    const { room_id, academic_year } = req.body;
+    const { first_name, last_name, first_name_en, last_name_en, email, phone } =
+      cleanProfileInput(req.body, false);
 
     if (room_id !== undefined) {
       const room = await studentRepo.findRoomById(Number(room_id));
@@ -338,6 +355,177 @@ export const bulkSetEligible = async (req, res, next) => {
   }
 };
 
+// ─── จับคู่คอลัมน์ในไฟล์กับช่องที่ระบบต้องการ ───
+// ชื่อคอลัมน์ที่เจ้าหน้าที่ตั้งเองไม่มีทางตรงกับ template ทุกตัว — Google Form ใช้ "ชื่อคำถาม" เป็นหัวคอลัมน์
+// เช่น "student_id(รหัสนักศึกษา)" หรือ "กรุณากรอกเลขบัตรประชาชน" จะบังคับให้ตั้งชื่อตายตัวไม่ได้
+// ลำดับ: 1) เจ้าหน้าที่เลือกเอง (mapping จากหน้าจอ)  2) ชื่อตรงเป๊ะ  3) ชื่อมี "คำสำคัญ" อยู่ข้างใน
+//        4) ยังจับไม่ได้/กำกวม → ตอบกลับพร้อมรายชื่อคอลัมน์ ให้หน้าจอถามเจ้าหน้าที่ให้เลือกเอง
+const COLUMN_FIELDS = ["student_id", "national_id", "academic_year"];
+const COLUMN_KEYWORDS = {
+  student_id: ["student_id", "studentid", "student_no", "student_number", "รหัสนักศึกษา", "รหัสนศ"],
+  national_id: [
+    "national_id", "nationalid", "id_card", "idcard", "citizen_id", "citizenid",
+    "เลขบัตร", "เลขประจำตัวประชาชน", "บัตรประชาชน", "ปชช",
+  ],
+  // ปีจบเท่านั้น — "ปีการศึกษา" เฉยๆ รับเฉพาะตรงเป๊ะ (ดู EXACT_NAMES) เพราะ "ปีการศึกษาที่เข้า" คือปีเข้าเรียน
+  // ถ้าจับคู่มั่วนักศึกษาจะเห็นรอบสอบของรุ่นผิดโดยไม่มีใครรู้
+  academic_year: ["academic_year", "academicyear", "graduation", "ปีที่จบ", "ปีจบ", "จบการศึกษา"],
+};
+const EXACT_NAMES = { student_id: ["รหัส"], academic_year: ["ปีการศึกษา"] };
+const normalizeHeader = (raw) => String(raw ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+
+// เดาจากชื่อหัว → { student_id: "หัวจริงในไฟล์" | null, ... }
+// ช่องหนึ่งตรงกับหลายคอลัมน์ = กำกวม คืน null ให้เจ้าหน้าที่เลือกเอง (ดีกว่าเดาผิดเงียบๆ)
+const guessColumns = (headers) => {
+  const guess = {};
+  const used = new Set();
+  for (const field of COLUMN_FIELDS) {
+    const exactNames = [field, ...(EXACT_NAMES[field] ?? [])];
+    const exact = headers.filter((h) => exactNames.includes(normalizeHeader(h)));
+    const matches = exact.length
+      ? exact
+      : headers.filter((h) => COLUMN_KEYWORDS[field].some((k) => normalizeHeader(h).includes(k)));
+    const free = matches.filter((h) => !used.has(h));
+    guess[field] = free.length === 1 ? free[0] : null;
+    if (guess[field]) used.add(guess[field]);
+  }
+  return guess;
+};
+
+// รวมที่เดาได้ กับที่เจ้าหน้าที่เลือกเอง (เลือกเองชนะเสมอ) · requested[field] = "" = ไม่ใช้ช่องนี้ (ทำได้เฉพาะ academic_year)
+const resolveColumns = (headers, requested) => {
+  const mapping = guessColumns(headers);
+  if (requested && typeof requested === "object") {
+    for (const field of COLUMN_FIELDS) {
+      const chosen = requested[field];
+      if (chosen === undefined) continue;
+      if (chosen === "" || chosen === null) {
+        mapping[field] = null;
+        continue;
+      }
+      if (!headers.includes(chosen)) throw httpError(`ไม่พบคอลัมน์ "${chosen}" ในไฟล์`, 400);
+      mapping[field] = chosen;
+    }
+  }
+  const picked = COLUMN_FIELDS.map((f) => mapping[f]).filter(Boolean);
+  if (new Set(picked).size !== picked.length) {
+    throw httpError("เลือกคอลัมน์ซ้ำกัน — 1 คอลัมน์ใช้ได้กับ 1 ช่องเท่านั้น", 400);
+  }
+  return mapping;
+};
+
+// multipart ส่ง mapping มาเป็นข้อความ JSON: {"student_id":"หัวคอลัมน์", ...}
+const parseMappingParam = (raw) => {
+  if (raw === undefined || raw === "") return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
+  } catch {
+    // ตกไปข้างล่าง
+  }
+  throw httpError("รูปแบบการเลือกคอลัมน์ไม่ถูกต้อง", 400);
+};
+
+// ตัวเลขที่โปรแกรมตารางคำนวณเขียนมาเป็นข้อความรูปแปลก → ตัวเลขล้วน
+//   "1412.0"            → "1412"        (Google Sheets เขียนตัวเลขในไฟล์ .xlsx เป็นทศนิยม .0)
+//   "6.610210001E9"     → "6610210001"  (Sheets เขียนเลขยาวเป็น E-notation แต่ครบทุกหลัก)
+//
+// แปลงเฉพาะเมื่อตัวเลขหลังจุดทศนิยม "ครบตามเลขชี้กำลังพอดี" (ไม่มีหลักไหนหายไป) และ **ไม่เติม 0 ให้เด็ดขาด**
+//   "1.23457E+12" (Excel เขียน CSV — หายไปแล้ว) และ "1.9299E12" ต้องถูกปฏิเสธ ไม่ใช่เดาเป็น 1234570000000
+//   เหตุผล: ไฟล์ที่เคยเป็น CSV แล้วเปิดใน Excel บันทึกเป็น .xlsx จะได้เซลล์ตัวเลข 1234570000000 หน้าตาเหมือนเลขจริงทุกอย่าง
+//   แยกไม่ออกว่าเลขเต็มหรือหายไปแล้ว — เดาผิด = เลขบัตร (ซึ่งเป็นรหัสผ่าน) ผิดคนเงียบๆ
+const plainNumberText = (text) => {
+  if (typeof text !== "string") return text;
+  const t = text.trim();
+  if (/^\d+\.0+$/.test(t)) return t.replace(/\.0+$/, "");
+  const m = t.match(/^(\d+)\.(\d+)e\+?(\d+)$/i);
+  if (m && m[2].length === Number(m[3])) return m[1] + m[2];
+  return t;
+};
+
+// รหัสนักศึกษา/เลขบัตรที่คนกรอกเอง (เช่น Google Form) มักมีขีดคั่น ช่องว่าง หรือเป็นเลขไทย
+//   "1-9299-00326-09-1" / "1 9299 00326 09 1" / "๑๙๒๙๙๐๐๓๒๖๐๙๑" → ตัวเลขล้วน
+// แค่ตัดตัวคั่นและแปลงเลขไทยเป็นเลขอารบิก ไม่ได้เดาตัวเลขเอง จึงปลอดภัย (ถ้ายังไม่ครบ 13 หลักก็ถูกปฏิเสธเหมือนเดิม)
+const THAI_DIGITS = "๐๑๒๓๔๕๖๗๘๙";
+const cleanIdText = (value) => {
+  if (typeof value !== "string") return value;
+  return value
+    .trim()
+    .replace(/[๐-๙]/g, (d) => String(THAI_DIGITS.indexOf(d)))
+    .replace(/[\s-]/g, "");
+};
+
+// ไฟล์ .xlsx คือ zip ขึ้นต้นด้วย "PK" — เช็คจากเนื้อไฟล์ ไม่เชื่อนามสกุล/mimetype ที่ client ส่งมา
+const isXlsxFile = (buffer) => buffer.length > 4 && buffer[0] === 0x50 && buffer[1] === 0x4b;
+
+// อ่านรายชื่อจาก CSV -> array ของ object (key = ชื่อคอลัมน์ตัวเล็ก)
+const rowsFromCsv = (buffer) => {
+  let csvText;
+  try {
+    csvText = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+  } catch {
+    csvText = iconv.decode(buffer, "win874");
+  }
+
+  // csv-parse แปลง text → array of object โดยใช้แถวแรกเป็นชื่อ column (columns:true)
+  let rows;
+  try {
+    rows = parse(csvText, {
+      // ชื่อคอลัมน์: ตัดช่องว่าง + แปลงเป็นตัวเล็ก — "Student_ID" / " national_id" จาก Excel ก็อ่านได้
+      columns: (header) => header.map((h) => String(h ?? "").trim()),
+      // Excel ที่ตั้งภาษา/ภูมิภาคบางแบบ save CSV คั่นด้วย ; หรือ tab แทน , — รับทั้งสามแบบ
+      delimiter: [",", ";", "\t"],
+      skip_empty_lines: true,
+      // Excel มักทิ้งแถวที่มีแต่ , ว่างๆ ท้ายไฟล์ (",,") — skip_empty_lines ไม่ถือว่าว่าง ต้องข้ามด้วยตัวนี้
+      skip_records_with_empty_values: true,
+      trim: true, // ตัดช่องว่างหัว-ท้ายทุกฟิลด์ กัน " 6610210631" มาจาก copy-paste
+      bom: true, // เผื่อยังเหลือ BOM ติดมาในสตริง
+    });
+  } catch (parseErr) {
+    const err = new Error(`อ่านไฟล์ CSV ไม่ได้: ${parseErr.message}`);
+    err.statusCode = 400;
+    throw err;
+  }
+  return rows;
+};
+
+// อ่านรายชื่อจากไฟล์ Excel (.xlsx) ตรงๆ — เจ้าหน้าที่ไม่ต้อง "บันทึกเป็น CSV"
+//
+// ทำไมต้องมี: เลขบัตร 13 หลักใน Excel ทั่วไปแสดงเป็น 1.23457E+12 และ **ตอนบันทึกเป็น CSV Excel เขียนตามที่แสดง**
+// ตัวเลขหลังหลักที่ 6 หายไปจริง ระบบกู้กลับไม่ได้ (เดาเลขเองแล้วผิดคน = รหัสผ่านและตัวตนนักศึกษาผิดเงียบๆ)
+// แต่ไฟล์ .xlsx เก็บเลขเต็ม 13 หลักไว้ครบ แค่ "แสดง" ย่อ — อ่าน .xlsx ตรงๆ จึงไม่มีปัญหานี้เลย
+//
+// อ่านชีตแรกเท่านั้น · parseNumber: (s) => s = เอาตัวเลขเป็น "ข้อความตามที่เก็บในไฟล์" ไม่ผ่าน float ให้เพี้ยน
+const rowsFromXlsx = async (buffer) => {
+  let sheet;
+  try {
+    sheet = await readSheet(buffer, { parseNumber: (text) => text });
+  } catch {
+    throw httpError("อ่านไฟล์ Excel ไม่ได้ กรุณาตรวจสอบว่าเป็นไฟล์ .xlsx ที่ไม่เสียหาย", 400);
+  }
+  if (!sheet || sheet.length === 0) return [];
+
+  const [header, ...body] = sheet;
+  const names = header.map((h) => String(h ?? "").trim());
+  // ค่าในเซลล์ -> ข้อความ (วันที่/ว่าง = ข้อความว่าง ให้ด่านตรวจแถวด้านล่างตีเป็น "ข้อมูลไม่ครบ" เอง)
+  const cellText = (v) => {
+    if (v === null || v === undefined || v instanceof Date) return "";
+    const text = String(v).trim();
+    // Google Sheets เขียนตัวเลขเป็น "1412.0" / "6.610210001E9" — แปลงกลับเป็นตัวเลขล้วน (ดู plainNumberText)
+    return plainNumberText(text);
+  };
+
+  return body
+    .filter((cells) => cells.some((c) => cellText(c) !== "")) // ข้ามแถวว่างท้ายไฟล์
+    .map((cells) => {
+      const row = {};
+      names.forEach((name, i) => {
+        if (name) row[name] = cellText(cells[i]);
+      });
+      return row;
+    });
+};
+
 // นำเข้ารายชื่อนักศึกษาจากไฟล์ CSV — สร้าง user(ยังไม่มี password)+student พร้อมกันทีละแถว
 // แถวที่พลาด (ซ้ำ/ห้องไม่มี/ข้อมูลขาด) จะถูกข้ามและรายงานกลับ ไม่ทำให้แถวอื่นล้มไปด้วย
 export const bulkImport = async (req, res, next) => {
@@ -349,7 +537,7 @@ export const bulkImport = async (req, res, next) => {
 
     // multer (memoryStorage) แปะไฟล์ที่ officer อัปโหลดไว้ที่ req.file.buffer — ยังไม่เขียนลง disk
     if (!req.file) {
-      const err = new Error("กรุณาแนบไฟล์ CSV");
+      const err = new Error("กรุณาแนบไฟล์ CSV หรือ Excel (.xlsx)");
       err.statusCode = 400;
       throw err;
     }
@@ -361,44 +549,30 @@ export const bulkImport = async (req, res, next) => {
     // เดาจาก "มี BOM ไหม" อย่างเดียวไม่พอ (เคสสุดท้ายไม่มี BOM แต่ก็เป็น UTF-8) —
     // เลยต้อง "ลองถอดเป็น UTF-8 จริงๆ" ก่อน ถ้า byte ไม่ตรงกฎ UTF-8 (fatal: true จะ throw)
     // ค่อยถือว่าเป็น win874 แล้ว decode แบบนั้นแทน
-    let csvText;
-    try {
-      csvText = new TextDecoder("utf-8", { fatal: true }).decode(req.file.buffer);
-    } catch {
-      csvText = iconv.decode(req.file.buffer, "win874");
-    }
-
-    // csv-parse แปลง text → array of object โดยใช้แถวแรกเป็นชื่อ column (columns:true)
-    let rows;
-    try {
-      rows = parse(csvText, {
-        columns: true,
-        skip_empty_lines: true,
-        trim: true, // ตัดช่องว่างหัว-ท้ายทุกฟิลด์ กัน " 6610210631" มาจาก copy-paste
-        bom: true, // เผื่อยังเหลือ BOM ติดมาในสตริง
-      });
-    } catch (parseErr) {
-      const err = new Error(`อ่านไฟล์ CSV ไม่ได้: ${parseErr.message}`);
-      err.statusCode = 400;
-      throw err;
-    }
+    const rows = isXlsxFile(req.file.buffer)
+      ? await rowsFromXlsx(req.file.buffer)
+      : rowsFromCsv(req.file.buffer);
 
     if (rows.length === 0) {
-      const err = new Error("ไฟล์ CSV ไม่มีข้อมูล");
+      const err = new Error("ไฟล์ไม่มีข้อมูล");
       err.statusCode = 400;
       throw err;
     }
 
     // เช็ค header ให้ครบก่อนวนลูป — กันเสีย request DB ทั้งไฟล์เพราะ column พิมพ์ผิด
-    const missingCols = REQUIRED_COLUMNS.filter(
-      (c) => !Object.keys(rows[0]).includes(c),
-    );
+    const headers = Object.keys(rows[0]);
+    const mapping = resolveColumns(headers, parseMappingParam(req.body?.mapping));
+    const missingCols = REQUIRED_COLUMNS.filter((c) => !mapping[c]);
     if (missingCols.length > 0) {
-      const err = new Error(
-        `ไฟล์ CSV ขาดคอลัมน์: ${missingCols.join(", ")}`,
-      );
-      err.statusCode = 400;
-      throw err;
+      // ตอบเป็น JSON เองพร้อมรายชื่อคอลัมน์ในไฟล์ — หน้าจอเอาไปทำช่อง "เลือกว่าคอลัมน์ไหนคืออะไร" ให้เจ้าหน้าที่
+      return res.status(400).json({
+        success: false,
+        code: "missing_columns",
+        message: `ไฟล์ขาดคอลัมน์: ${missingCols.join(", ")} (คอลัมน์ที่พบในไฟล์: ${headers.join(", ")})`,
+        columns: headers,
+        mapping,
+        missing: missingCols,
+      });
     }
 
     // ทุกแถวใช้ role เดียวกัน — ดึงครั้งเดียวนอกลูปพอ
@@ -414,12 +588,18 @@ export const bulkImport = async (req, res, next) => {
     // คนที่เจ้าหน้าที่ใส่ปีจบมาไม่ตรงกับที่คำนวณจากรหัส (ซ้ำชั้น/ลาพัก) — ให้หน้าเว็บโชว์ให้ตรวจอีกรอบ
     // ใส่ปีเท่ากับสูตรพอดีไม่นับ เพราะผลเหมือนเว้นว่าง
     const yearOverrides = [];
+    // รหัสที่เจอมาแล้วในไฟล์นี้ (เก็บเลขแถวแรกที่เจอ) — จับแถวซ้ำกันเองในไฟล์
+    // dry run ไม่ได้เขียน DB จึงเช็คซ้ำจาก DB ไม่ได้ ถ้าไม่มีอันนี้ใบตรวจจะบอกว่านำเข้าได้ทั้งคู่ แต่ตอนนำเข้าจริงเข้าแค่คนเดียว
+    const seenInFile = new Map();
     // ทำทีละแถว ไม่ใช้ transaction เดียวรวมทั้งไฟล์ — กันไฟล์ 500 แถวพังหมดเพราะแถวเดียวพลาด
     for (let i = 0; i < rows.length; i++) {
       const rowNum = i + 2; // +1 เพราะแถวแรกคือ header, +1 เพราะนับแบบ 1-indexed ให้ตรงกับที่เห็นใน Excel
       const row = rows[i];
       // academic_year เป็นคอลัมน์ไม่บังคับ — ไฟล์เก่าที่ไม่มีคอลัมน์นี้ก็ได้ undefined ถือว่าเว้นว่าง
-      const { student_id, national_id, academic_year } = row;
+      const academic_year = mapping.academic_year ? plainNumberText(row[mapping.academic_year]) : undefined;
+      // ตัดช่องว่างซ้ำอีกชั้น — csv-parse ไม่ตัดช่องว่างที่อยู่ในเครื่องหมายคำพูด (เช่น "1234567890123 ")
+      const student_id = plainNumberText(cleanIdText(row[mapping.student_id]));
+      const national_id = plainNumberText(cleanIdText(row[mapping.national_id]));
 
       // validate ฟิลด์บังคับต่อแถว — ขาดฟิลด์ไหนก็ข้ามแถวนั้น ไม่ทำให้ทั้งไฟล์ล้ม
       if (!student_id || !national_id) {
@@ -428,10 +608,15 @@ export const bulkImport = async (req, res, next) => {
       }
 
       if (!NATIONAL_ID_PATTERN.test(national_id)) {
+        // Excel เก็บเลข 13 หลักเป็น "1.23457E+12" ถ้าคอลัมน์ไม่ได้ตั้งเป็น Text แล้วตัวเลขจริงหายไปแล้ว กู้คืนไม่ได้
+        // บอกสาเหตุตรงๆ ไม่งั้นเจ้าหน้าที่เห็นแค่ "ต้องเป็นตัวเลข 13 หลัก" ทั้งที่ในช่อง Excel ดูเป็นตัวเลขอยู่
+        const looksLikeExcelSci = SCIENTIFIC_NOTATION_PATTERN.test(national_id);
         skipped.push({
           row: rowNum,
           student_id,
-          reason: "เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก",
+          reason: looksLikeExcelSci
+            ? "เลขบัตรประชาชนถูก Excel แปลงเป็นรูปแบบวิทยาศาสตร์ (เช่น 1.23E+12) เลขหายไปแล้วในไฟล์ CSV — อัปโหลดไฟล์ Excel (.xlsx) ต้นฉบับแทน (ไม่ต้องบันทึกเป็น CSV) หรือกรอกเลขใหม่"
+            : "เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก",
         });
         continue;
       }
@@ -444,6 +629,17 @@ export const bulkImport = async (req, res, next) => {
         });
         continue;
       }
+
+      // รหัสซ้ำในไฟล์เดียวกัน — เอาแถวแรก ข้ามแถวหลัง (ตรงกับที่นำเข้าจริงจะเกิดอยู่แล้ว แต่ต้องบอกตั้งแต่ขั้นตรวจไฟล์)
+      if (seenInFile.has(student_id)) {
+        skipped.push({
+          row: rowNum,
+          student_id,
+          reason: `รหัสนักศึกษาซ้ำกับแถว ${seenInFile.get(student_id)} ในไฟล์เดียวกัน`,
+        });
+        continue;
+      }
+      seenInFile.set(student_id, rowNum);
 
       // ปีจบ: เว้นว่าง = ใช้สูตรรหัส+4 ตอนกรอกโปรไฟล์ · ใส่มา = ตรวจก่อน ผิดก็ข้ามแถวนี้พร้อมเหตุผล
       let importYear = null;
@@ -509,7 +705,120 @@ export const bulkImport = async (req, res, next) => {
         imported,
         skipped,
         year_overrides: overridesKept,
+        columns_used: mapping, // คอลัมน์ในไฟล์ที่ถูกใช้เป็น student_id / national_id / academic_year (null = ไม่มี)
       },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ลบนักศึกษา (หลายคนได้) พร้อมทุกอย่างที่ผูกอยู่ — ใช้ร่วมกันทั้งลบทีละคนและลบหลายคน กฎจะได้ไม่เพี้ยนกัน
+//
+// คนที่มีผลสอบแล้วลบได้ แต่ต้อง "ยืนยันชัดเจน" (confirmDeleteResults = true) ไม่งั้นตอบ 409 code has_exam_results พร้อมจำนวน
+// ให้หน้าจอขึ้นคำเตือนแล้วส่งมาใหม่พร้อมค่ายืนยัน — กันยิง API พลาด/คลิกลบผิดคนแล้วผลสอบทั้งชุดหายเงียบๆ
+// ลบเสร็จค่อยลบไฟล์ PDF บน disk (ลบไฟล์ก่อนแล้ว DB พัง = หลักฐานหายทั้งที่ข้อมูลยังอยู่)
+const deleteStudents = async (res, ids, confirmDeleteResults) => {
+  const { studentsWithResults, resultCount } = await studentRepo.summarizeResults(ids);
+  if (studentsWithResults > 0 && confirmDeleteResults !== true) {
+    return res.status(409).json({
+      success: false,
+      code: "has_exam_results",
+      message: `นักศึกษา ${studentsWithResults} คนมีผลสอบในระบบแล้ว (${resultCount} รอบ) — การลบจะลบผลสอบ เอกสารหลักฐาน และประวัติการตรวจทั้งหมดของเขาด้วย และสถิติของรุ่นจะเปลี่ยนย้อนหลัง กรุณายืนยันอีกครั้ง`,
+      students_with_results: studentsWithResults,
+      result_count: resultCount,
+    });
+  }
+
+  const { deletedIds, resultCount: deletedResults, filePaths } = await studentRepo.removeStudentsCascade(ids);
+  if (deletedIds.length === 0) throw httpError("ไม่พบนักศึกษาที่เลือกในระบบ (อาจถูกลบไปแล้ว)", 404);
+
+  await Promise.all(
+    filePaths.map((f) => fs.rm(path.resolve(f), { force: true }).catch((e) => console.error("ลบไฟล์ไม่สำเร็จ:", f, e.message))),
+  );
+  // ลบของคนที่มีผลสอบ = การกระทำที่กระทบสถิติย้อนหลัง ต้องมีร่องรอยใน log ของ server ว่าใครลบ
+  if (deletedResults > 0) {
+    console.warn(`[AUDIT] user ${res.req.user.userId} ลบนักศึกษา ${deletedIds.length} คน พร้อมผลสอบ ${deletedResults} รอบ: ${deletedIds.join(",")}`);
+  }
+  return { deletedIds, deletedResults };
+};
+
+// ลบนักศึกษาหลายคนพร้อมกัน (ติ๊กเลือกในหน้ารายชื่อ) — body { student_ids: [...], delete_results?: true }
+export const bulkRemove = async (req, res, next) => {
+  try {
+    const ids = req.body?.student_ids;
+    if (
+      !Array.isArray(ids) ||
+      ids.length === 0 ||
+      ids.some((id) => typeof id !== "string" || !id.trim())
+    ) {
+      throw httpError("ต้องระบุ student_ids เป็น array ของรหัสนักศึกษาอย่างน้อย 1 รายการ", 400);
+    }
+    if (ids.length > MAX_BULK_DELETE) {
+      throw httpError(`ลบได้ครั้งละไม่เกิน ${MAX_BULK_DELETE} คน`, 400);
+    }
+
+    const unique = [...new Set(ids.map((id) => id.trim()))];
+    const done = await deleteStudents(res, unique, req.body?.delete_results);
+    if (!done) return; // deleteStudents ตอบ 409 (ต้องยืนยัน) ไปแล้ว
+    res.json({
+      success: true,
+      data: {
+        deleted_count: done.deletedIds.length,
+        deleted_ids: done.deletedIds,
+        deleted_result_count: done.deletedResults,
+        not_found_count: unique.length - done.deletedIds.length, // รหัสที่ไม่มีในระบบ (ถูกลบไปก่อนแล้ว)
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// รายชื่อบัญชีที่ import แล้วยังไม่กรอกโปรไฟล์ — ไว้ตรวจว่า import ถูกไหม / ลบรหัสที่พิมพ์ผิด
+export const listPendingAccounts = async (req, res, next) => {
+  try {
+    const rows = await studentRepo.findPendingAccounts();
+    res.json({
+      success: true,
+      data: rows.map((u) => ({
+        student_id: u.psu_passport_id,
+        // ปีจบที่จะใช้ตอนกรอกโปรไฟล์: ที่เจ้าหน้าที่ระบุตอน import ก่อน ไม่มีค่อยคำนวณจากรหัส (เหมือน completeProfile)
+        academic_year: u.import_academic_year ?? calcGraduationYear(u.psu_passport_id),
+        year_overridden: u.import_academic_year !== null,
+        imported_at: u.created_at,
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ลบบัญชีที่ยังไม่กรอกโปรไฟล์ — body { student_ids: ["6610210001", ...] } (ส่งคนเดียวก็ใส่ array 1 ตัว)
+// ลบเฉพาะบัญชีที่ยังไม่มีโปรไฟล์จริง (repository กันไว้ใน where) คนที่กรอกแล้วจะไม่ถูกแตะ — นับแยกให้ดูว่าข้ามกี่คน
+const MAX_BULK_DELETE = 1000;
+export const removePendingAccounts = async (req, res, next) => {
+  try {
+    const ids = req.body?.student_ids;
+    if (
+      !Array.isArray(ids) ||
+      ids.length === 0 ||
+      ids.some((id) => typeof id !== "string" || !id.trim())
+    ) {
+      throw httpError("ต้องระบุ student_ids เป็น array ของรหัสนักศึกษาอย่างน้อย 1 รายการ", 400);
+    }
+    if (ids.length > MAX_BULK_DELETE) {
+      throw httpError(`ลบได้ครั้งละไม่เกิน ${MAX_BULK_DELETE} คน`, 400);
+    }
+
+    const unique = [...new Set(ids.map((id) => id.trim()))];
+    const { count } = await studentRepo.removePendingAccounts(unique);
+    if (count === 0) {
+      throw httpError("ไม่พบบัญชีที่ลบได้ — อาจกรอกโปรไฟล์ไปแล้ว หรือถูกลบไปก่อนหน้านี้", 404);
+    }
+    res.json({
+      success: true,
+      data: { deleted_count: count, skipped_count: unique.length - count },
     });
   } catch (err) {
     next(err);
@@ -522,25 +831,17 @@ export const bulkImport = async (req, res, next) => {
 export const remove = async (req, res, next) => {
   try {
     const student = await studentRepo.findById(req.params.id);
-    if (!student) {
-      const err = new Error("ไม่พบนักศึกษา");
-      err.statusCode = 404;
-      throw err;
-    }
+    if (!student) throw httpError("ไม่พบนักศึกษา", 404);
 
-    const resultCount = await studentRepo.countExamResults(req.params.id);
-    if (resultCount > 0) {
-      const err = new Error(
-        `ลบไม่ได้ นักศึกษาคนนี้มีผลสอบในระบบแล้ว ${resultCount} รอบ — ถ้าข้อมูลไม่ถูกต้องให้ตีกลับผลสอบแทน`,
-      );
-      err.statusCode = 409;
-      throw err;
-    }
-
-    await studentRepo.removeWithUser(req.params.id, student.user_id);
+    // ?delete_results=true = ยืนยันแล้วว่าให้ลบผลสอบทั้งหมดของเขาด้วย (ไม่ใส่ + มีผลสอบ = 409 พร้อมจำนวน)
+    const done = await deleteStudents(res, [req.params.id], req.query.delete_results === "true");
+    if (!done) return;
     res.json({
       success: true,
-      data: { message: `ลบนักศึกษา ${req.params.id} ออกจากระบบแล้ว` },
+      data: {
+        message: `ลบนักศึกษา ${req.params.id} ออกจากระบบแล้ว`,
+        deleted_result_count: done.deletedResults,
+      },
     });
   } catch (err) {
     next(err);
@@ -559,7 +860,8 @@ export const resetPassword = async (req, res, next) => {
     }
 
     const { national_id } = req.body;
-    if (!NATIONAL_ID_PATTERN.test(national_id)) {
+    // ต้องเป็นข้อความ — ตัวเลข 13 หลักผ่าน regex ได้ (JS แปลงเป็นข้อความให้) แต่ bcrypt.hash รับแต่ข้อความ จะพังเป็น 500
+    if (typeof national_id !== "string" || !NATIONAL_ID_PATTERN.test(national_id)) {
       const err = new Error("เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก");
       err.statusCode = 400;
       throw err;

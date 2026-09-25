@@ -719,3 +719,84 @@ res.json({ success: true, data: rounds.map(withPhase) });
 ถ้าเก็บลง DB ต้องมีอะไรสักอย่างคอยวิ่งอัปเดตตลอดเวลา — คำนวณตอนอ่านจบกว่า
 
 ⚠️ สูตรต้องตรงกับ query ที่ใช้จริง (`findActive`) เป๊ะๆ ไม่งั้นหน้าจอจะบอกคนละเรื่องกับที่ระบบทำ
+
+### 5.30 `prisma.$transaction(async (tx) => { ... })` — หลายคำสั่งต้องสำเร็จพร้อมกัน
+
+```js
+export const resubmit = (id, rows) =>
+  prisma.$transaction(async (tx) => {
+    const { count } = await tx.examResult.updateMany({
+      where: { result_id: id, staff_status: { not: "approved" } },
+      data: { staff_status: "pending" },
+    });
+    if (count === 0) throw new Error("ถูกยืนยันไปแล้ว"); // throw = ยกเลิกทุกคำสั่งในก้อนนี้
+    await tx.subjectResult.deleteMany({ where: { result_id: id } });
+    await tx.subjectResult.createMany({ data: rows });
+  });
+```
+
+- ในก้อนนี้ใช้ `tx` แทน `prisma` ทุกที่ — ถ้า throw กลางทาง สิ่งที่ทำไปแล้วถูกย้อนกลับหมด
+- `updateMany` + เงื่อนไขใน `where` = "แก้เฉพาะถ้าสถานะยังเป็นแบบนี้" แล้วดู `count`: 0 แปลว่ามีคนแก้ไปก่อนเรา
+  (กัน 2 คนกดพร้อมกัน — เช็คใน controller อย่างเดียวไม่พอ เพราะระหว่างเช็คกับเขียนมีช่องว่าง)
+- `{ not: "approved" }` = ไม่เท่ากับ · `{ has: 5 }` = array ใน column (`Int[]`) มีเลข 5 อยู่
+
+### 5.31 `new Map()` — จำว่า "เจอค่านี้แล้วที่แถวไหน"
+
+```js
+const seen = new Map();                 // key -> value เหมือน object แต่ key เป็นอะไรก็ได้
+if (seen.has(id)) { /* ซ้ำกับแถว */ seen.get(id); }
+seen.set(id, rowNum);
+```
+
+ใช้ตอน import CSV จับรหัสซ้ำในไฟล์เดียว (`Set` ก็ได้ถ้าไม่ต้องจำค่า แต่เราอยากบอกเลขแถวแรกที่เจอ)
+
+### 5.32 อ่านไบต์แรกของไฟล์ — เช็คว่าเป็น PDF จริง ไม่เชื่อ mimetype
+
+```js
+const head = Buffer.alloc(5);
+const fh = await fs.open(path, "r");
+try { await fh.read(head, 0, 5, 0); } finally { await fh.close(); }
+head.toString("latin1") === "%PDF-";   // PDF จริงขึ้นต้นด้วย %PDF- เสมอ
+```
+
+`mimetype` มาจาก header ที่ client ส่งมา แก้เองได้ — เนื้อไฟล์จริงโกหกไม่ได้ · `finally` = ปิดไฟล์เสมอแม้ read พัง
+
+### 5.33 อ่านไฟล์ Excel (.xlsx) — `readSheet` + เก็บตัวเลขเป็นข้อความ
+
+```js
+import { readSheet } from "read-excel-file/node";
+
+const sheet = await readSheet(buffer, { parseNumber: (text) => text });
+// sheet = [["student_id","national_id"], ["6610210001","1234567890123"], ...]  (แถวละ array)
+```
+
+- `.xlsx` คือไฟล์ zip ที่ข้างในเป็น XML — เลข 13 หลักที่พิมพ์ลงเซลล์ถูกเก็บครบ Excel แค่ *แสดง* เป็น `1.23457E+12`
+- แต่ถ้า "บันทึกเป็น CSV" Excel เขียนตามที่แสดง เลขหลังหลักที่ 6 หายจริง กู้คืนไม่ได้ → อ่าน `.xlsx` ตรงๆ
+- `parseNumber: (text) => text` = ไม่แปลงเป็น `number` ของ JS (ตัวเลขยาวๆ อาจเพี้ยน) เอาข้อความตามที่เก็บในไฟล์
+- ตรวจว่าเป็น xlsx จากไบต์แรก `PK` (zip) ไม่เชื่อนามสกุลไฟล์ — ดู 5.32
+- ทำแถวเป็น object: `Object.fromEntries(names.map((n, i) => [n, cells[i]]))` (`fromEntries` = แปลง array ของ `[key, value]` เป็น object)
+
+### 5.34 ลบข้อมูลที่ผูกกันหลายตาราง — ลบจากลูกขึ้นแม่ + `groupBy` นับ
+
+```js
+// นับผลสอบต่อนักศึกษา (GROUP BY student_id) — ไว้เตือนก่อนลบ
+const rows = await prisma.examResult.groupBy({
+  by: ["student_id"],
+  where: { student_id: { in: ids } },
+  _count: { _all: true },        // จำนวนแถวในแต่ละกลุ่ม
+});
+const total = rows.reduce((n, r) => n + r._count._all, 0);   // reduce = วนบวกสะสมเป็นค่าเดียว
+
+// ลบทีละตารางเรียงจาก "ลูก" ไป "แม่" ใน transaction เดียว (พังตรงไหนย้อนกลับทั้งหมด)
+await prisma.$transaction([
+  prisma.reviewLog.deleteMany({ where: { result_id: { in: rids } } }),
+  prisma.examResult.deleteMany({ where: { result_id: { in: rids } } }),
+  prisma.student.deleteMany({ where: { student_id: { in: sids } } }),
+]);
+```
+
+- แถวลูกที่ยังชี้มาที่แม่ (FK) ทำให้ลบแม่ไม่ได้ → ต้องลบลูกก่อนเสมอ
+- **ไฟล์บน disk ลบหลัง transaction สำเร็จ** ไม่ใช่ก่อน: ลบไฟล์แล้ว DB พัง = ข้อมูลยังอยู่แต่หลักฐานหาย
+- `deleteMany` ที่ `where` ไม่เจอแถวเลยไม่ error คืน `{ count: 0 }` — เช็ค count เองถ้าต้องตอบ 404
+- การลบที่ย้อนกลับไม่ได้ → บังคับให้ client ส่งค่ายืนยันชัดเจน (`=== true` ไม่ใช่แค่ truthy) ไม่งั้นตอบ 409
+

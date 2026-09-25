@@ -107,6 +107,13 @@ export function StudentNewsReal({ go, lang }) {
 
   // ใบล่าสุดของรอบที่กำลังเปิดอยู่ (ถ้ามี) — ใช้โชว์ "สถานะของคุณ" ให้ตรงกับความจริง
   // ไม่ใช่แค่ปุ่ม "เริ่มกรอกผลสอบ" ตายตัวเหมือนเดิม ทั้งที่กรอกไปแล้วก็ยังขึ้นแบบนี้
+  // รอบที่ตั้งเปิดไว้ล่วงหน้า / เลยวันปิดแล้ว ก็ส่งมาด้วย — ป้าย "เปิดอยู่" กับปุ่มกรอกต้องดู phase ด้วย
+  const acceptingNow = round?.phase === 'active';
+  const badgeText = !round ? tt('news.noOpenRound')
+    : round.phase === 'scheduled' ? tt('news.scheduledBadge')
+    : round.phase === 'expired' ? tt('news.expiredBadge')
+    : tt('news.openRoundBadge');
+
   const currentResult = round && myResult ? myResult.find(r => r.round_id === round.round_id) : null;
   // ยืนยันแล้ว แก้ไขไม่ได้อีก (backend บล็อก 409) ปุ่มจึงต้องเปลี่ยนเป็นดูสถานะแทนที่จะชวนกดแล้วชนกำแพง
   const startBtnLabel = currentResult?.staff_status === 'approved' ? tt('news.viewStatusBtn')
@@ -125,7 +132,7 @@ export function StudentNewsReal({ go, lang }) {
         <div style={{ display: 'flex', gap: 0, alignItems: 'stretch', flexWrap: 'wrap' }}>
           <div style={{ background: 'linear-gradient(135deg,var(--navy-700),var(--navy-800))', color: '#fff', padding: '22px 26px', flex: '1 1 320px', display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div className="chip" style={{ alignSelf: 'flex-start', background: 'rgba(255,255,255,.14)', color: 'var(--gold-500)', fontWeight: 700 }}>
-              <Icon name="clock" size={14} /> {round ? tt('news.openRoundBadge') : tt('news.noOpenRound')}
+              <Icon name="clock" size={14} /> {badgeText}
             </div>
             {round && <div style={{ fontSize: 21, fontWeight: 800, marginTop: 4 }}>{tt('news.roundSlash', { attempt: round.attempt_number, year: round.academic_year })}</div>}
             {round && <div style={{ fontSize: 15.5, opacity: .85 }}>{tt('news.openPeriod', { open: new Date(round.open_date).toLocaleDateString('th-TH'), close: new Date(round.close_date).toLocaleDateString('th-TH') })}</div>}
@@ -136,7 +143,7 @@ export function StudentNewsReal({ go, lang }) {
               <div style={{ fontSize: 15.5, color: 'var(--ink-500)', fontWeight: 600, marginBottom: currentResult ? 7 : 0 }}>{tt('news.yourStatusLabel')}</div>
               {currentResult && <StatusBadge status={STAFF_STATUS_TO_BADGE[currentResult.staff_status]} size="lg" lang={lang} />}
             </div>
-            <button className="btn btn-gold btn-lg" disabled={!round}
+            <button className="btn btn-gold btn-lg" disabled={!acceptingNow && currentResult?.staff_status !== 'approved'}
               onClick={() => go(currentResult?.staff_status === 'approved' ? 'status' : 'formIntro')}>
               <Icon name="edit" size={18} /> {startBtnLabel}</button>
           </div>
@@ -325,7 +332,7 @@ export function ManageNewsReal({ toast, lang }) {
 
       <Modal open={!!modal} onClose={() => setModal(null)} title={modal?.news_id ? tt('newsMgmt.editModalTitle') : tt('newsMgmt.newModalTitle')} width={560}
         footer={<><button className="btn btn-ghost" onClick={() => setModal(null)}>{tt('newsMgmt.cancelBtn')}</button>
-          <button className="btn btn-primary" disabled={saving} onClick={submit}><Icon name="send" size={16} /> {saving ? tt('newsMgmt.publishing') : tt('newsMgmt.publishBtn')}</button></>}>
+          <button className="btn btn-primary" disabled={saving} onClick={submit}><Icon name="send" size={16} /> {saving ? tt('newsMgmt.publishing') : modal?.news_id ? tt('newsMgmt.saveEditBtn') : tt('newsMgmt.publishBtn')}</button></>}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div className="field"><label>{tt('newsMgmt.fieldTitle')}</label><input className="input" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder={tt('newsMgmt.titlePh')} /></div>
           <div className="field"><label>{tt('newsMgmt.fieldRound')}</label>

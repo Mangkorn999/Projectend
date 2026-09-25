@@ -12,6 +12,9 @@ import {
   bulkImport,
   resetPassword,
   remove,
+  listPendingAccounts,
+  bulkRemove,
+  removePendingAccounts,
   exportSubjectList,
   getSubjectResultList,
 } from "./student.controller.js";
@@ -30,6 +33,11 @@ router.get("/", authenticate, requireRole("officer", "reviewer"), getAll);
 // เฉพาะ officer เท่านั้น (เหมือน /api/dashboard/export) — ดูรายชื่อรายบุคคล ผู้บริหารไม่มีสิทธิ์ (data minimization)
 router.get("/export-subject", authenticate, requireRole("officer"), exportSubjectList);
 router.get("/subject-result-list", authenticate, requireRole("officer"), getSubjectResultList);
+// บัญชีที่ import แล้วยังไม่กรอกโปรไฟล์ — ต้องอยู่ก่อน /:id ไม่งั้น "pending-accounts" ถูกตีเป็นรหัสนักศึกษา
+router.get("/pending-accounts", authenticate, requireRole("officer"), listPendingAccounts);
+router.post("/pending-accounts/delete", authenticate, requireRole("officer"), removePendingAccounts);
+// ลบนักศึกษาหลายคนพร้อมกัน (เฉพาะคนที่ยังไม่มีผลสอบ)
+router.post("/bulk-delete", authenticate, requireRole("officer"), bulkRemove);
 router.get("/:id", authenticate, requireRole("officer", "student", "reviewer"), getById); // student เช็ค ownership ต่อใน controller
 // เพิ่มนักศึกษาทีละคน (พิมพ์เอง) — คู่กับ import CSV ด้านล่าง
 router.post("/", authenticate, requireRole("officer"), create);

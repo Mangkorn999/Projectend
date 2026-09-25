@@ -6,6 +6,8 @@
 // **ห้ามส่งปีจริงเข้ามา** — ใช้เฉพาะปีสมมติที่เทสตั้งเอง (2590+) ข้อมูลจริงคือ 2560–2575
 // ถ้าเทสทิ้งรุ่นไว้ มันจะไปโผล่เป็นปีการศึกษาปลอมบน dashboard แล้วเบียดปีจริงออกจากกราฟย้อนหลัง
 import { PrismaClient } from "@prisma/client";
+import fs from "fs/promises";
+import path from "path";
 
 export const cleanupYears = async (years) => {
   const safe = years.filter((y) => y >= 2590);
@@ -26,7 +28,10 @@ export const cleanupYears = async (years) => {
     });
     const rids = results.map((r) => r.result_id);
 
+    // ลบไฟล์ PDF บน disk ด้วย ไม่ใช่แค่แถวใน DB — เดิมลบแต่แถว ไฟล์ทดสอบเลยค้างสะสมใน uploads/certificates ทุกรอบที่รันเทส
+    const certs = await prisma.certificate.findMany({ where: { result_id: { in: rids } }, select: { file_path: true } });
     await prisma.certificate.deleteMany({ where: { result_id: { in: rids } } });
+    for (const c of certs) await fs.rm(path.resolve(c.file_path), { force: true });
     await prisma.subjectResult.deleteMany({ where: { result_id: { in: rids } } });
     await prisma.reviewLog.deleteMany({ where: { result_id: { in: rids } } });
     await prisma.examResult.deleteMany({ where: { result_id: { in: rids } } });

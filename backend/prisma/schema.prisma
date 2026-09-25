@@ -144,7 +144,7 @@ model ReviewLog {
   log_id      Int        @id @default(autoincrement())
   result_id   Int
   reviewer_id Int
-  action      String     @db.VarChar(20) // "approved" | "rejected"
+  action      String     @db.VarChar(20) // "approved" | "rejected" | "revoked" (ถอนการยืนยัน)
   remark      String?    @db.Text // snapshot ของ remark ตอนตรวจครั้งนั้น (ถ้ามี)
   created_at  DateTime   @default(now())
   exam_result ExamResult @relation(fields: [result_id], references: [result_id])

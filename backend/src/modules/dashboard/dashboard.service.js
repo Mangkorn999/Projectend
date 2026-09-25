@@ -590,13 +590,13 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 // นับวันแบบตัดเวลาออก เทียบ "วัน" ต่อ "วัน"
 // ไม่งั้นรอบที่ปิด 23:59 วันนี้จะกลายเป็นเหลือ 0 วันตั้งแต่เช้า
-const daysUntil = (date) => {
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-  const startOfTarget = new Date(date);
-  startOfTarget.setHours(0, 0, 0, 0);
-  return Math.round((startOfTarget - startOfToday) / DAY_MS);
-};
+//
+// นับ "วัน" ตามเวลาไทย (UTC+7) ไม่ใช้ setHours() — setHours ใช้ timezone ของเครื่อง server
+// deploy บนเครื่องที่ตั้งเป็น UTC แล้วตี 1 ตามเวลาไทยจะยังเป็น "เมื่อวาน" จำนวนวันเหลือเพี้ยนไป 1
+// (ไทยไม่มี daylight saving เลย เลยบวก 7 ชั่วโมงแล้วหารเป็นวันได้ตรงๆ — ท่าเดียวกับ rounds.controller.js)
+const ICT_OFFSET_MS = 7 * 60 * 60 * 1000;
+const ictDayNumber = (date) => Math.floor((new Date(date).getTime() + ICT_OFFSET_MS) / DAY_MS);
+const daysUntil = (date) => ictDayNumber(date) - ictDayNumber(new Date());
 
 const CLOSING_SOON_DAYS = 7; // เตือนล่วงหน้ากี่วันก่อนปิดรอบ
 

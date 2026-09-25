@@ -16,6 +16,8 @@
 
 import { spawn } from "child_process";
 import { PrismaClient } from "@prisma/client";
+import fs from "fs";
+import path from "path";
 
 const TEST_SCHEMA = "verify_tmp";
 const TEST_PORT = 3100;
@@ -36,6 +38,8 @@ const TEST_FILES = [
   "tests/smoke-phase17-import-year.mjs",
   "tests/smoke-phase18-round-dates.mjs",
   "tests/smoke-phase19-guards.mjs",
+  "tests/smoke-phase20-hardening.mjs",
+  "tests/smoke-phase21-pending-accounts.mjs",
 ];
 
 // ── เตรียม URL ของ DB ชั่วคราว ────────────────────────────────
@@ -156,6 +160,11 @@ async function main() {
   const admin = new PrismaClient();
   let server = null;
 
+  // เทสอัปโหลดไฟล์จริงลง uploads/ (PDF หลักฐาน, รูปประกาศ) แล้ว schema ทดสอบถูกลบทิ้ง แต่ไฟล์ไม่ถูกลบตาม
+  // → เก็บรายชื่อไฟล์ก่อนรัน แล้วตอนจบลบเฉพาะไฟล์ "ใหม่" ที่ไม่มีแถวในฐานข้อมูลจริงอ้างถึง
+  const uploadDirs = ["uploads/certificates", "uploads/news"].map((d) => path.resolve(d));
+  const filesBefore = new Map(uploadDirs.map((d) => [d, new Set(fs.existsSync(d) ? fs.readdirSync(d) : [])]));
+
   try {
     console.log(`\n[1/4] สร้าง schema ${TEST_SCHEMA} ใหม่`);
     // ลบก่อนเผื่อรอบที่แล้วค้างไว้ (เช่นกด Ctrl+C กลางคัน)
@@ -208,6 +217,23 @@ async function main() {
     // ต้องเก็บกวาดเสมอ ถึงจะพังกลางทางก็ตาม ไม่งั้น schema ค้างไว้ในฐานข้อมูล
     await stopServer(server);
     await admin.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${TEST_SCHEMA}" CASCADE`);
+    try {
+      // ไฟล์ที่ฐานข้อมูลจริง (public) ยังอ้างถึงอยู่ ห้ามลบเด็ดขาด
+      const inUse = new Set([
+        ...(await admin.certificate.findMany({ select: { file_path: true } })).map((r) => path.basename(r.file_path)),
+        ...(await admin.news.findMany({ select: { image_path: true } })).map((r) => path.basename(r.image_path ?? "")),
+      ]);
+      let removed = 0;
+      for (const dir of uploadDirs) {
+        if (!fs.existsSync(dir)) continue;
+        for (const f of fs.readdirSync(dir)) {
+          if (!filesBefore.get(dir).has(f) && !inUse.has(f)) { fs.rmSync(path.join(dir, f), { force: true }); removed++; }
+        }
+      }
+      console.log(`ลบไฟล์อัปโหลดที่เทสสร้างค้างไว้ ${removed} ไฟล์`);
+    } catch (e) {
+      console.log("เก็บกวาดไฟล์อัปโหลดไม่สำเร็จ (ไม่กระทบผลเทส):", e.message);
+    }
     await admin.$disconnect();
     console.log(`ลบ schema ${TEST_SCHEMA} แล้ว`);
   }

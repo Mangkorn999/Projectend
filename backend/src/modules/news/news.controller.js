@@ -3,12 +3,28 @@ import fs from "fs/promises";
 import path from "path";
 import * as newsRepo from "./news.repository.js";
 import * as studentRepo from "../students/student.repository.js";
+import * as roundsRepo from "../rounds/rounds.repository.js";
 
 // helper สร้าง error ให้ errorHandler จัดการต่อ
 const httpError = (message, statusCode) => {
   const err = new Error(message);
   err.statusCode = statusCode;
   return err;
+};
+
+// ตรวจหัวข้อ/เนื้อหา — ต้องเป็นข้อความไม่ว่าง และหัวข้อไม่เกิน 255 (ตรงกับ VarChar(255) ใน schema)
+const ensureNewsText = ({ title, content }) => {
+  if (typeof title !== "string" || !title.trim()) throw httpError("กรุณากรอกหัวข้อประกาศ", 400);
+  if (typeof content !== "string" || !content.trim()) throw httpError("กรุณากรอกเนื้อหาประกาศ", 400);
+  if (title.trim().length > 255) throw httpError("หัวข้อยาวเกินไป (ไม่เกิน 255 ตัวอักษร)", 400);
+};
+
+// round_id ต้องเป็นรอบที่มีจริง — เดิมส่งเลขมั่วมา FK พังเป็น 500
+const ensureRoundExists = async (round_id) => {
+  const id = Number(round_id);
+  if (!Number.isInteger(id) || !(await roundsRepo.findById(id))) {
+    throw httpError("ไม่พบรอบสอบที่เลือก", 400);
+  }
 };
 
 // GET /api/news — ทุก role ดูได้ แต่เห็นไม่เท่ากัน
@@ -36,11 +52,13 @@ export const createNews = async (req, res, next) => {
     const { title, content, round_id } = req.body;
 
     if (!title || !content || !round_id) {
-      throw httpError("ต้องส่ง title, content และ round_id", 400);
+      throw httpError("กรุณากรอกหัวข้อ เนื้อหา และเลือกรอบสอบให้ครบ", 400);
     }
+    ensureNewsText({ title, content });
+    await ensureRoundExists(round_id);
 
     const news = await newsRepo.create({
-      title,
+      title: title.trim(),
       content,
       round_id: Number(round_id),
       posted_by: req.user.userId,
@@ -59,9 +77,16 @@ export const updateNews = async (req, res, next) => {
 
     const { title, content, round_id } = req.body;
     const data = {};
-    if (title !== undefined) data.title = title;
+    // ส่งมาแล้วต้องไม่ว่าง — เดิมแก้หัวข้อเป็นค่าว่างได้ ประกาศจะกลายเป็นการ์ดเปล่า
+    if (title !== undefined || content !== undefined) {
+      ensureNewsText({ title: title ?? existing.title, content: content ?? existing.content });
+    }
+    if (title !== undefined) data.title = title.trim();
     if (content !== undefined) data.content = content;
-    if (round_id !== undefined) data.round_id = Number(round_id);
+    if (round_id !== undefined) {
+      await ensureRoundExists(round_id);
+      data.round_id = Number(round_id);
+    }
 
     const news = await newsRepo.update(req.params.id, data);
     res.json({ success: true, data: news });
