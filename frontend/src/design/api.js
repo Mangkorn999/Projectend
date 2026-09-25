@@ -43,9 +43,11 @@ export async function logout() {
 
 /* ApiError — ให้หน้าเรียก catch แล้วอ่าน .message (ข้อความไทยจาก backend) ไปโชว์ users ได้ตรงๆ */
 export class ApiError extends Error {
-  constructor(message, status) {
+  constructor(message, status, payload) {
     super(message);
     this.status = status;
+    // ก้อน JSON ที่ backend ตอบมาทั้งก้อน — บาง error มีข้อมูลประกอบ (เช่น import ตอบ code + รายชื่อคอลัมน์ในไฟล์)
+    this.payload = payload;
   }
 }
 
@@ -85,7 +87,7 @@ export async function apiFetch(path, { method = 'GET', body, auth = true } = {})
     // 401 จากการเช็ครหัสผ่าน (login ผิด / รหัสเดิมผิด) ไม่มี code นี้ — ต้องปล่อยให้หน้าโชว์ error เอง
     // ไม่งั้นกรอกรหัสผิดทีเดียวหน้าจะ reload ทิ้งข้อความ error ที่เพิ่งขึ้น
     if (res.status === 401 && json.code === 'auth_required') forceLogout();
-    throw new ApiError(json.message || `Request failed (${res.status})`, res.status);
+    throw new ApiError(json.message || `Request failed (${res.status})`, res.status, json);
   }
   // backend ส่วนใหญ่ห่อคำตอบไว้ใน .data แต่บางตัว (เช่น /auth/login) ส่งมาแบนๆ
   // เช็คว่า "มี key ชื่อ data ไหม" ไม่ใช่ "data มีค่าไหม" — data: null คือคำตอบที่ตั้งใจส่งมา

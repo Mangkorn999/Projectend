@@ -4,15 +4,9 @@
    ============================================================ */
 import { useState } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead } from './components.jsx';
+import { PageHead, Select } from './components.jsx';
 import { apiFetch, ApiError } from './api.js';
 import { t } from './i18n.js';
-
-// academic_year ไม่บังคับ — แถวตัวอย่างที่ 2 คือคนซ้ำชั้น (รหัส 66 ปกติจบ 2570 แต่จบจริง 2572)
-const CSV_TEMPLATE =
-  'student_id,national_id,academic_year\n' +
-  '6610210001,1234567890123,\n' +
-  '6610210002,1234567890124,2572\n';
 
 // BOM = ตัวอักษรล่องหนหัวไฟล์ บอก Excel ว่าไฟล์เป็น UTF-8 (ไม่งั้นภาษาไทยเพี้ยน)
 const BOM = '\uFEFF';
@@ -85,20 +79,20 @@ function CsvImport({ toast, tt }) {
   const [result, setResult] = useState(null);   // ผลนำเข้าจริง — มีค่า = นำเข้าเสร็จแล้ว
   const [view, setView] = useState('skipped'); // 'imported' | 'skipped' — ตารางไหนกำลังโชว์อยู่
   const [error, setError] = useState('');
+  // ระบบจับคู่ชื่อคอลัมน์ในไฟล์ไม่ได้ (เช่น Google Form ใช้ชื่อคำถามเป็นหัวคอลัมน์) → ให้เจ้าหน้าที่เลือกเองว่าคอลัมน์ไหนคืออะไร
+  const [columnPick, setColumnPick] = useState(null); // { columns: [ชื่อคอลัมน์ในไฟล์] } — มีค่า = แสดงช่องเลือก
+  const [mapping, setMapping] = useState({});        // { student_id, national_id, academic_year } → ชื่อคอลัมน์ในไฟล์ที่เลือก
 
-  // เปลี่ยนไฟล์ = ผลตรวจเดิมใช้ไม่ได้แล้ว ต้องล้างทิ้งทั้งหมด
+  // เปลี่ยนไฟล์ = ผลตรวจเดิมใช้ไม่ได้แล้ว ต้องล้างทิ้งทั้งหมด (รวมคอลัมน์ที่เลือกไว้ด้วย — ไฟล์ใหม่หัวคอลัมน์อาจไม่เหมือนเดิม)
   // ไม่งั้นกด "ยืนยัน" จะนำเข้าไฟล์ใหม่โดยที่ผู้ใช้เห็นสรุปของไฟล์เก่าอยู่
-  const pickFile = (f) => { setFile(f); setPreview(null); setResult(null); setError(''); };
+  const pickFile = (f) => { setFile(f); setPreview(null); setResult(null); setError(''); setColumnPick(null); setMapping({}); };
 
   const downloadTemplate = () => {
-    // สร้างไฟล์ CSV ตัวอย่างในเบราว์เซอร์ ไม่ต้องพึ่ง backend — ให้เจ้าหน้าที่เอาไปแก้เป็นรายชื่อจริง
-    // BOM นำหน้าไฟล์ ไม่งั้น Excel เดา encoding เป็น ANSI/Windows-874 แล้วภาษาไทยเพี้ยน
-    const blob = new Blob([BOM + CSV_TEMPLATE], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
+    // ไฟล์ตัวอย่างเป็น .xlsx (อยู่ใน public/) ที่ตั้งทุกคอลัมน์เป็น Text ไว้แล้ว — เจ้าหน้าที่พิมพ์เลขบัตร 13 หลักทับได้เลย
+    // ไม่ถูกแปลงเป็น 1.23E+12 · แถวตัวอย่างที่ 2 คือคนซ้ำชั้น (รหัส 66 ปกติจบ 2570 แต่จบจริง 2572), academic_year ไม่บังคับ
     const a = document.createElement('a');
-    a.href = url; a.download = 'student_import_template.csv';
+    a.href = '/student_import_template.xlsx'; a.download = 'student_import_template.xlsx';
     a.click();
-    URL.revokeObjectURL(url);
   };
 
   const downloadSkipped = (data) => {
@@ -114,6 +108,8 @@ function CsvImport({ toast, tt }) {
   const send = async (dryRun) => {
     const form = new FormData();
     form.append('file', file);
+    // คอลัมน์ที่เจ้าหน้าที่เลือกเอง — ส่งซ้ำทั้งตอนตรวจและตอนยืนยัน ไม่งั้นสองรอบจะอ่านไฟล์คนละแบบ
+    if (Object.keys(mapping).length > 0) form.append('mapping', JSON.stringify(mapping));
     // apiFetch ตรวจเจอ FormData แล้วไม่ใส่ Content-Type เอง (browser จัดการ boundary ให้)
     const url = dryRun ? '/students/import?dry_run=true' : '/students/import';
     return apiFetch(url, { method: 'POST', body: form });
@@ -125,10 +121,17 @@ function CsvImport({ toast, tt }) {
     setError(''); setResult(null); setPreview(null); setBusy(true);
     try {
       const data = await send(true);
+      setColumnPick(null);
       setPreview(data);
       setView(data.skipped_count > 0 ? 'skipped' : 'imported'); // มีแถวที่ข้ามให้เห็นก่อน
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : tt('importReal.importFailMsg'));
+      if (e instanceof ApiError && e.payload?.code === 'missing_columns') {
+        // backend เดาคอลัมน์ไม่ได้ → เปิดช่องให้เลือกเอง โดยเติมช่องที่เดาได้แล้วไว้ให้ก่อน (เจ้าหน้าที่แก้เฉพาะช่องที่เหลือ)
+        setColumnPick({ columns: e.payload.columns || [] });
+        setMapping(Object.fromEntries(Object.entries(e.payload.mapping || {}).filter(([, v]) => v)));
+      } else {
+        setError(e instanceof ApiError ? e.message : tt('importReal.importFailMsg'));
+      }
     } finally {
       setBusy(false);
     }
@@ -163,7 +166,8 @@ function CsvImport({ toast, tt }) {
             {tt('importReal.csvColumnsNote').replace('{cols}', '')}<span className="mono" style={{ fontSize:14 }}>student_id, national_id</span><br/>
             {tt('importReal.yearColumnNote')}<br/>
             {tt('importReal.noPasswordNote')}<br/>
-            <b>{tt('importReal.excelNote')}</b>
+            <b>{tt('importReal.excelNote')}</b><br/>
+            {tt('importReal.anyNameNote')}
           </div>
         </div>
         <div style={{ display:'flex', gap:12, alignItems:'center', flexWrap:'wrap' }}>
@@ -200,6 +204,29 @@ function CsvImport({ toast, tt }) {
             </button>
           )}
         </div>
+        {columnPick && (
+          <div style={{ marginTop:14, padding:16, borderRadius:12, background:'var(--status-wait-bg)', border:'1px solid var(--gold-100)' }}>
+            <div style={{ fontSize:16.5, fontWeight:800, color:'var(--status-wait-fg)', marginBottom:4 }}>{tt('importReal.mapTitle')}</div>
+            <div style={{ fontSize:15, color:'var(--ink-700)', marginBottom:14, lineHeight:1.6 }}>{tt('importReal.mapHint')}</div>
+            <div style={{ display:'flex', gap:14, flexWrap:'wrap', marginBottom:14 }}>
+              {[
+                ['student_id', 'importReal.mapStudentId', false],
+                ['national_id', 'importReal.mapNationalId', false],
+                ['academic_year', 'importReal.mapYear', true],
+              ].map(([field, labelKey, optional]) => (
+                <div key={field} className="field" style={{ flex:'1 1 220px', minWidth:200 }}>
+                  <label>{tt(labelKey)}</label>
+                  <Select value={mapping[field] ?? ''} onChange={v => setMapping(m => ({ ...m, [field]: v }))}
+                    options={[{ value:'', label: optional ? tt('importReal.mapNone') : tt('importReal.mapChoose') },
+                      ...columnPick.columns.map(c => ({ value:c, label:c }))]} />
+                </div>
+              ))}
+            </div>
+            <button className="btn btn-primary" onClick={check} disabled={busy || !mapping.student_id || !mapping.national_id}>
+              {busy ? tt('importReal.checking') : tt('importReal.mapRecheckBtn')}
+            </button>
+          </div>
+        )}
         {error && (
           <div role="alert" style={{ display:'flex', gap:10, alignItems:'flex-start', color:'var(--status-reject-fg)',
             background:'var(--status-reject-bg)', borderRadius:9, padding:'11px 14px', fontSize:15, marginTop:14 }}>
@@ -212,6 +239,13 @@ function CsvImport({ toast, tt }) {
       {shown && (
         <div aria-live="polite" className="fade-up">
           <ResultBanner result={shown} isPreview={!!preview} tt={tt} />
+
+          {/* บอกว่าระบบอ่านคอลัมน์ไหนของไฟล์ไปใช้ — ให้เจ้าหน้าที่เห็นก่อนยืนยัน กันจับคู่ผิดเงียบๆ */}
+          {shown.columns_used && (
+            <div style={{ fontSize:14, color:'var(--ink-500)', margin:'-6px 2px 14px', lineHeight:1.6 }}>
+              {tt('importReal.columnsUsed')}: {tt('importReal.mapStudentId').replace(' *','')} ← <b>{shown.columns_used.student_id}</b> · {tt('importReal.mapNationalId').replace(' *','')} ← <b>{shown.columns_used.national_id}</b> · {tt('importReal.mapYear').replace(/ \(.*\)/,'')} ← <b>{shown.columns_used.academic_year || tt('importReal.mapNone')}</b>
+            </div>
+          )}
 
           {/* คนที่ใส่ปีจบไม่ตรงกับรหัส — ต้องเห็นก่อนยืนยัน เพราะเป็นตัวตัดสินว่านักศึกษาจะเห็นรอบสอบไหน */}
           {shown.year_overrides?.length > 0 && <OverridesCard rows={shown.year_overrides} tt={tt} />}

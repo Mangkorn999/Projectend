@@ -34,3 +34,4 @@ backend/generated/
 backend/test.http
 # fixture ของเทส (ข้อมูลสมมติล้วน) — ไฟล์ .xlsx อื่นยังโดน ignore เหมือนเดิม กันไฟล์รายชื่อจริงหลุดเข้า repo
 !backend/tests/fixtures/*.xlsx
+!frontend/public/student_import_template.xlsx

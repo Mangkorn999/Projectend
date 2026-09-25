@@ -206,6 +206,38 @@ const main = async () => {
   check("Google Form: ขีดคั่น/เลขไทย/ช่องว่าง นำเข้าได้ 3 (คอลัมน์เกิน Timestamp/ชื่อ ถูกข้าม)", formCsv?.imported_count, 3);
   check("  เลขไม่ครบ 13 หลัก ยังถูกปฏิเสธ", `${formCsv?.skipped_count},${formCsv?.skipped?.[0]?.student_id}`, "1,6699991304");
 
+  // ── หัวคอลัมน์แบบ Google Form (ชื่อคำถามยาว/มีวงเล็บ) + ให้เจ้าหน้าที่เลือกคอลัมน์เอง ──
+  const dryRunMap = async (csvText, mapping) => {
+    const f = new FormData();
+    f.append("file", new Blob([Buffer.from(csvText, "utf8")], { type: "text/csv" }), "form.csv");
+    if (mapping !== undefined) f.append("mapping", typeof mapping === "string" ? mapping : JSON.stringify(mapping));
+    return call("POST", "/api/students/import?dry_run=true", { token: officerToken, form: f });
+  };
+
+  // ของจริงที่เจ้าหน้าที่เจอ: หัวคอลัมน์ = ชื่อคำถามใน Form
+  const realForm = await dryRunMap(
+    "ประทับเวลา,student_id(รหัสนักศึกษา),national_id(เลขบัตรปชช),academic_year(ปีจบการศึกษา)\r\n" +
+    "2026/09/25 10:00,6699991401,1929900326091,\r\n",
+  );
+  check("หัว 'student_id(รหัสนักศึกษา)' ... -> เดาได้เอง นำเข้าได้ 1", `${realForm.json?.data?.imported_count},${realForm.json?.data?.skipped_count}`, "1,0");
+  check("  ตอบกลับบอกว่าใช้คอลัมน์ไหน", realForm.json?.data?.columns_used?.national_id, "national_id(เลขบัตรปชช)");
+
+  // ชื่ออื่นที่เดาไม่ได้ -> 400 พร้อมรายชื่อคอลัมน์ให้หน้าจอทำช่องเลือก
+  const oddCsv = "ชื่อ,คอลัมน์ก,คอลัมน์ข\r\nสมชาย,6699991402,1929900326092\r\n";
+  const odd = await dryRunMap(oddCsv);
+  check("ชื่อคอลัมน์เดาไม่ได้ -> 400 code missing_columns", `${odd.status},${odd.json?.code}`, "400,missing_columns");
+  check("  ส่งรายชื่อคอลัมน์ในไฟล์กลับมาให้เลือก", odd.json?.columns?.join("|"), "ชื่อ|คอลัมน์ก|คอลัมน์ข");
+  const picked = await dryRunMap(oddCsv, { student_id: "คอลัมน์ก", national_id: "คอลัมน์ข" });
+  check("เจ้าหน้าที่เลือกคอลัมน์เอง -> นำเข้าได้ 1", `${picked.json?.data?.imported_count},${picked.json?.data?.skipped_count}`, "1,0");
+  check("เลือกคอลัมน์ซ้ำกัน -> 400", (await dryRunMap(oddCsv, { student_id: "คอลัมน์ก", national_id: "คอลัมน์ก" })).status, 400);
+  check("เลือกคอลัมน์ที่ไม่มีในไฟล์ -> 400", (await dryRunMap(oddCsv, { student_id: "ไม่มีจริง", national_id: "คอลัมน์ข" })).status, 400);
+  check("ส่ง mapping ไม่ใช่ JSON -> 400", (await dryRunMap(oddCsv, "{{{")).status, 400);
+
+  // ปีเข้าเรียนต้องไม่ถูกเดาเป็นปีจบ (จะทำให้นักศึกษาเห็นรอบสอบของรุ่นผิดเงียบๆ)
+  const admitYear = await dryRunMap("student_id,national_id,ปีการศึกษาที่เข้า\r\n6699991403,1929900326093,2566\r\n");
+  check("'ปีการศึกษาที่เข้า' ไม่ถูกจับเป็นปีจบ", admitYear.json?.data?.columns_used?.academic_year, null);
+  check("  ยังนำเข้าได้ปกติ (คำนวณปีจบจากรหัส)", admitYear.json?.data?.imported_count, 1);
+
   console.log(results.join("\n"));
   console.log(`\n${results.length - failures}/${results.length} passed`);
   if (failures > 0) process.exit(1);

@@ -353,23 +353,75 @@ export const bulkSetEligible = async (req, res, next) => {
   }
 };
 
-// ชื่อคอลัมน์ที่เจ้าหน้าที่พิมพ์เองใน Excel มักไม่ตรงตัวอักษรกับ template — "Student ID", "รหัสนักศึกษา", "เลขบัตรประชาชน"
-// รับเป็นชื่อเดียวกับที่ระบบรู้จัก จะได้ไม่ต้องให้เจ้าหน้าที่นั่งแก้หัวคอลัมน์ทีละไฟล์
-// (เทียบหลัง trim + ตัวเล็ก + ช่องว่าง/ขีดกลาง -> "_")
-const COLUMN_ALIASES = {
-  student_id: ["studentid", "student_no", "student_number", "รหัสนักศึกษา", "รหัส_นักศึกษา", "รหัสนศ", "รหัส"],
+// ─── จับคู่คอลัมน์ในไฟล์กับช่องที่ระบบต้องการ ───
+// ชื่อคอลัมน์ที่เจ้าหน้าที่ตั้งเองไม่มีทางตรงกับ template ทุกตัว — Google Form ใช้ "ชื่อคำถาม" เป็นหัวคอลัมน์
+// เช่น "student_id(รหัสนักศึกษา)" หรือ "กรุณากรอกเลขบัตรประชาชน" จะบังคับให้ตั้งชื่อตายตัวไม่ได้
+// ลำดับ: 1) เจ้าหน้าที่เลือกเอง (mapping จากหน้าจอ)  2) ชื่อตรงเป๊ะ  3) ชื่อมี "คำสำคัญ" อยู่ข้างใน
+//        4) ยังจับไม่ได้/กำกวม → ตอบกลับพร้อมรายชื่อคอลัมน์ ให้หน้าจอถามเจ้าหน้าที่ให้เลือกเอง
+const COLUMN_FIELDS = ["student_id", "national_id", "academic_year"];
+const COLUMN_KEYWORDS = {
+  student_id: ["student_id", "studentid", "student_no", "student_number", "รหัสนักศึกษา", "รหัสนศ"],
   national_id: [
-    "nationalid", "id_card", "idcard", "citizen_id", "citizenid", "national_id_number",
-    "เลขบัตรประชาชน", "เลขบัตร_ประชาชน", "เลขบัตร", "เลขประจำตัวประชาชน", "เลขบัตร_ปชช", "เลขปชช",
+    "national_id", "nationalid", "id_card", "idcard", "citizen_id", "citizenid",
+    "เลขบัตร", "เลขประจำตัวประชาชน", "บัตรประชาชน", "ปชช",
   ],
-  academic_year: ["academicyear", "graduation_year", "ปีการศึกษา", "ปีการศึกษาที่จบ", "ปีที่จบ"],
+  // ปีจบเท่านั้น — "ปีการศึกษา" เฉยๆ รับเฉพาะตรงเป๊ะ (ดู EXACT_NAMES) เพราะ "ปีการศึกษาที่เข้า" คือปีเข้าเรียน
+  // ถ้าจับคู่มั่วนักศึกษาจะเห็นรอบสอบของรุ่นผิดโดยไม่มีใครรู้
+  academic_year: ["academic_year", "academicyear", "graduation", "ปีที่จบ", "ปีจบ", "จบการศึกษา"],
 };
-const canonicalColumn = (raw) => {
-  const key = String(raw ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
-  for (const [name, aliases] of Object.entries(COLUMN_ALIASES)) {
-    if (key === name || aliases.includes(key)) return name;
+const EXACT_NAMES = { academic_year: ["ปีการศึกษา"] };
+const normalizeHeader = (raw) => String(raw ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+
+// เดาจากชื่อหัว → { student_id: "หัวจริงในไฟล์" | null, ... }
+// ช่องหนึ่งตรงกับหลายคอลัมน์ = กำกวม คืน null ให้เจ้าหน้าที่เลือกเอง (ดีกว่าเดาผิดเงียบๆ)
+const guessColumns = (headers) => {
+  const guess = {};
+  const used = new Set();
+  for (const field of COLUMN_FIELDS) {
+    const exactNames = [field, ...(EXACT_NAMES[field] ?? [])];
+    const exact = headers.filter((h) => exactNames.includes(normalizeHeader(h)));
+    const matches = exact.length
+      ? exact
+      : headers.filter((h) => COLUMN_KEYWORDS[field].some((k) => normalizeHeader(h).includes(k)));
+    const free = matches.filter((h) => !used.has(h));
+    guess[field] = free.length === 1 ? free[0] : null;
+    if (guess[field]) used.add(guess[field]);
   }
-  return key;
+  return guess;
+};
+
+// รวมที่เดาได้ กับที่เจ้าหน้าที่เลือกเอง (เลือกเองชนะเสมอ) · requested[field] = "" = ไม่ใช้ช่องนี้ (ทำได้เฉพาะ academic_year)
+const resolveColumns = (headers, requested) => {
+  const mapping = guessColumns(headers);
+  if (requested && typeof requested === "object") {
+    for (const field of COLUMN_FIELDS) {
+      const chosen = requested[field];
+      if (chosen === undefined) continue;
+      if (chosen === "" || chosen === null) {
+        mapping[field] = null;
+        continue;
+      }
+      if (!headers.includes(chosen)) throw httpError(`ไม่พบคอลัมน์ "${chosen}" ในไฟล์`, 400);
+      mapping[field] = chosen;
+    }
+  }
+  const picked = COLUMN_FIELDS.map((f) => mapping[f]).filter(Boolean);
+  if (new Set(picked).size !== picked.length) {
+    throw httpError("เลือกคอลัมน์ซ้ำกัน — 1 คอลัมน์ใช้ได้กับ 1 ช่องเท่านั้น", 400);
+  }
+  return mapping;
+};
+
+// multipart ส่ง mapping มาเป็นข้อความ JSON: {"student_id":"หัวคอลัมน์", ...}
+const parseMappingParam = (raw) => {
+  if (raw === undefined || raw === "") return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
+  } catch {
+    // ตกไปข้างล่าง
+  }
+  throw httpError("รูปแบบการเลือกคอลัมน์ไม่ถูกต้อง", 400);
 };
 
 // รหัสนักศึกษา/เลขบัตรที่คนกรอกเอง (เช่น Google Form) มักมีขีดคั่น ช่องว่าง หรือเป็นเลขไทย
@@ -401,7 +453,7 @@ const rowsFromCsv = (buffer) => {
   try {
     rows = parse(csvText, {
       // ชื่อคอลัมน์: ตัดช่องว่าง + แปลงเป็นตัวเล็ก — "Student_ID" / " national_id" จาก Excel ก็อ่านได้
-      columns: (header) => header.map(canonicalColumn),
+      columns: (header) => header.map((h) => String(h ?? "").trim()),
       // Excel ที่ตั้งภาษา/ภูมิภาคบางแบบ save CSV คั่นด้วย ; หรือ tab แทน , — รับทั้งสามแบบ
       delimiter: [",", ";", "\t"],
       skip_empty_lines: true,
@@ -435,7 +487,7 @@ const rowsFromXlsx = async (buffer) => {
   if (!sheet || sheet.length === 0) return [];
 
   const [header, ...body] = sheet;
-  const names = header.map(canonicalColumn);
+  const names = header.map((h) => String(h ?? "").trim());
   // ค่าในเซลล์ -> ข้อความ (วันที่/ว่าง = ข้อความว่าง ให้ด่านตรวจแถวด้านล่างตีเป็น "ข้อมูลไม่ครบ" เอง)
   const cellText = (v) => {
     if (v === null || v === undefined || v instanceof Date) return "";
@@ -494,15 +546,19 @@ export const bulkImport = async (req, res, next) => {
     }
 
     // เช็ค header ให้ครบก่อนวนลูป — กันเสีย request DB ทั้งไฟล์เพราะ column พิมพ์ผิด
-    const missingCols = REQUIRED_COLUMNS.filter(
-      (c) => !Object.keys(rows[0]).includes(c),
-    );
+    const headers = Object.keys(rows[0]);
+    const mapping = resolveColumns(headers, parseMappingParam(req.body?.mapping));
+    const missingCols = REQUIRED_COLUMNS.filter((c) => !mapping[c]);
     if (missingCols.length > 0) {
-      const err = new Error(
-        `ไฟล์ขาดคอลัมน์: ${missingCols.join(", ")} (คอลัมน์ที่พบในไฟล์: ${Object.keys(rows[0]).join(", ")})`,
-      );
-      err.statusCode = 400;
-      throw err;
+      // ตอบเป็น JSON เองพร้อมรายชื่อคอลัมน์ในไฟล์ — หน้าจอเอาไปทำช่อง "เลือกว่าคอลัมน์ไหนคืออะไร" ให้เจ้าหน้าที่
+      return res.status(400).json({
+        success: false,
+        code: "missing_columns",
+        message: `ไฟล์ขาดคอลัมน์: ${missingCols.join(", ")} (คอลัมน์ที่พบในไฟล์: ${headers.join(", ")})`,
+        columns: headers,
+        mapping,
+        missing: missingCols,
+      });
     }
 
     // ทุกแถวใช้ role เดียวกัน — ดึงครั้งเดียวนอกลูปพอ
@@ -526,10 +582,10 @@ export const bulkImport = async (req, res, next) => {
       const rowNum = i + 2; // +1 เพราะแถวแรกคือ header, +1 เพราะนับแบบ 1-indexed ให้ตรงกับที่เห็นใน Excel
       const row = rows[i];
       // academic_year เป็นคอลัมน์ไม่บังคับ — ไฟล์เก่าที่ไม่มีคอลัมน์นี้ก็ได้ undefined ถือว่าเว้นว่าง
-      const { academic_year } = row;
+      const academic_year = mapping.academic_year ? row[mapping.academic_year] : undefined;
       // ตัดช่องว่างซ้ำอีกชั้น — csv-parse ไม่ตัดช่องว่างที่อยู่ในเครื่องหมายคำพูด (เช่น "1234567890123 ")
-      const student_id = cleanIdText(row.student_id);
-      const national_id = cleanIdText(row.national_id);
+      const student_id = cleanIdText(row[mapping.student_id]);
+      const national_id = cleanIdText(row[mapping.national_id]);
 
       // validate ฟิลด์บังคับต่อแถว — ขาดฟิลด์ไหนก็ข้ามแถวนั้น ไม่ทำให้ทั้งไฟล์ล้ม
       if (!student_id || !national_id) {
@@ -635,6 +691,7 @@ export const bulkImport = async (req, res, next) => {
         imported,
         skipped,
         year_overrides: overridesKept,
+        columns_used: mapping, // คอลัมน์ในไฟล์ที่ถูกใช้เป็น student_id / national_id / academic_year (null = ไม่มี)
       },
     });
   } catch (err) {
