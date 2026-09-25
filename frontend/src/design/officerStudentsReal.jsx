@@ -30,7 +30,6 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
   const [room, setRoom] = useState('ALL');
   const [year, setYear] = useState(() => initialFilter?.year ? String(initialFilter.year) : 'ALL');
   const [eligible, setEligible] = useState('ALL');
-  const [examResult, setExamResult] = useState('ALL');
   // กรองรายวิชา — มาจากการคลิก "ผ่าน/ไม่ผ่าน" ในการ์ดอัตราผ่านรายวิชาที่ Dashboard เท่านั้น ไม่มี dropdown ให้เลือกเอง
   // ตั้งค่าเริ่มต้นจาก initialFilter ตรงๆ (lazy init) ไม่ต้อง setState ใน effect
   // roundId = null หมายถึง "รวมทั้งปี" (initialFilter.tab === 'all') — ไม่งั้นเป็น round_id ของรอบที่กดมาจาก Dashboard
@@ -131,8 +130,6 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
     if (room !== 'ALL' && s.room !== room) return false;
     if (year !== 'ALL' && String(s.year) !== year) return false;
     if (eligible !== 'ALL' && s.eligible !== (eligible === 'YES')) return false;
-    if (examResult === 'PASS' && !(s.allPass && s.status === 'CONFIRMED')) return false;
-    if (examResult === 'FAIL' && !(s.subjectCount > 0 && s.passedCount === 0 && s.status === 'CONFIRMED')) return false;
     // มาจากคลิก "ผ่าน/ไม่ผ่าน" ในการ์ดอัตราผ่านรายวิชาที่ Dashboard — ต้องคำนวณด้วยกฎ**เดียวกันเป๊ะ**กับที่
     // dashboard.service.js ใช้คิดเลขบนบัตร ไม่งั้นตัวเลขบัตรกับจำนวนคนในลิสต์นี้จะไม่ตรงกัน (เจอบั๊กนี้มาแล้ว 2 รอบ):
     //
@@ -162,7 +159,7 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
   const pageRows = filtered.slice(page * per, (page + 1) * per);
   const pages = Math.ceil(filtered.length / per);
 
-  useEffect(() => setPage(0), [q, status, room, year, eligible, examResult, subjectFilter, firstAttemptFilter]);
+  useEffect(() => setPage(0), [q, status, room, year, eligible, subjectFilter, firstAttemptFilter]);
 
   // ปีการศึกษา (พ.ศ.) ของนักศึกษาที่มีจริงในระบบ เรียงใหม่→เก่า
   const years = [...new Set(students.map(s => s.year).filter(Boolean))].sort((a, b) => b - a);
@@ -338,13 +335,6 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
             { value: 'CONFIRMED', label: tt('status.CONFIRMED') },
             { value: 'REJECTED', label: tt('status.REJECTED') },
             { value: 'DRAFT', label: tt('status.DRAFT') },
-          ]} />
-        <Select style={{ width: 'auto', minWidth: 150 }} value={examResult} onChange={setExamResult} lang={lang}
-          ariaLabel={tt('officer.students.allExamResult')}
-          options={[
-            { value: 'ALL', label: tt('officer.students.allExamResult') },
-            { value: 'PASS', label: tt('officer.students.examResultPass') },
-            { value: 'FAIL', label: tt('officer.students.examResultFail') },
           ]} />
         <Select style={{ width: 'auto', minWidth: 120 }} value={room} onChange={setRoom} lang={lang}
           ariaLabel={tt('officer.students.allRoom')}

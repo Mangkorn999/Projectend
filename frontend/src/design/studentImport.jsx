@@ -2,9 +2,10 @@
    เจ้าหน้าที่ — เพิ่มนักศึกษาเข้าระบบ 2 แบบ: import CSV (ทีละหลายคน) หรือกรอกเองทีละคน
    เรียก POST /api/students/import และ POST /api/students จริง ไม่ใช่ mock
    ============================================================ */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, Select } from './components.jsx';
+import { PageHead, Select, Modal, Pagination, Empty } from './components.jsx';
+import { usePagedList } from './usePagedList.js';
 import { apiFetch, ApiError } from './api.js';
 import { t } from './i18n.js';
 
@@ -12,7 +13,7 @@ import { t } from './i18n.js';
 const BOM = '\uFEFF';
 
 export function StudentImport({ toast, lang }) {
-  const [tab, setTab] = useState('csv'); // 'csv' | 'manual'
+  const [tab, setTab] = useState('csv'); // 'csv' | 'manual' | 'pending'
   const tt = (key, vars) => t(lang, key, vars);
 
   return (
@@ -27,9 +28,112 @@ export function StudentImport({ toast, lang }) {
           <button onClick={()=>setTab('manual')} style={tabBtnStyle(tab==='manual')}>
             <Icon name="edit" size={15}/> {tt('importReal.tabManual')}
           </button>
+          <button onClick={()=>setTab('pending')} style={tabBtnStyle(tab==='pending')}>
+            <Icon name="users" size={15}/> {tt('importReal.tabPending')}
+          </button>
         </div>
       </div>
-      {tab==='csv' ? <CsvImport toast={toast} tt={tt} /> : <ManualAdd toast={toast} tt={tt} />}
+      {tab==='csv' ? <CsvImport toast={toast} tt={tt} />
+        : tab==='manual' ? <ManualAdd toast={toast} tt={tt} />
+        : <PendingAccounts toast={toast} tt={tt} lang={lang} />}
+    </div>
+  );
+}
+
+/* บัญชีที่ import แล้วแต่ "ยังไม่กรอกโปรไฟล์" — ยังไม่มีแถวในตารางนักศึกษา จึงไม่โผล่ในหน้า "ข้อมูลนักศึกษา"
+   ไว้ตรวจว่า import ถูกไหม และลบรหัสที่ใส่ผิดได้ (เช่น จาก Google Form) ก่อนที่จะมีใคร login
+   คนที่กรอกโปรไฟล์แล้วไปลบที่หน้า "ข้อมูลนักศึกษา" (backend ก็กันไว้: บัญชีที่มีโปรไฟล์แล้วจะไม่ถูกลบจากหน้านี้) */
+function PendingAccounts({ toast, tt, lang }) {
+  const [rows, setRows] = useState(null);      // null = กำลังโหลด
+  const [q, setQ] = useState('');
+  const [picked, setPicked] = useState(() => new Set());
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const load = () => apiFetch('/students/pending-accounts')
+    .then(data => { setRows(data); setPicked(new Set()); setError(''); })
+    .catch(e => setError(e instanceof ApiError ? e.message : tt('importReal.importFailMsg')));
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const filtered = (rows ?? []).filter(r => r.student_id.includes(q.trim()));
+  const pageList = usePagedList(filtered, 15, q);
+  const pageIds = pageList.rows.map(r => r.student_id);
+  const allOnPage = pageIds.length > 0 && pageIds.every(id => picked.has(id));
+
+  const toggle = (id) => setPicked(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const togglePage = () => setPicked(prev => { const n = new Set(prev); pageIds.forEach(id => { if (allOnPage) n.delete(id); else n.add(id); }); return n; });
+
+  const remove = async () => {
+    setBusy(true);
+    try {
+      const data = await apiFetch('/students/pending-accounts/delete', { method: 'POST', body: { student_ids: [...picked] } });
+      toast && toast(tt('importReal.pendingDeletedToast', { n: data.deleted_count }), 'info');
+      setConfirmOpen(false);
+      await load();
+    } catch (e) {
+      toast && toast(e instanceof ApiError ? e.message : tt('importReal.importFailMsg'), 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const fmt = (iso) => new Date(iso).toLocaleDateString('th-TH');
+
+  return (
+    <div className="card" style={{ padding: 22 }}>
+      <div style={{ fontSize: 15, color: 'var(--ink-600)', lineHeight: 1.7, marginBottom: 16 }}>{tt('importReal.pendingHint')}</div>
+      {error && <div role="alert" style={{ color:'var(--status-reject-fg)', background:'var(--status-reject-bg)', borderRadius:9, padding:'11px 14px', fontSize:15, marginBottom:14 }}>{error}</div>}
+
+      {rows && rows.length === 0 && !error && <Empty icon="users" title={tt('importReal.pendingEmpty')} sub={tt('importReal.pendingEmptySub')} />}
+
+      {rows && rows.length > 0 && (
+        <>
+          <div style={{ display:'flex', gap:12, alignItems:'center', flexWrap:'wrap', marginBottom:14 }}>
+            <input className="input" style={{ maxWidth: 260 }} placeholder={tt('importReal.pendingSearch')} value={q} onChange={e => setQ(e.target.value)} />
+            <span style={{ fontSize: 15, color: 'var(--ink-500)' }}>{tt('importReal.pendingCount', { shown: filtered.length, total: rows.length })}</span>
+            <span style={{ flex: 1 }} />
+            {filtered.length > 0 && picked.size < filtered.length && (
+              <button className="btn btn-ghost btn-sm" onClick={() => setPicked(new Set(filtered.map(r => r.student_id)))}>{tt('importReal.pendingSelectAll', { n: filtered.length })}</button>
+            )}
+            {picked.size > 0 && <button className="btn btn-ghost btn-sm" onClick={() => setPicked(new Set())}>{tt('importReal.pendingClear')}</button>}
+            <button className="btn" style={{ background: picked.size ? 'var(--fail)' : undefined, color: picked.size ? '#fff' : undefined }}
+              disabled={picked.size === 0} onClick={() => setConfirmOpen(true)}>
+              <Icon name="trash" size={16}/> {tt('importReal.pendingDeleteBtn', { n: picked.size })}
+            </button>
+          </div>
+
+          <div style={{ overflowX: 'auto' }}>
+            <table className="tbl">
+              <thead><tr>
+                <th style={{ width: 44 }}><input type="checkbox" aria-label={tt('importReal.pendingSelectPage')} checked={allOnPage} onChange={togglePage} /></th>
+                <th>{tt('importReal.pendingColId')}</th>
+                <th>{tt('importReal.pendingColYear')}</th>
+                <th>{tt('importReal.pendingColAt')}</th>
+              </tr></thead>
+              <tbody>
+                {pageList.rows.map(r => (
+                  <tr key={r.student_id}>
+                    <td><input type="checkbox" aria-label={r.student_id} checked={picked.has(r.student_id)} onChange={() => toggle(r.student_id)} /></td>
+                    <td className="mono">{r.student_id}</td>
+                    <td>{r.academic_year}{r.year_overridden && <span className="chip" style={{ marginLeft: 8, fontSize: 13 }}>{tt('importReal.pendingYearSet')}</span>}</td>
+                    <td style={{ color: 'var(--ink-600)' }}>{fmt(r.imported_at)}</td>
+                  </tr>
+                ))}
+                {pageList.rows.length === 0 && <tr><td colSpan={4} style={{ textAlign:'center', color:'var(--ink-500)', padding:24 }}>{tt('importReal.pendingNoMatch')}</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          {pageList.pages > 1 && <Pagination page={pageList.page} pages={pageList.pages} onPage={pageList.setPage} lang={lang} />}
+        </>
+      )}
+
+      <Modal open={confirmOpen} onClose={() => !busy && setConfirmOpen(false)} title={tt('importReal.pendingConfirmTitle')} width={460} tone="danger"
+        footer={<><button className="btn btn-ghost" disabled={busy} onClick={() => setConfirmOpen(false)}>{tt('importReal.cancelPreviewBtn')}</button>
+          <button className="btn btn-primary" style={{ background:'var(--fail)', borderColor:'var(--fail)' }} disabled={busy} onClick={remove}>
+            {busy ? tt('importReal.pendingDeleting') : tt('importReal.pendingConfirmBtn', { n: picked.size })}</button></>}>
+        <p style={{ margin: 0, fontSize: 16, lineHeight: 1.7 }}>{tt('importReal.pendingConfirmBody', { n: picked.size })}</p>
+      </Modal>
     </div>
   );
 }

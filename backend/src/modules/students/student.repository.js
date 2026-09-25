@@ -171,6 +171,23 @@ export const updateProfile = (student_id, { user: userData, student: studentData
 export const countExamResults = (studentId) =>
   prisma.examResult.count({ where: { student_id: studentId } });
 
+// บัญชีนักศึกษาที่ import มาแล้วแต่ "ยังไม่กรอกโปรไฟล์" — มีแค่แถว users ยังไม่มีแถว students
+// เลยไม่โผล่ในรายชื่อนักศึกษา (findAll) และลบผ่าน DELETE /students/:id ไม่ได้ ทั้งที่อาจเป็นรหัสที่ import ผิด
+export const findPendingAccounts = () =>
+  prisma.user.findMany({
+    where: { role: { role_name: "student" }, student: null },
+    select: { user_id: true, psu_passport_id: true, import_academic_year: true, created_at: true },
+    orderBy: [{ created_at: "desc" }, { psu_passport_id: "asc" }],
+  });
+
+// ลบบัญชีที่ยังไม่กรอกโปรไฟล์ตามรหัสที่ส่งมา — where กันไว้ในตัว: เฉพาะ role นักศึกษาที่ "ยังไม่มีแถว students" เท่านั้น
+// คนที่กรอกโปรไฟล์แล้ว (มี student row) จะไม่ถูกลบแม้ส่งรหัสมา ต้องไปลบผ่านหน้านักศึกษา (ซึ่งกันคนที่มีผลสอบไว้ให้)
+// ตารางอื่นไม่ได้ชี้มาที่ user กลุ่มนี้ (ไม่มีผลสอบ/แจ้งเตือน/ประกาศ) จึงลบได้ตรงๆ ไม่ติด FK
+export const removePendingAccounts = (psuIds) =>
+  prisma.user.deleteMany({
+    where: { psu_passport_id: { in: psuIds }, role: { role_name: "student" }, student: null },
+  });
+
 // ลบนักศึกษา + บัญชี user ของเขา (เรียกได้เฉพาะตอนไม่มีผลสอบเท่านั้น)
 // ลบแจ้งเตือนก่อนเพราะ FK ชี้มาที่ student ถ้าไม่ลบ Prisma จะไม่ยอมลบแถวแม่
 // ใช้ transaction ให้ 3 คำสั่งสำเร็จหรือล้มไปพร้อมกัน จะได้ไม่เหลือ user ค้างที่ไม่มี student

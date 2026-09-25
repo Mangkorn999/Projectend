@@ -711,6 +711,56 @@ export const bulkImport = async (req, res, next) => {
   }
 };
 
+// รายชื่อบัญชีที่ import แล้วยังไม่กรอกโปรไฟล์ — ไว้ตรวจว่า import ถูกไหม / ลบรหัสที่พิมพ์ผิด
+export const listPendingAccounts = async (req, res, next) => {
+  try {
+    const rows = await studentRepo.findPendingAccounts();
+    res.json({
+      success: true,
+      data: rows.map((u) => ({
+        student_id: u.psu_passport_id,
+        // ปีจบที่จะใช้ตอนกรอกโปรไฟล์: ที่เจ้าหน้าที่ระบุตอน import ก่อน ไม่มีค่อยคำนวณจากรหัส (เหมือน completeProfile)
+        academic_year: u.import_academic_year ?? calcGraduationYear(u.psu_passport_id),
+        year_overridden: u.import_academic_year !== null,
+        imported_at: u.created_at,
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ลบบัญชีที่ยังไม่กรอกโปรไฟล์ — body { student_ids: ["6610210001", ...] } (ส่งคนเดียวก็ใส่ array 1 ตัว)
+// ลบเฉพาะบัญชีที่ยังไม่มีโปรไฟล์จริง (repository กันไว้ใน where) คนที่กรอกแล้วจะไม่ถูกแตะ — นับแยกให้ดูว่าข้ามกี่คน
+const MAX_BULK_DELETE = 1000;
+export const removePendingAccounts = async (req, res, next) => {
+  try {
+    const ids = req.body?.student_ids;
+    if (
+      !Array.isArray(ids) ||
+      ids.length === 0 ||
+      ids.some((id) => typeof id !== "string" || !id.trim())
+    ) {
+      throw httpError("ต้องระบุ student_ids เป็น array ของรหัสนักศึกษาอย่างน้อย 1 รายการ", 400);
+    }
+    if (ids.length > MAX_BULK_DELETE) {
+      throw httpError(`ลบได้ครั้งละไม่เกิน ${MAX_BULK_DELETE} คน`, 400);
+    }
+
+    const unique = [...new Set(ids.map((id) => id.trim()))];
+    const { count } = await studentRepo.removePendingAccounts(unique);
+    if (count === 0) {
+      throw httpError("ไม่พบบัญชีที่ลบได้ — อาจกรอกโปรไฟล์ไปแล้ว หรือถูกลบไปก่อนหน้านี้", 404);
+    }
+    res.json({
+      success: true,
+      data: { deleted_count: count, skipped_count: unique.length - count },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // เจ้าหน้าที่ลบนักศึกษาที่ import ผิด/ซ้ำ/ไม่ได้อยู่รุ่นนี้
 // ลบได้เฉพาะคนที่ยังไม่มีผลสอบเลย — ถ้ามีแล้วต้องไม่ลบ ไม่งั้นสถิติของปีนั้นเปลี่ยนย้อนหลัง
 // ไม่ตรงกับรายงานที่ส่งสภาการพยาบาลไปแล้ว
