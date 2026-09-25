@@ -103,6 +103,7 @@ model SubmissionRound {
   subject_ids    Int[]
   exam_results   ExamResult[]
   news           News[]
+  notifications  Notification[]
   creator        User         @relation("UserToRound", fields: [created_by], references: [user_id])
 
   // หนึ่งรุ่นมีสอบครั้งที่ n ได้ครั้งเดียว — กันรอบซ้ำที่ระดับ DB ไม่ใช่แค่ที่ controller
@@ -207,15 +208,20 @@ model News {
 }
 
 model Notification {
-  notification_id Int      @id @default(autoincrement())
-  student_id      String   @db.VarChar(20)
-  type            String   @db.VarChar(20) // approved | rejected | eligible
+  notification_id Int              @id @default(autoincrement())
+  student_id      String           @db.VarChar(20)
+  type            String           @db.VarChar(20) // approved | rejected | eligible | revoked | round_open
   message         String
-  is_read         Boolean  @default(false)
-  created_at      DateTime @default(now())
-  student         Student  @relation(fields: [student_id], references: [student_id])
+  is_read         Boolean          @default(false)
+  created_at      DateTime         @default(now())
+  student         Student          @relation(fields: [student_id], references: [student_id])
+  // เฉพาะ type = round_open — อ้างรอบที่เพิ่งเปิด ใช้กันแจ้งซ้ำ (เช็ค student_id+round_id+type ก่อนสร้าง)
+  round_id        Int?
+  round           SubmissionRound? @relation(fields: [round_id], references: [round_id])
 
   // นักศึกษาเปิดกระดิ่งทีนึง = query ด้วย student_id ทุกครั้ง (frontend poll ทุก 30 วิด้วย)
   @@index([student_id])
+  // เช็คว่าเคยแจ้งรอบนี้ให้คนนี้ไปหรือยัง ก่อนสร้างซ้ำ
+  @@index([student_id, round_id, type])
   @@map("notifications")
 }

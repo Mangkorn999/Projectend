@@ -1,7 +1,14 @@
 import prisma from "../../config/db.js";
 
-export const create = ({ student_id, type, message }) =>
-  prisma.notification.create({ data: { student_id, type, message } });
+export const create = ({ student_id, type, message, round_id = null }) =>
+  prisma.notification.create({ data: { student_id, type, message, round_id } });
+
+// เคยแจ้ง "รอบนี้เปิดแล้ว" ให้คนนี้ไปหรือยัง — กันสร้างซ้ำทุกครั้งที่ poll กระดิ่ง (ทุก 30 วิ)
+export const hasRoundOpenNotice = (student_id, round_id) =>
+  prisma.notification.findFirst({
+    where: { student_id, round_id, type: "round_open" },
+    select: { notification_id: true },
+  });
 
 // รองรับยิงให้หลายคนพร้อมกัน (เช่น เปิดสิทธิ์กรอกทีละรุ่น)
 export const createMany = (student_ids, { type, message }) =>

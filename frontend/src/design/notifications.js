@@ -81,6 +81,8 @@ const SERVER_TYPES = {
   eligible: { tone: 'wait', icon: 'key', page: 'form' },
   // เจ้าหน้าที่ถอนการยืนยัน ใบกลับเป็นรอตรวจ — พาไปดูสถานะ
   revoked: { tone: 'wait', icon: 'clock', page: 'status' },
+  // เจ้าหน้าที่เปิดรอบสอบตรงกับปีของนักศึกษาคนนี้ — พาไปหน้ากรอกผลสอบ
+  round_open: { tone: 'wait', icon: 'bell', page: 'form' },
 };
 const FALLBACK_TYPE = { tone: 'wait', icon: 'bell', page: 'news' };
 

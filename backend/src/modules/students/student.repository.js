@@ -72,6 +72,14 @@ export const findById = (id) =>
     include: { user: { select: PUBLIC_USER_FIELDS }, faculty: true, room: true },
   });
 
+// เช็คสิทธิ์กรอกผล + ปีการศึกษา แบบเบาที่สุด — เรียกทุกครั้งที่นักศึกษาเปิดกระดิ่ง (poll ทุก 30 วิ)
+// เพื่อดูว่ามีรอบใหม่เปิดให้รุ่นตัวเองไหม จึง select เท่าที่ใช้จริง ไม่ include ความสัมพันธ์อื่น
+export const findEligibilityYear = (student_id) =>
+  prisma.student.findUnique({
+    where: { student_id },
+    select: { academic_year: true, exam_eligible: true },
+  });
+
 export const bulkSetEligible = (studentIds, value) =>
   prisma.student.updateMany({
     where: { student_id: { in: studentIds } },
