@@ -1,3 +1,5 @@
+import fs from "fs/promises";
+import path from "path";
 import bcrypt from "bcryptjs";
 import { parse } from "csv-parse/sync";
 import iconv from "iconv-lite";
@@ -711,8 +713,37 @@ export const bulkImport = async (req, res, next) => {
   }
 };
 
-// ลบนักศึกษาหลายคนพร้อมกัน (ติ๊กเลือกในหน้ารายชื่อ) — body { student_ids: [...] }
-// ลบเฉพาะคนที่ยังไม่มีผลสอบ คนที่มีผลสอบแล้วถูกข้าม + นับให้ดู (ไม่ใช่ error ทั้งก้อน เพราะที่เหลือลบได้ปกติ)
+// ลบนักศึกษา (หลายคนได้) พร้อมทุกอย่างที่ผูกอยู่ — ใช้ร่วมกันทั้งลบทีละคนและลบหลายคน กฎจะได้ไม่เพี้ยนกัน
+//
+// คนที่มีผลสอบแล้วลบได้ แต่ต้อง "ยืนยันชัดเจน" (confirmDeleteResults = true) ไม่งั้นตอบ 409 code has_exam_results พร้อมจำนวน
+// ให้หน้าจอขึ้นคำเตือนแล้วส่งมาใหม่พร้อมค่ายืนยัน — กันยิง API พลาด/คลิกลบผิดคนแล้วผลสอบทั้งชุดหายเงียบๆ
+// ลบเสร็จค่อยลบไฟล์ PDF บน disk (ลบไฟล์ก่อนแล้ว DB พัง = หลักฐานหายทั้งที่ข้อมูลยังอยู่)
+const deleteStudents = async (res, ids, confirmDeleteResults) => {
+  const { studentsWithResults, resultCount } = await studentRepo.summarizeResults(ids);
+  if (studentsWithResults > 0 && confirmDeleteResults !== true) {
+    return res.status(409).json({
+      success: false,
+      code: "has_exam_results",
+      message: `นักศึกษา ${studentsWithResults} คนมีผลสอบในระบบแล้ว (${resultCount} รอบ) — การลบจะลบผลสอบ เอกสารหลักฐาน และประวัติการตรวจทั้งหมดของเขาด้วย และสถิติของรุ่นจะเปลี่ยนย้อนหลัง กรุณายืนยันอีกครั้ง`,
+      students_with_results: studentsWithResults,
+      result_count: resultCount,
+    });
+  }
+
+  const { deletedIds, resultCount: deletedResults, filePaths } = await studentRepo.removeStudentsCascade(ids);
+  if (deletedIds.length === 0) throw httpError("ไม่พบนักศึกษาที่เลือกในระบบ (อาจถูกลบไปแล้ว)", 404);
+
+  await Promise.all(
+    filePaths.map((f) => fs.rm(path.resolve(f), { force: true }).catch((e) => console.error("ลบไฟล์ไม่สำเร็จ:", f, e.message))),
+  );
+  // ลบของคนที่มีผลสอบ = การกระทำที่กระทบสถิติย้อนหลัง ต้องมีร่องรอยใน log ของ server ว่าใครลบ
+  if (deletedResults > 0) {
+    console.warn(`[AUDIT] user ${res.req.user.userId} ลบนักศึกษา ${deletedIds.length} คน พร้อมผลสอบ ${deletedResults} รอบ: ${deletedIds.join(",")}`);
+  }
+  return { deletedIds, deletedResults };
+};
+
+// ลบนักศึกษาหลายคนพร้อมกัน (ติ๊กเลือกในหน้ารายชื่อ) — body { student_ids: [...], delete_results?: true }
 export const bulkRemove = async (req, res, next) => {
   try {
     const ids = req.body?.student_ids;
@@ -728,16 +759,15 @@ export const bulkRemove = async (req, res, next) => {
     }
 
     const unique = [...new Set(ids.map((id) => id.trim()))];
-    const deletedIds = await studentRepo.removeManyWithUsers(unique);
-    if (deletedIds.length === 0) {
-      throw httpError("ลบไม่ได้ — นักศึกษาที่เลือกมีผลสอบในระบบแล้วทุกคน (หรือไม่พบในระบบ)", 409);
-    }
+    const done = await deleteStudents(res, unique, req.body?.delete_results);
+    if (!done) return; // deleteStudents ตอบ 409 (ต้องยืนยัน) ไปแล้ว
     res.json({
       success: true,
       data: {
-        deleted_count: deletedIds.length,
-        deleted_ids: deletedIds,
-        skipped_count: unique.length - deletedIds.length, // มีผลสอบแล้ว หรือไม่พบ
+        deleted_count: done.deletedIds.length,
+        deleted_ids: done.deletedIds,
+        deleted_result_count: done.deletedResults,
+        not_found_count: unique.length - done.deletedIds.length, // รหัสที่ไม่มีในระบบ (ถูกลบไปก่อนแล้ว)
       },
     });
   } catch (err) {
@@ -801,25 +831,17 @@ export const removePendingAccounts = async (req, res, next) => {
 export const remove = async (req, res, next) => {
   try {
     const student = await studentRepo.findById(req.params.id);
-    if (!student) {
-      const err = new Error("ไม่พบนักศึกษา");
-      err.statusCode = 404;
-      throw err;
-    }
+    if (!student) throw httpError("ไม่พบนักศึกษา", 404);
 
-    const resultCount = await studentRepo.countExamResults(req.params.id);
-    if (resultCount > 0) {
-      const err = new Error(
-        `ลบไม่ได้ นักศึกษาคนนี้มีผลสอบในระบบแล้ว ${resultCount} รอบ — ถ้าข้อมูลไม่ถูกต้องให้ตีกลับผลสอบแทน`,
-      );
-      err.statusCode = 409;
-      throw err;
-    }
-
-    await studentRepo.removeWithUser(req.params.id, student.user_id);
+    // ?delete_results=true = ยืนยันแล้วว่าให้ลบผลสอบทั้งหมดของเขาด้วย (ไม่ใส่ + มีผลสอบ = 409 พร้อมจำนวน)
+    const done = await deleteStudents(res, [req.params.id], req.query.delete_results === "true");
+    if (!done) return;
     res.json({
       success: true,
-      data: { message: `ลบนักศึกษา ${req.params.id} ออกจากระบบแล้ว` },
+      data: {
+        message: `ลบนักศึกษา ${req.params.id} ออกจากระบบแล้ว`,
+        deleted_result_count: done.deletedResults,
+      },
     });
   } catch (err) {
     next(err);

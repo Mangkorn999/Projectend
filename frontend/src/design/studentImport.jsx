@@ -51,6 +51,7 @@ export function StudentImport({ toast, lang }) {
 function PendingAccounts({ toast, tt, lang, onCount }) {
   const [rows, setRows] = useState(null);      // null = กำลังโหลด
   const [q, setQ] = useState('');
+  const [yearFilter, setYearFilter] = useState('ALL'); // ปีการศึกษาที่จบ — แยกดูทีละรุ่น (ALL = ทุกปี)
   const [picked, setPicked] = useState(() => new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -63,8 +64,15 @@ function PendingAccounts({ toast, tt, lang, onCount }) {
     .catch(e => setError(e instanceof ApiError ? e.message : tt('importReal.importFailMsg')));
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const filtered = (rows ?? []).filter(r => r.student_id.includes(q.trim()));
-  const pageList = usePagedList(filtered, 15, q);
+  // ปีที่มีอยู่จริงในรายชื่อ เรียงใหม่→เก่า พร้อมจำนวนคนต่อปี — เจ้าหน้าที่ตามทีละรุ่นได้
+  const yearCounts = {};
+  (rows ?? []).forEach(r => { yearCounts[r.academic_year] = (yearCounts[r.academic_year] || 0) + 1; });
+  const years = Object.keys(yearCounts).map(Number).sort((a, b) => b - a);
+  // ปีที่เลือกไว้หายไปจากรายชื่อ (เช่นลบคนปีนั้นหมดแล้ว) ให้กลับไปดูทุกปี ไม่ใช่ค้างตารางว่างที่ไม่มีทางเลือกปีนั้นอีก
+  const activeYear = yearFilter !== 'ALL' && yearCounts[yearFilter] ? yearFilter : 'ALL';
+
+  const filtered = (rows ?? []).filter(r => r.student_id.includes(q.trim()) && (activeYear === 'ALL' || String(r.academic_year) === activeYear));
+  const pageList = usePagedList(filtered, 15, q + '|' + activeYear);
   const pageIds = pageList.rows.map(r => r.student_id);
   const allOnPage = pageIds.length > 0 && pageIds.every(id => picked.has(id));
 
@@ -113,6 +121,11 @@ function PendingAccounts({ toast, tt, lang, onCount }) {
         <>
           <div style={{ display:'flex', gap:12, alignItems:'center', flexWrap:'wrap', marginBottom:14 }}>
             <input className="input" style={{ maxWidth: 260 }} placeholder={tt('importReal.pendingSearch')} value={q} onChange={e => setQ(e.target.value)} />
+            {years.length > 0 && (
+              <Select style={{ width: 'auto', minWidth: 200 }} value={activeYear} onChange={setYearFilter} lang={lang} ariaLabel={tt('importReal.pendingYearAll')}
+                options={[{ value: 'ALL', label: tt('importReal.pendingYearAll') },
+                  ...years.map(y => ({ value: String(y), label: tt('importReal.pendingYearOption', { y, n: yearCounts[y] }) }))]} />
+            )}
             <span style={{ fontSize: 15, color: 'var(--ink-500)' }}>{tt('importReal.pendingCount', { shown: filtered.length, total: rows.length })}</span>
             <span style={{ flex: 1 }} />
             <button className="btn btn-ghost btn-sm" onClick={downloadList} disabled={filtered.length === 0}>

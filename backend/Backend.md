@@ -133,7 +133,7 @@ src/modules/subjects/
 | `POST` | `/api/users/:id/role` | staff | เปลี่ยน role ผู้ใช้ |
 | `GET` | `/api/students` | officer | ดูรายชื่อนักศึกษา (executive ไม่ได้) |
 | `GET` | `/api/students/:id` | officer, student | ดูข้อมูลนักศึกษา (executive ไม่ได้) |
-| `POST` | `/api/students/bulk-delete` | officer | ลบนักศึกษาหลายคน `{ student_ids: [...] }` (เฉพาะคนที่ยังไม่มีผลสอบ) |
+| `POST` | `/api/students/bulk-delete` | officer | ลบนักศึกษาหลายคนพร้อมผลสอบ `{ student_ids, delete_results? }` (มีผลสอบต้องยืนยัน `delete_results: true`) |
 | `GET` | `/api/students/pending-accounts` | officer | บัญชีที่ import แล้วยังไม่กรอกโปรไฟล์ |
 | `POST` | `/api/students/pending-accounts/delete` | officer | ลบบัญชีกลุ่มนั้น `{ student_ids: [...] }` (ไม่ลบคนที่มีโปรไฟล์แล้ว) |
 

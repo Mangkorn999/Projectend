@@ -776,3 +776,27 @@ const sheet = await readSheet(buffer, { parseNumber: (text) => text });
 - ตรวจว่าเป็น xlsx จากไบต์แรก `PK` (zip) ไม่เชื่อนามสกุลไฟล์ — ดู 5.32
 - ทำแถวเป็น object: `Object.fromEntries(names.map((n, i) => [n, cells[i]]))` (`fromEntries` = แปลง array ของ `[key, value]` เป็น object)
 
+### 5.34 ลบข้อมูลที่ผูกกันหลายตาราง — ลบจากลูกขึ้นแม่ + `groupBy` นับ
+
+```js
+// นับผลสอบต่อนักศึกษา (GROUP BY student_id) — ไว้เตือนก่อนลบ
+const rows = await prisma.examResult.groupBy({
+  by: ["student_id"],
+  where: { student_id: { in: ids } },
+  _count: { _all: true },        // จำนวนแถวในแต่ละกลุ่ม
+});
+const total = rows.reduce((n, r) => n + r._count._all, 0);   // reduce = วนบวกสะสมเป็นค่าเดียว
+
+// ลบทีละตารางเรียงจาก "ลูก" ไป "แม่" ใน transaction เดียว (พังตรงไหนย้อนกลับทั้งหมด)
+await prisma.$transaction([
+  prisma.reviewLog.deleteMany({ where: { result_id: { in: rids } } }),
+  prisma.examResult.deleteMany({ where: { result_id: { in: rids } } }),
+  prisma.student.deleteMany({ where: { student_id: { in: sids } } }),
+]);
+```
+
+- แถวลูกที่ยังชี้มาที่แม่ (FK) ทำให้ลบแม่ไม่ได้ → ต้องลบลูกก่อนเสมอ
+- **ไฟล์บน disk ลบหลัง transaction สำเร็จ** ไม่ใช่ก่อน: ลบไฟล์แล้ว DB พัง = ข้อมูลยังอยู่แต่หลักฐานหาย
+- `deleteMany` ที่ `where` ไม่เจอแถวเลยไม่ error คืน `{ count: 0 }` — เช็ค count เองถ้าต้องตอบ 404
+- การลบที่ย้อนกลับไม่ได้ → บังคับให้ client ส่งค่ายืนยันชัดเจน (`=== true` ไม่ใช่แค่ truthy) ไม่งั้นตอบ 409
+

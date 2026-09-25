@@ -171,24 +171,53 @@ export const updateProfile = (student_id, { user: userData, student: studentData
 export const countExamResults = (studentId) =>
   prisma.examResult.count({ where: { student_id: studentId } });
 
-// ลบนักศึกษาหลายคน + บัญชี user — เฉพาะคนที่ "ยังไม่มีผลสอบ" (exam_results: { none: {} } อยู่ใน where เอง)
-// คนที่มีผลสอบแล้วถูกข้ามเงียบๆ ไม่ลบ (กฎเดียวกับลบทีละคน: ลบแล้วสถิติของรุ่นเปลี่ยนย้อนหลัง)
-// คืนรหัสที่ลบจริง ให้หน้าจอเอาออกจากตารางได้ตรงตัว
-// ทำใน transaction เดียว — ถ้าระหว่างนั้นมีคนส่งผลสอบเข้ามา FK จะพัง ทั้งก้อนย้อนกลับ ไม่เหลือลบครึ่งๆ กลางๆ
-export const removeManyWithUsers = async (studentIds) => {
-  const targets = await prisma.student.findMany({
-    where: { student_id: { in: studentIds }, exam_results: { none: {} } },
+// จำนวนผลสอบของนักศึกษาที่ระบุ — ไว้เตือน/บังคับยืนยันก่อนลบ (ลบแล้วผลสอบและสถิติของรุ่นหายไปด้วย)
+export const summarizeResults = async (studentIds) => {
+  const rows = await prisma.examResult.groupBy({
+    by: ["student_id"],
+    where: { student_id: { in: studentIds } },
+    _count: { _all: true },
+  });
+  return {
+    studentsWithResults: rows.length,
+    resultCount: rows.reduce((n, r) => n + r._count._all, 0),
+  };
+};
+
+// ลบนักศึกษา "พร้อมทุกอย่างที่ผูกอยู่" — ผลสอบ, ผลรายวิชา, เอกสารหลักฐาน, ประวัติการตรวจ, แจ้งเตือน, ตัวนักศึกษา, บัญชี user
+// (เจ้าของระบบตัดสินใจให้ลบได้หมดทุกกรณี รวมคนที่มีผลสอบแล้ว — สถิติของรุ่นจะเปลี่ยนย้อนหลัง controller บังคับให้ยืนยันก่อนเสมอ)
+//
+// ลำดับต้องลบจากตารางลูกขึ้นมาหาแม่ (FK) และทำใน transaction เดียว — พังกลางทางแล้วย้อนกลับทั้งก้อน ไม่เหลือลบครึ่งๆ กลางๆ
+// คืน { deletedIds, resultCount, filePaths } — filePaths = ไฟล์ PDF บน disk ที่ต้องลบตามหลัง transaction สำเร็จ (ลบไฟล์ก่อนแล้ว DB พัง = หลักฐานหาย)
+export const removeStudentsCascade = async (studentIds) => {
+  const students = await prisma.student.findMany({
+    where: { student_id: { in: studentIds } },
     select: { student_id: true, user_id: true },
   });
-  if (targets.length === 0) return [];
-  const sids = targets.map((t) => t.student_id);
-  const uids = targets.map((t) => t.user_id);
+  if (students.length === 0) return { deletedIds: [], resultCount: 0, filePaths: [] };
+
+  const sids = students.map((x) => x.student_id);
+  const uids = students.map((x) => x.user_id);
+  const results = await prisma.examResult.findMany({
+    where: { student_id: { in: sids } },
+    select: { result_id: true },
+  });
+  const rids = results.map((r) => r.result_id);
+  const certs = await prisma.certificate.findMany({
+    where: { result_id: { in: rids } },
+    select: { file_path: true },
+  });
+
   await prisma.$transaction([
+    prisma.reviewLog.deleteMany({ where: { result_id: { in: rids } } }),
+    prisma.certificate.deleteMany({ where: { result_id: { in: rids } } }),
+    prisma.subjectResult.deleteMany({ where: { result_id: { in: rids } } }),
+    prisma.examResult.deleteMany({ where: { result_id: { in: rids } } }),
     prisma.notification.deleteMany({ where: { student_id: { in: sids } } }),
     prisma.student.deleteMany({ where: { student_id: { in: sids } } }),
     prisma.user.deleteMany({ where: { user_id: { in: uids } } }),
   ]);
-  return sids;
+  return { deletedIds: sids, resultCount: rids.length, filePaths: certs.map((c) => c.file_path) };
 };
 
 // บัญชีนักศึกษาที่ import มาแล้วแต่ "ยังไม่กรอกโปรไฟล์" — มีแค่แถว users ยังไม่มีแถว students
@@ -208,12 +237,3 @@ export const removePendingAccounts = (psuIds) =>
     where: { psu_passport_id: { in: psuIds }, role: { role_name: "student" }, student: null },
   });
 
-// ลบนักศึกษา + บัญชี user ของเขา (เรียกได้เฉพาะตอนไม่มีผลสอบเท่านั้น)
-// ลบแจ้งเตือนก่อนเพราะ FK ชี้มาที่ student ถ้าไม่ลบ Prisma จะไม่ยอมลบแถวแม่
-// ใช้ transaction ให้ 3 คำสั่งสำเร็จหรือล้มไปพร้อมกัน จะได้ไม่เหลือ user ค้างที่ไม่มี student
-export const removeWithUser = (studentId, userId) =>
-  prisma.$transaction([
-    prisma.notification.deleteMany({ where: { student_id: studentId } }),
-    prisma.student.delete({ where: { student_id: studentId } }),
-    prisma.user.delete({ where: { user_id: userId } }),
-  ]);

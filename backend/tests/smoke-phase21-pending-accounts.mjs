@@ -9,6 +9,8 @@
 //   3. ลบแล้ว login ไม่ได้อีก · ส่งของแปลกมา = 400/404 ไม่ใช่ 500
 //
 // ปีที่ใช้ 2593 (เทสอื่นใช้ 2594–2599) ล้างตอนจบด้วย cleanupYears
+import fs from "node:fs";
+import path from "node:path";
 import { cleanupYears } from "./cleanupYears.mjs";
 
 const BASE = process.env.BASE || "http://localhost:3000";
@@ -133,19 +135,50 @@ const main = async () => {
       check(`${who} bulk-delete -> 403`, (await bulk({ student_ids: [ID_D] }, t)).status, 403);
     }
     check("นักศึกษา bulk-delete -> 403", (await bulk({ student_ids: [ID_D] }, fToken)).status, 403);
-    check("เลือกแต่คนที่มีผลสอบ (F) -> 409 ไม่ลบ", (await bulk({ student_ids: [ID_F] })).status, 409);
-    check("  F ยังอยู่", (await call("GET", `/api/students/${ID_F}`, { token: oToken })).status, 200);
+    // ── 4. คนที่มีผลสอบ: ลบได้ แต่ต้อง "ยืนยันชัดเจน" (delete_results: true) ไม่งั้น 409 พร้อมจำนวน ──
+    const exists = async (id) => (await call("GET", `/api/students/${id}`, { token: oToken })).status;
+    const noFlag = await bulk({ student_ids: [ID_F] });
+    check("F มีผลสอบ ลบโดยไม่ยืนยัน -> 409 has_exam_results + จำนวน", [noFlag.status, noFlag.json?.code, noFlag.json?.result_count], [409, "has_exam_results", 1]);
+    check("  F ยังอยู่", await exists(ID_F), 200);
+    const noFlagMixed = await bulk({ student_ids: [ID_D, ID_E, ID_F] });
+    check("ลบ D+E+F (F มีผลสอบ) ไม่ยืนยัน -> 409 และ D, E ยังอยู่ (ไม่ลบครึ่งๆ)", [noFlagMixed.status, await exists(ID_D), await exists(ID_E)], [409, 200, 200]);
+    check("ยืนยันเป็นข้อความ 'true' ไม่นับ (ต้องเป็น boolean true) -> 409", (await bulk({ student_ids: [ID_F], delete_results: "true" })).status, 409);
 
-    const mixedBulk = await bulk({ student_ids: [ID_D, ID_F, ID_E, ID_D] });
-    check("ลบ D + E ปน F (มีผลสอบ) -> 200", mixedBulk.status, 200);
-    check("  ลบ 2 ข้าม 1", [mixedBulk.json?.data?.deleted_count, mixedBulk.json?.data?.skipped_count], [2, 1]);
-    check("  deleted_ids = D และ E", (mixedBulk.json?.data?.deleted_ids || []).sort(), [ID_D, ID_E].sort());
-    check("  D ถูกลบ (404) login ไม่ได้", [
-      (await call("GET", `/api/students/${ID_D}`, { token: oToken })).status,
-      (await call("POST", "/api/auth/login", { body: { psu_passport_id: ID_D, password: nid(4) } })).status,
-    ], [404, 401]);
-    check("  F ยังอยู่ ผลสอบยังอยู่", (await call("GET", `/api/students/${ID_F}`, { token: oToken })).json?.data?.exam_result_count, 1);
-    check("ลบซ้ำ D+E -> 409 (ไม่มีใครถูกลบ)", (await bulk({ student_ids: [ID_D, ID_E] })).status, 409);
+    // แนบเอกสาร PDF ให้ F แล้วดูว่าไฟล์บน disk ถูกลบตามด้วย
+    const fResultId = (await call("GET", "/api/exam-results/me", { token: fToken })).json.data[0].result_id;
+    const upForm = new FormData();
+    upForm.append("certificate_type", "exam_result");
+    upForm.append("file", new Blob([Buffer.from("%PDF-1.4\n1 0 obj\n<<>>\nendobj\n")], { type: "application/pdf" }), "f.pdf");
+    const upRes = await fetch(`${BASE}/api/exam-results/${fResultId}/certificates`, { method: "POST", headers: { Cookie: fToken }, body: upForm });
+    const certPath = (await upRes.json())?.data?.file_path;
+    check("แนบเอกสารให้ F -> 200 และมีไฟล์บน disk", [upRes.status, !!certPath && fs.existsSync(path.resolve(certPath))], [200, true]);
+
+    const withFlag = await bulk({ student_ids: [ID_D, ID_F, ID_E, ID_D], delete_results: true });
+    check("ยืนยันแล้ว ลบ D+E+F (D ซ้ำ) -> 200", withFlag.status, 200);
+    check("  ลบ 3 คน ผลสอบ 1 รอบ ไม่มีรหัสหาย 0", [withFlag.json?.data?.deleted_count, withFlag.json?.data?.deleted_result_count, withFlag.json?.data?.not_found_count], [3, 1, 0]);
+    check("  D, E, F หายจากระบบ", [await exists(ID_D), await exists(ID_E), await exists(ID_F)], [404, 404, 404]);
+    check("  F login ไม่ได้อีก", (await call("POST", "/api/auth/login", { body: { psu_passport_id: ID_F, password: nid(6) } })).status, 401);
+    check("  ผลสอบของ F หายด้วย", (await call("GET", `/api/exam-results?student_id=${ID_F}`, { token: oToken })).json?.data, []);
+    check("  ไฟล์เอกสารของ F ถูกลบจาก disk", fs.existsSync(path.resolve(certPath)), false);
+    check("  รอบทดสอบยังอยู่ (ลบเฉพาะนักศึกษา ไม่ลบรอบ)", (await call("GET", "/api/rounds", { token: oToken })).json.data.some((r) => r.round_id === rnd.json.data.round_id), true);
+    check("ลบซ้ำ (ไม่มีใครอยู่แล้ว) -> 404", (await bulk({ student_ids: [ID_D, ID_E, ID_F], delete_results: true })).status, 404);
+
+    // ── 5. ลบทีละคน (DELETE /students/:id) ──
+    const ID_G = `${PREFIX}${STAMP}07`;
+    const gToken = await mk(ID_G, 7);
+    await call("PATCH", "/api/students/bulk-eligible", { token: oToken, body: { student_ids: [ID_G], exam_eligible: true } });
+    check("G ส่งผลสอบ -> 200", (await call("POST", "/api/exam-results", { token: gToken, body: { subject_results: [{ subject_id: subj, is_passed: false }] } })).status, 200);
+    const delNoFlag = await call("DELETE", `/api/students/${ID_G}`, { token: oToken });
+    check("DELETE G ที่มีผลสอบ ไม่ยืนยัน -> 409 has_exam_results", [delNoFlag.status, delNoFlag.json?.code], [409, "has_exam_results"]);
+    check("  G ยังอยู่", await exists(ID_G), 200);
+    for (const [who, login] of [["reviewer", ["321", "321"]], ["executive", ["789", "789"]]]) {
+      const t = (await call("POST", "/api/auth/login", { body: { psu_passport_id: login[0], password: login[1] } })).cookie;
+      check(`${who} DELETE นักศึกษา -> 403`, (await call("DELETE", `/api/students/${ID_G}?delete_results=true`, { token: t })).status, 403);
+    }
+    const delOk = await call("DELETE", `/api/students/${ID_G}?delete_results=true`, { token: oToken });
+    check("DELETE G ?delete_results=true -> 200 (ผลสอบ 1 รอบ)", [delOk.status, delOk.json?.data?.deleted_result_count], [200, 1]);
+    check("  G หายไป + ผลสอบหาย", [await exists(ID_G), (await call("GET", `/api/exam-results?student_id=${ID_G}`, { token: oToken })).json?.data], [404, []]);
+    check("DELETE คนที่ไม่มี -> 404", (await call("DELETE", `/api/students/${ID_G}?delete_results=true`, { token: oToken })).status, 404);
   } finally {
     await cleanupYears([YEAR]);
     // เปิดรอบจริงที่ปิดไว้ชั่วคราวคืน (ลบรอบทดสอบไปแล้วก่อนหน้านี้ ไม่งั้นติดกติกา "เปิดได้ทีละรอบ")
