@@ -105,19 +105,23 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
               <td className="mono" style={{ fontSize: 15, color: 'var(--ink-500)' }}>{u.psu_passport_id}</td>
               <td className="mono" style={{ fontSize: 15, color: 'var(--ink-500)' }}>{u.email}</td>
               <td><span className="chip" style={{ background: 'var(--blue-50)', color: 'var(--blue-600)', fontWeight: 600 }}><Icon name="chart" size={13} /> {ROLE_LABEL[u.role.role_name]}</span></td>
-              {/* must_change_password = ยังไม่เคยตั้งรหัสเอง (บัญชีใหม่ หรือเพิ่งถูกรีเซ็ต) */}
+              {/* is_revoked = ถอนสิทธิ์ไปแล้ว (password_hash เป็น null) — แยกจาก must_change_password
+                  เพราะบัญชีใหม่ก็ must_change_password=true เหมือนกัน แยกกันไม่ออกถ้าไม่มี flag นี้ */}
               <td>
-                {u.must_change_password
+                {u.is_revoked
+                  ? <span className="badge reject"><span className="dot" />{tt('usersMgmt.statusRevoked')}</span>
+                  : u.must_change_password
                   ? <span className="badge wait"><span className="dot" />{tt('usersMgmt.statusPending')}</span>
                   : <span className="badge ok"><span className="dot" />{tt('usersMgmt.statusActive')}</span>}
               </td>
               <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                 <button className="btn btn-ghost btn-sm" style={{ marginRight: 6 }}
-                  disabled={u.user_id === currentUserId || u.must_change_password}
+                  disabled={u.user_id === currentUserId || (u.must_change_password && !u.is_revoked)}
                   title={tt('usersMgmt.resetHint')}
                   onClick={() => { setConfirm({ user: u, action: 'reset' }); setResetPassword(''); setConfirmError(''); }}>
                   <Icon name="key" size={15} /> {tt('usersMgmt.resetBtn')}</button>
-                <button className="btn btn-danger btn-sm" disabled={u.user_id === currentUserId}
+                <button className="btn btn-danger btn-sm" disabled={u.user_id === currentUserId || u.is_revoked}
+                  title={u.is_revoked ? tt('usersMgmt.revokedHint') : undefined}
                   onClick={() => { setConfirm({ user: u, action: 'revoke' }); setConfirmError(''); }}>
                   <Icon name="trash" size={15} /> {tt('usersMgmt.revokeBtn')}</button>
               </td>
