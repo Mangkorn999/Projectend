@@ -150,21 +150,21 @@ export function Login({ onLogin }) {
           {/* ล็อกอินไม่ได้ (ลืมรหัส/บัญชีค้าง) = ติดต่อเจ้าหน้าที่คณะเท่านั้น ไม่มี self-service ใดๆ บนหน้านี้แล้ว
               นักศึกษา: รหัสผ่าน = เลขบัตร ปชช ตั้งแต่วันนำเข้า, officer/executive: รหัสชั่วคราวที่เจ้าหน้าที่ตั้งให้ตอนสร้าง/รีเซ็ตบัญชี */}
           <div style={{ marginBottom:18, fontSize:14.5, color:'var(--ink-500)' }}>
-            <span>{isEN?'Trouble signing in? ':'เข้าสู่ระบบไม่ได้? '}</span>
-            {/* มีอีเมลคณะใน .env → เปิดโปรแกรมอีเมลให้เลย
-                มีแต่ URL → ลิงก์ไปหน้าติดต่อของคณะ
+            {/* ทั้งประโยค "เข้าสู่ระบบไม่ได้? ติดต่อเจ้าหน้าที่คณะ" เป็นลิงก์เดียว (กดตรงไหนก็ได้)
+                มีอีเมลคณะใน .env → เปิดโปรแกรมอีเมลให้เลย
+                มีแต่ URL → ลิงก์ไปหน้าเจ้าหน้าที่ผู้รับผิดชอบของคณะ
                 ไม่ตั้งทั้งคู่ → ข้อความเฉยๆ (ไม่ผูกลิงก์มั่ว ไม่งั้นนักศึกษากดไปเจอที่ผิด) */}
             {CONTACT_EMAIL ? (
               <a href={`mailto:${CONTACT_EMAIL}`} style={{ color:'var(--navy-700)', fontWeight:700, textDecoration:'underline' }}>
-                {isEN?'Email the faculty officer':'ติดต่อเจ้าหน้าที่คณะ'}
+                {isEN?'Trouble signing in? Email the faculty officer':'เข้าสู่ระบบไม่ได้? ติดต่อเจ้าหน้าที่คณะ'}
               </a>
             ) : CONTACT_URL ? (
               <a href={CONTACT_URL} target="_blank" rel="noopener noreferrer"
                 style={{ color:'var(--navy-700)', fontWeight:700, textDecoration:'underline' }}>
-                {isEN?'Contact the faculty officer':'ติดต่อเจ้าหน้าที่คณะ'}
+                {isEN?'Trouble signing in? Contact the faculty officer':'เข้าสู่ระบบไม่ได้? ติดต่อเจ้าหน้าที่คณะ'}
               </a>
             ) : (
-              <span>{isEN?'Ask the faculty officer for help.':'ติดต่อเจ้าหน้าที่คณะ'}</span>
+              <span>{isEN?'Trouble signing in? Ask the faculty officer for help.':'เข้าสู่ระบบไม่ได้? ติดต่อเจ้าหน้าที่คณะ'}</span>
             )}
           </div>
 
