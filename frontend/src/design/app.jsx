@@ -261,6 +261,7 @@ export function App() {
         n.is_read === undefined ? n : { ...n, is_read: true }));
     }
     setUnread(0);
+    setNotifToasts([]); // popup ที่ห้อยใต้กระดิ่งอยู่ ไม่ต้องค้างบังรายการที่เพิ่งเปิด
   };
 
   // กดที่แจ้งเตือนสักอัน = อ่านเรื่องนั้นแล้ว → เอาออกจากลิสต์เลย
