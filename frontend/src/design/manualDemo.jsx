@@ -180,3 +180,29 @@ export const MockModal = ({ title, children, footer, tone }) => (
     </div>
   </div>
 );
+
+/* ---------- ชิ้นส่วนย่อยที่ใช้ซ้ำ ---------- */
+const TONES = {
+  wait:   { bg: 'var(--status-wait-bg)',   fg: 'var(--status-wait-fg)',   dot: 'var(--status-wait-dot)' },
+  ok:     { bg: 'var(--status-ok-bg)',     fg: 'var(--status-ok-fg)',     dot: 'var(--status-ok-dot)' },
+  reject: { bg: 'var(--status-reject-bg)', fg: 'var(--status-reject-fg)', dot: 'var(--status-reject-dot)' },
+  draft:  { bg: 'var(--ink-100)',          fg: 'var(--ink-600)',          dot: 'var(--ink-400)' },
+};
+export const MockBadge = ({ tone, children }) => (
+  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 11px', borderRadius: 999, whiteSpace: 'nowrap', fontSize: 13.5, fontWeight: 700, background: TONES[tone].bg, color: TONES[tone].fg }}>
+    <span style={{ width: 7, height: 7, borderRadius: '50%', background: TONES[tone].dot }} />{children}
+  </span>
+);
+export const Field = ({ label, children, style }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, ...style }}>
+    <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ink-600)' }}>{label}</span>
+    {children}
+  </div>
+);
+export const Box = ({ children, dm, style }) => (
+  <div data-demo={dm} style={{ border: '1px solid var(--ink-200)', borderRadius: 9, background: '#fff', padding: '7px 11px', fontSize: 14, color: 'var(--ink-900)', minHeight: 20, ...style }}>{children}</div>
+);
+export const Btn = ({ dm, kind = 'ghost', children, style }) => (
+  <button type="button" data-demo={dm} tabIndex={-1} className={`btn btn-sm btn-${kind}`} style={style}>{children}</button>
+);
+

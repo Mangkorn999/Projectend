@@ -420,7 +420,7 @@ select.input, select.select {
 .mn-tr { border-top:1px solid var(--ink-100); }
 .mn-check { width:16px; height:16px; border:2px solid var(--ink-300); border-radius:4px; display:inline-flex; align-items:center; justify-content:center; font-size:12px; color:#fff; font-weight:800; background:#fff; transition:.2s; }
 .mn-check[data-on="1"] { background:var(--navy-700); border-color:var(--navy-700); }
-.mn-overlay { position:absolute; inset:30px 0 0 0; z-index:10; display:flex; align-items:center; justify-content:center; background:rgba(40,25,10,.38); animation:mn-fade .2s both; }
+.mn-overlay { position:absolute; inset:0; z-index:10; display:flex; align-items:center; justify-content:center; background:rgba(40,25,10,.38); animation:mn-fade .2s both; }
 .mn-modal { width:410px; background:#fff; border-radius:14px; box-shadow:var(--sh-lg); animation:mn-pop .25s ease both; }
 .mn-modal-title { padding:13px 16px; font-weight:800; font-size:15.5px; border-bottom:1px solid var(--ink-100); }
 .mn-modal-body { padding:14px 16px; }

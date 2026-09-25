@@ -8,31 +8,8 @@
    ตอนแก้ UI จริงของระบบ ให้มาแก้ข้อความ/ลำดับที่ไฟล์นี้ให้ตรงกัน
    ============================================================ */
 import { Icon } from './data.jsx';
-import { StepDemo, MockFrame, MockToast, MockTyped, MockModal } from './manualDemo.jsx';
-
-/* ---------- ชิ้นส่วนย่อยที่ใช้ซ้ำ ---------- */
-const TONES = {
-  wait:   { bg: 'var(--status-wait-bg)',   fg: 'var(--status-wait-fg)',   dot: 'var(--status-wait-dot)' },
-  ok:     { bg: 'var(--status-ok-bg)',     fg: 'var(--status-ok-fg)',     dot: 'var(--status-ok-dot)' },
-  reject: { bg: 'var(--status-reject-bg)', fg: 'var(--status-reject-fg)', dot: 'var(--status-reject-dot)' },
-};
-const MockBadge = ({ tone, children }) => (
-  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 11px', borderRadius: 999, fontSize: 13.5, fontWeight: 700, background: TONES[tone].bg, color: TONES[tone].fg }}>
-    <span style={{ width: 7, height: 7, borderRadius: '50%', background: TONES[tone].dot }} />{children}
-  </span>
-);
-const Field = ({ label, children, style }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, ...style }}>
-    <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ink-600)' }}>{label}</span>
-    {children}
-  </div>
-);
-const Box = ({ children, dm, style }) => (
-  <div data-demo={dm} style={{ border: '1px solid var(--ink-200)', borderRadius: 9, background: '#fff', padding: '7px 11px', fontSize: 14, color: 'var(--ink-900)', minHeight: 20, ...style }}>{children}</div>
-);
-const Btn = ({ dm, kind = 'ghost', children, style }) => (
-  <button type="button" data-demo={dm} tabIndex={-1} className={`btn btn-sm btn-${kind}`} style={style}>{children}</button>
-);
+import { StepDemo, MockFrame, MockToast, MockTyped, MockModal, MockBadge, Field, Box, Btn } from './manualDemo.jsx';
+import { MORE_DEMOS } from './manualDemosMore.jsx';
 
 /* ---------- หน้ารายละเอียดนักศึกษา (ใช้ในเดโม ตรวจ/ตีกลับ/ถอนการยืนยัน) ---------- */
 const SUBJECTS = [['1101', 'การผดุงครรภ์', true], ['1102', 'การพยาบาลมารดาและทารก', true], ['1103', 'การพยาบาลเด็กและวัยรุ่น', false]];
@@ -166,6 +143,7 @@ const revokeDemo = {
 /* ============ 4) นำเข้ารายชื่อ ============ */
 const importDemo = {
   title: 'การนำเข้ารายชื่อนักศึกษาจากไฟล์ Excel / Google Form',
+  height: 400,
   steps: [
     { target: 'choose-file', text: 'คลิก "เลือกไฟล์ Excel / CSV" แล้วเลือกไฟล์รายชื่อ (แนะนำไฟล์ .xlsx ที่ดาวน์โหลดจาก Google Sheets)' },
     { target: 'check', text: 'คลิก "ตรวจไฟล์" ระบบตรวจทุกแถวโดยยังไม่บันทึกข้อมูล และแจ้งแถวที่มีปัญหาพร้อมเหตุผล' },
@@ -267,6 +245,7 @@ const pendingDemo = {
 /* ============ 6) เปิดรอบการกรอกผลสอบ ============ */
 const roundDemo = {
   title: 'การเปิดรอบการกรอกผลสอบ',
+  height: 440,
   steps: [
     { target: 'new-round', text: 'ที่เมนู "รอบการกรอก & รายวิชา" คลิก "เปิดรอบใหม่"' },
     { target: 'subjects', text: 'กำหนดรุ่นนักศึกษา ครั้งที่สอบ วันเปิด–ปิดรับ แล้วเลือกรายวิชาที่ใช้สอบในรอบนี้' },
@@ -305,9 +284,9 @@ const roundDemo = {
   ),
 };
 
-const DEMOS = { approve: approveDemo, reject: rejectDemo, revoke: revokeDemo, import: importDemo, pending: pendingDemo, round: roundDemo };
+const DEMOS = { approve: approveDemo, reject: rejectDemo, revoke: revokeDemo, import: importDemo, pending: pendingDemo, round: roundDemo, ...MORE_DEMOS };
 
 export function Demo({ name }) {
   const d = DEMOS[name];
-  return <StepDemo title={d.title} steps={d.steps} stage={d.stage} />;
+  return <StepDemo title={d.title} steps={d.steps} stage={d.stage} height={d.height} />;
 }
