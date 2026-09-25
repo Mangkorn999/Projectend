@@ -7,9 +7,9 @@
    ============================================================ */
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, Avatar, StatusBadge, Pagination, Modal, Select } from './components.jsx';
+import { PageHead, Avatar, StatusBadge, Pagination, Modal, Select, ExportMenu } from './components.jsx';
 import { SkeletonTable } from './skeletons.jsx';
-import { apiFetch, ApiError, API_BASE } from './api.js';
+import { apiFetch, ApiError, downloadFile } from './api.js';
 import { t, roomName, subjectName } from './i18n.js';
 
 // แปลง staff_status จาก backend (pending/approved/rejected) → status key ที่ StatusBadge เข้าใจ
@@ -53,7 +53,7 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
   const [resetting, setResetting] = useState(null); // นักศึกษาที่กำลังจะรีเซ็ตรหัส (รอยืนยันในโมดัล)
   const [resetNationalId, setResetNationalId] = useState('');
   const [resetError, setResetError] = useState('');
-  const [downloading, setDownloading] = useState(false);
+  const [exportingStudents, setExportingStudents] = useState(false);
   const per = 10;
 
   useEffect(() => {
@@ -265,34 +265,32 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
     }
   };
 
-  // export รายชื่อ (เฉพาะตอนกรองด้วย subjectFilter — คลิกมาจากปุ่ม "ผ่าน/ไม่ผ่าน N คน" ที่ Dashboard เท่านั้น)
-  // ไฟล์ PDF ต้อง login ก่อน — fetch เป็น blob เองพร้อม credentials แทนใช้ <a href> ตรงๆ (pattern เดียวกับ reportsReal.jsx)
-  const downloadSubjectPdf = async () => {
-    if (!subjectFilter) return;
-    setDownloading(true);
+  // export รายชื่อผ่าน/ไม่ผ่านรายวิชา (เฉพาะตอนกรองด้วย subjectFilter — คลิกมาจากปุ่ม "ผ่าน/ไม่ผ่าน N คน" ที่ Dashboard)
+  // ใช้ ExportMenu + downloadFile ตัวเดียวกับหน้ารายงานสรุป (PDF หรือ Excel)
+  const subjectExportItems = subjectFilter ? ['pdf', 'xlsx'].map(format => {
+    const scope = subjectFilter.roundId ? `round_id=${subjectFilter.roundId}` : `year=${subjectFilter.year}`;
+    return {
+      key: format, label: tt(format === 'xlsx' ? 'export.excel' : 'export.pdf'), icon: format === 'xlsx' ? 'report' : 'pdf',
+      run: () => downloadFile(
+        `/students/export-subject?subject_code=${subjectFilter.subjectCode}&passed=${subjectFilter.passed}&${scope}&format=${format}`,
+        { filename: `รายชื่อ-${subjectFilter.passed ? 'ผ่าน' : 'ไม่ผ่าน'}-${subjectFilter.subjectCode}.${format}` }),
+    };
+  }) : [];
+
+  // ส่งออกข้อมูลนักศึกษา (Excel) — เฉพาะที่ผ่านตัวกรองบนหน้านี้อยู่ (ค้นหา/ห้อง/ปี/สถานะ/สิทธิ์ ฯลฯ ทำฝั่งหน้าจอ
+  // จึงส่ง "รายชื่อรหัส" ที่เห็นอยู่ไปให้ backend สร้างไฟล์ ไม่ต้องเขียนตัวกรองซ้ำสองที่) ไม่มีเลขบัตรประชาชนในไฟล์
+  const exportStudents = async () => {
+    setExportingStudents(true);
     try {
-      const scope = subjectFilter.roundId
-        ? `round_id=${subjectFilter.roundId}`
-        : `year=${subjectFilter.year}`;
-      const res = await fetch(
-        `${API_BASE}/students/export-subject?subject_code=${subjectFilter.subjectCode}&passed=${subjectFilter.passed}&${scope}`,
-        { credentials: 'include' },
-      );
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || tt('detailReal.actionFailMsg'));
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `รายชื่อ-${subjectFilter.passed ? 'ผ่าน' : 'ไม่ผ่าน'}-${subjectFilter.subjectCode}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
+      await downloadFile('/students/export', {
+        method: 'POST',
+        body: { student_ids: filtered.map(s => s.sid) },
+        filename: `ข้อมูลนักศึกษา-${filtered.length}คน.xlsx`,
+      });
     } catch (e) {
-      toast?.(e.message, 'error');
+      toast?.(e instanceof ApiError ? e.message : tt('export.failed'), 'error');
     } finally {
-      setDownloading(false);
+      setExportingStudents(false);
     }
   };
 
@@ -307,11 +305,20 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
   return (
     <div className="fade-up">
       <PageHead title={tt('officer.students.title')} sub={tt('officer.students.sub', { found: filtered.length, total: students.length })}
-        actions={returnView && (
-          <button className="btn btn-ghost" onClick={() => onBackToDashboard?.(returnView)}>
-            <Icon name="chevL" size={17} /> {tt('officer.students.backToDashboardBtn')}
-          </button>
-        )} />
+        actions={<div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          {returnView && (
+            <button className="btn btn-ghost" onClick={() => onBackToDashboard?.(returnView)}>
+              <Icon name="chevL" size={17} /> {tt('officer.students.backToDashboardBtn')}
+            </button>
+          )}
+          {/* ปุ่มส่งออกข้อมูลนักศึกษา — officer เท่านั้น (ผู้บริหารไม่มีสิทธิ์ดูข้อมูลรายบุคคล) */}
+          {!readonly && (
+            <button className="btn btn-ghost" disabled={exportingStudents || filtered.length === 0}
+              title={tt('export.studentsHint')} onClick={exportStudents}>
+              <Icon name="download" size={16} /> {exportingStudents ? tt('export.working') : tt('export.studentsBtn', { n: filtered.length })}
+            </button>
+          )}
+        </div>} />
 
       {subjectFilter && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
@@ -326,14 +333,13 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
               <Icon name="xCircle" size={15} />
             </button>
           </div>
-          <button className="btn btn-ghost btn-sm" disabled={downloading} onClick={downloadSubjectPdf}>
-            <Icon name="pdf" size={15} /> {downloading ? tt('reportsReal.generating') : tt('reportsReal.downloadPdfBtn')}
-          </button>
+          <ExportMenu size="sm" items={subjectExportItems} tt={tt} onError={msg => toast?.(msg, 'error')} />
         </div>
       )}
 
       {firstAttemptFilter && (
-        <div className="chip" style={{ marginBottom: 14, display: 'inline-flex', alignItems: 'center', gap: 8,
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+        <div className="chip" style={{ display: 'inline-flex', alignItems: 'center', gap: 8,
           background: firstAttemptFilter.passed ? 'var(--status-ok-bg)' : 'var(--status-reject-bg)',
           color: firstAttemptFilter.passed ? 'var(--status-ok-fg)' : 'var(--status-reject-fg)', fontWeight: 700 }}>
           <Icon name="eye" size={15} />
@@ -343,6 +349,16 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
             color: 'inherit', display: 'flex', padding: 0 }} title={tt('officer.students.subjectFilterClear')}>
             <Icon name="xCircle" size={15} />
           </button>
+        </div>
+          {/* ดาวน์โหลดรายชื่อชุดเดียวกับที่ตัวเลขบน Dashboard ใช้ (ไม่ใช่รายชื่อที่กรองบนหน้านี้ — ชุดนั้นนับเฉพาะใบที่ยืนยันแล้ว) */}
+          {!readonly && (
+            <ExportMenu size="sm" label={tt('export.firstAttemptListBtn')} tt={tt} onError={msg => toast?.(msg, 'error')}
+              items={['xlsx', 'pdf'].map(format => ({
+                key: format, label: tt(format === 'xlsx' ? 'export.excel' : 'export.pdf'), icon: format === 'xlsx' ? 'report' : 'pdf',
+                run: () => downloadFile(`/dashboard/export-first-attempt?year=${firstAttemptFilter.year}&passed=${firstAttemptFilter.passed}&format=${format}`,
+                  { filename: `รายชื่อนักศึกษา${firstAttemptFilter.passed ? 'ผ่านครั้งแรก' : 'ไม่ผ่านครั้งแรก'}-${firstAttemptFilter.year}.${format}` }),
+              }))} />
+          )}
         </div>
       )}
 

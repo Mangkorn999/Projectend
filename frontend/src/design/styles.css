@@ -479,3 +479,7 @@ select.input, select.select {
   .mn-callout, .mn-table tr, .mn-demo { break-inside:avoid; }
   .mn-demo { box-shadow:none; }
 }
+
+/* รายการในเมนู ExportMenu (components.jsx) */
+.export-item { display:flex; align-items:center; gap:8px; width:100%; padding:8px 12px; border:none; background:transparent; border-radius:7px; cursor:pointer; font-family:inherit; font-size:15px; color:var(--ink-800); text-align:left; }
+.export-item:hover, .export-item:focus-visible { background:var(--ink-100); }

@@ -670,6 +670,59 @@ export function NotifToastStack({ items=[], onGo, onDismiss, lang='TH' }) {
   );
 }
 
+/* ---- ExportMenu ----
+   ปุ่ม "ส่งออก ▾" ตัวเดียวที่ทุกหน้าใช้ร่วมกัน (รายงานสรุป, การ์ดเทียบรายปี, รายชื่อรายวิชา ฯลฯ)
+   ให้หน้าตา/การทำงานเหมือนกันหมด: กดแล้วเลือกรูปแบบไฟล์ (Excel / PDF) → ระหว่างสร้างไฟล์ปุ่มแสดง "กำลังสร้างไฟล์…" และกดซ้ำไม่ได้
+   items = [{ key, label, icon?, run: async () => {...} }] — run ปกติเรียก downloadFile() จาก api.js
+   onError(message) = ตอนสร้างไฟล์ไม่สำเร็จ (ให้หน้าแสดง toast เอง) · หุ้ม stopPropagation ไว้ เพราะบางที่วางอยู่ในการ์ดที่คลิกได้ */
+export function ExportMenu({ items, lang='TH', tt, onError, size='md', label, align='left', up=false }) {
+  // หน้าที่ส่ง tt (ตัวแปลของหน้านั้น) มาให้ใช้ tt · ไม่ส่งมาก็แปลจาก lang เอง
+  const tr = (key) => (tt ? tt(key) : t(lang, key));
+  const [open, setOpen] = useState(false);
+  const [busyKey, setBusyKey] = useState(null);
+  const box = useRef(null);
+
+  // คลิกนอกกล่อง / กด Esc = ปิดเมนู
+  useEffect(() => {
+    if(!open) return undefined;
+    const close = (e) => { if(!box.current?.contains(e.target)) setOpen(false); };
+    const esc = (e) => { if(e.key==='Escape') setOpen(false); };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', esc); };
+  }, [open]);
+
+  const run = async (item) => {
+    setOpen(false);
+    setBusyKey(item.key);
+    try { await item.run(); }
+    catch(e) { onError?.(e?.message || tr('export.failed')); }
+    finally { setBusyKey(null); }
+  };
+
+  const busy = busyKey !== null;
+  const small = size === 'sm';
+  const single = items.length === 1; // ไฟล์รูปแบบเดียว = กดแล้วดาวน์โหลดเลย ไม่ต้องเปิดเมนูให้เลือกอันเดียว
+  return (
+    <span ref={box} style={{ position:'relative', display:'inline-block' }} onClick={e=>e.stopPropagation()}>
+      <button type="button" className={'btn btn-ghost' + (small ? ' btn-sm' : '')} disabled={busy}
+        aria-haspopup={single ? undefined : 'menu'} aria-expanded={single ? undefined : open} onClick={()=> single ? run(items[0]) : setOpen(o=>!o)}>
+        <Icon name="download" size={small?14:16}/> {busy ? tr('export.working') : (label ?? tr('export.btn'))} {!single && <Icon name="chevD" size={12}/>}
+      </button>
+      {open && (
+        <div role="menu" style={{ position:'absolute', [up ? 'bottom' : 'top']:'100%', [align==='right' ? 'right' : 'left']:0, [up ? 'marginBottom' : 'marginTop']:4, zIndex:60, minWidth:170,
+          background:'#fff', border:'1px solid var(--ink-200)', borderRadius:10, boxShadow:'var(--sh-lg)', padding:4 }}>
+          {items.map(it => (
+            <button key={it.key} type="button" role="menuitem" className="export-item" onClick={()=>run(it)}>
+              <Icon name={it.icon || 'download'} size={15}/> {it.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </span>
+  );
+}
+
 /* ---- Modal ---- */
 export function Modal({ open, onClose, title, children, footer, width=480, tone }) {
   if(!open) return null;

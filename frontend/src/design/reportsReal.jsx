@@ -6,21 +6,19 @@
    ============================================================ */
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, StatusBadge, FirstAttemptSubjectTable, Modal, Empty, Select } from './components.jsx';
+import { PageHead, StatusBadge, FirstAttemptSubjectTable, Modal, Empty, Select, ExportMenu } from './components.jsx';
 import { Logo } from './logos.jsx';
-import { apiFetch, API_BASE } from './api.js';
+import { apiFetch, downloadFile } from './api.js';
 import { t, subjectName, roomName } from './i18n.js';
 
 export function ReportsReal({ toast, readonly, lang }) {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState('');
-  const [downloading, setDownloading] = useState(false);
   // การ์ดรายชื่อผ่าน/ไม่ผ่านรายวิชา — เดิมอยู่ที่ Dashboard (กดแล้วเด้งไปหน้ารายชื่อนักศึกษาทั้งรุ่น ปนกับตัวกรองอื่นเพียบ)
   // ย้ายมาไว้ที่นี่แทนตามที่เจ้าหน้าที่ขอ — คลิกตัวเลขในตาราง "อัตราผ่านรายวิชา" ด้านล่างแล้วเห็นรายชื่อแยกเป็นสัดส่วนในหน้านี้เลย ไม่ต้องเปลี่ยนหน้า
   const [subjectModal, setSubjectModal] = useState(null); // { subjectCode, subjectName, passed } | null
   const [subjectModalData, setSubjectModalData] = useState(null); // ผลจาก /students/subject-result-list
   const [subjectModalError, setSubjectModalError] = useState('');
-  const [subjectDownloading, setSubjectDownloading] = useState(false);
   const tt = (key, vars) => t(lang, key, vars);
 
   // ตัวเลขที่ส่งสภาการพยาบาลเป็นระดับปีการศึกษา ไม่ใช่ระดับรอบ — ต้องดึงสรุปรายปีมาคู่กัน
@@ -72,31 +70,13 @@ export function ReportsReal({ toast, readonly, lang }) {
       .catch(e => setSubjectModalError(e.message));
   }, [subjectModal, roundId]);
 
-  const downloadSubjectPdf = async () => {
-    if (!subjectModal) return;
-    setSubjectDownloading(true);
-    try {
-      const res = await fetch(
-        `${API_BASE}/students/export-subject?subject_code=${subjectModal.subjectCode}&passed=${subjectModal.passed}&round_id=${roundId}`,
-        { credentials: 'include' },
-      );
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || tt('reportsReal.pdfFailMsg'));
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `รายชื่อ-${subjectModal.passed ? 'ผ่าน' : 'ไม่ผ่าน'}-${subjectModal.subjectCode}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      toast(e.message, 'error');
-    } finally {
-      setSubjectDownloading(false);
-    }
-  };
+  // ปุ่มดาวน์โหลดในหน้าต่างรายชื่อรายวิชา — PDF หรือ Excel (ใช้ ExportMenu + downloadFile ตัวเดียวกับทั้งระบบ)
+  const subjectExportItems = subjectModal ? ['pdf', 'xlsx'].map(format => ({
+    key: format, label: tt(format === 'xlsx' ? 'export.excel' : 'export.pdf'), icon: format === 'xlsx' ? 'report' : 'pdf',
+    run: () => downloadFile(
+      `/students/export-subject?subject_code=${subjectModal.subjectCode}&passed=${subjectModal.passed}&round_id=${roundId}&format=${format}`,
+      { filename: `รายชื่อ-${subjectModal.passed ? 'ผ่าน' : 'ไม่ผ่าน'}-${subjectModal.subjectCode}.${format}` }),
+  })) : [];
 
   // เปลี่ยนปี = เด้งไปรอบแรกของปีนั้นเสมอ เพราะ round_id ของปีเก่าไม่ได้อยู่ในปีใหม่
   const changeYear = (nextYear) => {
@@ -107,29 +87,12 @@ export function ReportsReal({ toast, readonly, lang }) {
     if (first) setRoundId(first.round_id);
   };
 
-  const downloadPdf = async () => {
-    setDownloading(true);
-    try {
-      // ไฟล์ PDF ต้อง login ก่อน — fetch เป็น blob เองพร้อม credentials แทนใช้ <a href> ตรงๆ
-      const res = await fetch(`${API_BASE}/dashboard/export?round_id=${roundId}`, {
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || tt('reportsReal.pdfFailMsg'));
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = `exam-report-${stats.round.attempt_number}-${stats.round.academic_year}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      toast(e.message, 'error');
-    } finally {
-      setDownloading(false);
-    }
-  };
+  // รายงานสรุปของรอบที่เลือก (PDF) — ปุ่มบนหัวหน้าและแถวแรกของแผง "ส่งออกข้อมูล" ใช้ตัวนี้ร่วมกัน
+  const reportPdfItem = () => ({
+    key: 'pdf', label: tt('export.pdf'), icon: 'pdf',
+    run: () => downloadFile(`/dashboard/export?round_id=${roundId}`,
+      { filename: `exam-report-${stats.round.attempt_number}-${stats.round.academic_year}.pdf` }),
+  });
 
   if (error) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--reject,#dc2626)' }}>{tt('statuspage.loadFailPrefix', { msg: error })}</div>;
   if (!stats) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
@@ -154,6 +117,24 @@ export function ReportsReal({ toast, readonly, lang }) {
     ['NONE', tt('dashReal.notStartedLabel'), not_started],
   ];
 
+  // แผง "ส่งออกข้อมูล" — รวมทุกไฟล์ที่ส่งออกได้ของปี/รอบที่เลือกไว้ที่เดียว (เดิมกระจายอยู่หลายหน้า)
+  // ไฟล์ผ่าน/ไม่ผ่านครั้งแรกใช้กฎเดียวกับตัวเลข "ร้อยละผู้สอบผ่านในครั้งแรก" ในรายงานนี้ (ผ่าน + ไม่ผ่าน = ทั้งรุ่น)
+  const exportYear = round.academic_year;
+  const firstAttemptItems = (passed) => ['xlsx', 'pdf'].map(format => ({
+    key: format, label: tt(format === 'xlsx' ? 'export.excel' : 'export.pdf'), icon: format === 'xlsx' ? 'report' : 'pdf',
+    run: () => downloadFile(`/dashboard/export-first-attempt?year=${exportYear}&passed=${passed}&format=${format}`,
+      { filename: `รายชื่อนักศึกษา${passed ? 'ผ่านครั้งแรก' : 'ไม่ผ่านครั้งแรก'}-${exportYear}.${format}` }),
+  }));
+  const exportRows = [
+    { key: 'report', title: tt('export.rowReport', { attempt: round.attempt_number, year: exportYear }), sub: tt('export.rowReportSub'), items: [reportPdfItem()] },
+    { key: 'pass', title: tt('export.rowFirstPass', { year: exportYear }), sub: tt('export.rowFirstPassSub'), items: firstAttemptItems(true) },
+    { key: 'fail', title: tt('export.rowFirstFail', { year: exportYear }), sub: tt('export.rowFirstFailSub'), items: firstAttemptItems(false) },
+    { key: 'students', title: tt('export.rowStudents', { year: exportYear }), sub: tt('export.rowStudentsSub'), items: [{
+      key: 'xlsx', label: tt('export.excel'), icon: 'report',
+      run: () => downloadFile('/students/export', { method: 'POST', body: { year: exportYear }, filename: `ข้อมูลนักศึกษา-รุ่น ${exportYear}.xlsx` }),
+    }] },
+  ];
+
   return (
     <div className="fade-up">
       <PageHead title={tt('reports.title')} sub={tt('reportsReal.roundSlash', { attempt: round.attempt_number, year: round.academic_year })}
@@ -167,8 +148,25 @@ export function ReportsReal({ toast, readonly, lang }) {
             options={roundsInYear.map(r => ({ value: r.round_id,
               label: tt('dashReal.roundOnlyLabel', { attempt: r.attempt_number }) }))} />
           <button className="btn btn-ghost" onClick={() => window.print()}><Icon name="printer" size={16} /> {tt('reports.printBtn')}</button>
-          {!readonly && <button className="btn btn-primary" disabled={downloading} onClick={downloadPdf}><Icon name="pdf" size={16} /> {downloading ? tt('reportsReal.generating') : tt('reportsReal.downloadPdfBtn')}</button>}
+          {!readonly && <ExportMenu items={[reportPdfItem()]} tt={tt} onError={msg => toast(msg, 'error')} label={tt('reportsReal.downloadPdfBtn')} />}
         </div>} />
+
+      {!readonly && (
+        <div className="card no-print" style={{ maxWidth: 900, margin: '0 auto 16px', padding: '18px 24px' }}>
+          <div style={{ fontWeight: 800, fontSize: 17 }}>{tt('export.panelTitle')}</div>
+          <div style={{ color: 'var(--ink-500)', fontSize: 14.5, margin: '2px 0 8px' }}>{tt('export.panelSub', { year: exportYear })}</div>
+          {exportRows.map(row => (
+            <div key={row.key} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 0', borderTop: '1px solid var(--ink-100)' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 15.5 }}>{row.title}</div>
+                <div style={{ color: 'var(--ink-500)', fontSize: 14 }}>{row.sub}</div>
+              </div>
+              <ExportMenu items={row.items} tt={tt} align="right" onError={msg => toast(msg, 'error')} />
+            </div>
+          ))}
+          <div style={{ color: 'var(--ink-500)', fontSize: 14, paddingTop: 10, borderTop: '1px solid var(--ink-100)' }}>{tt('export.subjectHint')}</div>
+        </div>
+      )}
 
       <div className="card" style={{ padding: '34px 40px', maxWidth: 900, margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, paddingBottom: 18, borderBottom: '2px solid var(--navy-700)' }}>
@@ -313,9 +311,7 @@ export function ReportsReal({ toast, readonly, lang }) {
           width={640}
           footer={<>
             <button className="btn btn-ghost" onClick={() => setSubjectModal(null)}>{tt('common.close')}</button>
-            <button className="btn btn-primary" disabled={subjectDownloading || !subjectModalData?.students?.length} onClick={downloadSubjectPdf}>
-              <Icon name="pdf" size={16} /> {subjectDownloading ? tt('reportsReal.generating') : tt('reportsReal.downloadPdfBtn')}
-            </button>
+            {subjectModalData?.students?.length > 0 && <ExportMenu up items={subjectExportItems} tt={tt} onError={msg => toast(msg, 'error')} />}
           </>}>
           {subjectModalError && <div style={{ color: 'var(--reject,#dc2626)', padding: '10px 0' }}>{subjectModalError}</div>}
           {!subjectModalError && !subjectModalData && <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>}

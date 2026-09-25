@@ -9,8 +9,8 @@ import { Icon } from './data.jsx';
 import { phaseOf, phaseLabel, phaseBadgeClass } from './roundPhase.js';
 import { SkeletonDashboard } from './skeletons.jsx';
 import { PageHead, StatCard, Donut, BarRow, MultiLineChart, MultiBarChart, ColumnChart, Modal, Empty,
-  FirstAttemptSubjectTable, Select } from './components.jsx';
-import { apiFetch } from './api.js';
+  FirstAttemptSubjectTable, Select, ExportMenu } from './components.jsx';
+import { apiFetch, downloadFile } from './api.js';
 import { t, subjectName, roomName } from './i18n.js';
 
 /* แท็บ "รวมทั้งปี" — ค่าคงที่ตัวเดียวใช้ทั้งไฟล์ จะได้ไม่พิมพ์ string ซ้ำแล้วสะกดต่างกัน */
@@ -19,7 +19,7 @@ const ALL_ROUNDS = 'all';
 /* แท็บที่ตัวเลขเป็นระดับ "ทั้งรุ่น/รอบแรก" ไม่ได้ผูกกับรอบที่เลือก — มีให้กดเฉพาะตอน "รวมทั้งปี" */
 const YEAR_ONLY_TABS = ['firstBySubject', 'firstCount'];
 
-export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreView, onRestoreConsumed }) {
+export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreView, onRestoreConsumed, toast }) {
   const tt = (key, vars) => t(lang, key, vars);
   // คลิก "ผ่าน/ไม่ผ่าน" ในการ์ดอัตราผ่านรายวิชา — พาไปหน้าข้อมูลนักศึกษา กรองเฉพาะคนที่ผ่าน/ไม่ผ่านวิชานั้น (ข้อมูลจริง ไม่ใช่ mock)
   // แนบ tab/mainTab/year ปัจจุบันไปด้วย — ใช้ตอนกดปุ่ม "กลับไปหน้าแดชบอด" ที่หน้านักศึกษา จะได้กลับมาที่ widget เดิม
@@ -232,7 +232,7 @@ export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreVi
                   { key: 'fullPass', label: tt('dashReal.colFullPass') },
                 ]} />
                 <div key={reportTab} className="blur-in" style={{ marginTop: 14 }}>
-                  {reportTab === 'firstRate' && <FirstAttemptPassRate history={reportHistory} tt={tt} wide yearPicker={reportYearPicker} onViewStudents={goToFirstAttemptStudents} />}
+                  {reportTab === 'firstRate' && <FirstAttemptPassRate history={reportHistory} tt={tt} wide yearPicker={reportYearPicker} onViewStudents={goToFirstAttemptStudents} onExportError={msg => toast?.(msg, 'error')} />}
                   {reportTab === 'subjectHistory' && <SubjectHistoryChart history={reportHistory} firstRoundSubjects={firstRoundSubjects} tt={tt} yearPicker={reportYearPicker} />}
                   {reportTab === 'fullPass' && <YearCompare history={reportHistory} lang={lang} tt={tt} yearPicker={reportYearPicker} />}
                 </div>
@@ -988,7 +988,7 @@ function YearCompare({ history, lang, tt, yearPicker }) {
 /* ร้อยละคนที่สอบผ่านครบทุกวิชาตั้งแต่ "รอบแรก" (attempt_number=1) ของแต่ละปี เทียบกับจำนวนนักศึกษาทั้งรุ่น
    แสดงเก่าไปใหม่ (ซ้ายไปขวา) พร้อมส่วนต่างเทียบปีก่อนหน้า
    การ์ดจริงแคบ (อยู่คอลัมน์เดียวกับ donut/ผ่านครบทุกวิชา) เลยเรียงเป็นแถวแนวตั้ง — กดขยายดูแบบเทียบข้างกันครบทุกปีในโมดัลแทน */
-function FirstAttemptPassRate({ history, tt, wide, yearPicker, onViewStudents }) {
+function FirstAttemptPassRate({ history, tt, wide, yearPicker, onViewStudents, onExportError }) {
   const [expanded, setExpanded] = useState(false);
   // คลิกการ์ดปีไหน เปิด modal แยกเป็นรายรอบของปีนั้น — เก็บทั้ง object เลยไม่ต้องหาซ้ำ
   const [roundDetailYear, setRoundDetailYear] = useState(null);
@@ -1031,17 +1031,24 @@ function FirstAttemptPassRate({ history, tt, wide, yearPicker, onViewStudents })
         </div>
         {/* แยกจากคลิกเปิด modal ข้างบน — ต้องมี onViewStudents (officer เท่านั้น ผู้บริหารดูหน้านักศึกษาไม่ได้) */}
         {onViewStudents && (
-          <div style={{ display: 'flex', gap: 14, marginTop: 8, paddingTop: 8, borderTop: '1px dashed var(--ink-100)' }}>
-            <button type="button" onClick={e => { e.stopPropagation(); onViewStudents(y.academic_year, true); }}
-              style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', display: 'flex',
-                alignItems: 'center', gap: 4, fontSize: 14, fontWeight: 700, color: 'var(--status-ok-fg)' }}>
-              <Icon name="eye" size={13} /> {tt('dashReal.viewPassedStudentsBtn')}
-            </button>
-            <button type="button" onClick={e => { e.stopPropagation(); onViewStudents(y.academic_year, false); }}
-              style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', display: 'flex',
-                alignItems: 'center', gap: 4, fontSize: 14, fontWeight: 700, color: 'var(--status-reject-fg)' }}>
-              <Icon name="eye" size={13} /> {tt('dashReal.viewFailedStudentsBtn')}
-            </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8, paddingTop: 8, borderTop: '1px dashed var(--ink-100)' }}>
+            {/* 2 แถว: ผ่านครั้งแรก / ไม่ผ่านครั้งแรก — แต่ละแถวมี "ดูรายชื่อ" (ไปหน้านักศึกษา) + "ส่งออก" (Excel/PDF ของปีนี้)
+                ไฟล์ที่ส่งออกใช้กฎเดียวกับตัวเลขบนการ์ดนี้ (ผ่าน + ไม่ผ่าน = ทั้งรุ่น) */}
+            {[[true, 'viewPassedStudentsBtn', 'var(--status-ok-fg)', 'ผ่านครั้งแรก'], [false, 'viewFailedStudentsBtn', 'var(--status-reject-fg)', 'ไม่ผ่านครั้งแรก']].map(([passed, labelKey, color, fileLabel]) => (
+              <div key={String(passed)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <button type="button" onClick={e => { e.stopPropagation(); onViewStudents(y.academic_year, passed); }}
+                  style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', display: 'flex',
+                    alignItems: 'center', gap: 4, fontSize: 14, fontWeight: 700, color }}>
+                  <Icon name="eye" size={13} /> {tt('dashReal.' + labelKey)}
+                </button>
+                <ExportMenu size="sm" align="right" tt={tt} onError={onExportError}
+                  items={['xlsx', 'pdf'].map(format => ({
+                    key: format, label: tt(format === 'xlsx' ? 'export.excel' : 'export.pdf'), icon: format === 'xlsx' ? 'report' : 'pdf',
+                    run: () => downloadFile(`/dashboard/export-first-attempt?year=${y.academic_year}&passed=${passed}&format=${format}`,
+                      { filename: `รายชื่อนักศึกษา${fileLabel}-${y.academic_year}.${format}` }),
+                  }))} />
+              </div>
+            ))}
           </div>
         )}
       </div>
