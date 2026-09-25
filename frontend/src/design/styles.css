@@ -346,3 +346,136 @@ select.input, select.select {
   color: #fff; animation: langSpin .6s linear infinite;
 }
 .btn-ghost[data-busy="true"]::after, .btn-subtle[data-busy="true"]::after { color: var(--ink-700); }
+
+
+/* ============================================================
+   หน้าคู่มือการใช้งาน (userManual.jsx) + ภาพเคลื่อนไหวสาธิต (manualDemo.jsx)
+   ============================================================ */
+.mn-page { display:grid; grid-template-columns: 250px minmax(0,1fr); gap: 34px; align-items:start; }
+
+/* ---- สารบัญด้านข้าง ---- */
+.mn-toc { position:sticky; top:88px; max-height:calc(100vh - 110px); overflow:auto; padding:16px 12px; }
+.mn-toc h4 { margin:0 0 8px 10px; font-size:13px; letter-spacing:.05em; color:var(--ink-500); font-weight:800; }
+.mn-toc a { display:block; padding:7px 10px; border-radius:8px; font-size:14.5px; line-height:1.45; color:var(--ink-700);
+  text-decoration:none; border-left:3px solid transparent; transition:.12s; }
+.mn-toc a:hover { background:var(--ink-100); }
+.mn-toc a.on { background:#fdf1dc; color:var(--navy-800); border-left-color:var(--navy-700); font-weight:700; }
+
+/* ---- ปกเอกสาร ---- */
+.mn-cover { padding:28px 32px; border-radius:16px; color:#fff; margin-bottom:30px;
+  background:linear-gradient(135deg, var(--navy-800), var(--navy-900)); box-shadow:var(--sh-md); }
+.mn-cover .mn-org { font-size:14px; opacity:.85; letter-spacing:.03em; }
+.mn-cover h1 { margin:8px 0 4px; font-size:28px; line-height:1.35; color:#fff; }
+.mn-cover .mn-sub { font-size:16px; opacity:.92; }
+.mn-cover .mn-meta { display:flex; flex-wrap:wrap; gap:6px 26px; margin-top:18px; padding-top:14px; border-top:1px solid rgba(255,255,255,.25); font-size:14px; opacity:.95; }
+.mn-cover .mn-meta b { font-weight:700; margin-right:6px; }
+.mn-cover .btn { margin-top:16px; background:#fff; color:var(--navy-800); }
+
+/* ---- เนื้อหา ---- */
+.mn-doc { min-width:0; }
+.mn-sec { scroll-margin-top:90px; margin-bottom:38px; padding-bottom:10px; border-bottom:1px solid var(--ink-200); }
+.mn-sec > h2 { display:flex; gap:12px; align-items:baseline; margin:0 0 8px; font-size:23px; color:var(--ink-900); }
+.mn-sec > h2 .n { color:var(--navy-700); font-weight:800; min-width:1.4em; }
+.mn-sec h3 { margin:24px 0 8px; font-size:17.5px; color:var(--navy-800); }
+.mn-sec p, .mn-sec li { font-size:15.5px; line-height:1.9; color:var(--ink-700); }
+.mn-sec p { margin:8px 0; }
+.mn-sec ul { padding-left:24px; margin:8px 0; }
+.mn-sec code, .mn-code { font-family:var(--mono); font-size:14px; background:var(--ink-100); padding:1px 7px; border-radius:6px; color:var(--navy-800); }
+
+/* ขั้นตอนปฏิบัติ — วงกลมเลขนำหน้า */
+.mn-proc { list-style:none; counter-reset:st; padding:0; margin:10px 0 16px; }
+.mn-proc > li { counter-increment:st; position:relative; padding:4px 0 6px 46px; }
+.mn-proc > li::before { content:counter(st); position:absolute; left:0; top:5px; width:31px; height:31px; border-radius:50%;
+  background:var(--navy-700); color:#fff; font-weight:800; font-size:14.5px; display:flex; align-items:center; justify-content:center; }
+
+/* กล่องหมายเหตุ / ข้อควรระวัง / ข้อห้าม */
+.mn-callout { display:flex; gap:12px; padding:13px 17px; border-radius:12px; margin:16px 0; border:1px solid; font-size:15px; line-height:1.75; }
+.mn-callout .ic { flex:none; margin-top:3px; }
+.mn-callout .t { display:block; font-weight:800; margin-bottom:2px; }
+.mn-callout.note { background:var(--blue-50); border-color:var(--blue-100); color:#1e3a8a; }
+.mn-callout.warn { background:var(--status-wait-bg); border-color:#f2d9a0; color:#6b4a04; }
+.mn-callout.danger { background:var(--status-reject-bg); border-color:#f3c4bf; color:var(--status-reject-fg); }
+.mn-callout p, .mn-callout li { color:inherit; margin:2px 0; }
+
+.mn-table { width:100%; border-collapse:collapse; margin:12px 0 18px; font-size:15px; }
+.mn-table th { background:var(--ink-100); text-align:left; padding:9px 13px; font-weight:800; border:1px solid var(--ink-200); }
+.mn-table td { padding:9px 13px; border:1px solid var(--ink-200); vertical-align:top; line-height:1.75; }
+
+/* ============ เครื่องเล่นภาพเคลื่อนไหวสาธิต ============ */
+.mn-demo { margin:20px 0 26px; border:1px solid var(--ink-200); border-radius:16px; background:#fff; overflow:hidden; box-shadow:var(--sh-sm); }
+.mn-demo-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:12px 16px; background:var(--ink-50); border-bottom:1px solid var(--ink-200); font-size:15.5px; }
+.mn-demo-tag { display:inline-flex; align-items:center; gap:5px; padding:3px 11px; border-radius:999px; background:var(--navy-700); color:#fff; font-size:12.5px; font-weight:800; }
+.mn-stage-outer { width:100%; overflow:hidden; background:var(--ink-100); }
+.mn-stage { position:relative; transform-origin:top left; background:var(--ink-50); font-size:14px; animation:mn-fade .35s ease both; }
+.mn-stage, .mn-stage * { pointer-events:none; user-select:none; }
+
+/* หน้าจอจำลอง */
+.mn-frame { position:absolute; inset:0; display:flex; flex-direction:column; }
+.mn-frame-bar { height:30px; flex:none; display:flex; align-items:center; gap:6px; padding:0 12px; background:#fff; border-bottom:1px solid var(--ink-200); font-size:12.5px; font-weight:700; color:var(--ink-600); }
+.mn-frame-bar i { width:9px; height:9px; border-radius:50%; background:var(--ink-300); }
+.mn-frame-bar span { margin-left:10px; }
+.mn-frame-body { flex:1; padding:12px 14px; position:relative; overflow:hidden; }
+.mn-th, .mn-tr { display:flex; align-items:center; gap:10px; padding:8px 12px; font-size:13px; }
+.mn-th { background:var(--navy-700); color:#fff; font-weight:700; }
+.mn-tr { border-top:1px solid var(--ink-100); }
+.mn-check { width:16px; height:16px; border:2px solid var(--ink-300); border-radius:4px; display:inline-flex; align-items:center; justify-content:center; font-size:12px; color:#fff; font-weight:800; background:#fff; transition:.2s; }
+.mn-check[data-on="1"] { background:var(--navy-700); border-color:var(--navy-700); }
+.mn-overlay { position:absolute; inset:30px 0 0 0; z-index:10; display:flex; align-items:center; justify-content:center; background:rgba(40,25,10,.38); animation:mn-fade .2s both; }
+.mn-modal { width:410px; background:#fff; border-radius:14px; box-shadow:var(--sh-lg); animation:mn-pop .25s ease both; }
+.mn-modal-title { padding:13px 16px; font-weight:800; font-size:15.5px; border-bottom:1px solid var(--ink-100); }
+.mn-modal-body { padding:14px 16px; }
+.mn-modal-foot { display:flex; justify-content:flex-end; gap:8px; padding:11px 14px; background:var(--ink-50); border-radius:0 0 14px 14px; }
+.mn-toast { position:absolute; left:50%; bottom:14px; z-index:25; padding:9px 18px; border-radius:10px; background:#1f1a16; color:#fff; font-size:14px; font-weight:600; white-space:nowrap; animation:mn-toast .3s ease both; }
+.mn-pop { animation:mn-pop .3s ease both; }
+.mn-typed { display:block; overflow:hidden; white-space:nowrap; animation:mn-reveal .9s steps(14, end) both; }
+
+/* เมาส์จำลอง + วงแหวนเน้นปุ่ม + ริ้วคลื่นตอนคลิก */
+.mn-cursor { position:absolute; left:0; top:0; z-index:30; transform:translate(570px, 310px); transition:transform 1000ms cubic-bezier(.45,.05,.2,1); filter:drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
+.mn-cursor svg { display:block; margin:-2px 0 0 -3px; }
+.mn-ripple { position:absolute; left:-9px; top:-9px; width:26px; height:26px; border-radius:50%; background:rgba(189,87,0,.45); animation:mn-ripple .6s ease-out both; }
+.mn-ring { position:absolute; z-index:20; border:2.5px solid var(--navy-600); border-radius:10px; opacity:0; transition:opacity .25s; }
+.mn-ring.on { opacity:1; animation:mn-ring 1.1s ease-out infinite; }
+
+/* แถบควบคุมและรายการขั้นตอนใต้ภาพ */
+.mn-demo-ctl { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:10px 14px; border-top:1px solid var(--ink-200); background:#fff; }
+.mn-demo-now { margin-left:auto; max-width:60%; font-size:14px; line-height:1.55; color:var(--ink-700); }
+.mn-steps { list-style:none; margin:0; padding:6px 14px 16px; }
+.mn-steps li { position:relative; display:flex; gap:12px; padding:8px 10px; border-radius:10px; font-size:15px; line-height:1.7; color:var(--ink-500); transition:.2s; }
+.mn-steps li.cur { background:#fdf1dc; color:var(--ink-900); }
+.mn-steps li.past { color:var(--ink-700); }
+.mn-step-num { flex:none; width:26px; height:26px; margin-top:1px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-weight:800; font-size:13.5px; background:var(--ink-200); color:var(--ink-700); }
+.mn-steps li.cur .mn-step-num { background:var(--navy-700); color:#fff; }
+.mn-steps li.past .mn-step-num { background:var(--status-ok-dot); color:#fff; }
+.mn-step-btn { position:absolute; inset:0; opacity:0; border:0; background:none; cursor:pointer; }
+
+@keyframes mn-fade { from { opacity:0 } to { opacity:1 } }
+@keyframes mn-pop { from { opacity:0; transform:translateY(8px) scale(.98) } to { opacity:1; transform:none } }
+@keyframes mn-toast { from { opacity:0; transform:translate(-50%, 10px) } to { opacity:1; transform:translate(-50%, 0) } }
+@keyframes mn-ring { 0% { box-shadow:0 0 0 0 rgba(189,87,0,.55) } 100% { box-shadow:0 0 0 14px rgba(189,87,0,0) } }
+@keyframes mn-ripple { from { transform:scale(.25); opacity:.8 } to { transform:scale(2.8); opacity:0 } }
+@keyframes mn-reveal { from { max-width:0 } to { max-width:100% } }
+
+/* ผู้ใช้ที่ตั้งค่า "ลดการเคลื่อนไหว" — ไม่มีภาพเคลื่อนไหวเลย (ใช้ปุ่ม "ขั้นถัดไป" ทีละขั้นแทน) */
+@media (prefers-reduced-motion: reduce) {
+  .mn-cursor { transition:none; }
+  .mn-ring.on, .mn-ripple, .mn-typed, .mn-pop, .mn-toast, .mn-overlay, .mn-modal, .mn-stage { animation:none; }
+}
+@media (max-width: 960px) {
+  .mn-page { grid-template-columns:1fr; }
+  .mn-toc { position:static; max-height:none; }
+  .mn-demo-now { max-width:100%; margin-left:0; }
+  .mn-cover { padding:22px 20px; }
+  .mn-cover h1 { font-size:23px; }
+}
+
+/* พิมพ์คู่มือ: ซ่อนเมนู/ปุ่ม/ภาพเคลื่อนไหว เหลือเฉพาะเนื้อหา + รายการขั้นตอน */
+@media print {
+  aside, header, .mn-toc, .mn-noprint, .mn-stage-outer, .mn-demo-head .mn-demo-tag { display:none !important; }
+  .app-content, main { margin:0 !important; padding:0 !important; }
+  .mn-page { display:block; }
+  .mn-cover { background:#fff !important; color:#000 !important; border:1.5px solid #000; box-shadow:none; }
+  .mn-cover h1, .mn-cover .mn-sub, .mn-cover .mn-org, .mn-cover .mn-meta { color:#000 !important; border-color:#000 !important; }
+  .mn-sec { break-inside:auto; }
+  .mn-callout, .mn-table tr, .mn-demo { break-inside:avoid; }
+  .mn-demo { box-shadow:none; }
+}
