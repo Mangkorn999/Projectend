@@ -164,7 +164,7 @@ const main = async () => {
   check("dry_run เลขบัตรมีช่องว่างท้าย → นำเข้าได้", spaced?.imported_count, 1);
 
   // หัวคอลัมน์ผิดจริง → ข้อความต้องบอกว่าไฟล์มีคอลัมน์อะไรบ้าง
-  const wrongHead = await dryRun("รหัส,เลขบัตร\r\n6699990015,1234567890123\r\n");
+  const wrongHead = await dryRun("ชื่อ,เบอร์โทร\r\nสมชาย,0812345678\r\n");
   check("dry_run หัวคอลัมน์ผิด → 400", wrongHead.status, 400);
   check("  ข้อความบอกคอลัมน์ที่พบ", wrongHead.json?.message?.includes("คอลัมน์ที่พบในไฟล์"), true);
 
@@ -186,6 +186,14 @@ const main = async () => {
   check("  ตั้งชื่อไฟล์เป็น .csv แต่เนื้อเป็น xlsx -> ยังอ่านได้", (await sendXlsx(xlsxBuf, "students.csv")).json?.data?.imported_count, 3);
   const badXlsx = await sendXlsx(Buffer.concat([Buffer.from("PK"), Buffer.from("ไม่ใช่ zip จริง")]));
   check("  ไฟล์ xlsx เสีย -> 400 ข้อความไทย", `${badXlsx.status},${badXlsx.json?.message?.includes("อ่านไฟล์ Excel ไม่ได้")}`, "400,true");
+
+  // ── เลข 1929900326091 (ของจริงที่เจ้าหน้าที่พิมพ์แล้วนำเข้าไม่ได้) + หัวคอลัมน์ที่พิมพ์เองไม่ตรง template ──
+  // fixture: เลขในเซลล์ตัวเลขถูกเขียนเป็น 1.929900326091E+12 (ใน .xlsx ค่านี้คือเลขเต็ม ต่างจาก CSV) + หัวคอลัมน์ภาษาไทย
+  const xlSci = await sendXlsx(readFileSync(new URL("./fixtures/students-sci-notation-thai-headers.xlsx", import.meta.url)));
+  check("xlsx เลข E-notation + หัวคอลัมน์ไทย -> นำเข้าได้ 3 ข้าม 0", `${xlSci.json?.data?.imported_count},${xlSci.json?.data?.skipped_count}`, "3,0");
+  check("  หัวคอลัมน์ผิด/ไม่ครบ -> ข้อความบอกคอลัมน์ที่พบ", (await dryRun("foo,bar\r\n1,2\r\n")).json?.message?.includes("คอลัมน์ที่พบในไฟล์: foo, bar"), true);
+  const aliasCsv = (await dryRun("Student ID,เลขบัตรประชาชน,ปีการศึกษา\r\n6699991201,1929900326091,\r\n")).json?.data;
+  check("CSV หัวคอลัมน์ 'Student ID' / ไทย -> นำเข้าได้", `${aliasCsv?.imported_count},${aliasCsv?.skipped_count}`, "1,0");
 
   console.log(results.join("\n"));
   console.log(`\n${results.length - failures}/${results.length} passed`);

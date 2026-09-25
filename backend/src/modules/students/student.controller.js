@@ -353,6 +353,25 @@ export const bulkSetEligible = async (req, res, next) => {
   }
 };
 
+// ชื่อคอลัมน์ที่เจ้าหน้าที่พิมพ์เองใน Excel มักไม่ตรงตัวอักษรกับ template — "Student ID", "รหัสนักศึกษา", "เลขบัตรประชาชน"
+// รับเป็นชื่อเดียวกับที่ระบบรู้จัก จะได้ไม่ต้องให้เจ้าหน้าที่นั่งแก้หัวคอลัมน์ทีละไฟล์
+// (เทียบหลัง trim + ตัวเล็ก + ช่องว่าง/ขีดกลาง -> "_")
+const COLUMN_ALIASES = {
+  student_id: ["studentid", "student_no", "student_number", "รหัสนักศึกษา", "รหัส_นักศึกษา", "รหัสนศ", "รหัส"],
+  national_id: [
+    "nationalid", "id_card", "idcard", "citizen_id", "citizenid", "national_id_number",
+    "เลขบัตรประชาชน", "เลขบัตร_ประชาชน", "เลขบัตร", "เลขประจำตัวประชาชน", "เลขบัตร_ปชช", "เลขปชช",
+  ],
+  academic_year: ["academicyear", "graduation_year", "ปีการศึกษา", "ปีการศึกษาที่จบ", "ปีที่จบ"],
+};
+const canonicalColumn = (raw) => {
+  const key = String(raw ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  for (const [name, aliases] of Object.entries(COLUMN_ALIASES)) {
+    if (key === name || aliases.includes(key)) return name;
+  }
+  return key;
+};
+
 // ไฟล์ .xlsx คือ zip ขึ้นต้นด้วย "PK" — เช็คจากเนื้อไฟล์ ไม่เชื่อนามสกุล/mimetype ที่ client ส่งมา
 const isXlsxFile = (buffer) => buffer.length > 4 && buffer[0] === 0x50 && buffer[1] === 0x4b;
 
@@ -370,7 +389,7 @@ const rowsFromCsv = (buffer) => {
   try {
     rows = parse(csvText, {
       // ชื่อคอลัมน์: ตัดช่องว่าง + แปลงเป็นตัวเล็ก — "Student_ID" / " national_id" จาก Excel ก็อ่านได้
-      columns: (header) => header.map((h) => String(h).trim().toLowerCase()),
+      columns: (header) => header.map(canonicalColumn),
       // Excel ที่ตั้งภาษา/ภูมิภาคบางแบบ save CSV คั่นด้วย ; หรือ tab แทน , — รับทั้งสามแบบ
       delimiter: [",", ";", "\t"],
       skip_empty_lines: true,
@@ -404,9 +423,19 @@ const rowsFromXlsx = async (buffer) => {
   if (!sheet || sheet.length === 0) return [];
 
   const [header, ...body] = sheet;
-  const names = header.map((h) => String(h ?? "").trim().toLowerCase());
+  const names = header.map(canonicalColumn);
   // ค่าในเซลล์ -> ข้อความ (วันที่/ว่าง = ข้อความว่าง ให้ด่านตรวจแถวด้านล่างตีเป็น "ข้อมูลไม่ครบ" เอง)
-  const cellText = (v) => (v === null || v === undefined || v instanceof Date ? "" : String(v).trim());
+  const cellText = (v) => {
+    if (v === null || v === undefined || v instanceof Date) return "";
+    const text = String(v).trim();
+    // บางเวอร์ชัน/โปรแกรมเขียนตัวเลขในไฟล์ .xlsx เป็นรูป 1.929900326091E+12 — ใน .xlsx ค่านี้คือเลข "เต็ม" (ต่างจาก CSV ที่เป็นแค่ข้อความที่แสดง)
+    // แปลงกลับเป็นจำนวนเต็มได้อย่างปลอดภัย ถ้าเป็นจำนวนเต็มที่ JS เก็บได้แม่นยำ
+    if (SCIENTIFIC_NOTATION_PATTERN.test(text)) {
+      const n = Number(text);
+      if (Number.isSafeInteger(n)) return String(n);
+    }
+    return text;
+  };
 
   return body
     .filter((cells) => cells.some((c) => cellText(c) !== "")) // ข้ามแถวว่างท้ายไฟล์
