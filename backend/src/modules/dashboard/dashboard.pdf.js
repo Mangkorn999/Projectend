@@ -57,7 +57,7 @@ export const buildReportPdf = (stats, rows, res, yearStats) => {
     ["ตีกลับ", `${stats.by.rejected} คน`],
     [
       "ผ่านครบทุกวิชาของรอบนี้",
-      `${stats.fullyPassed} คน (${stats.fullyPassedRate}% ของทั้งรุ่น / ${stats.passRateOfSitters}% ของผู้ส่งผล)`,
+      `${stats.fullyPassed} คน (${stats.fullyPassedRate}% ของทั้งรุ่น / ${stats.passRateOfSitters}% ของผู้ที่ยืนยันแล้ว ${stats.confirmed} คน)`,
     ],
     ["อัตราผ่านเฉลี่ยรายวิชา", `${stats.subjectPassRate}%`],
   ];
@@ -65,6 +65,12 @@ export const buildReportPdf = (stats, rows, res, yearStats) => {
     if (doc.y + 16 > BOTTOM) doc.addPage();
     doc.text(`${label} : ${value}`, LEFT, doc.y, { width: CONTENT_WIDTH });
   });
+  // ตัวเลข "ผ่าน" ทุกตัวในรายงานนับเฉพาะใบที่ยืนยันแล้ว — บอกไว้ในรายงานเลย ถ้ายังมีใบรอตรวจก็ระบุจำนวน (คนอ่านไฟล์ไม่ได้เห็นหน้าจอ)
+  doc.fontSize(10).fillColor("#555").text(
+    `หมายเหตุ: ตัวเลข "ผ่าน" ทุกตัวนับเฉพาะใบผลสอบที่เจ้าหน้าที่ตรวจสอบและยืนยันแล้ว${stats.by.submitted > 0 ? ` (ขณะออกรายงานยังมีใบรอตรวจสอบ ${stats.by.submitted} ใบ ที่ยังไม่นับ)` : ""}`,
+    LEFT, doc.y + 2, { width: CONTENT_WIDTH },
+  );
+  doc.fillColor("#000").fontSize(11);
   doc.moveDown(1);
 
   // ── ตัวเลขที่ใช้รายงานสภาการพยาบาล (ระดับปีการศึกษา ไม่ใช่ระดับรอบ) ──

@@ -160,12 +160,17 @@ export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreVi
   );
   const reportHistory = { ...history, years: history.years.filter(y => reportYears.includes(y.academic_year)) };
 
+  // ใบรอตรวจของสิ่งที่กำลังดู — เจ้าหน้าที่ดูตามแท็บที่เลือก (รอบเดียว/รวมทั้งปี) ผู้บริหารดูภาพรวมทั้งปีอย่างเดียว
+  const pendingCount = (!readonly && showingRound) ? stats.by.submitted : (yearSummary?.statusByStudent?.submitted ?? 0);
+
   return (
     <div className="fade-up">
       <PageHead
         title={tt('dashReal.title')}
         sub={yearSummary ? tt('dashReal.subInfo', { year, total: yearSummary.total, eligible: yearSummary.eligible }) : null}
         actions={yearPicker} />
+
+      <PendingNotice n={pendingCount} go={readonly ? null : go} tt={tt} />
 
       {/* ─── โซน 2: ผลการกรอกของรอบที่เลือก ─────────────────────────
           เจ้าหน้าที่เท่านั้น — ผู้บริหารดูภาพรวมทั้งปีอย่างเดียว ไม่ต้องไล่ทีละรอบ
@@ -608,7 +613,8 @@ function ExecutiveOverview({ year, history, perSubject, lang, tt }) {
   const attempts = [...year.rounds].sort((a, b) => a.attempt_number - b.attempt_number);
   const attemptBars = attempts.map((r, i) => {
     let rate = 0;
-    if (r.submitted) rate = Math.round((r.fullyPassed / r.submitted) * 100);
+    // ตัวหาร = ใบที่ยืนยันแล้วของรอบนั้น (ตัวตั้ง fullyPassed นับจากใบที่ยืนยันแล้วเหมือนกัน) — ไม่ใช่ submitted ที่รวมใบรอตรวจ
+    if (r.confirmed) rate = Math.round((r.fullyPassed / r.confirmed) * 100);
     // ครั้งแรกเป็นสีหลัก ครั้งถัดไปจางลงเรื่อยๆ — เห็นลำดับได้โดยไม่ต้องอ่าน label
     const palette = ['var(--navy-700)', 'var(--navy-500)', 'var(--ink-300)'];
     return {
@@ -616,7 +622,7 @@ function ExecutiveOverview({ year, history, perSubject, lang, tt }) {
       value: rate,
       color: palette[Math.min(i, palette.length - 1)],
       pass: r.fullyPassed,
-      sat: r.submitted,
+      sat: r.confirmed,
     };
   });
 
@@ -1121,7 +1127,7 @@ function RoundBreakdownTable({ year, tt }) {
     <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 16, overflowX: 'auto' }}>
       {rounds.map(r => {
         // ผ่านครั้งแรกของ "รอบนี้" เอง — ผ่านครบ ÷ คนที่สอบรอบนี้ ไม่ใช่ตัวเลขสะสมของทั้งปี
-        const rate = r.submitted ? Math.round((r.fullyPassed / r.submitted) * 10000) / 100 : 0;
+        const rate = r.confirmed ? Math.round((r.fullyPassed / r.confirmed) * 10000) / 100 : 0;
         const tone = rate >= 80 ? 'var(--status-ok-dot)' : 'var(--status-wait-dot)';
         return (
           <div key={r.round_id} style={{ width: 360, flex: 'none', padding: 30,
@@ -1133,10 +1139,25 @@ function RoundBreakdownTable({ year, tt }) {
             <div className="tnum" style={{ fontSize: 42, fontWeight: 800, marginBottom: 16 }}>{rate.toFixed(2)}%</div>
             <div className="pbar" style={{ height: 13, marginBottom: 18 }}><i style={{ width: `${rate}%`, background: tone }} /></div>
             <div style={{ fontSize: 18, color: 'var(--ink-600)' }}>{tt('dashReal.roundFullyPassedCount', { pass: r.fullyPassed })}</div>
-            <div style={{ fontSize: 18, color: 'var(--ink-500)' }}>{tt('dashReal.roundSatTotal', { total: r.submitted })}</div>
+            <div style={{ fontSize: 18, color: 'var(--ink-500)' }}>{tt('dashReal.roundSatTotal', { total: r.confirmed })}</div>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/* แถบเตือน "ยังมีใบรอตรวจสอบ N ใบ ยังไม่นับ" — ตัวเลข "ผ่าน" ทุกตัวนับเฉพาะใบที่ยืนยันแล้ว
+   ระหว่างที่ยังตรวจไม่ครบ ตัวเลขจะต่ำกว่าความจริงชั่วคราว แถบนี้บอกเหตุผลให้คนอ่านไม่เข้าใจผิดว่าผ่านน้อย
+   n = จำนวนใบรอตรวจของสิ่งที่กำลังดูอยู่ (รอบที่เลือก / รวมทั้งปีนับเป็นคน) · go = ไปหน้าตรวจสอบ (ผู้บริหารไม่มี — ดูอย่างเดียว) */
+function PendingNotice({ n, go, tt }) {
+  if (!n) return null;
+  return (
+    <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '11px 16px', marginBottom: 18,
+      borderRadius: 12, background: 'var(--status-wait-bg)', color: 'var(--status-wait-fg)', fontWeight: 600, fontSize: 15.5 }}>
+      <Icon name="clock" size={18} />
+      <span style={{ flex: 1, minWidth: 200 }}>{tt('dashReal.pendingNotice', { n })}</span>
+      {go && <button type="button" className="btn btn-sm btn-ghost" onClick={() => go('review')}>{tt('dashReal.pendingNoticeBtn')}</button>}
     </div>
   );
 }

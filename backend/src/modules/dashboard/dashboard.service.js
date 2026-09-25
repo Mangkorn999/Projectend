@@ -20,9 +20,13 @@ const onlySent = (results) => results.filter((r) => r.student_status !== "draft"
 // ใช้กฎเดียวกับ findPassedSubjectIds ฝั่ง examResults จะได้ไม่ขัดกันเอง
 const notRejected = (results) => results.filter((r) => r.staff_status !== "rejected");
 
-// ยืนยันแล้วเท่านั้น (staff_status === approved) — ตัด pending (รอตรวจ) ออกด้วย
-// ใช้เฉพาะ "อัตราการผ่านรายวิชา" (buildPerSubject) ที่ต้องการเฉพาะใบที่เจ้าหน้าที่ตรวจสอบแล้วจริง
-// ต่างจาก notRejected ที่สถิติอื่นในไฟล์นี้ (fullyPassed, สัดส่วนสถานะ ฯลฯ) ยังใช้แบบเดิม
+// ยืนยันแล้วเท่านั้น (staff_status === approved) — ตัด pending (รอตรวจ) และ rejected ออก
+//
+// **กฎของสถิติทุกตัวที่แปลว่า "ผ่าน"** (ผ่านครบ, ผ่านครั้งแรก, ผ่านภายในปีแรก, ผ่านรายวิชา, ตารางผ่านกี่วิชา, ยอดแยกห้อง):
+//   นับเฉพาะใบที่เจ้าหน้าที่ตรวจสอบและยืนยันแล้ว — ผลที่นักศึกษากรอกเองยังไม่มีใครเทียบกับใบรายงานผลสอบ เชื่อยังไม่ได้
+//   (เดิมนับใบรอตรวจด้วย ยกเว้นผ่านรายวิชา ทำให้ตัวเลขในหน้าเดียวกันขัดกันเอง เช่น วิชาหนึ่งผ่าน 40 แต่ผ่านครบ 45)
+// ใบรอตรวจไม่ได้หายไปไหน: ยังนับเป็น "ส่งผลแล้ว" (fillRate), ยังอยู่ในสัดส่วนสถานะ และหน้าจอเตือนว่ามีกี่ใบที่ยังไม่นับ
+// ตัวหารของ % ยังเป็น "นักศึกษาทั้งรุ่น" เหมือนเดิม
 const onlyConfirmed = (results) => results.filter((r) => r.staff_status === "approved");
 
 // นับว่าผลสอบแต่ละใบอยู่สถานะไหน
@@ -182,7 +186,7 @@ function buildPassDistribution(sent, subjectIds, roomTotals) {
 function buildFirstAttemptBySubject(sent, subjects, cohortTotal) {
   if (!cohortTotal) return null; // ยังไม่ import นักศึกษา — ไม่มีตัวหาร ไม่ต้องคำนวณ
 
-  const counted = notRejected(sent); // ใบที่ถูกตีกลับเชื่อไม่ได้ ใช้กฎเดียวกับสถิติตัวอื่นในไฟล์นี้
+  const counted = onlyConfirmed(sent); // นับเฉพาะใบที่ยืนยันแล้ว — ใบรอตรวจ/ถูกตีกลับไปอยู่ช่อง "ยังไม่ส่ง/ยังไม่ยืนยัน"
 
   const rows = subjects.map((sub) => {
     let pass = 0;
@@ -236,7 +240,7 @@ function buildFirstAttemptBySubject(sent, subjects, cohortTotal) {
 
   return {
     cohort_total: cohortTotal, // คอลัมน์ "จำนวนผู้สมัครสอบ" = ตัวหารของทุก % ในตารางนี้
-    submitted: counted.length, // ส่งผลรอบแรกแล้วกี่คน (ไม่รวมใบที่ถูกตีกลับ)
+    submitted: counted.length, // ยืนยันผลรอบแรกแล้วกี่คน (ไม่รวมใบรอตรวจ/ถูกตีกลับ)
     average_pass_rate: average, // เส้นอ้างอิงของหน้าจอ: วิชาไหนต่ำกว่าค่านี้ = ต้องเฝ้าระวัง
     passed_all: passedAll,
     passed_all_rate: rate2(passedAll, cohortTotal),
@@ -276,12 +280,9 @@ export const buildStats = async (roundId) => {
 
   const sent = onlySent(results);
   const submitted = sent.length;
-  const counted = notRejected(sent);
-  // อัตราการผ่านรายวิชา นับเฉพาะใบที่ยืนยันแล้ว — รอตรวจสอบยังไม่นับ
-  const perSubject = buildPerSubject(onlyConfirmed(counted), subjects);
-  // ใช้ counted ไม่ใช่ sent — ใบที่เจ้าหน้าที่ตีกลับเชื่อไม่ได้ ต้องไม่นับเป็น "ผ่านครบ"
-  // (กฎเดียวกับ buildPerSubject/buildFirstAttemptBySubject ในไฟล์นี้ เดิมตรงนี้หลุดไปใช้ sent)
-  const fullyPassed = countFullyPassed(counted, subjectIds);
+  const confirmed = onlyConfirmed(sent); // ใบที่ยืนยันแล้ว = ฐานของทุกตัวเลข "ผ่าน" (ดูกฎที่ onlyConfirmed)
+  const perSubject = buildPerSubject(confirmed, subjects);
+  const fullyPassed = countFullyPassed(confirmed, subjectIds);
 
   // เฉลี่ยอัตราผ่านของทุกวิชา — คนละตัวกับ fullyPassedRate ที่นับเป็นรายคน
   // ข้ามวิชาที่ไม่มีใครสอบจริง ไม่งั้นตัวหารจะรวมวิชาที่ไม่มีข้อมูลเข้ามาด้วย
@@ -338,10 +339,12 @@ export const buildStats = async (roundId) => {
     // % คนที่ผ่านครบทุกวิชาของรอบนี้ เทียบกับทั้งรุ่น (ตัวหารเดียวกับ fillRate)
     fullyPassedRate: percent(fullyPassed, total),
     subjectPassRate, // % ผลรายวิชาที่ผ่าน รวมทุกวิชา
-    // % ผ่านครบ เทียบเฉพาะ "คนที่ส่งผลรอบนี้" — คนละตัวหารกับ fullyPassedRate ข้างบน
+    confirmed: confirmed.length, // ใบรอบนี้ที่ยืนยันแล้วกี่ใบ = ฐานของตัวเลข "ผ่าน" · ส่วนที่เหลือของ submitted คือรอตรวจ/ถูกตีกลับ (ยังไม่นับ)
+    // % ผ่านครบ เทียบเฉพาะ "คนที่ยืนยันผลรอบนี้แล้ว" — คนละตัวหารกับ fullyPassedRate ข้างบน (ทั้งรุ่น)
     // ใช้ตอบคำถาม "คนที่เข้าสอบรอบนี้ ผ่านกี่ %" ต้องติดป้ายให้ชัดทุกที่ที่เอาไปโชว์
-    passRateOfSitters: percent(fullyPassed, submitted),
-    overallPassRate: percent(fullyPassed, submitted), // ชื่อเดิม เก็บไว้ไม่ให้หน้าเก่าพัง
+    // (ตัวตั้งกับตัวหารต้องมาจากใบที่ยืนยันแล้วเหมือนกัน ไม่งั้นใบรอตรวจจะลากอัตราลง)
+    passRateOfSitters: percent(fullyPassed, confirmed.length),
+    overallPassRate: percent(fullyPassed, confirmed.length), // ชื่อเดิม เก็บไว้ไม่ให้หน้าเก่าพัง
     perSubject,
   };
 };
@@ -384,14 +387,15 @@ const buildYearSummary = async (year, allSubjects) => {
   // ใช้ทำ "ร้อยละผ่านครั้งแรก" + ตารางผ่านกี่วิชา ซึ่งนับเฉพาะรอบแรกเท่านั้น
   // เก็บ 2 ชุด: Sent = ส่งมาแล้วทุกใบ, Counted = ตัดใบที่ถูกตีกลับออก (ใช้กับทุกตัวที่แปลว่า "ผ่าน")
   let firstRoundSent = null;
-  let firstRoundCounted = null;
+  let firstRoundConfirmed = null; // ใบรอบแรกที่ยืนยันแล้ว — ฐานของ "ผ่านครั้งแรก" และตารางผ่านกี่วิชา
   let firstRoundSubjectIds = [];
   let firstRoundSubjects = []; // ตัว object เต็ม (มีรหัส/ชื่อวิชา) ไว้ทำตารางรายวิชา
 
   for (const round of rounds) {
     const results = await dashRepo.findResultsByRound(round.round_id);
     const sent = onlySent(results);
-    const counted = notRejected(sent);
+    const counted = notRejected(sent); // ใช้กับ "ส่งผลแล้ว" (fillRate) เท่านั้น — ตัวเลขผ่านใช้ confirmed
+    const confirmed = onlyConfirmed(sent);
     const roundSubjects = subjectsOfRound(round, allSubjects);
     const subjectIds = roundSubjects.map((s) => s.subject_id);
 
@@ -405,7 +409,7 @@ const buildYearSummary = async (year, allSubjects) => {
 
     if (round.attempt_number === 1) {
       firstRoundSent = sent;
-      firstRoundCounted = counted;
+      firstRoundConfirmed = confirmed;
       firstRoundSubjectIds = subjectIds;
       firstRoundSubjects = roundSubjects;
     }
@@ -414,12 +418,15 @@ const buildYearSummary = async (year, allSubjects) => {
       everSubmitted.add(r.student_id);
       roomOfStudent.set(r.student_id, r.student.room.room_id);
 
-      if (!passedByStudent.has(r.student_id)) {
-        passedByStudent.set(r.student_id, new Set());
-      }
-      const passedSet = passedByStudent.get(r.student_id);
-      for (const sr of r.subject_results) {
-        if (sr.is_passed) passedSet.add(sr.subject_id);
+      // วิชาที่ผ่านสะสมของแต่ละคน นับเฉพาะใบที่ยืนยันแล้ว (ใบรอตรวจยังไม่ทำให้ใครผ่านครบ)
+      if (r.staff_status === "approved") {
+        if (!passedByStudent.has(r.student_id)) {
+          passedByStudent.set(r.student_id, new Set());
+        }
+        const passedSet = passedByStudent.get(r.student_id);
+        for (const sr of r.subject_results) {
+          if (sr.is_passed) passedSet.add(sr.subject_id);
+        }
       }
 
       // นับรายคนสำหรับ perSubject "รวมทั้งปี" — เดิมส่ง array ใบทั้งปีตรงๆ เข้า buildPerSubject (นับตามใบ)
@@ -447,7 +454,8 @@ const buildYearSummary = async (year, allSubjects) => {
       subject_count: subjectIds.length,
       // submitted นับใบที่ถูกตีกลับด้วย (ส่งมาแล้วจริง) แต่ fullyPassed ต้องไม่นับ — ใบนั้นยังเชื่อไม่ได้
       submitted: sent.length,
-      fullyPassed: countFullyPassed(counted, subjectIds),
+      confirmed: confirmed.length, // ยืนยันแล้วกี่ใบ = ฐานของอัตราผ่านรายรอบ (submitted รวมใบรอตรวจ/ถูกตีกลับด้วย)
+      fullyPassed: countFullyPassed(confirmed, subjectIds),
     });
   }
 
@@ -495,9 +503,9 @@ const buildYearSummary = async (year, allSubjects) => {
   //   firstAttempt = ผ่านครบทุกวิชาตั้งแต่รอบสอบครั้งที่ 1
   //   firstYear    = ผ่านครบทุกวิชา ในรอบไหนก็ได้ของปีนั้น (รอบ 1+2+3 รวมกัน นับคนละครั้ง)
   let firstAttemptPassed = 0;
-  if (firstRoundCounted) {
+  if (firstRoundConfirmed) {
     firstAttemptPassed = countFullyPassed(
-      firstRoundCounted,
+      firstRoundConfirmed,
       firstRoundSubjectIds,
     );
   }
@@ -505,10 +513,10 @@ const buildYearSummary = async (year, allSubjects) => {
   let passDistribution = null;
   let firstAttemptBySubject = null;
   if (firstRoundSent) {
-    // ตารางแจกแจง "ผ่านกี่วิชา" ใช้ Counted เหมือนกัน — คนที่ใบถูกตีกลับจะไปตกแถว "ไม่ได้ส่งผลสอบ"
-    // ตรงกับตาราง firstAttemptBySubject ที่นับคนกลุ่มนี้เป็น not_submitted อยู่แล้ว
+    // ตารางแจกแจง "ผ่านกี่วิชา" ใช้ใบที่ยืนยันแล้วเหมือนกัน — คนที่ใบยังรอตรวจ/ถูกตีกลับ/ไม่ได้ส่ง
+    // ตกแถวท้าย "ยังไม่ส่ง/ยังไม่ยืนยัน" (ตรงกับตาราง firstAttemptBySubject ที่นับคนกลุ่มนี้เป็น not_submitted)
     passDistribution = buildPassDistribution(
-      firstRoundCounted,
+      firstRoundConfirmed,
       firstRoundSubjectIds,
       roomTotals,
     );
@@ -726,8 +734,8 @@ const paperStatusLabel = (result) => {
 // รายชื่อนักศึกษา "ผ่านครั้งแรก" หรือ "ไม่ผ่านครั้งแรก" ของปีการศึกษาหนึ่ง — ใช้ export
 // **กฎเดียวกับ buildYearSummary เป๊ะ** (firstAttempt.passed) ยอดในไฟล์จะได้ตรงกับตัวเลขบนการ์ดเทียบรายปี:
 //   - รอบแรก = attempt_number 1 ของปีนั้น, วิชาที่ต้องผ่าน = วิชาของรอบนั้น
-//   - ผ่าน = ส่งแล้ว (ไม่ใช่ draft) + ไม่ถูกตีกลับ + ผ่านครบทุกวิชา (ใบรอตรวจก็นับ เหมือนตัวเลขบนการ์ด)
-//   - ไม่ผ่าน = นักศึกษาทั้งรุ่นที่ไม่เข้าเงื่อนไขข้างบน → รวมคนที่ยังไม่ส่ง/ค้าง draft/ถูกตีกลับ ด้วย
+//   - ผ่าน = ใบรอบแรก "ยืนยันแล้ว" + ผ่านครบทุกวิชาของรอบ
+//   - ไม่ผ่าน = นักศึกษาทั้งรุ่นที่ไม่เข้าเงื่อนไขข้างบน → รวมคนที่ยังไม่ส่ง/ค้าง draft/รอตรวจสอบ/ถูกตีกลับ ด้วย
 //     (จึงมีคอลัมน์ "สถานะใบผลสอบ" บอกว่าแต่ละคนไม่ผ่านเพราะอะไร) ผ่าน + ไม่ผ่าน = ทั้งรุ่นเสมอ
 export const buildFirstAttemptList = async (year, wantPassed) => {
   const [rounds, students, allSubjects] = await Promise.all([
@@ -752,7 +760,8 @@ export const buildFirstAttemptList = async (year, wantPassed) => {
   const rows = [];
   for (const s of students) {
     const result = resultOf.get(s.student_id);
-    // ใช้เงื่อนไขเดียวกับ onlySent + notRejected ด้านบน
+    // แสดงผลรายวิชาให้ดูได้กับใบที่ส่งแล้วและไม่ถูกตีกลับ (รวมใบรอตรวจ — เจ้าหน้าที่จะได้เห็นว่ารอตรวจอยู่ผ่านกี่วิชา)
+    // แต่ "ผ่าน" จริงต้องยืนยันแล้วเท่านั้น (onlyConfirmed ด้านบน) ใบรอตรวจจึงอยู่กลุ่มไม่ผ่านพร้อมสถานะ "รอตรวจสอบ"
     const counted = !!result && result.student_status !== "draft" && result.staff_status !== "rejected";
 
     const passedSubjects = counted
@@ -760,7 +769,7 @@ export const buildFirstAttemptList = async (year, wantPassed) => {
           result.subject_results.some((sr) => sr.subject_id === sub.subject_id && sr.is_passed),
         )
       : [];
-    const passedAll = counted && passedSubjects.length === subjects.length;
+    const passedAll = counted && result.staff_status === "approved" && passedSubjects.length === subjects.length;
     if (passedAll !== wantPassed) continue;
 
     rows.push({

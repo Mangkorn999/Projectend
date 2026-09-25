@@ -2,6 +2,7 @@
 //
 // ที่เทสนี้คุม:
 //   1. ผ่านรอบแรก + ไม่ผ่านรอบแรก = ทั้งรุ่นเสมอ และ "ผ่าน" ตรงกับตัวเลข firstAttempt.passed บน dashboard เป๊ะ
+//      (นับเฉพาะใบที่ "ยืนยันแล้ว" — ใบรอตรวจอยู่กลุ่มไม่ผ่านพร้อมสถานะรอตรวจสอบ)
 //   2. คนที่ไม่ผ่านเพราะไม่ส่ง / ถูกตีกลับ ต้องอยู่ในรายชื่อ "ไม่ผ่าน" พร้อมสถานะที่บอกสาเหตุ
 //   3. ไฟล์ Excel ของนักศึกษาไม่มีเลขบัตรประชาชน (= รหัสผ่านเริ่มต้น)
 //   4. เฉพาะ officer (reviewer / executive / student = 403) · พารามิเตอร์แปลก = 400 ไม่ใช่ 500
@@ -40,7 +41,7 @@ const PREFIX2 = String(NO_ROUND_YEAR - 4).slice(-2);
 const STAMP = Date.now().toString().slice(-6);
 const sid = (n) => `${PREFIX}${STAMP}0${n}`;
 const nid = (n) => `1${STAMP}0000${n}`.slice(0, 13).padEnd(13, "0");
-// A ผ่านครบ+ยืนยันแล้ว · B ผ่านครบ ยังรอตรวจ · C ผ่าน 2/3 · D ไม่ส่ง · E ส่งแล้วถูกตีกลับ
+// A ผ่านครบ+ยืนยันแล้ว · B ผ่านครบ แต่ยังรอตรวจ (ยังไม่นับว่าผ่าน) · C ผ่าน 2/3 · D ไม่ส่ง · E ส่งแล้วถูกตีกลับ
 const ID = { A: sid(1), B: sid(2), C: sid(3), D: sid(4), E: sid(5) };
 const ID_NO_ROUND = `${PREFIX2}${STAMP}09`;
 
@@ -106,13 +107,13 @@ const main = async () => {
     const col = (t, name) => t.header.indexOf(name);
     const idsOf = (t) => t.body.map((r) => r[col(t, "รหัสนักศึกษา")]);
     check("  หัวคอลัมน์ครบ", P.header, ["ลำดับ", "รหัสนักศึกษา", "ชื่อ", "นามสกุล", "ห้อง", "สถานะใบผลสอบรอบแรก", "ผ่านกี่วิชา", "วิชาที่ไม่ผ่าน"]);
-    check("  ผ่านรอบแรก = A, B (ใบรอตรวจก็นับ เหมือนตัวเลขบน dashboard)", idsOf(P).sort(), [ID.A, ID.B].sort());
-    check("  ไม่ผ่านรอบแรก = C, D, E (ผ่านไม่ครบ / ไม่ส่ง / ถูกตีกลับ)", idsOf(F).sort(), [ID.C, ID.D, ID.E].sort());
+    check("  ผ่านรอบแรก = A คนเดียว (นับเฉพาะใบที่ยืนยันแล้ว)", idsOf(P).sort(), [ID.A]);
+    check("  ไม่ผ่านรอบแรก = B, C, D, E (รอตรวจ / ผ่านไม่ครบ / ไม่ส่ง / ถูกตีกลับ)", idsOf(F).sort(), [ID.B, ID.C, ID.D, ID.E].sort());
     check("  ผ่าน + ไม่ผ่าน = ทั้งรุ่น (5 คน)", idsOf(P).length + idsOf(F).length, 5);
 
     const rowOf = (t, id) => Object.fromEntries(t.header.map((h, i) => [h, t.body.find((r) => r[col(t, "รหัสนักศึกษา")] === id)?.[i]]));
     check("  A = ยืนยันแล้ว 3/3", [rowOf(P, ID.A)["สถานะใบผลสอบรอบแรก"], rowOf(P, ID.A)["ผ่านกี่วิชา"]], ["ยืนยันแล้ว", "3/3"]);
-    check("  B = รอตรวจสอบ", rowOf(P, ID.B)["สถานะใบผลสอบรอบแรก"], "รอตรวจสอบ");
+    check("  B = รอตรวจสอบ (ยังไม่นับว่าผ่าน แต่โชว์ 3/3 ให้เห็น)", [rowOf(F, ID.B)["สถานะใบผลสอบรอบแรก"], rowOf(F, ID.B)["ผ่านกี่วิชา"]], ["รอตรวจสอบ", "3/3"]);
     check("  C = ผ่าน 2/3 + บอกวิชาที่ตก", [rowOf(F, ID.C)["ผ่านกี่วิชา"], rowOf(F, ID.C)["วิชาที่ไม่ผ่าน"]], ["2/3", codes[2]]);
     check("  D = ยังไม่ได้กรอก", rowOf(F, ID.D)["สถานะใบผลสอบรอบแรก"], "ยังไม่ได้กรอก");
     check("  E = ถูกตีกลับ (ไม่นับว่าผ่าน แม้ตอนส่งผ่านครบ)", rowOf(F, ID.E)["สถานะใบผลสอบรอบแรก"], "ถูกตีกลับ");
@@ -120,7 +121,17 @@ const main = async () => {
     // ตรงกับตัวเลขบนการ์ดเทียบรายปี (dashboard/history) เป๊ะ
     const hist = (await call("GET", "/api/dashboard/history?years=10", { token: oToken })).json.data;
     const y = hist.years.find((v) => v.academic_year === YEAR);
-    check("  ยอดผ่านในไฟล์ = firstAttempt.passed บน dashboard", [idsOf(P).length, y?.firstAttempt?.passed, y?.total], [2, 2, 5]);
+    check("  ยอดผ่านในไฟล์ = firstAttempt.passed บน dashboard", [idsOf(P).length, y?.firstAttempt?.passed, y?.total], [1, 1, 5]);
+
+    // ยืนยัน B → นับเป็นผ่านทันที ทั้งในไฟล์และตัวเลขบน dashboard/stats (ตัวเลขทุกตัวใช้ฐาน "ยืนยันแล้ว" เดียวกัน)
+    const statsBefore = (await call("GET", `/api/dashboard/stats?round_id=${roundId}`, { token: oToken })).json.data;
+    check("stats ก่อนยืนยัน B: ผ่านครบ 1 · ยืนยัน 1 · รอตรวจ 2 (B และ C)", [statsBefore.fullyPassed, statsBefore.confirmed, statsBefore.by.submitted], [1, 1, 2]);
+    check("  อัตราผ่านของผู้ยืนยันแล้ว = 100% (1/1 ไม่ถูกใบรอตรวจลากลง)", statsBefore.passRateOfSitters, 100);
+    check("approve B", (await call("PATCH", `/api/exam-results/${rB.json.data.result_id}/approve`, { token: oToken })).status, 200);
+    const passAfter = await parse((await call("GET", `/api/dashboard/export-first-attempt?year=${YEAR}&passed=true`, { token: oToken })).buffer);
+    const histAfter = (await call("GET", "/api/dashboard/history?years=10", { token: oToken })).json.data.years.find((v) => v.academic_year === YEAR);
+    const statsAfter = (await call("GET", `/api/dashboard/stats?round_id=${roundId}`, { token: oToken })).json.data;
+    check("หลังยืนยัน B: ไฟล์ผ่าน = A,B · firstAttempt.passed = 2 · stats.fullyPassed = 2", [idsOf(passAfter).sort(), histAfter.firstAttempt.passed, statsAfter.fullyPassed], [[ID.A, ID.B].sort(), 2, 2]);
 
     const pdf = await call("GET", `/api/dashboard/export-first-attempt?year=${YEAR}&passed=false&format=pdf`, { token: oToken });
     check("GET ไม่ผ่านรอบแรก (pdf) -> 200 เป็น PDF จริง", [pdf.status, pdf.type, pdf.buffer?.subarray(0, 4).toString()], [200, "application/pdf", "%PDF"]);
@@ -174,7 +185,7 @@ const main = async () => {
     const q = `subject_code=${codes[0]}&passed=true&round_id=${roundId}`;
     const subjX = await call("GET", `/api/students/export-subject?${q}&format=xlsx`, { token: oToken });
     const SX = await parse(subjX.buffer);
-    check("export-subject xlsx -> 200 มีคนที่ผ่านและยืนยันแล้ว (A)", [subjX.status, idsOf(SX)], [200, [ID.A]]);
+    check("export-subject xlsx -> 200 มีคนที่ผ่านและยืนยันแล้ว (A, B)", [subjX.status, idsOf(SX).sort()], [200, [ID.A, ID.B].sort()]);
     const subjP = await call("GET", `/api/students/export-subject?${q}`, { token: oToken });
     check("export-subject ไม่ระบุ format = PDF เหมือนเดิม", [subjP.status, subjP.type], [200, "application/pdf"]);
     check("export-subject format ผิด -> 400", (await call("GET", `/api/students/export-subject?${q}&format=doc`, { token: oToken })).status, 400);

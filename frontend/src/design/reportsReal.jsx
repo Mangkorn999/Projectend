@@ -98,14 +98,14 @@ export function ReportsReal({ toast, readonly, lang }) {
   if (!stats) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
 
   const { round, total, canSubmit, by, not_started, submitted, fillRate,
-          fullyPassed, fullyPassedRate, passRateOfSitters, perSubject } = stats;
+          fullyPassed, fullyPassedRate, passRateOfSitters, confirmed, perSubject } = stats;
   // ทุกใบหารด้วย total เหมือนกันหมด ยกเว้นใบสุดท้ายที่ติดป้ายบอกตัวหารไว้ในชื่อแล้ว
   const summaryCards = [
     [tt('reports.totalStudents'), total, tt('reportsReal.cardTotalSub', { canSubmit }), 'navy'],
     [tt('reports.submitted'), submitted, tt('reportsReal.cardOfCohort', { rate: fillRate }), 'blue'],
     // จำนวนวิชาเอาจากรอบจริง (perSubject = วิชาของรอบนั้น) ไม่ใช่ 8 ตายตัว — รอบที่สอบ 3 วิชาจะได้ไม่ขึ้น "ผ่านครบ 8 วิชา"
     [tt('reports.fullyPassed', { n: perSubject.length }), fullyPassed, tt('reportsReal.cardOfCohort', { rate: fullyPassedRate }), 'ok'],
-    [tt('reportsReal.cardSitterRate'), passRateOfSitters + '%', tt('reportsReal.cardSitterRateSub', { n: submitted }), 'gold'],
+    [tt('reportsReal.cardSitterRate'), passRateOfSitters + '%', tt('reportsReal.cardSitterRateSub', { n: confirmed }), 'gold'],
   ];
   // 5 แถวนี้บวกกันได้เท่า total พอดี — เดิมมี 4 แถวและแถวสุดท้ายติดป้าย "ร่าง"
   // แต่ใส่ค่า not_started (ยังไม่เริ่มกรอก) ซึ่งคนละเรื่องกัน ส่วน by.draft หายไปทั้งตัว
@@ -176,6 +176,12 @@ export function ReportsReal({ toast, readonly, lang }) {
             <div style={{ fontSize: 15, color: 'var(--ink-500)' }}>{tt('reportsReal.roundSlash', { attempt: round.attempt_number, year: round.academic_year })}</div>
           </div>
           <div style={{ textAlign: 'right', fontSize: 14, color: 'var(--ink-500)' }}>{tt('reports.issuedLabel')}<br />{new Date().toLocaleDateString('th-TH')}</div>
+        </div>
+
+        {/* ตัวเลข "ผ่าน" ทุกตัวในรายงานนับเฉพาะใบที่ยืนยันแล้ว — ถ้ายังมีใบรอตรวจ บอกจำนวนไว้ในรายงานเลย (พิมพ์ออกไปก็เห็น) */}
+        <div style={{ margin: '14px 0 0', fontSize: 14, color: 'var(--ink-500)' }}>
+          {tt('dashReal.confirmedOnlyNote')}
+          {by.submitted > 0 && <b style={{ color: 'var(--status-wait-fg)' }}> · {tt('dashReal.pendingNotice', { n: by.submitted })}</b>}
         </div>
 
         <div className="sec-title" style={{ margin: '24px 0 12px', color: 'var(--ink-900)' }}>{tt('reports.section1')}</div>
