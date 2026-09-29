@@ -567,24 +567,30 @@ function SubjectRateCard({ perSubject, subjectPassRate, title, lang, tt, onSubje
           </span>
         )}
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {perSubject.map(sub => {
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        {perSubject.map((sub, i) => {
           const label = `${sub.subject_code} · ${subjectName(lang, sub.subject_code, sub.subject_name)}`;
+          // เส้นบางคั่นระหว่างวิชา (ไม่มีเส้นบนสุด/ล่างสุด)
+          const rowStyle = { padding: '14px 0', borderTop: i === 0 ? 'none' : '1px solid var(--ink-100)' };
           // rate = null คือไม่มีใครสอบวิชานี้ (ทุกคนยกผลผ่านมาจากรอบก่อน)
           // ต้องขึ้นขีด — ไม่ใช่ 0% เพราะ 0% แปลว่าสอบแล้วตกหมด คนละเรื่องกัน
           if (sub.rate === null) return (
-            <BarRow key={sub.subject_id} label={label} value={0} max={100}
-              color="var(--ink-200)" right="—" sub={tt('dashReal.noExamThisRound')} />
+            <div key={sub.subject_id} style={rowStyle}>
+              <BarRow label={label} value={0} max={100}
+                color="var(--ink-200)" right="—" sub={tt('dashReal.noExamThisRound')} />
+            </div>
           );
           return (
-            <BarRow key={sub.subject_id} label={label} value={sub.rate} max={100}
-              color="var(--pass)" track="var(--fail)"
-              right={`${sub.rate}%`}
-              rightSub={tt('dashReal.subjectSatCount', { n: sub.pass + sub.fail })}
-              passLabel={tt('dashReal.passCountBtn', { n: sub.pass })}
-              failLabel={tt('dashReal.failCountBtn', { n: sub.fail })}
-              onPassClick={onSubjectClick ? () => onSubjectClick(sub.subject_code, true, sub.subject_name) : undefined}
-              onFailClick={onSubjectClick ? () => onSubjectClick(sub.subject_code, false, sub.subject_name) : undefined} />
+            <div key={sub.subject_id} style={rowStyle}>
+              <BarRow label={label} value={sub.rate} max={100}
+                color="var(--pass)" track="var(--fail)"
+                right={`${sub.rate}%`}
+                rightSub={tt('dashReal.subjectSatCount', { n: sub.pass + sub.fail })}
+                passLabel={tt('dashReal.passCountBtn', { n: sub.pass })}
+                failLabel={tt('dashReal.failCountBtn', { n: sub.fail })}
+                onPassClick={onSubjectClick ? () => onSubjectClick(sub.subject_code, true, sub.subject_name) : undefined}
+                onFailClick={onSubjectClick ? () => onSubjectClick(sub.subject_code, false, sub.subject_name) : undefined} />
+            </div>
           );
         })}
       </div>
