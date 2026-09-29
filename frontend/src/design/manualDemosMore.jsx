@@ -504,8 +504,8 @@ const reportDemo = {
   steps: [
     { target: 'pick-round', text: 'ที่เมนู "รายงานสรุป" เลือกปีการศึกษาและรอบสอบที่ต้องการ ตัวเลขทั้งหน้าเปลี่ยนตามที่เลือก' },
     { target: 'pass-num', text: 'ในตารางรายวิชา คลิกตัวเลข "ผ่าน" หรือ "ไม่ผ่าน" เพื่อดูรายชื่อนักศึกษาของวิชานั้น (นับจากใบที่ยืนยันแล้ว)' },
-    { target: 'dl-list', text: 'ในหน้าต่างรายชื่อ คลิก "ดาวน์โหลด PDF" เพื่อเก็บรายชื่อเป็นไฟล์' },
-    { target: 'dl-report', text: 'ปิดหน้าต่าง แล้วคลิก "ดาวน์โหลด PDF" ที่มุมขวาบนเพื่อออกรายงานสรุปทั้งฉบับ (หรือคลิก "พิมพ์" เพื่อพิมพ์จากเบราว์เซอร์)', hold: 2200 },
+    { target: 'dl-list', text: 'ในหน้าต่างรายชื่อ คลิก "ส่งออก" แล้วเลือก PDF หรือ Excel เพื่อเก็บรายชื่อเป็นไฟล์' },
+    { target: 'dl-report', text: 'ปิดหน้าต่าง แล้วคลิก "ดาวน์โหลด PDF" ที่มุมขวาบนเพื่อออกรายงานสรุปทั้งฉบับ (หรือคลิก "พิมพ์" เพื่อพิมพ์จากเบราว์เซอร์) — ไฟล์อื่นๆ ทั้งหมดอยู่ในแผง "ส่งออกข้อมูล" (ดูข้อ 10.2)', hold: 2200 },
   ],
   stage: (done) => (
     <MockFrame title="รายงานสรุปผลการสอบ">
@@ -527,7 +527,7 @@ const reportDemo = {
       </div>
       <div style={{ fontSize: 12.5, color: 'var(--ink-500)', marginTop: 6 }}>คลิกตัวเลขในตาราง "ผ่าน"/"ไม่ผ่าน" เพื่อดูรายชื่อ</div>
       {done === 2 && (
-        <MockModal title="นักศึกษาที่สอบผ่าน การผดุงครรภ์" footer={<><Btn>ปิด</Btn><Btn dm="dl-list" kind="primary"><Icon name="pdf" size={14} /> ดาวน์โหลด PDF</Btn></>}>
+        <MockModal title="นักศึกษาที่สอบผ่าน การผดุงครรภ์" footer={<><Btn>ปิด</Btn><Btn dm="dl-list"><Icon name="download" size={14} /> ส่งออก ▾</Btn></>}>
           <div style={{ fontSize: 12.5, color: 'var(--ink-500)', marginBottom: 6 }}>พบ 42 คน</div>
           {[['6610210201', 'นางสาวกานดา ตัวอย่าง'], ['6610210202', 'นายสมชาย จำลอง'], ['6610210203', 'นางสาวมาลี ทดสอบ']].map(([id, nm]) => (
             <div key={id} style={{ display: 'flex', gap: 10, padding: '5px 0', borderTop: '1px solid var(--ink-100)', fontSize: 13.5 }}><span className="mono" style={{ width: 96, color: 'var(--ink-500)' }}>{id}</span>{nm}</div>
@@ -535,6 +535,49 @@ const reportDemo = {
         </MockModal>
       )}
       <MockToast show={done >= 3}>กำลังสร้างไฟล์ PDF…</MockToast>
+    </MockFrame>
+  ),
+};
+
+/* ============ 14) ส่งออกรายชื่อผ่าน/ไม่ผ่านครั้งแรก (แผง "ส่งออกข้อมูล") ============ */
+const exportPanelDemo = {
+  title: 'การส่งออกรายชื่อนักศึกษาที่สอบผ่าน / ไม่ผ่านครั้งแรกของปีการศึกษา',
+  height: 420,
+  steps: [
+    { target: 'pick-round', text: 'ที่เมนู "รายงานสรุป" เลือกปีการศึกษาที่ต้องการ (รายชื่อผ่าน/ไม่ผ่านครั้งแรกเป็นของทั้งปี ไม่ผูกกับรอบที่เลือก)' },
+    { target: 'exp-fail', text: 'ในแผง "ส่งออกข้อมูล" คลิก "ส่งออก" ที่แถว "รายชื่อนักศึกษาที่สอบไม่ผ่านครั้งแรก" (แถว "ผ่านครั้งแรก" ใช้วิธีเดียวกัน)' },
+    { target: 'exp-xlsx', text: 'เลือกรูปแบบไฟล์ Excel (.xlsx) หรือ PDF ระบบสร้างไฟล์และดาวน์โหลดให้ทันที', hold: 2200 },
+  ],
+  stage: (done) => (
+    <MockFrame title="รายงานสรุปผลการสอบ">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <Sel dm="pick-round" style={{ width: 160 }}>ปีการศึกษา 2569</Sel>
+        <span style={{ flex: 1 }} />
+        <Btn><Icon name="printer" size={14} /> พิมพ์</Btn>
+      </div>
+      <div className="card" style={{ padding: '10px 14px' }}>
+        <div style={{ fontWeight: 800, fontSize: 15 }}>ส่งออกข้อมูล</div>
+        {[
+          ['รายงานสรุปผลการสอบ รอบที่ 2/2569', 'ตัวเลขสรุปทั้งหมดของรอบนี้ + รายชื่อรายคน', false],
+          ['รายชื่อนักศึกษาที่สอบผ่านครั้งแรก ปี 2569', 'ผ่านครบทุกวิชาตั้งแต่รอบที่ 1', false],
+          ['รายชื่อนักศึกษาที่สอบไม่ผ่านครั้งแรก ปี 2569', 'รวมคนที่ยังไม่ส่งผลหรือถูกตีกลับ มีคอลัมน์บอกสาเหตุ', true],
+          ['ข้อมูลนักศึกษาทั้งรุ่น 2569', 'ชื่อ ห้อง ติดต่อ สิทธิ์กรอก สถานะใบล่าสุด', false],
+        ].map(([title, sub, target]) => (
+          <div key={title} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderTop: '1px solid var(--ink-100)', position: 'relative' }}>
+            <div style={{ flex: 1 }}><b style={{ fontSize: 13.5 }}>{title}</b><div style={{ fontSize: 12, color: 'var(--ink-500)' }}>{sub}</div></div>
+            <span style={{ position: 'relative' }}>
+              <Btn dm={target ? 'exp-fail' : undefined}><Icon name="download" size={13} /> ส่งออก ▾</Btn>
+              {target && done === 2 && (
+                <div className="mn-pop" style={{ position: 'absolute', right: 0, bottom: '100%', marginBottom: 4, zIndex: 6, width: 150, background: '#fff', border: '1px solid var(--ink-200)', borderRadius: 10, boxShadow: 'var(--sh-lg)', padding: 4, fontSize: 13.5 }}>
+                  <div data-demo="exp-xlsx" style={{ padding: '6px 10px', borderRadius: 7, background: 'var(--ink-100)' }}>Excel (.xlsx)</div>
+                  <div style={{ padding: '6px 10px' }}>PDF</div>
+                </div>
+              )}
+            </span>
+          </div>
+        ))}
+      </div>
+      <MockToast show={done >= 3}>ดาวน์โหลด รายชื่อนักศึกษาไม่ผ่านครั้งแรก-2569.xlsx</MockToast>
     </MockFrame>
   ),
 };
@@ -553,4 +596,5 @@ export const MORE_DEMOS = {
   userAccess: userAccessDemo,
   news: newsDemo,
   report: reportDemo,
+  exportPanel: exportPanelDemo,
 };

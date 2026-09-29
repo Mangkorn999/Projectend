@@ -453,7 +453,7 @@ export function App() {
       if(page==='history') return <StudentHistoryReal go={go} lang={lang} />;
     }
     if(role==='officer'){
-      if(page==='dashboard') return <DashboardReal go={go} lang={lang} setStudentsFilter={setStudentsFilter}
+      if(page==='dashboard') return <DashboardReal go={go} lang={lang} setStudentsFilter={setStudentsFilter} toast={showToast}
         restoreView={dashboardRestore} onRestoreConsumed={() => setDashboardRestore(null)} />;
       if(page==='review') return <OfficerReviewReal go={go} setSel={setSel} setDetailFrom={setDetailFrom} lang={lang}
         restoreView={reviewRestore} onLeave={setReviewRestore} onRestoreConsumed={() => setReviewRestore(null)} />;

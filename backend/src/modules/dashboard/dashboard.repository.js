@@ -145,3 +145,16 @@ export const findResultsByRound = (roundId) =>
     },
     orderBy: { student_id: "asc" },
   });
+
+// นักศึกษาทั้งรุ่น (ทุกคนที่ import เข้ามา) พร้อมชื่อ/ห้อง — ใช้ทำรายชื่อ export ผ่าน/ไม่ผ่านรอบแรก
+// ต้องดึงทั้งรุ่น ไม่ใช่เฉพาะคนที่มีใบผลสอบ: "ไม่ผ่านรอบแรก" รวมคนที่ยังไม่ส่งผลด้วย (ตัวหารของ % คือทั้งรุ่น)
+export const findStudentsByYear = (academicYear) =>
+  prisma.student.findMany({
+    where: { academic_year: academicYear },
+    select: {
+      student_id: true,
+      room: { select: { room_name: true } },
+      user: { select: { first_name: true, last_name: true } },
+    },
+    orderBy: { student_id: "asc" },
+  });

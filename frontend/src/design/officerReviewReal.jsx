@@ -19,7 +19,7 @@ import { t, roomName } from './i18n.js';
 
 const STAFF_STATUS_TO_TAB = { pending: 'SUBMITTED', approved: 'CONFIRMED', rejected: 'REJECTED' };
 const TABS = ['SUBMITTED', 'REJECTED', 'CONFIRMED', 'NOT_STARTED'];
-const PER_PAGE = 20;
+const PER_PAGE = 15; // ลดจาก 20 — คิวยาวแล้วไม่ขึ้นเลขหน้าจนกว่าจะครบ 20 แถวรู้สึกว่าเลื่อนนาน
 
 // รอบที่ควรเลือกให้ตอนเปิดหน้ามา — รอบที่เปิดรับอยู่ ถ้าไม่มีก็รอบล่าสุด (rounds เรียงใหม่→เก่ามาแล้ว)
 const defaultRound = (rounds) => rounds.find(r => r.status === 'open') || rounds[0];

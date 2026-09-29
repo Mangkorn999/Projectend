@@ -163,6 +163,35 @@ const main = async () => {
   const spaced = (await dryRun('student_id,national_id\r\n6699990014,"1234567890123 "\r\n')).json?.data;
   check("dry_run เลขบัตรมีช่องว่างท้าย → นำเข้าได้", spaced?.imported_count, 1);
 
+  // เลขบัตรหลายรูปแบบ — ตัดสัญลักษณ์ทิ้งเหลือตัวเลข 13 หลักแล้วนำเข้าได้ทุกแบบ
+  const idForms = [
+    ["ขีดคั่น", "1-2345-67890-12-3"],
+    ["ช่องว่างคั่น", "1 2345 67890 12 3"],
+    ["จุดคั่น", "1.2345.67890.12.3"],
+    ["เครื่องหมาย ' นำหน้า (Excel text)", "'1234567890123"],
+    ["เลขไทย", "๑๒๓๔๕๖๗๘๙๐๑๒๓"],
+    ["เลขเต็มความกว้าง", "１２３４５６７８９０１２３"],
+    ["ลงท้าย .0", "1234567890123.0"],
+    ["ช่องว่างล่องหน", "1234567890123​ "],
+  ];
+  for (const [label, value] of idForms) {
+    const r = (await dryRun(`student_id,national_id
+
+6699990015,"${value}"
+
+`)).json?.data;
+    check(`dry_run เลขบัตรแบบ${label} → นำเข้าได้`, r?.imported_count, 1);
+  }
+  // ที่ต้องยังถูกปฏิเสธ: ตัวอักษรปน / ไม่ครบ 13 / เกิน 13
+  for (const [label, value] of [["มีตัวอักษรปน", "12345abc90123"], ["12 หลัก", "123456789012"], ["14 หลัก", "12345678901234"]]) {
+    const r = (await dryRun(`student_id,national_id
+
+6699990016,"${value}"
+
+`)).json?.data;
+    check(`dry_run เลขบัตร${label} → ข้าม`, r?.skipped_count, 1);
+  }
+
   // หัวคอลัมน์ผิดจริง → ข้อความต้องบอกว่าไฟล์มีคอลัมน์อะไรบ้าง
   const wrongHead = await dryRun("ชื่อ,เบอร์โทร\r\nสมชาย,0812345678\r\n");
   check("dry_run หัวคอลัมน์ผิด → 400", wrongHead.status, 400);
@@ -221,6 +250,18 @@ const main = async () => {
   );
   check("หัว 'student_id(รหัสนักศึกษา)' ... -> เดาได้เอง นำเข้าได้ 1", `${realForm.json?.data?.imported_count},${realForm.json?.data?.skipped_count}`, "1,0");
   check("  ตอบกลับบอกว่าใช้คอลัมน์ไหน", realForm.json?.data?.columns_used?.national_id, "national_id(เลขบัตรปชช)");
+
+  // ชื่อคำถามแบบภาษาไทยล้วน (ไม่มี student_id/national_id นำหน้า) — ต้องเดาได้ทั้ง 3 ช่อง โดยเฉพาะปีจบ
+  // (ถ้าเดาปีจบไม่ได้ ช่องนี้จะถูกเมินเงียบๆ แล้วคนซ้ำชั้นได้ปีจบผิด)
+  for (const yearHead of ["ปีการศึกษาที่จบ", "ปีการศึกษา จบ", "ปีจบการศึกษา", "ปีที่จบ", "ปีการศึกษา"]) {
+    const thai = await dryRunMap(
+      `ประทับเวลา,รหัสนักศึกษา,เลขบัตรประชาชน,${yearHead}
+2026/09/25 10:00,6699991403,1929900326091,2572
+`,
+    );
+    const used = thai.json?.data?.columns_used;
+    check(`หัวไทยล้วน ปีจบ='${yearHead}' -> เดาครบ 3 ช่อง`, `${used?.student_id}|${used?.national_id}|${used?.academic_year}`, `รหัสนักศึกษา|เลขบัตรประชาชน|${yearHead}`);
+  }
 
   // ชื่ออื่นที่เดาไม่ได้ -> 400 พร้อมรายชื่อคอลัมน์ให้หน้าจอทำช่องเลือก
   const oddCsv = "ชื่อ,คอลัมน์ก,คอลัมน์ข\r\nสมชาย,6699991402,1929900326092\r\n";

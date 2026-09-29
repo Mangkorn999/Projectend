@@ -83,3 +83,24 @@ export const setPassword = async (id, password_hash) => {
   });
   return toPublicUser(user);
 };
+
+// เช็คก่อนลบว่าบัญชีนี้มีประวัติผูกอยู่ไหม (สร้างรอบ/โพสต์ข่าว/ตรวจสอบผลสอบ)
+// ไม่นับ exam_results.confirmed_by เพราะ FK นั้นตั้งเป็น ON DELETE SET NULL ลบได้โดยไม่พัง
+// ต้องเช็คเองก่อน ห้ามปล่อยให้ DB error บอกแทน: ทุก FK ในระบบนี้ประกาศเป็น ON DELETE RESTRICT
+// ซึ่ง Postgres ตอบกลับเป็น SQLSTATE 23001 (restrict_violation) ไม่ใช่ 23503 — Prisma ไม่แปลงเป็น P2003
+// ให้ (โยนเป็น PrismaClientUnknownRequestError แทน) ถ้าพึ่ง catch P2003 อย่างเดียวจะหลุดเป็น 500 พร้อม raw SQL error
+export const countLinkedHistory = async (id) => {
+  const userId = Number(id);
+  const [rounds, news, reviewLogs] = await Promise.all([
+    prisma.submissionRound.count({ where: { created_by: userId } }),
+    prisma.news.count({ where: { posted_by: userId } }),
+    prisma.reviewLog.count({ where: { reviewer_id: userId } }),
+  ]);
+  return { rounds, news, reviewLogs, total: rounds + news + reviewLogs };
+};
+
+// ลบบัญชีจริง (ต่างจาก revokeAccess ที่แค่ล็อก)
+// เรียกได้ก็ต่อเมื่อ countLinkedHistory คืน total = 0 แล้วเท่านั้น (เช็คที่ controller)
+export const remove = (id) => {
+  return prisma.user.delete({ where: { user_id: Number(id) } });
+};

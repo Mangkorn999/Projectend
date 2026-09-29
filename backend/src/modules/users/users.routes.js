@@ -7,6 +7,7 @@ import {
   updateRole,
   revokeAccess,
   resetPassword,
+  deleteUser,
 } from "./users.controller.js";
 const router = express.Router();
 
@@ -14,6 +15,7 @@ router.get("/", authenticate, requireRole("officer"), getAll);
 router.post("/", authenticate, requireRole("officer"), create);
 router.post("/:id/role", authenticate, requireRole("officer"), updateRole);
 router.post("/:id/revoke", authenticate, requireRole("officer"), revokeAccess);
+router.delete("/:id", authenticate, requireRole("officer"), deleteUser);
 // เจ้าหน้าที่รีเซ็ตรหัสให้ officer/executive ที่ลืมรหัส — ไม่มี self-service reset ในระบบ
 router.post(
   "/:id/reset-password",

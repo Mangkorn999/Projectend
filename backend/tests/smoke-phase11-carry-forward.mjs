@@ -255,7 +255,12 @@ const main = async () => {
     const stats = await call("GET", `/api/dashboard/stats?round_id=${r2}`, { token: oToken });
     check("dashboard stats -> 200", stats.status, 200);
     check("  perSubject scoped to round", stats.json.data?.perSubject?.length, 6);
-    check("  fullyPassed counts the student", stats.json.data?.fullyPassed, 1);
+    // ตัวเลข "ผ่าน" นับเฉพาะใบที่ยืนยันแล้ว — ใบนี้ยังรอตรวจ จึงยังไม่นับ (แต่ยังเป็น "ส่งผลแล้ว")
+    check("  pending paper is not counted as passed yet", [stats.json.data?.fullyPassed, stats.json.data?.submitted, stats.json.data?.by?.submitted], [0, 1, 1]);
+    const approve2 = await call("PATCH", `/api/exam-results/${submit2.json.data.result_id}/approve`, { token: oToken });
+    check("  approve round2 paper -> 200", approve2.status, 200);
+    const stats2 = await call("GET", `/api/dashboard/stats?round_id=${r2}`, { token: oToken });
+    check("  fullyPassed counts the student once confirmed", stats2.json.data?.fullyPassed, 1);
 
     await call("PUT", `/api/rounds/${r2}`, { token: oToken, body: { status: "closed" } });
 

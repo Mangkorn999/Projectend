@@ -800,3 +800,28 @@ await prisma.$transaction([
 - `deleteMany` ที่ `where` ไม่เจอแถวเลยไม่ error คืน `{ count: 0 }` — เช็ค count เองถ้าต้องตอบ 404
 - การลบที่ย้อนกลับไม่ได้ → บังคับให้ client ส่งค่ายืนยันชัดเจน (`=== true` ไม่ใช่แค่ truthy) ไม่งั้นตอบ 409
 
+
+### 5.35 สร้างไฟล์ Excel (.xlsx) ส่งให้ดาวน์โหลด + เรียงหลายเงื่อนไข
+
+```js
+import writeXlsxFile from "write-excel-file/node";
+
+// แถวแรก = หัวตาราง, แถวถัดไป = ข้อมูล — แต่ละเซลล์เป็น { value, type }
+const buffer = await writeXlsxFile(
+  [
+    [{ value: "รหัส", type: String, fontWeight: "bold" }],
+    [{ value: "6610210001", type: String }],
+  ],
+  { sheet: "รายชื่อ", columns: [{ width: 16 }], stickyRowsCount: 1 },
+).toBuffer();                       // toBuffer() = ได้ไฟล์เป็นก้อนข้อมูลในหน่วยความจำ (ยังไม่เขียนลง disk)
+
+res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+res.setHeader("Content-Disposition", `attachment; filename="export.xlsx"; filename*=UTF-8''${encodeURIComponent(fileName)}`);
+res.send(buffer);                   // ส่ง buffer กลับไปตรงๆ ไม่ใช่ res.json
+```
+
+- `type: String` ทั้งเซลล์ (แม้จะเป็นตัวเลข เช่น เบอร์โทร `0812345678`) — ถ้าเป็นตัวเลข Excel ตัดเลข 0 หน้าทิ้ง หรือแปลงรหัสยาวเป็น `1.23E+12` (เรื่องเดียวกับ 5.33 แต่ขาออก) · ที่ใช้ซ้ำทุก export อยู่ใน `utils/xlsxExport.js`
+- ชื่อไฟล์ภาษาไทยต้องมี `filename="..."` (ASCII สำรอง) + `filename*=UTF-8''...` คู่กัน
+- เรียงหลายเงื่อนไข: `.sort((a, b) => b.year - a.year || b.attempt - a.attempt)` — `a || b` = ถ้าเงื่อนไขแรกเท่ากัน (ผลลบกันได้ 0 ซึ่งเป็น falsy) ค่อยดูเงื่อนไขถัดไป
+- ทำ Map จาก array: `new Map(results.map((r) => [r.student_id, r]))` → `map.get(id)` หาแถวของนักศึกษาคนนั้นได้ทันที ไม่ต้องวนหาซ้ำ
+- ชื่อ key แบบคำนวณ: `{ [up ? "bottom" : "top"]: "100%" }` (เครื่องหมาย `[ ]` = ให้ JS คำนวณชื่อ key จากเงื่อนไขก่อน)

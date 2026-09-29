@@ -38,7 +38,7 @@ export function StudentImport({ toast, lang }) {
           </button>
         </div>
       </div>
-      {tab==='csv' ? <CsvImport toast={toast} tt={tt} />
+      {tab==='csv' ? <CsvImport toast={toast} tt={tt} lang={lang} />
         : tab==='manual' ? <ManualAdd toast={toast} tt={tt} />
         : <PendingAccounts toast={toast} tt={tt} lang={lang} onCount={setPendingCount} />}
     </div>
@@ -210,12 +210,15 @@ const skippedToCsv = (skipped) => {
   return header + rows;
 };
 
+// จำนวนแถวต่อหน้าของตารางผลนำเข้า (สำเร็จ / ข้าม / ปีจบไม่ตรงรหัส)
+const RESULT_PER_PAGE = 20;
+
 /* import CSV แบบ 2 ขั้น — กันนำเข้าผิดแล้วต้องมาไล่ลบทีหลัง
      1. "ตรวจไฟล์"      → ส่งไป backend พร้อม ?dry_run=true (ตรวจทุกแถวแต่ยังไม่บันทึก) → โชว์สรุป
      2. "ยืนยันนำเข้า"  → ส่งไฟล์เดิมอีกรอบแบบบันทึกจริง
    ใช้ backend ตรวจทั้งสองรอบ ไม่ได้อ่าน CSV เองในหน้าเว็บ — กฎตรวจ (เลขบัตร/รหัส/ปีจบ/encoding ไทย)
    อยู่ที่ backend ที่เดียว ถ้าเขียนซ้ำฝั่งนี้ สักวันสองที่จะตรวจไม่ตรงกัน */
-function CsvImport({ toast, tt }) {
+function CsvImport({ toast, tt, lang }) {
   const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(null); // ผล dry run — มีค่า = อยู่ขั้นรอยืนยัน
@@ -298,6 +301,12 @@ function CsvImport({ toast, tt }) {
 
   // ข้อมูลที่กำลังโชว์ในตารางด้านล่าง — ผลตรวจ (ยังไม่บันทึก) หรือผลนำเข้าจริง อย่างใดอย่างหนึ่ง
   const shown = preview || result;
+
+  // ไฟล์ใหญ่ (เป็นพันแถว) ทั้งตารางสำเร็จและตารางข้ามต้องแบ่งหน้า ไม่งั้นหน้ายาวมาก
+  // resetKey เปลี่ยนเมื่อได้ผลชุดใหม่ (ตรวจใหม่/ยืนยันนำเข้า) → เด้งกลับหน้า 1
+  const resultKey = `${preview ? 'p' : 'r'}|${shown?.imported_count}|${shown?.skipped_count}`;
+  const importedPage = usePagedList(shown?.imported ?? [], RESULT_PER_PAGE, resultKey);
+  const skippedPage = usePagedList(shown?.skipped ?? [], RESULT_PER_PAGE, resultKey);
 
   return (
     <>
@@ -391,7 +400,7 @@ function CsvImport({ toast, tt }) {
           )}
 
           {/* คนที่ใส่ปีจบไม่ตรงกับรหัส — ต้องเห็นก่อนยืนยัน เพราะเป็นตัวตัดสินว่านักศึกษาจะเห็นรอบสอบไหน */}
-          {shown.year_overrides?.length > 0 && <OverridesCard rows={shown.year_overrides} tt={tt} />}
+          {shown.year_overrides?.length > 0 && <OverridesCard rows={shown.year_overrides} tt={tt} lang={lang} />}
 
           <div className="card" style={{ overflow:'hidden' }}>
             <div style={{ padding:'18px 20px', display:'flex', gap:10, borderBottom:'1px solid var(--ink-100)', flexWrap:'wrap' }}>
@@ -416,12 +425,13 @@ function CsvImport({ toast, tt }) {
 
             {view === 'imported' && (
               shown.imported.length > 0 ? (
+                <>
                 <table className="tbl">
                   <thead><tr><th>{tt('importReal.colOrder')}</th><th>{tt('importReal.colStudentId')}</th><th>{tt('importReal.colStatus')}</th></tr></thead>
                   <tbody>
-                    {shown.imported.map((studentId,i)=>(
-                      <tr key={i}>
-                        <td className="tnum">{i+1}</td>
+                    {importedPage.rows.map((studentId,i)=>(
+                      <tr key={importedPage.page * RESULT_PER_PAGE + i}>
+                        <td className="tnum">{importedPage.page * RESULT_PER_PAGE + i + 1}</td>
                         <td className="mono">{studentId}</td>
                         <td>{preview
                           ? <span className="badge wait"><span className="dot" />{tt('importReal.willEnter')}</span>
@@ -430,6 +440,8 @@ function CsvImport({ toast, tt }) {
                     ))}
                   </tbody>
                 </table>
+                <Pagination page={importedPage.page} pages={importedPage.pages} onPage={importedPage.setPage} lang={lang} />
+                </>
               ) : (
                 <EmptyRows text={tt('importReal.noImportedRows')} />
               )
@@ -437,13 +449,14 @@ function CsvImport({ toast, tt }) {
 
             {view === 'skipped' && (
               shown.skipped.length > 0 ? (
+                <>
                 <table className="tbl">
                   <thead><tr><th>{tt('importReal.colRow')}</th><th>{tt('importReal.colStudentId')}</th><th>{tt('importReal.colType')}</th><th>{tt('importReal.colReason')}</th></tr></thead>
                   <tbody>
-                    {shown.skipped.map((s,i)=>{
+                    {skippedPage.rows.map((s,i)=>{
                       const tag = tagForReason(s.reason, tt);
                       return (
-                        <tr key={i}>
+                        <tr key={skippedPage.page * RESULT_PER_PAGE + i}>
                           <td className="tnum">{s.row}</td>
                           <td className="mono">{s.student_id||'-'}</td>
                           <td><span className={`badge ${tag.tone}`}><span className="dot" />{tag.label}</span></td>
@@ -453,6 +466,8 @@ function CsvImport({ toast, tt }) {
                     })}
                   </tbody>
                 </table>
+                <Pagination page={skippedPage.page} pages={skippedPage.pages} onPage={skippedPage.setPage} lang={lang} />
+                </>
               ) : (
                 <EmptyRows text={tt('importReal.noSkippedRows')} />
               )
@@ -465,7 +480,8 @@ function CsvImport({ toast, tt }) {
 }
 
 // ตารางคนที่ปีจบไม่ตรงกับรหัส (เคสซ้ำชั้น/ลาพัก) — โชว์ปีตามรหัสเทียบกับปีที่จะใช้จริง
-function OverridesCard({ rows, tt }) {
+function OverridesCard({ rows, tt, lang }) {
+  const pageList = usePagedList(rows, RESULT_PER_PAGE);
   return (
     <div className="card" style={{ overflow:'hidden', marginBottom:14, borderColor:'var(--status-wait-dot)' }}>
       <div style={{ display:'flex', gap:10, alignItems:'flex-start', padding:'14px 18px',
@@ -480,7 +496,7 @@ function OverridesCard({ rows, tt }) {
         <thead><tr><th>{tt('importReal.colRow')}</th><th>{tt('importReal.colStudentId')}</th>
           <th>{tt('importReal.colDerived')}</th><th>{tt('importReal.colYearUsed')}</th></tr></thead>
         <tbody>
-          {rows.map(o => (
+          {pageList.rows.map(o => (
             <tr key={o.student_id}>
               <td className="tnum">{o.row}</td>
               <td className="mono">{o.student_id}</td>
@@ -490,6 +506,7 @@ function OverridesCard({ rows, tt }) {
           ))}
         </tbody>
       </table>
+      <Pagination page={pageList.page} pages={pageList.pages} onPage={pageList.setPage} lang={lang} />
     </div>
   );
 }

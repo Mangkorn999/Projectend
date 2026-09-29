@@ -124,3 +124,32 @@ export async function openAuthedFile(path, filename) {
   window.open(url, '_blank');
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
+
+/** ดาวน์โหลดไฟล์ (Excel / PDF) ที่ต้อง login ก่อน — ใช้ตัวเดียวกันทุกปุ่ม "ส่งออก" ในระบบ
+ *  ทำไมไม่ใช้ <a href> ตรงๆ: ไฟล์ต้องแนบ cookie login (fetch + credentials) แล้วค่อยแปลงเป็น blob ให้เบราว์เซอร์เซฟ
+ *  filename ตั้งฝั่งหน้าจอ — ข้าม origin (5174 → 3000) เบราว์เซอร์อ่าน header Content-Disposition ไม่ได้
+ *  ใช้แบบนี้:
+ *    await downloadFile('/students/export', { method: 'POST', body: { year: 2569 }, filename: 'ข้อมูลนักศึกษา.xlsx' });
+ *  ผิดพลาด (403/404/400 ...) โยน ApiError พร้อมข้อความจาก backend ให้ผู้เรียกแสดงเอง */
+export async function downloadFile(path, { method = 'GET', body, filename = 'download' } = {}) {
+  const headers = {};
+  if (body) headers['Content-Type'] = 'application/json';
+  const res = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}));
+    if (res.status === 401 && json.code === 'auth_required') forceLogout();
+    throw new ApiError(json.message || `Request failed (${res.status})`, res.status, json);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}

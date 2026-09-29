@@ -9,8 +9,8 @@ import { Icon } from './data.jsx';
 import { phaseOf, phaseLabel, phaseBadgeClass } from './roundPhase.js';
 import { SkeletonDashboard } from './skeletons.jsx';
 import { PageHead, StatCard, Donut, BarRow, MultiLineChart, MultiBarChart, ColumnChart, Modal, Empty,
-  FirstAttemptSubjectTable, Select } from './components.jsx';
-import { apiFetch } from './api.js';
+  FirstAttemptSubjectTable, Select, ExportMenu } from './components.jsx';
+import { apiFetch, downloadFile } from './api.js';
 import { t, subjectName, roomName } from './i18n.js';
 
 /* แท็บ "รวมทั้งปี" — ค่าคงที่ตัวเดียวใช้ทั้งไฟล์ จะได้ไม่พิมพ์ string ซ้ำแล้วสะกดต่างกัน */
@@ -19,7 +19,7 @@ const ALL_ROUNDS = 'all';
 /* แท็บที่ตัวเลขเป็นระดับ "ทั้งรุ่น/รอบแรก" ไม่ได้ผูกกับรอบที่เลือก — มีให้กดเฉพาะตอน "รวมทั้งปี" */
 const YEAR_ONLY_TABS = ['firstBySubject', 'firstCount'];
 
-export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreView, onRestoreConsumed }) {
+export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreView, onRestoreConsumed, toast }) {
   const tt = (key, vars) => t(lang, key, vars);
   // คลิก "ผ่าน/ไม่ผ่าน" ในการ์ดอัตราผ่านรายวิชา — พาไปหน้าข้อมูลนักศึกษา กรองเฉพาะคนที่ผ่าน/ไม่ผ่านวิชานั้น (ข้อมูลจริง ไม่ใช่ mock)
   // แนบ tab/mainTab/year ปัจจุบันไปด้วย — ใช้ตอนกดปุ่ม "กลับไปหน้าแดชบอด" ที่หน้านักศึกษา จะได้กลับมาที่ widget เดิม
@@ -160,12 +160,17 @@ export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreVi
   );
   const reportHistory = { ...history, years: history.years.filter(y => reportYears.includes(y.academic_year)) };
 
+  // ใบรอตรวจของสิ่งที่กำลังดู — เจ้าหน้าที่ดูตามแท็บที่เลือก (รอบเดียว/รวมทั้งปี) ผู้บริหารดูภาพรวมทั้งปีอย่างเดียว
+  const pendingCount = (!readonly && showingRound) ? stats.by.submitted : (yearSummary?.statusByStudent?.submitted ?? 0);
+
   return (
     <div className="fade-up">
       <PageHead
         title={tt('dashReal.title')}
         sub={yearSummary ? tt('dashReal.subInfo', { year, total: yearSummary.total, eligible: yearSummary.eligible }) : null}
         actions={yearPicker} />
+
+      <PendingNotice n={pendingCount} go={readonly ? null : go} tt={tt} />
 
       {/* ─── โซน 2: ผลการกรอกของรอบที่เลือก ─────────────────────────
           เจ้าหน้าที่เท่านั้น — ผู้บริหารดูภาพรวมทั้งปีอย่างเดียว ไม่ต้องไล่ทีละรอบ
@@ -232,7 +237,7 @@ export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreVi
                   { key: 'fullPass', label: tt('dashReal.colFullPass') },
                 ]} />
                 <div key={reportTab} className="blur-in" style={{ marginTop: 14 }}>
-                  {reportTab === 'firstRate' && <FirstAttemptPassRate history={reportHistory} tt={tt} wide yearPicker={reportYearPicker} onViewStudents={goToFirstAttemptStudents} />}
+                  {reportTab === 'firstRate' && <FirstAttemptPassRate history={reportHistory} tt={tt} wide yearPicker={reportYearPicker} onViewStudents={goToFirstAttemptStudents} onExportError={msg => toast?.(msg, 'error')} />}
                   {reportTab === 'subjectHistory' && <SubjectHistoryChart history={reportHistory} firstRoundSubjects={firstRoundSubjects} tt={tt} yearPicker={reportYearPicker} />}
                   {reportTab === 'fullPass' && <YearCompare history={reportHistory} lang={lang} tt={tt} yearPicker={reportYearPicker} />}
                 </div>
@@ -608,7 +613,8 @@ function ExecutiveOverview({ year, history, perSubject, lang, tt }) {
   const attempts = [...year.rounds].sort((a, b) => a.attempt_number - b.attempt_number);
   const attemptBars = attempts.map((r, i) => {
     let rate = 0;
-    if (r.submitted) rate = Math.round((r.fullyPassed / r.submitted) * 100);
+    // ตัวหาร = ใบที่ยืนยันแล้วของรอบนั้น (ตัวตั้ง fullyPassed นับจากใบที่ยืนยันแล้วเหมือนกัน) — ไม่ใช่ submitted ที่รวมใบรอตรวจ
+    if (r.confirmed) rate = Math.round((r.fullyPassed / r.confirmed) * 100);
     // ครั้งแรกเป็นสีหลัก ครั้งถัดไปจางลงเรื่อยๆ — เห็นลำดับได้โดยไม่ต้องอ่าน label
     const palette = ['var(--navy-700)', 'var(--navy-500)', 'var(--ink-300)'];
     return {
@@ -616,7 +622,7 @@ function ExecutiveOverview({ year, history, perSubject, lang, tt }) {
       value: rate,
       color: palette[Math.min(i, palette.length - 1)],
       pass: r.fullyPassed,
-      sat: r.submitted,
+      sat: r.confirmed,
     };
   });
 
@@ -988,7 +994,7 @@ function YearCompare({ history, lang, tt, yearPicker }) {
 /* ร้อยละคนที่สอบผ่านครบทุกวิชาตั้งแต่ "รอบแรก" (attempt_number=1) ของแต่ละปี เทียบกับจำนวนนักศึกษาทั้งรุ่น
    แสดงเก่าไปใหม่ (ซ้ายไปขวา) พร้อมส่วนต่างเทียบปีก่อนหน้า
    การ์ดจริงแคบ (อยู่คอลัมน์เดียวกับ donut/ผ่านครบทุกวิชา) เลยเรียงเป็นแถวแนวตั้ง — กดขยายดูแบบเทียบข้างกันครบทุกปีในโมดัลแทน */
-function FirstAttemptPassRate({ history, tt, wide, yearPicker, onViewStudents }) {
+function FirstAttemptPassRate({ history, tt, wide, yearPicker, onViewStudents, onExportError }) {
   const [expanded, setExpanded] = useState(false);
   // คลิกการ์ดปีไหน เปิด modal แยกเป็นรายรอบของปีนั้น — เก็บทั้ง object เลยไม่ต้องหาซ้ำ
   const [roundDetailYear, setRoundDetailYear] = useState(null);
@@ -1031,17 +1037,24 @@ function FirstAttemptPassRate({ history, tt, wide, yearPicker, onViewStudents })
         </div>
         {/* แยกจากคลิกเปิด modal ข้างบน — ต้องมี onViewStudents (officer เท่านั้น ผู้บริหารดูหน้านักศึกษาไม่ได้) */}
         {onViewStudents && (
-          <div style={{ display: 'flex', gap: 14, marginTop: 8, paddingTop: 8, borderTop: '1px dashed var(--ink-100)' }}>
-            <button type="button" onClick={e => { e.stopPropagation(); onViewStudents(y.academic_year, true); }}
-              style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', display: 'flex',
-                alignItems: 'center', gap: 4, fontSize: 14, fontWeight: 700, color: 'var(--status-ok-fg)' }}>
-              <Icon name="eye" size={13} /> {tt('dashReal.viewPassedStudentsBtn')}
-            </button>
-            <button type="button" onClick={e => { e.stopPropagation(); onViewStudents(y.academic_year, false); }}
-              style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', display: 'flex',
-                alignItems: 'center', gap: 4, fontSize: 14, fontWeight: 700, color: 'var(--status-reject-fg)' }}>
-              <Icon name="eye" size={13} /> {tt('dashReal.viewFailedStudentsBtn')}
-            </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8, paddingTop: 8, borderTop: '1px dashed var(--ink-100)' }}>
+            {/* 2 แถว: ผ่านครั้งแรก / ไม่ผ่านครั้งแรก — แต่ละแถวมี "ดูรายชื่อ" (ไปหน้านักศึกษา) + "ส่งออก" (Excel/PDF ของปีนี้)
+                ไฟล์ที่ส่งออกใช้กฎเดียวกับตัวเลขบนการ์ดนี้ (ผ่าน + ไม่ผ่าน = ทั้งรุ่น) */}
+            {[[true, 'viewPassedStudentsBtn', 'var(--status-ok-fg)', 'ผ่านครั้งแรก'], [false, 'viewFailedStudentsBtn', 'var(--status-reject-fg)', 'ไม่ผ่านครั้งแรก']].map(([passed, labelKey, color, fileLabel]) => (
+              <div key={String(passed)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <button type="button" onClick={e => { e.stopPropagation(); onViewStudents(y.academic_year, passed); }}
+                  style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', display: 'flex',
+                    alignItems: 'center', gap: 4, fontSize: 14, fontWeight: 700, color }}>
+                  <Icon name="eye" size={13} /> {tt('dashReal.' + labelKey)}
+                </button>
+                <ExportMenu size="sm" align="right" tt={tt} onError={onExportError}
+                  items={['xlsx', 'pdf'].map(format => ({
+                    key: format, label: tt(format === 'xlsx' ? 'export.excel' : 'export.pdf'), icon: format === 'xlsx' ? 'report' : 'pdf',
+                    run: () => downloadFile(`/dashboard/export-first-attempt?year=${y.academic_year}&passed=${passed}&format=${format}`,
+                      { filename: `รายชื่อนักศึกษา${fileLabel}-${y.academic_year}.${format}` }),
+                  }))} />
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -1114,7 +1127,7 @@ function RoundBreakdownTable({ year, tt }) {
     <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 16, overflowX: 'auto' }}>
       {rounds.map(r => {
         // ผ่านครั้งแรกของ "รอบนี้" เอง — ผ่านครบ ÷ คนที่สอบรอบนี้ ไม่ใช่ตัวเลขสะสมของทั้งปี
-        const rate = r.submitted ? Math.round((r.fullyPassed / r.submitted) * 10000) / 100 : 0;
+        const rate = r.confirmed ? Math.round((r.fullyPassed / r.confirmed) * 10000) / 100 : 0;
         const tone = rate >= 80 ? 'var(--status-ok-dot)' : 'var(--status-wait-dot)';
         return (
           <div key={r.round_id} style={{ width: 360, flex: 'none', padding: 30,
@@ -1126,10 +1139,25 @@ function RoundBreakdownTable({ year, tt }) {
             <div className="tnum" style={{ fontSize: 42, fontWeight: 800, marginBottom: 16 }}>{rate.toFixed(2)}%</div>
             <div className="pbar" style={{ height: 13, marginBottom: 18 }}><i style={{ width: `${rate}%`, background: tone }} /></div>
             <div style={{ fontSize: 18, color: 'var(--ink-600)' }}>{tt('dashReal.roundFullyPassedCount', { pass: r.fullyPassed })}</div>
-            <div style={{ fontSize: 18, color: 'var(--ink-500)' }}>{tt('dashReal.roundSatTotal', { total: r.submitted })}</div>
+            <div style={{ fontSize: 18, color: 'var(--ink-500)' }}>{tt('dashReal.roundSatTotal', { total: r.confirmed })}</div>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/* แถบเตือน "ยังมีใบรอตรวจสอบ N ใบ ยังไม่นับ" — ตัวเลข "ผ่าน" ทุกตัวนับเฉพาะใบที่ยืนยันแล้ว
+   ระหว่างที่ยังตรวจไม่ครบ ตัวเลขจะต่ำกว่าความจริงชั่วคราว แถบนี้บอกเหตุผลให้คนอ่านไม่เข้าใจผิดว่าผ่านน้อย
+   n = จำนวนใบรอตรวจของสิ่งที่กำลังดูอยู่ (รอบที่เลือก / รวมทั้งปีนับเป็นคน) · go = ไปหน้าตรวจสอบ (ผู้บริหารไม่มี — ดูอย่างเดียว) */
+function PendingNotice({ n, go, tt }) {
+  if (!n) return null;
+  return (
+    <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '11px 16px', marginBottom: 18,
+      borderRadius: 12, background: 'var(--status-wait-bg)', color: 'var(--status-wait-fg)', fontWeight: 600, fontSize: 15.5 }}>
+      <Icon name="clock" size={18} />
+      <span style={{ flex: 1, minWidth: 200 }}>{tt('dashReal.pendingNotice', { n })}</span>
+      {go && <button type="button" className="btn btn-sm btn-ghost" onClick={() => go('review')}>{tt('dashReal.pendingNoticeBtn')}</button>}
     </div>
   );
 }

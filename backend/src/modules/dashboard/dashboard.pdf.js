@@ -57,7 +57,7 @@ export const buildReportPdf = (stats, rows, res, yearStats) => {
     ["ตีกลับ", `${stats.by.rejected} คน`],
     [
       "ผ่านครบทุกวิชาของรอบนี้",
-      `${stats.fullyPassed} คน (${stats.fullyPassedRate}% ของทั้งรุ่น / ${stats.passRateOfSitters}% ของผู้ส่งผล)`,
+      `${stats.fullyPassed} คน (${stats.fullyPassedRate}% ของทั้งรุ่น / ${stats.passRateOfSitters}% ของผู้ที่ยืนยันแล้ว ${stats.confirmed} คน)`,
     ],
     ["อัตราผ่านเฉลี่ยรายวิชา", `${stats.subjectPassRate}%`],
   ];
@@ -65,6 +65,12 @@ export const buildReportPdf = (stats, rows, res, yearStats) => {
     if (doc.y + 16 > BOTTOM) doc.addPage();
     doc.text(`${label} : ${value}`, LEFT, doc.y, { width: CONTENT_WIDTH });
   });
+  // ตัวเลข "ผ่าน" ทุกตัวในรายงานนับเฉพาะใบที่ยืนยันแล้ว — บอกไว้ในรายงานเลย ถ้ายังมีใบรอตรวจก็ระบุจำนวน (คนอ่านไฟล์ไม่ได้เห็นหน้าจอ)
+  doc.fontSize(10).fillColor("#555").text(
+    `หมายเหตุ: ตัวเลข "ผ่าน" ทุกตัวนับเฉพาะใบผลสอบที่เจ้าหน้าที่ตรวจสอบและยืนยันแล้ว${stats.by.submitted > 0 ? ` (ขณะออกรายงานยังมีใบรอตรวจสอบ ${stats.by.submitted} ใบ ที่ยังไม่นับ)` : ""}`,
+    LEFT, doc.y + 2, { width: CONTENT_WIDTH },
+  );
+  doc.fillColor("#000").fontSize(11);
   doc.moveDown(1);
 
   // ── ตัวเลขที่ใช้รายงานสภาการพยาบาล (ระดับปีการศึกษา ไม่ใช่ระดับรอบ) ──
@@ -278,5 +284,58 @@ export const buildReportPdf = (stats, rows, res, yearStats) => {
   // ทำหลังสุดเพราะต้องรู้จำนวนหน้าทั้งหมดก่อน (bufferPages เก็บหน้าไว้ให้ย้อนกลับมาเขียนได้)
   drawPageNumbers(doc);
 
+  doc.end();
+};
+
+// PDF รายชื่อนักศึกษา "ผ่านครั้งแรก / ไม่ผ่านครั้งแรก" ของปีการศึกษาหนึ่ง (ข้อมูลมาจาก buildFirstAttemptList)
+// รูปแบบเดียวกับ PDF รายชื่อรายวิชา (students.pdf.js) — หัวรายงาน, สรุปสั้นๆ, ตารางรายชื่อ, เลขหน้า
+export const buildFirstAttemptListPdf = ({ year, round, total, wantPassed, label, rows, res }) => {
+  const doc = new PDFDocument({ size: "A4", margin: 40, bufferPages: true });
+  registerThaiFonts(doc);
+  doc.pipe(res);
+
+  doc.font("th-bold").fontSize(18).text(`รายชื่อนักศึกษาที่สอบ${label}`, { align: "center" });
+  doc.font("th").fontSize(13).text(`ปีการศึกษา ${year} — รอบสอบครั้งที่ ${round.attempt_number}`, { align: "center" });
+  doc.fontSize(12).fillColor("#555").text("คณะพยาบาลศาสตร์", { align: "center" });
+  doc.fillColor("#000").fontSize(10).text(`ออกรายงานเมื่อ ${new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}`, { align: "center" });
+  doc.moveDown(1.5);
+
+  const percentText = total ? ((rows.length / total) * 100).toFixed(2) : "0.00";
+  section(doc, "สรุป", 40);
+  doc.font("th").fontSize(11).text(
+    `จำนวน ${rows.length} คน จากนักศึกษาทั้งรุ่น ${total} คน (ร้อยละ ${percentText})`,
+    LEFT, doc.y, { width: CONTENT_WIDTH },
+  );
+  if (!wantPassed) {
+    doc.fontSize(10).fillColor("#555").text(
+      "รวมนักศึกษาที่ยังไม่ส่งผลสอบ ค้างร่าง หรือถูกตีกลับ — ดูสาเหตุที่คอลัมน์ \"สถานะใบ\"",
+      LEFT, doc.y, { width: CONTENT_WIDTH },
+    );
+    doc.fillColor("#000");
+  }
+  doc.moveDown(1);
+
+  section(doc, "รายชื่อ");
+  if (rows.length === 0) {
+    doc.font("th").fontSize(10).text(`— ไม่มีนักศึกษาที่สอบ${label} —`, LEFT);
+  } else {
+    doc.y = drawTable(doc, {
+      y: doc.y,
+      widths: [28, 72, 132, 46, 70, 42, 110],
+      aligns: ["left", "left", "left", "left", "left", "left", "left"],
+      header: ["ที่", "รหัสนักศึกษา", "ชื่อ-สกุล", "ห้อง", "สถานะใบ", "ผ่าน", "วิชาที่ไม่ผ่าน"],
+      rows: rows.map((r, i) => [
+        i + 1,
+        r.student_id,
+        `${r.first_name} ${r.last_name}`,
+        r.room_name || "-",
+        r.paper_status,
+        r.passed_text || "-",
+        r.failed_subjects || "-",
+      ]),
+    });
+  }
+
+  drawPageNumbers(doc);
   doc.end();
 };
