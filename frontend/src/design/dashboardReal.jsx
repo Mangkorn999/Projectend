@@ -167,7 +167,13 @@ export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreVi
     <div className="fade-up">
       <PageHead
         title={tt('dashReal.title')}
-        sub={yearSummary ? tt('dashReal.subInfo', { year, total: yearSummary.total, eligible: yearSummary.eligible }) : null}
+        sub={yearSummary ? (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            {tt('dashReal.subYear', { year })} <span style={{ color: 'var(--ink-200)' }}>|</span>
+            <Icon name="users" size={15} /> {yearSummary.total} <span style={{ color: 'var(--ink-400)', fontSize: 20, fontWeight: 700, lineHeight: 0 }}>·</span>
+            {tt('dashReal.subEligible', { eligible: yearSummary.eligible })}
+          </span>
+        ) : null}
         actions={yearPicker} />
 
       <PendingNotice n={pendingCount} go={readonly ? null : go} tt={tt} />

@@ -675,7 +675,7 @@ export function NotifToastStack({ items=[], onGo, onDismiss, lang='TH' }) {
    ให้หน้าตา/การทำงานเหมือนกันหมด: กดแล้วเลือกรูปแบบไฟล์ (Excel / PDF) → ระหว่างสร้างไฟล์ปุ่มแสดง "กำลังสร้างไฟล์…" และกดซ้ำไม่ได้
    items = [{ key, label, icon?, run: async () => {...} }] — run ปกติเรียก downloadFile() จาก api.js
    onError(message) = ตอนสร้างไฟล์ไม่สำเร็จ (ให้หน้าแสดง toast เอง) · หุ้ม stopPropagation ไว้ เพราะบางที่วางอยู่ในการ์ดที่คลิกได้ */
-export function ExportMenu({ items, lang='TH', tt, onError, size='md', label, align='left', up=false }) {
+export function ExportMenu({ items, lang='TH', tt, onError, size='md', label, align='left', up=false, style }) {
   // หน้าที่ส่ง tt (ตัวแปลของหน้านั้น) มาให้ใช้ tt · ไม่ส่งมาก็แปลจาก lang เอง
   const tr = (key) => (tt ? tt(key) : t(lang, key));
   const [open, setOpen] = useState(false);
@@ -705,9 +705,9 @@ export function ExportMenu({ items, lang='TH', tt, onError, size='md', label, al
   const single = items.length === 1; // ไฟล์รูปแบบเดียว = กดแล้วดาวน์โหลดเลย ไม่ต้องเปิดเมนูให้เลือกอันเดียว
   return (
     <span ref={box} style={{ position:'relative', display:'inline-block' }} onClick={e=>e.stopPropagation()}>
-      <button type="button" className={'btn btn-ghost' + (small ? ' btn-sm' : '')} disabled={busy}
+      <button type="button" className={'btn btn-ghost' + (small ? ' btn-sm' : '')} disabled={busy} style={style}
         aria-haspopup={single ? undefined : 'menu'} aria-expanded={single ? undefined : open} onClick={()=> single ? run(items[0]) : setOpen(o=>!o)}>
-        <Icon name="download" size={small?14:16}/> {busy ? tr('export.working') : (label ?? tr('export.btn'))} {!single && <Icon name="chevD" size={12}/>}
+        <Icon name="download" size={small?14:16} style={{ flexShrink: 0 }}/> {busy ? tr('export.working') : (label ?? tr('export.btn'))} {!single && <Icon name="chevD" size={12} style={{ flexShrink: 0 }}/>}
       </button>
       {open && (
         <div role="menu" style={{ position:'absolute', [up ? 'bottom' : 'top']:'100%', [align==='right' ? 'right' : 'left']:0, [up ? 'marginBottom' : 'marginTop']:4, zIndex:60, minWidth:170,

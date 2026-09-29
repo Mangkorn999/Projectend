@@ -304,7 +304,9 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
 
   return (
     <div className="fade-up">
-      <PageHead title={tt('officer.students.title')} sub={tt('officer.students.sub', { found: filtered.length, total: students.length })}
+      <PageHead title={tt('officer.students.title')} sub={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <Icon name="users" size={15} /> {students.length} <span style={{ color: 'var(--ink-200)' }}>|</span> <Icon name="eye" size={15} /> {filtered.length}
+      </span>}
         actions={<div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           {returnView && (
             <button className="btn btn-ghost" onClick={() => onBackToDashboard?.(returnView)}>

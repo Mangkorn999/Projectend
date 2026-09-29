@@ -266,7 +266,6 @@ const DICT = {
 
     'officer.students.title': 'ข้อมูลนักศึกษา',
     'officer.students.backToDashboardBtn': 'กลับไปหน้า Dashboard',
-    'officer.students.sub': 'พบ {found} จาก {total} คน',
     'officer.students.exportBtn': 'ส่งออก Excel',
     'officer.students.searchPh': 'ค้นหาชื่อ หรือ รหัสนักศึกษา…',
     'officer.students.allStatus': 'ทุกสถานะ',
@@ -560,6 +559,8 @@ const DICT = {
     'dashReal.title': 'แดชบอร์ดสรุปผลสอบ',
     'dashReal.sub': '{round} · นักศึกษารุ่น {year} ทั้งหมด {total} คน เปิดสิทธิ์กรอกแล้ว {eligible} คน',
     'dashReal.subInfo': 'นักศึกษารุ่น {year} ทั้งหมด {total} คน เปิดสิทธิ์กรอกแล้ว {eligible} คน',
+    'dashReal.subYear': 'นักศึกษา รุ่น {year}',
+    'dashReal.subEligible': 'เปิดสิทธิ์แล้ว {eligible} คน',
     'dashReal.roundSelectLabel': 'เลือกปีการศึกษา',
     'dashReal.roundPickLabel': 'เลือกรอบ',
     'dashReal.roundOnlyLabel': 'รอบที่ {attempt}',
@@ -1296,7 +1297,6 @@ const DICT = {
 
     'officer.students.title': 'Student Records',
     'officer.students.backToDashboardBtn': 'Back to dashboard',
-    'officer.students.sub': 'Found {found} of {total}',
     'officer.students.exportBtn': 'Export Excel',
     'officer.students.searchPh': 'Search by name or student ID…',
     'officer.students.allStatus': 'All statuses',
@@ -1590,6 +1590,8 @@ const DICT = {
     'dashReal.title': 'Exam Results Dashboard',
     'dashReal.sub': '{round} · {year} cohort, {total} total, {eligible} eligible to submit',
     'dashReal.subInfo': '{year} cohort, {total} total, {eligible} eligible to submit',
+    'dashReal.subYear': 'Students, cohort {year}',
+    'dashReal.subEligible': '{eligible} eligible to submit',
     'dashReal.roundSelectLabel': 'Select academic year',
     'dashReal.roundPickLabel': 'Select round',
     'dashReal.roundOnlyLabel': 'Round {attempt}',

@@ -161,7 +161,7 @@ export function ReportsReal({ toast, readonly, lang }) {
                 <div style={{ fontWeight: 700, fontSize: 15.5 }}>{row.title}</div>
                 <div style={{ color: 'var(--ink-500)', fontSize: 14 }}>{row.sub}</div>
               </div>
-              <ExportMenu items={row.items} tt={tt} align="right" onError={msg => toast(msg, 'error')} />
+              <ExportMenu items={row.items} tt={tt} align="right" onError={msg => toast(msg, 'error')} style={{ width: 128 }} />
             </div>
           ))}
           <div style={{ color: 'var(--ink-500)', fontSize: 14, paddingTop: 10, borderTop: '1px solid var(--ink-100)' }}>{tt('export.subjectHint')}</div>
