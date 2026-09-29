@@ -228,3 +228,55 @@ export const resetPassword = async (req, res, next) => {
     next(err);
   }
 };
+
+const HISTORY_BLOCKED_MSG =
+  "บัญชีนี้มีประวัติการใช้งานผูกอยู่ (เช่น เคยโพสต์ข่าว สร้างรอบสอบ หรือยืนยันผลสอบ) ลบไม่ได้ ให้ใช้ปุ่มถอนสิทธิ์แทน";
+
+// ลบบัญชีจริง (officer/executive/reviewer) — ต่างจาก revokeAccess ตรงที่ลบ record ทิ้งเลย
+// ใช้ได้เฉพาะบัญชีที่ไม่เคยมีประวัติผูกไว้ (โพสต์ข่าว/สร้างรอบ/ยืนยันผลสอบ)
+export const deleteUser = async (req, res, next) => {
+  try {
+    const targetId = Number(req.params.id);
+    if (!Number.isInteger(targetId)) {
+      const err = new Error("user id ไม่ถูกต้อง");
+      err.statusCode = 400;
+      throw err;
+    }
+    // กัน officer ลบบัญชีตัวเองจนล็อกตัวเองออกจากระบบ
+    if (targetId === req.user.userId) {
+      const err = new Error("ไม่สามารถลบบัญชีของตัวเองได้");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const target = await UserRepo.findById(targetId);
+    if (!target) {
+      const err = new Error("ไม่พบผู้ใช้");
+      err.statusCode = 404;
+      throw err;
+    }
+
+    // เช็คก่อนลบเสมอ — ทุก FK ที่เกี่ยวข้อง (submission_rounds.created_by, news.posted_by,
+    // review_logs.reviewer_id) ตั้งเป็น ON DELETE RESTRICT ซึ่ง Postgres ตอบ SQLSTATE 23001
+    // ไม่ใช่ 23503 ที่ Prisma แปลงเป็น P2003 ให้ — พึ่ง catch อย่างเดียวจะหลุดเป็น 500 พร้อม raw SQL error
+    const linked = await UserRepo.countLinkedHistory(targetId);
+    if (linked.total > 0) {
+      const err = new Error(HISTORY_BLOCKED_MSG);
+      err.statusCode = 409;
+      throw err;
+    }
+
+    await UserRepo.remove(targetId);
+    res.json({ success: true, data: { message: "ลบบัญชีเรียบร้อย" } });
+  } catch (err) {
+    // fallback เผื่อ race condition (มีคนสร้างประวัติผูกระหว่างเช็คกับตอนลบจริงพอดี) —
+    // ครอบทั้ง P2003 ปกติของ Prisma และข้อความ restrict_violation ดิบจาก Postgres (ดูเหตุผลด้านบน)
+    const isFkRestrict =
+      err.code === "P2003" || /restrict.*foreign key constraint/i.test(err.message ?? "");
+    if (isFkRestrict) {
+      err.statusCode = 409;
+      err.message = HISTORY_BLOCKED_MSG;
+    }
+    next(err);
+  }
+};

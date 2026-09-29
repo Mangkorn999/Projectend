@@ -41,6 +41,7 @@ const TEST_FILES = [
   "tests/smoke-phase20-hardening.mjs",
   "tests/smoke-phase21-pending-accounts.mjs",
   "tests/smoke-phase22-exports.mjs",
+  "tests/smoke-phase23-delete-user.mjs",
 ];
 
 // ── เตรียม URL ของ DB ชั่วคราว ────────────────────────────────

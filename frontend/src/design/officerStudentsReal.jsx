@@ -465,6 +465,11 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
             </tbody>
           </table>
         </div>
+        {filtered.length === 0 && (
+          <div style={{ padding: '30px 16px', textAlign: 'center', color: 'var(--ink-500)', fontSize: 15.5 }}>
+            {tt('officer.students.emptyState')}
+          </div>
+        )}
         <Pagination page={page} pages={pages} onPage={setPage} lang={lang} />
       </div>
 
