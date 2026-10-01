@@ -4,12 +4,13 @@
   "type": "module",
   "main": "app.js",
   "scripts": {
-    "test": "node tests/smoke-phase1-3.mjs && node tests/smoke-phase4-6.mjs && node tests/smoke-phase9-import.mjs && node tests/smoke-phase10-round-subjects.mjs && node tests/smoke-phase11-carry-forward.mjs && node tests/smoke-phase12-reject-edit.mjs && node tests/smoke-phase13-duplicate-round.mjs && node tests/smoke-phase14-news-scope.mjs && node tests/smoke-phase15-reviewer.mjs && node tests/smoke-phase16-cohort-year.mjs && node tests/smoke-phase17-import-year.mjs && node tests/smoke-phase18-round-dates.mjs && node tests/smoke-phase19-guards.mjs && node tests/smoke-phase20-hardening.mjs && node tests/smoke-phase21-pending-accounts.mjs && node tests/smoke-phase22-exports.mjs && node tests/smoke-phase23-delete-user.mjs",
+    "test": "node tests/smoke-phase1-3.mjs && node tests/smoke-phase4-6.mjs && node tests/smoke-phase9-import.mjs && node tests/smoke-phase10-round-subjects.mjs && node tests/smoke-phase11-carry-forward.mjs && node tests/smoke-phase12-reject-edit.mjs && node tests/smoke-phase13-duplicate-round.mjs && node tests/smoke-phase14-news-scope.mjs && node tests/smoke-phase15-reviewer.mjs && node tests/smoke-phase16-cohort-year.mjs && node tests/smoke-phase17-import-year.mjs && node tests/smoke-phase18-round-dates.mjs && node tests/smoke-phase19-guards.mjs && node tests/smoke-phase20-hardening.mjs && node tests/smoke-phase21-pending-accounts.mjs && node tests/smoke-phase22-exports.mjs && node tests/smoke-phase23-delete-user.mjs && node tests/smoke-phase24-lifecycle.mjs && node tests/smoke-phase25-real-flow.mjs && node tests/smoke-phase26-edge-cases.mjs && node tests/smoke-phase27-security.mjs",
     "start": "node src/server.js",
     "demo:seed": "node --env-file=.env prisma/demoSeed.js",
     "seed:cohort": "node --env-file=.env prisma/seedCohort.js",
     "seed:demo-years": "node --env-file=.env prisma/seedDemoYears.js",
-    "test:clean": "node --env-file=.env tests/run-clean.mjs"
+    "test:clean": "node --env-file=.env tests/run-clean.mjs",
+    "test:e2e": "node --env-file=.env tests/e2e/run-e2e.mjs"
   },
   "author": "",
   "license": "ISC",
@@ -33,6 +34,7 @@
   "devDependencies": {
     "@types/express": "^5.0.6",
     "nodemon": "^3.1.14",
+    "playwright-core": "^1.63.0",
     "prisma": "^5.22.0"
   },
   "prisma": {

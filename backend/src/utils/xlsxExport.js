@@ -42,6 +42,27 @@ export const buildXlsx = async ({ sheetName, columns, rows }) => {
   }).toBuffer();
 };
 
+// ไฟล์เดียวหลายชีต — sheets = [{ sheetName, columns, rows }, ...] รูปแบบเดียวกับ buildXlsx ทีละชีต
+// ใช้ตอนต้องแยกข้อมูลเป็นหลายแท็บ เช่น ข้อมูลนักศึกษาแยกตามรอบสอบ
+export const buildXlsxWorkbook = async (sheets) => {
+  const pages = sheets.map(({ sheetName, columns, rows }) => {
+    const header = columns.map((c) => ({
+      value: c.header,
+      type: String,
+      fontWeight: "bold",
+      backgroundColor: "#E5E7EB",
+    }));
+    const body = rows.map((row) => columns.map((c) => toCell(row[c.key], c.type)));
+    return {
+      data: [header, ...body],
+      sheet: safeSheetName(sheetName),
+      columns: columns.map((c) => ({ width: c.width ?? 16 })),
+      stickyRowsCount: 1,
+    };
+  });
+  return writeXlsxFile(pages).toBuffer();
+};
+
 // ส่งไฟล์ให้เบราว์เซอร์ดาวน์โหลด — ชื่อไฟล์ภาษาไทยต้องมี filename ASCII สำรอง + filename*=UTF-8''... (RFC 5987) คู่กันเสมอ
 export const sendXlsx = (res, fileName, buffer) => {
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");

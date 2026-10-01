@@ -1,7 +1,7 @@
 import express from "express";
 import { authenticate } from "../../middlewares/auth.js";
 import { requireRole } from "../../middlewares/requireRole.js";
-import { uploadPdf } from "../../middlewares/upload.js";
+import { uploadEvidence } from "../../middlewares/upload.js";
 import {
   create,
   getMine,
@@ -20,7 +20,7 @@ router.post(
   "/:id/certificates",
   authenticate,
   requireRole("student"),
-  uploadPdf.single("file"),
+  uploadEvidence.single("file"),
   uploadCertificate,
 );
 // ─── เจ้าหน้าที่ / เจ้าหน้าที่ตรวจสอบ ───

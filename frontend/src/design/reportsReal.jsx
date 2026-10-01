@@ -4,22 +4,24 @@
    ใช้ GET /api/dashboard/stats ตัวเดียวกับหน้า Dashboard (เนื้อหารายงานตรงกับที่เห็นบนจอเสมอ)
    ปุ่ม PDF ยิง GET /api/dashboard/export จริง (officer เท่านั้น — backend บังคับ) ได้ไฟล์ PDF จริงกลับมาโหลด
    ============================================================ */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, StatusBadge, FirstAttemptSubjectTable, Modal, Empty, Select, ExportMenu } from './components.jsx';
+import { PageHead, StatusBadge, FirstAttemptSubjectTable, Select, ExportMenu, Loading } from './components.jsx';
 import { Logo } from './logos.jsx';
 import { apiFetch, downloadFile } from './api.js';
+import { saveElementAsPdf } from './exportReportPdf.js';
+import { downloadFirstYearList } from './yearExports.js';
+import { SubjectResultModal } from './subjectResultModal.jsx';
 import { t, subjectName, roomName } from './i18n.js';
 
 export function ReportsReal({ toast, readonly, lang }) {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState('');
-  // การ์ดรายชื่อผ่าน/ไม่ผ่านรายวิชา — เดิมอยู่ที่ Dashboard (กดแล้วเด้งไปหน้ารายชื่อนักศึกษาทั้งรุ่น ปนกับตัวกรองอื่นเพียบ)
-  // ย้ายมาไว้ที่นี่แทนตามที่เจ้าหน้าที่ขอ — คลิกตัวเลขในตาราง "อัตราผ่านรายวิชา" ด้านล่างแล้วเห็นรายชื่อแยกเป็นสัดส่วนในหน้านี้เลย ไม่ต้องเปลี่ยนหน้า
+  // รายชื่อผ่าน/ไม่ผ่านรายวิชา — คลิกตัวเลขในตาราง "ผลรายวิชา" ด้านล่างแล้วเปิดหน้าต่างรายชื่อ
+  // (หน้าต่างเป็น component กลางใน subjectResultModal.jsx ใช้ร่วมกับแดชบอร์ด)
   const [subjectModal, setSubjectModal] = useState(null); // { subjectCode, subjectName, passed } | null
-  const [subjectModalData, setSubjectModalData] = useState(null); // ผลจาก /students/subject-result-list
-  const [subjectModalError, setSubjectModalError] = useState('');
   const tt = (key, vars) => t(lang, key, vars);
+  const reportRef = useRef(null); // กล่องรายงาน — ปุ่ม "ดาวน์โหลด PDF" ถ่ายจากกล่องนี้
 
   // ตัวเลขที่ส่งสภาการพยาบาลเป็นระดับปีการศึกษา ไม่ใช่ระดับรอบ — ต้องดึงสรุปรายปีมาคู่กัน
   const [history, setHistory] = useState(null);
@@ -60,24 +62,6 @@ export function ReportsReal({ toast, readonly, lang }) {
   const yearOptions = [...new Set(rounds.map(r => r.academic_year))].sort((a, b) => b - a);
   const yearStats = history?.years.find(y => y.academic_year === year) || null;
 
-  // เปิด modal รายชื่อ = ดึงข้อมูลใหม่ทุกครั้ง (กันเห็นข้อมูลของวิชา/รอบก่อนหน้าค้างอยู่)
-  useEffect(() => {
-    if (!subjectModal) { setSubjectModalData(null); return; }
-    setSubjectModalData(null);
-    setSubjectModalError('');
-    apiFetch(`/students/subject-result-list?subject_code=${subjectModal.subjectCode}&passed=${subjectModal.passed}&round_id=${roundId}`)
-      .then(setSubjectModalData)
-      .catch(e => setSubjectModalError(e.message));
-  }, [subjectModal, roundId]);
-
-  // ปุ่มดาวน์โหลดในหน้าต่างรายชื่อรายวิชา — PDF หรือ Excel (ใช้ ExportMenu + downloadFile ตัวเดียวกับทั้งระบบ)
-  const subjectExportItems = subjectModal ? ['pdf', 'xlsx'].map(format => ({
-    key: format, label: tt(format === 'xlsx' ? 'export.excel' : 'export.pdf'), icon: format === 'xlsx' ? 'report' : 'pdf',
-    run: () => downloadFile(
-      `/students/export-subject?subject_code=${subjectModal.subjectCode}&passed=${subjectModal.passed}&round_id=${roundId}&format=${format}`,
-      { filename: `รายชื่อ-${subjectModal.passed ? 'ผ่าน' : 'ไม่ผ่าน'}-${subjectModal.subjectCode}.${format}` }),
-  })) : [];
-
   // เปลี่ยนปี = เด้งไปรอบแรกของปีนั้นเสมอ เพราะ round_id ของปีเก่าไม่ได้อยู่ในปีใหม่
   const changeYear = (nextYear) => {
     setYear(nextYear);
@@ -88,14 +72,22 @@ export function ReportsReal({ toast, readonly, lang }) {
   };
 
   // รายงานสรุปของรอบที่เลือก (PDF) — ปุ่มบนหัวหน้าและแถวแรกของแผง "ส่งออกข้อมูล" ใช้ตัวนี้ร่วมกัน
+  // ได้ไฟล์ที่หน้าตาเหมือนรายงานบนจอเป๊ะ (ถ่ายจากกล่องรายงานที่เห็นอยู่) ไม่ใช่ PDF จาก backend อีกแบบหนึ่ง
   const reportPdfItem = () => ({
     key: 'pdf', label: tt('export.pdf'), icon: 'pdf',
-    run: () => downloadFile(`/dashboard/export?round_id=${roundId}`,
-      { filename: `exam-report-${stats.round.attempt_number}-${stats.round.academic_year}.pdf` }),
+    run: () => saveElementAsPdf(reportRef.current,
+      `exam-report-${stats.round.attempt_number}-${stats.round.academic_year}.pdf`),
   });
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const downloadReportPdf = async () => {
+    setPdfBusy(true);
+    try { await reportPdfItem().run(); }
+    catch (e) { toast(e.message || tt('reportsReal.downloadPdfBtn'), 'error'); }
+    finally { setPdfBusy(false); }
+  };
 
   if (error) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--reject,#dc2626)' }}>{tt('statuspage.loadFailPrefix', { msg: error })}</div>;
-  if (!stats) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
+  if (!stats) return <Loading label={tt('common.loading')} />;
 
   const { round, total, canSubmit, by, not_started, submitted, fillRate,
           fullyPassed, fullyPassedRate, passRateOfSitters, confirmed, perSubject } = stats;
@@ -125,18 +117,42 @@ export function ReportsReal({ toast, readonly, lang }) {
     run: () => downloadFile(`/dashboard/export-first-attempt?year=${exportYear}&passed=${passed}&format=${format}`,
       { filename: `รายชื่อนักศึกษา${passed ? 'ผ่านครั้งแรก' : 'ไม่ผ่านครั้งแรก'}-${exportYear}.${format}` }),
   }));
+  // ผ่าน / ไม่ผ่าน "ภายในปีแรก" (รวมรอบ 2-3) — กฎเดียวกับตัวเลข "ร้อยละผู้สอบผ่านภายในปีแรก" ในรายงานนี้
+  const firstYearItems = (passed) => {
+    const items = [];
+    for (const format of ['xlsx', 'pdf']) {
+      let label = tt('export.pdf');
+      let icon = 'pdf';
+      if (format === 'xlsx') {
+        label = tt('export.excel');
+        icon = 'report';
+      }
+      items.push({ key: format, label, icon, run: () => downloadFirstYearList(exportYear, passed, format) });
+    }
+    return items;
+  };
   const exportRows = [
     { key: 'report', title: tt('export.rowReport', { attempt: round.attempt_number, year: exportYear }), sub: tt('export.rowReportSub'), items: [reportPdfItem()] },
     { key: 'pass', title: tt('export.rowFirstPass', { year: exportYear }), sub: tt('export.rowFirstPassSub'), items: firstAttemptItems(true) },
     { key: 'fail', title: tt('export.rowFirstFail', { year: exportYear }), sub: tt('export.rowFirstFailSub'), items: firstAttemptItems(false) },
-    { key: 'students', title: tt('export.rowStudents', { year: exportYear }), sub: tt('export.rowStudentsSub'), items: [{
-      key: 'xlsx', label: tt('export.excel'), icon: 'report',
-      run: () => downloadFile('/students/export', { method: 'POST', body: { year: exportYear }, filename: `ข้อมูลนักศึกษา-รุ่น ${exportYear}.xlsx` }),
-    }] },
+    { key: 'yearPass', title: tt('export.rowFirstYearPass', { year: exportYear }), sub: tt('export.rowFirstYearPassSub'), items: firstYearItems(true) },
+    { key: 'yearFail', title: tt('export.rowFirstYearFail', { year: exportYear }), sub: tt('export.rowFirstYearFailSub'), items: firstYearItems(false) },
+    { key: 'students', title: tt('export.rowStudents', { year: exportYear }), sub: tt('export.rowStudentsSub'), items: [
+      {
+        key: 'xlsx', label: tt('export.studentsExcel'), icon: 'report',
+        run: () => downloadFile('/students/export', { method: 'POST', body: { year: exportYear }, filename: `ข้อมูลนักศึกษา-รุ่น ${exportYear}.xlsx` }),
+      },
+      {
+        key: 'byRound', label: tt('export.studentsByRoundExcel'), icon: 'report',
+        run: () => downloadFile('/students/export', { method: 'POST', body: { year: exportYear, by_round: true }, filename: `ข้อมูลนักศึกษา-รุ่น ${exportYear}-แยกรอบ.xlsx` }),
+      },
+    ] },
   ];
 
   return (
     <div className="fade-up">
+      {/* หัวหน้ากว้างเท่าการ์ดด้านล่าง (900) ไม่งั้นชื่ออยู่ซ้ายสุดจอ ปุ่มอยู่ขวาสุดจอ ห่างจากเนื้อหาที่อยู่กลาง */}
+      <div style={{ maxWidth: 900, margin: '0 auto' }}>
       <PageHead title={tt('reports.title')} sub={tt('reportsReal.roundSlash', { attempt: round.attempt_number, year: round.academic_year })}
         actions={<div className="no-print" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           {/* เลือกปี + รอบ ที่จะดูและ export — รายงานบนจอกับไฟล์ PDF เป็นรอบเดียวกันเสมอ */}
@@ -148,8 +164,11 @@ export function ReportsReal({ toast, readonly, lang }) {
             options={roundsInYear.map(r => ({ value: r.round_id,
               label: tt('dashReal.roundOnlyLabel', { attempt: r.attempt_number }) }))} />
           <button className="btn btn-ghost" onClick={() => window.print()}><Icon name="printer" size={16} /> {tt('reports.printBtn')}</button>
-          {!readonly && <ExportMenu items={[reportPdfItem()]} tt={tt} onError={msg => toast(msg, 'error')} label={tt('reportsReal.downloadPdfBtn')} />}
+          {/* ดาวน์โหลดไฟล์ PDF ของรายงานด้านล่างเลย ไม่เปิดหน้าต่างพิมพ์ — ผู้บริหาร (readonly) ก็โหลดได้ เพราะทำฝั่งเบราว์เซอร์ ไม่เรียก endpoint ของเจ้าหน้าที่ */}
+          <button className="btn btn-primary" disabled={pdfBusy} onClick={downloadReportPdf}>
+            <Icon name="pdf" size={16} /> {pdfBusy ? tt('common.loading') : tt('reportsReal.downloadPdfBtn')}</button>
         </div>} />
+      </div>
 
       {!readonly && (
         <div className="card no-print" style={{ maxWidth: 900, margin: '0 auto 16px', padding: '18px 24px' }}>
@@ -168,7 +187,7 @@ export function ReportsReal({ toast, readonly, lang }) {
         </div>
       )}
 
-      <div className="card" style={{ padding: '34px 40px', maxWidth: 900, margin: '0 auto' }}>
+      <div className="card report-sheet" ref={reportRef} style={{ padding: '34px 40px', maxWidth: 900, margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, paddingBottom: 18, borderBottom: '2px solid var(--navy-700)' }}>
           <Logo size={48} />
           <div style={{ flex: 1 }}>
@@ -268,7 +287,8 @@ export function ReportsReal({ toast, readonly, lang }) {
             );
           })}</tbody>
         </table>
-        {!readonly && <div style={{ fontSize: 13.5, color: 'var(--ink-500)', marginTop: 6 }}>{tt('reportsReal.subjectClickHint')}</div>}
+        {/* คำแนะนำสำหรับคนดูบนจอเท่านั้น — no-print ซ่อนตอนพิมพ์และตอนบันทึก PDF */}
+        {!readonly && <div className="no-print" style={{ fontSize: 13.5, color: 'var(--ink-500)', marginTop: 6 }}>{tt('reportsReal.subjectClickHint')}</div>}
 
         {/* ตารางรายวิชาของการสอบรอบแรก — ตัวหารเป็นนักศึกษาทั้งรุ่น คนละตัวกับตารางด้านบน
             ตารางด้านบนเป็นระดับ "รอบที่เลือก" ตารางนี้เป็นระดับ "ปี/รอบแรก" จึงต้องอยู่แยกกัน ไม่ใช่แก้ของเดิม */}
@@ -309,42 +329,10 @@ export function ReportsReal({ toast, readonly, lang }) {
         )}
       </div>
 
-      {/* รายชื่อผ่าน/ไม่ผ่านรายวิชา — แยกเป็นกล่องของตัวเอง ไม่ปนกับตัวกรอง/คอลัมน์อื่นๆ ของหน้าข้อมูลนักศึกษา */}
+      {/* รายชื่อผ่าน/ไม่ผ่านรายวิชาของรอบที่เลือก — component กลางตัวเดียวกับแดชบอร์ด */}
       {subjectModal && (
-        <Modal open onClose={() => setSubjectModal(null)}
-          title={tt(subjectModal.passed ? 'reportsReal.subjectModalTitlePass' : 'reportsReal.subjectModalTitleFail',
-            { subject: `${subjectModal.subjectCode} ${subjectName(lang, subjectModal.subjectCode, subjectModal.subjectName)}` })}
-          width={640}
-          footer={<>
-            <button className="btn btn-ghost" onClick={() => setSubjectModal(null)}>{tt('common.close')}</button>
-            {subjectModalData?.students?.length > 0 && <ExportMenu up items={subjectExportItems} tt={tt} onError={msg => toast(msg, 'error')} />}
-          </>}>
-          {subjectModalError && <div style={{ color: 'var(--reject,#dc2626)', padding: '10px 0' }}>{subjectModalError}</div>}
-          {!subjectModalError && !subjectModalData && <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>}
-          {subjectModalData && (
-            subjectModalData.students.length === 0
-              ? <Empty icon="users" title={tt('reportsReal.subjectModalEmpty')} />
-              : <>
-                  <div style={{ fontSize: 15, color: 'var(--ink-600)', marginBottom: 10 }}>
-                    {tt('reportsReal.subjectModalCount', { n: subjectModalData.students.length })} · {subjectModalData.scope_label}
-                  </div>
-                  <div style={{ maxHeight: 420, overflowY: 'auto', border: '1px solid var(--ink-200)', borderRadius: 10 }}>
-                    <table className="tbl">
-                      <thead><tr><th>{tt('officer.students.colStudent')}</th><th>{tt('officer.students.colRoom')}</th></tr></thead>
-                      <tbody>{subjectModalData.students.map(st => (
-                        <tr key={st.student_id}>
-                          <td>
-                            <div style={{ fontWeight: 600 }}>{st.first_name} {st.last_name}</div>
-                            <div className="mono" style={{ fontSize: 13.5, color: 'var(--ink-500)' }}>{st.student_id}</div>
-                          </td>
-                          <td>{roomName(lang, st.room_name)}</td>
-                        </tr>
-                      ))}</tbody>
-                    </table>
-                  </div>
-                </>
-          )}
-        </Modal>
+        <SubjectResultModal target={subjectModal} scope={{ roundId }} onClose={() => setSubjectModal(null)}
+          lang={lang} tt={tt} toast={toast} />
       )}
     </div>
   );

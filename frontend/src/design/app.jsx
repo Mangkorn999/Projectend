@@ -23,6 +23,7 @@ import { ManageRoundsSubjectsReal } from './manageRoundsSubjectsReal.jsx';
 import { ManageUsersReal } from './manageUsersReal.jsx';
 import { StudentNewsReal, ManageNewsReal } from './newsReal.jsx';
 import { ReportsReal } from './reportsReal.jsx';
+import { ExecutiveReport } from './executiveReportReal.jsx';
 import { OfficerManual } from './userManual.jsx';
 
 const TWEAK_DEFAULTS = {
@@ -62,7 +63,6 @@ const NAV = (lang, pendingCount)=>({
   executive: [
     { k:'dashboard', label:translate(lang,'nav.executive.dashboard'), icon:'grid' },
     { k:'reports', label:translate(lang,'nav.executive.reports'), icon:'report' },
-    { k:'manual', label:translate(lang,'nav.executive.manual'), icon:'book' },
   ],
   // เจ้าหน้าที่ตรวจสอบ — เห็นแค่คิวตรวจ (pooled queue เดียวกับ officer ไม่มี assignment)
   // ไม่มี badge:pendingCount ให้เหมือน officer ตั้งใจ — pendingCount effect ผูกกับ role==='officer' เท่านั้น
@@ -116,7 +116,7 @@ const ROLE_PAGES = {
   student: ['news', 'formIntro', 'form', 'status', 'history'],
   // 'manual' ต้องอยู่ด้วย — เดิมขาดไป รีเฟรชตอนอยู่หน้าคู่มือแล้วเด้งกลับ dashboard
   officer: ['dashboard', 'review', 'students', 'import', 'detail', 'rounds', 'usermgmt', 'newsmgmt', 'reports', 'manual'],
-  executive: ['dashboard', 'reports', 'manual'],
+  executive: ['dashboard', 'reports'],
   reviewer: ['review', 'detail'],
 };
 
@@ -273,7 +273,14 @@ export function App() {
       setNotifications(items => items.filter(n => n.key !== key));
       setUnread(u => Math.max(0, u - 1));
     }
-    if (targetPage) go(targetPage);
+    // กันหน้าที่ role นี้เข้าไม่ได้ (เช่น แจ้งเตือนเก่าที่ค้างใน state) ไม่ให้เจอหน้า "ไม่พบหน้าที่ต้องการ"
+    if (targetPage && ROLE_PAGES[role]?.includes(targetPage)) go(targetPage);
+  };
+
+  // ลากแถวแจ้งเตือนทิ้ง — ลบแค่อันเดียว ไม่พาไปหน้าไหน (ต่างจาก openNotifItem ที่พาไปหน้านั้นด้วย)
+  const dismissNotification = (key) => {
+    dismissAll(currentUser.id, [key]);
+    setNotifications(items => items.filter(n => n.key !== key));
   };
 
   // ปุ่ม "ล้างทั้งหมด" — เอาออกจากลิสต์เลย ไม่ใช่แค่ทำเครื่องหมายว่าอ่านแล้ว
@@ -471,8 +478,7 @@ export function App() {
     // ไม่มีหน้า students/detail ให้ผู้บริหารแล้ว — endpoint รายบุคคลเป็นของ officer/reviewer เท่านั้น
     if(role==='executive'){
       if(page==='dashboard') return <DashboardReal go={go} readonly lang={lang} />;
-      if(page==='reports') return <ReportsReal toast={showToast} readonly lang={lang} />;
-      if(page==='manual') return <Empty icon="book" title={translate(lang,'nav.executive.manual')} sub={translate(lang,'common.comingSoon')} />;
+      if(page==='reports') return <ExecutiveReport toast={showToast} lang={lang} />;
     }
     // เจ้าหน้าที่ตรวจสอบ — reuse component เดิมของ officer ทั้งคู่ ไม่มีของใหม่ แค่ไม่มี canEdit
     if(role==='reviewer'){
@@ -491,13 +497,13 @@ export function App() {
         user={{ firstName: currentUser?.name || '', lastName: '' }}
         onMenu={()=>setSbOpen(true)} onSwitchRole={switchRole}
         notifications={notifications} unread={unread}
-        onNotifOpen={openNotifications} onNotifGo={openNotifItem} onNotifClearAll={clearAllNotifications}
+        onNotifOpen={openNotifications} onNotifGo={openNotifItem} onNotifClearAll={clearAllNotifications} onNotifDismiss={dismissNotification}
         lang={lang} setLang={changeLang} langLoading={langBlurring} />
       <div className={'app-shell lang-fade'+(langBlurring?' lang-fade-blur':'')+(loggingOut?' logout-blur':'')}>
         {/* บทบาทผู้ใช้แสดงที่เมนูผู้ใช้บน TopBar ที่เดียว — การ์ดใน sidebar ซ้ำโดยไม่จำเป็น */}
         <Sidebar items={nav} active={activeNav} onNav={go} open={sbOpen} onClose={()=>setSbOpen(false)} />
         <main className="app-main">
-          <div className="app-content">{render()}</div>
+          <div className="app-content"><div key={page} className="page-enter">{render()}</div></div>
         </main>
       </div>
       <Toast toast={toast} />

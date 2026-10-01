@@ -5,7 +5,7 @@
    ============================================================ */
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, Donut, PassBadge, StatusBadge, Empty } from './components.jsx';
+import { PageHead, Donut, PassBadge, StatusBadge, Empty, Loading } from './components.jsx';
 import { apiFetch } from './api.js';
 import { t, subjectName } from './i18n.js';
 
@@ -25,7 +25,7 @@ export function StudentStatusReal({ go, lang }) {
   const tt = (key, vars) => t(lang, key, vars);
 
   if (error) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--reject,#dc2626)' }}>{tt('statuspage.loadFailPrefix', { msg: error })}</div>;
-  if (!results) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
+  if (!results) return <Loading label={tt('common.loading')} />;
 
   if (results.length === 0) return (
     <div className="fade-up">
@@ -108,7 +108,7 @@ export function StudentHistoryReal({ go, lang }) {
   const tt = (key, vars) => t(lang, key, vars);
 
   if (error) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--reject,#dc2626)' }}>{tt('statuspage.loadFailPrefix', { msg: error })}</div>;
-  if (!results) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
+  if (!results) return <Loading label={tt('common.loading')} />;
 
   return (
     <div className="fade-up">

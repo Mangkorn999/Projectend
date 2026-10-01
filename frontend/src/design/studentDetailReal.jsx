@@ -1,5 +1,5 @@
 /* ============================================================
-   เจ้าหน้าที่ / เจ้าหน้าที่ตรวจสอบ — รายละเอียดผลสอบนักศึกษาคนเดียว (ข้อมูลจริงจาก backend)
+   เจ้าหน้าที่ / ผู้ช่วยตรวจสอบ — รายละเอียดผลสอบนักศึกษาคนเดียว (ข้อมูลจริงจาก backend)
    แทนที่ StudentDetail เดิมใน officer.jsx ที่ยังใช้ mock SUBJECTS/STUDENTS
    canEdit = เห็นปุ่มแก้ไขข้อมูล, canReview = เห็นปุ่มยืนยัน/ตีกลับ — แยกกัน 2 flag เพราะ reviewer
    ต้องการ canReview แต่ไม่เอา canEdit (officer ได้ทั้งคู่) ผู้บริหารไม่มีสิทธิ์เข้าหน้านี้เลยอยู่แล้ว (backend block ที่ route)
@@ -9,9 +9,10 @@
    ============================================================ */
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, Modal, StatusBadge, PassBadge, Empty, Select } from './components.jsx';
+import { PageHead, Modal, StatusBadge, PassBadge, Empty, Select, Loading } from './components.jsx';
 import { apiFetch, ApiError, openAuthedFile } from './api.js';
 import { t, subjectName, roomName } from './i18n.js';
+import { certificateTypeLabel, fileKindOf, fileKindLabel, fileKindIcon } from './evidenceFiles.js';
 
 const STAFF_STATUS_TO_BADGE = { pending: 'SUBMITTED', approved: 'CONFIRMED', rejected: 'REJECTED' };
 
@@ -110,8 +111,9 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
     }
   };
 
-  // เตือนก่อนตีกลับ/ถอนการยืนยัน ถ้ารอบปิดแล้วหรือใกล้ปิด — นักศึกษาแก้ได้เฉพาะตอนรอบยังเปิดรับ
-  // ตีกลับตอนรอบปิดแล้ว ใบจะค้าง (นักศึกษาส่งใหม่ไม่ได้) จนกว่าเจ้าหน้าที่จะเลื่อนวันปิดรอบ
+  // สถานะรอบของใบที่เปิดดู: 'closed' = ปิดรับแล้ว · 'soon' = เหลือไม่ถึง 3 วัน · null = ยังเปิดรับอีกนาน
+  // ตีกลับ: นักศึกษาแก้ใบที่ถูกตีกลับได้แม้รอบปิดแล้ว → แค่บอกให้รู้ (ไม่ต้องเลื่อนวันปิดรอบ)
+  // ถอนการยืนยัน: ใบกลับเป็น "รอตรวจสอบ" ซึ่งนักศึกษาแก้เองได้เฉพาะตอนรอบเปิด → ยังต้องเตือน
   const roundWarn = (() => {
     const r = examResult?.round;
     if (!r) return null;
@@ -177,7 +179,7 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
     }
   };
 
-  if (loading) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-500)' }}>{tt('common.loading')}</div>;
+  if (loading) return <Loading label={tt('common.loading')} />;
   if (error) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--reject,#dc2626)' }}>{tt('statuspage.loadFailPrefix', { msg: error })}</div>;
 
   const displayName = studentFull ? `${studentFull.user.first_name} ${studentFull.user.last_name}` : `${student.firstName} ${student.lastName}`;
@@ -193,7 +195,11 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
     <div className="fade-up">
       <PageHead title={displayName}
         crumb={<><a onClick={() => go('students')} style={{ cursor: 'pointer' }}>{tt('officer.detail.crumbList')}</a> <Icon name="chevR" size={13} /> {tt('officer.detail.crumbDetail')}</>}
-        sub={<span className="mono">{student.sid} · {tt('officer.detail.subInfo', { room: roomName(lang, displayRoom), year: displayYear })}</span>}
+        sub={<span className="mono">{student.sid} · {tt('officer.detail.subInfo', { room: roomName(lang, displayRoom), year: displayYear })}
+          {/* ชื่อ-สกุลภาษาอังกฤษ (students.first_name_en/last_name_en) ที่นักศึกษากรอกตอนตั้งโปรไฟล์ */}
+          {studentFull?.first_name_en && <> · {studentFull.first_name_en} {studentFull.last_name_en}</>}
+          {/* เบอร์โทรมาจาก users.phone (GET /students/:id) — ไม่มีเบอร์ก็ไม่ต้องโชว์ช่องเปล่า */}
+          {studentFull?.user?.phone && <> · {tt('officer.detail.phoneLabel')} {studentFull.user.phone}</>}</span>}
         actions={<div style={{ display: 'flex', gap: 8 }}>
           {canEdit && <button className="btn btn-ghost" onClick={openEdit}><Icon name="edit" size={16} /> {tt('officer.detail.editBtn')}</button>}
           {canEdit && <button className="btn btn-ghost" style={{ color: 'var(--fail)' }}
@@ -220,16 +226,31 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
           </div>
 
           <div className="card card-pad">
-            <h3 style={{ margin: '0 0 14px', fontSize: 18, fontWeight: 800 }}>{tt('officer.detail.evidenceTitle')}</h3>
-            {examResult?.certificates?.length ? examResult.certificates.map((f, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', border: '1px solid var(--ink-200)', borderRadius: 11, marginBottom: 8 }}>
-                <div style={{ width: 40, height: 40, borderRadius: 9, background: 'var(--status-reject-bg)', color: 'var(--status-reject-fg)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}><Icon name="pdf" size={21} /></div>
-                <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 15.5, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.file_name}</div>
-                  <div style={{ fontSize: 14, color: 'var(--ink-500)' }}>{f.certificate_type} · PDF</div></div>
-                <button className="btn btn-ghost btn-sm" onClick={() => openAuthedFile(`/certificates/${f.certificate_id}/file`, f.file_name).catch(e => toast(e.message, 'error'))}>
-                  <Icon name="eye" size={15} /> {tt('officer.detail.viewBtn')}</button>
-              </div>
-            )) : <Empty icon="doc" title={tt('officer.detail.noEvidence')} />}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{tt('officer.detail.evidenceTitle')}</h3>
+              {examResult?.certificates?.length > 0 && (
+                <span className="chip tnum">{tt('officer.review.filesCount', { n: examResult.certificates.length })}</span>
+              )}
+            </div>
+            {/* นักศึกษาแนบได้หลายไฟล์ (PDF หรือรูปถ่าย) — ชนิดเอกสาร/ชนิดไฟล์แปลงเป็นคำไทยก่อนโชว์เสมอ (ห้ามโชว์ exam_result ฯลฯ) */}
+            {examResult?.certificates?.length ? examResult.certificates.map((f) => {
+              const kind = fileKindOf(f.file_type, f.file_name);
+              const isImage = kind === 'jpg' || kind === 'png';
+              return (
+                <div key={f.certificate_id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', border: '1px solid var(--ink-200)', borderRadius: 11, marginBottom: 8 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 9, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: isImage ? 'var(--blue-50)' : 'var(--status-reject-bg)', color: isImage ? 'var(--blue-600)' : 'var(--status-reject-fg)' }}>
+                    <Icon name={fileKindIcon(kind)} size={21} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 15.5, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.file_name}</div>
+                    <div style={{ fontSize: 14, color: 'var(--ink-500)' }}>{certificateTypeLabel(tt, f.certificate_type)} · {fileKindLabel(tt, kind)}</div>
+                  </div>
+                  <button className="btn btn-ghost btn-sm" style={{ flex: 'none' }} onClick={() => openAuthedFile(`/certificates/${f.certificate_id}/file`, f.file_name).catch(e => toast(e.message, 'error'))}>
+                    <Icon name="eye" size={15} /> {tt('officer.detail.viewBtn')}</button>
+                </div>
+              );
+            }) : <Empty icon="doc" title={tt('officer.detail.noEvidence')} />}
           </div>
         </div>
 
@@ -309,7 +330,12 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
             onClick={() => review('reject', remark)}>
             <Icon name="send" size={16} /> {tt('officer.detail.confirmRejectBtn')}</button></>}>
         <p style={{ margin: '0 0 14px', color: 'var(--ink-600)', fontSize: 16 }}>{tt('officer.detail.rejectHint')}</p>
-        {roundWarnBox && <div style={{ marginBottom: 14, marginTop: -4 }}>{roundWarnBox}</div>}
+        {/* ตีกลับหลังปิดรอบได้ — นักศึกษายังแก้ใบที่ถูกตีกลับได้ แค่บอกให้รู้ ไม่ใช่คำเตือน */}
+        {roundWarn === 'closed' && (
+          <div style={{ marginBottom: 14, marginTop: -4, padding: '11px 13px', background: 'var(--blue-50)', color: 'var(--navy-700)', borderRadius: 10, fontSize: 15, lineHeight: 1.6, display: 'flex', gap: 8 }}>
+            <Icon name="info" size={17} style={{ flex: 'none', marginTop: 3 }} /> <span>{tt('officer.detail.rejectAfterCloseNote')}</span>
+          </div>
+        )}
         <div className="field"><label>{tt('officer.detail.rejectFieldLabel')}</label>
           <textarea className="input" rows={3} placeholder={tt('officer.detail.rejectPlaceholder')} value={remark} onChange={e => setRemark(e.target.value)} />
         </div>

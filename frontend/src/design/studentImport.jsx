@@ -8,6 +8,8 @@ import { PageHead, Select, Modal, Pagination, Empty } from './components.jsx';
 import { usePagedList } from './usePagedList.js';
 import { apiFetch, ApiError } from './api.js';
 import { t } from './i18n.js';
+// ไฟล์ตัวอย่างหัวคอลัมน์ภาษาไทย (รหัสนักศึกษา / เลขบัตรประชาชน / ปีการศึกษาที่จบ) — backend จับคู่หัวภาษาไทยได้เอง
+import { downloadImportTemplate } from './importTemplate.js';
 
 // BOM = ตัวอักษรล่องหนหัวไฟล์ บอก Excel ว่าไฟล์เป็น UTF-8 (ไม่งั้นภาษาไทยเพี้ยน)
 const BOM = '\uFEFF';
@@ -99,13 +101,14 @@ function PendingAccounts({ toast, tt, lang, onCount }) {
   const daysText = (iso) => { const d = daysSince(iso); return d === 0 ? tt('importReal.pendingToday') : tt('importReal.pendingDays', { n: d }); };
 
   // ดาวน์โหลดรายชื่อที่กำลังแสดง (ตามคำค้น) เป็น CSV ไว้เอาไปตามนักศึกษา — บัญชีกลุ่มนี้ยังไม่มีชื่อ/เบอร์ (ยังไม่กรอกโปรไฟล์) มีแค่รหัส
+  // หัวคอลัมน์เป็นภาษาไทย — เจ้าหน้าที่เปิดใน Excel แล้วอ่านเข้าใจทันที
   const downloadList = () => {
-    const header = 'student_id,academic_year,imported_at,days_since_import\n';
+    const header = 'รหัสนักศึกษา,ปีการศึกษาที่จบ,วันที่นำเข้า,จำนวนวันหลังนำเข้า\n';
     const body = filtered.map(r => `${r.student_id},${r.academic_year},${new Date(r.imported_at).toISOString().slice(0, 10)},${daysSince(r.imported_at)}`).join('\n');
     const blob = new Blob([BOM + header + body + '\n'], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = 'students_not_signed_in.csv';
+    a.href = url; a.download = 'รายชื่อที่ยังไม่เข้าสู่ระบบ.csv';
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -205,7 +208,7 @@ const tagForReason = (reason, tt) => {
 
 // แปลงรายการที่ถูกข้าม เป็นไฟล์ CSV ให้เจ้าหน้าที่โหลดไปแก้ในไฟล์เดิมแล้วอัปใหม่เฉพาะแถวที่พลาด
 const skippedToCsv = (skipped) => {
-  const header = 'row,student_id,reason\n';
+  const header = 'แถวที่,รหัสนักศึกษา,เหตุผล\n';
   const rows = skipped.map(s => `${s.row},${s.student_id || ''},"${(s.reason || '').replace(/"/g, '""')}"`).join('\n');
   return header + rows;
 };
@@ -233,19 +236,16 @@ function CsvImport({ toast, tt, lang }) {
   // ไม่งั้นกด "ยืนยัน" จะนำเข้าไฟล์ใหม่โดยที่ผู้ใช้เห็นสรุปของไฟล์เก่าอยู่
   const pickFile = (f) => { setFile(f); setPreview(null); setResult(null); setError(''); setColumnPick(null); setMapping({}); };
 
+  // ไฟล์ตัวอย่างเป็น .xlsx ที่ตั้งทุกคอลัมน์เป็น Text ไว้แล้ว หัวคอลัมน์ภาษาไทย (รายละเอียดใน importTemplate.js)
   const downloadTemplate = () => {
-    // ไฟล์ตัวอย่างเป็น .xlsx (อยู่ใน public/) ที่ตั้งทุกคอลัมน์เป็น Text ไว้แล้ว — เจ้าหน้าที่พิมพ์เลขบัตร 13 หลักทับได้เลย
-    // ไม่ถูกแปลงเป็น 1.23E+12 · แถวตัวอย่างที่ 2 คือคนซ้ำชั้น (รหัส 66 ปกติจบ 2570 แต่จบจริง 2572), academic_year ไม่บังคับ
-    const a = document.createElement('a');
-    a.href = '/student_import_template.xlsx'; a.download = 'student_import_template.xlsx';
-    a.click();
+    downloadImportTemplate();
   };
 
   const downloadSkipped = (data) => {
     const blob = new Blob([BOM + skippedToCsv(data.skipped)], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = 'student_import_skipped.csv';
+    a.href = url; a.download = 'รายการที่ข้ามในการนำเข้า.csv';
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -315,7 +315,8 @@ function CsvImport({ toast, tt, lang }) {
           background:'var(--blue-50)', border:'1px solid var(--blue-100)', borderRadius:12, padding:14 }}>
           <Icon name="info" size={17} style={{ color:'var(--blue-600)', flex:'none', marginTop:1 }} />
           <div style={{ fontSize:15, color:'var(--ink-700)', lineHeight:1.7 }}>
-            {tt('importReal.csvColumnsNote').replace('{cols}', '')}<span className="mono" style={{ fontSize:14 }}>student_id, national_id</span><br/>
+            {/* ชื่อคอลัมน์ที่บอกผู้ใช้เป็นภาษาไทย (ไม่ใช่ชื่อ field ในฐานข้อมูล) — backend จับคู่หัวคอลัมน์ภาษาไทยได้ */}
+            {tt('importReal.csvColumnsNote', { cols: tt('importReal.requiredColumns') })}<br/>
             {tt('importReal.yearColumnNote')}<br/>
             {tt('importReal.noPasswordNote')}<br/>
             <b>{tt('importReal.excelNote')}</b><br/>

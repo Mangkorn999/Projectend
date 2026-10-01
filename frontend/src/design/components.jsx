@@ -35,7 +35,7 @@ export function Avatar({ name, size = 38, bg }) {
 // onNotifOpen: เรียกตอนเปิด modal — ไป mark ว่าอ่านแล้วทั้งหมด (ทั้ง DB และ localStorage)
 // onNotifGo: กดที่รายการ — ส่ง page ไปเปลี่ยนหน้า + ส่ง key ไปให้เอารายการนั้นออกจากลิสต์
 //            (กดดูแล้วต้องหายไป ไม่ใช่ค้างอยู่จนต้องกด "ล้างทั้งหมด" เอง)
-export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notifications=[], unread=0, onNotifOpen, onNotifGo, onNotifClearAll, lang='TH', setLang, langLoading=false }) {
+export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notifications=[], unread=0, onNotifOpen, onNotifGo, onNotifClearAll, onNotifDismiss, lang='TH', setLang, langLoading=false }) {
   const [open, setOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const openNotif = () => { setNotifOpen(true); onNotifOpen?.(); };
@@ -84,12 +84,12 @@ export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notificati
             {/* หัวข้อคั่นโผล่เฉพาะตอนมีทั้ง 2 กลุ่ม — มีกลุ่มเดียวก็ไม่ต้องมีหัวข้อให้รก */}
             {liveItems.length > 0 && eventItems.length > 0 &&
               <div className="sec-title" style={{ fontSize:13 }}>{t(lang,'topbar.notifActionNeeded')}</div>}
-            {liveItems.map(n => <NotifRow key={n.key} n={n} lang={lang}
+            {liveItems.map(n => <NotifRow key={n.key} n={n} lang={lang} onDismiss={onNotifDismiss}
               onClick={()=>{ setNotifOpen(false); onNotifGo?.(n.page, n.key); }} />)}
 
             {liveItems.length > 0 && eventItems.length > 0 &&
               <div className="sec-title" style={{ fontSize:13, marginTop:6 }}>{t(lang,'topbar.notifUpdates')}</div>}
-            {eventItems.map(n => <NotifRow key={n.key} n={n} lang={lang}
+            {eventItems.map(n => <NotifRow key={n.key} n={n} lang={lang} onDismiss={onNotifDismiss}
               onClick={()=>{ setNotifOpen(false); onNotifGo?.(n.page, n.key); }} />)}
           </div>
         ) : (
@@ -126,23 +126,91 @@ export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notificati
 
 /* แถวเดียวในกล่องแจ้งเตือน — กดแล้วพาไปหน้าที่เกี่ยวข้อง (n.page)
    ที่ยังไม่อ่านพื้นขาวเต็ม อ่านแล้วจางลง · alert สด (n.live) ไม่มีวันที่จึงเว้นช่องขวาไว้ */
-function NotifRow({ n, lang, onClick }) {
+/* ลากแถวไปซ้าย/ขวาแล้วปล่อย = ลบแถวนั้น (ลากเกิน SWIPE_DISTANCE px)
+   ลากไม่ถึงระยะ → เด้งกลับที่เดิม · ลากเมาส์ก็ได้ ไม่ใช่แค่นิ้ว
+   กดปุ่ม Delete บนแถวที่โฟกัสอยู่ก็ลบได้ (คนไม่ใช้เมาส์/ทัชสกรีน) */
+const SWIPE_DISTANCE = 90;
+
+function NotifRow({ n, lang, onClick, onDismiss }) {
   const unreadLook = n.is_read === false || n.live;
+  const [dragX, setDragX] = useState(0);       // ระยะที่แถวถูกลากไปตอนนี้
+  const [dragging, setDragging] = useState(false);
+  const [leaving, setLeaving] = useState(false); // กำลังเลื่อนออกนอกจอ
+  const [collapsed, setCollapsed] = useState(false); // เลื่อนออกแล้ว กำลังหดความสูง
+  const startX = useRef(0);
+  const moved = useRef(false); // ลากจริงหรือแค่คลิก — ถ้าลากจริงห้ามนับเป็นคลิก
+
+  const onPointerDown = (e) => {
+    startX.current = e.clientX;
+    moved.current = false;
+    setDragging(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const onPointerMove = (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - startX.current;
+    if (Math.abs(dx) > 6) moved.current = true;
+    setDragX(dx);
+  };
+  const onPointerUp = () => {
+    setDragging(false);
+    if (Math.abs(dragX) >= SWIPE_DISTANCE) {
+      // 1) เลื่อนแถวออกนอกจอ  2) หดความสูงเป็น 0  3) ค่อยลบจริงจากลิสต์
+      setLeaving(true);
+      setDragX(dragX > 0 ? 700 : -700);
+      setTimeout(() => setCollapsed(true), 220);
+      setTimeout(() => onDismiss?.(n.key), 480);
+    } else {
+      setDragX(0);
+    }
+  };
+  const handleClick = () => {
+    if (moved.current) return; // เพิ่งลากมา ไม่ใช่คลิก
+    onClick();
+  };
+  const handleKeyDown = (e) => {
+    if (e.key === 'Delete' || e.key === 'Backspace') onDismiss?.(n.key);
+  };
+
+  // แถวที่อ่านแล้วให้จางเฉพาะเนื้อหา — ถ้าจางทั้งแถว สีแดงข้างหลังจะทะลุขึ้นมา
+  const dim = unreadLook ? 1 : 0.7;
+  // ยิ่งลากไกลยิ่งแดงเข้ม ถึงระยะลบแล้วแดงเต็ม
+  const redAmount = Math.min(Math.abs(dragX) / SWIPE_DISTANCE, 1);
+
   return (
-    <button onClick={onClick}
-      style={{ display:'flex', alignItems:'flex-start', gap:13, padding:'13px 14px', width:'100%',
-        border:'1px solid var(--ink-200)', borderRadius:12, textAlign:'left', cursor:'pointer', fontFamily:'inherit',
-        background: unreadLook?'#fff':'var(--ink-50, #fafafa)', opacity: unreadLook?1:.7 }}>
-      <div style={{ width:38, height:38, borderRadius:10, flex:'none', display:'flex', alignItems:'center', justifyContent:'center',
-        background:`var(--status-${n.tone}-bg)`, color:`var(--status-${n.tone}-fg)` }}><Icon name={n.icon} size={18}/></div>
-      <div style={{ flex:1, minWidth:0 }}>
-        <div style={{ fontSize:16, fontWeight:700, color:'var(--ink-900)' }}>{n.title}</div>
-        {n.sub && <div style={{ fontSize:14.5, fontWeight:400, color:'var(--ink-500)', marginTop:2 }}>{n.sub}</div>}
+    // ห่อด้วย div: ชั้นล่างเป็นสีแดง ชั้นบนเป็นแถวที่เลื่อนได้ · ตอนลบหดความสูงเป็น 0 ให้แถวข้างล่างเลื่อนขึ้นนุ่ม ๆ
+    <div style={{ position:'relative', flex:'none', borderRadius:12, overflow:'hidden',
+      maxHeight: collapsed ? 0 : 200, marginBottom: collapsed ? -10 : 0, opacity: collapsed ? 0 : 1,
+      transition:'max-height .25s ease, margin-bottom .25s ease, opacity .25s ease' }}>
+      <div aria-hidden="true" style={{ position:'absolute', inset:0, borderRadius:12,
+        background:`rgba(220, 38, 38, ${0.25 + redAmount * 0.75})`, color:'#fff',
+        display:'flex', alignItems:'center', padding:'0 22px',
+        justifyContent: dragX > 0 ? 'flex-start' : 'flex-end',
+        opacity: dragX === 0 && !leaving ? 0 : 1, transition: dragging ? 'none' : 'opacity .2s ease' }}>
+        <span style={{ display:'inline-flex', transform:`scale(${0.7 + redAmount * 0.4})` }}>
+          <Icon name="trash" size={22} />
+        </span>
       </div>
-      <div style={{ fontSize:13.5, color:'var(--ink-400)', flex:'none', whiteSpace:'nowrap' }}>
-        {n.at ? new Date(n.at).toLocaleDateString(lang==='EN'?'en-GB':'th-TH') : ''}
-      </div>
-    </button>
+      <button onClick={handleClick} onKeyDown={handleKeyDown}
+        onPointerDown={onPointerDown} onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
+        style={{ position:'relative', display:'flex', alignItems:'flex-start', gap:13, padding:'13px 14px', width:'100%',
+          border:'1px solid var(--ink-200)', borderRadius:12, textAlign:'left', cursor: dragging?'grabbing':'grab', fontFamily:'inherit',
+          background: unreadLook?'#fff':'var(--ink-50, #fafafa)',
+          transform:`translate3d(${dragX}px, 0, 0)`, willChange:'transform',
+          transition: dragging ? 'none' : 'transform .3s cubic-bezier(.22,1,.36,1)',
+          touchAction:'pan-y', userSelect:'none' }}>
+        <div style={{ width:38, height:38, borderRadius:10, flex:'none', display:'flex', alignItems:'center', justifyContent:'center', opacity:dim,
+          background:`var(--status-${n.tone}-bg)`, color:`var(--status-${n.tone}-fg)` }}><Icon name={n.icon} size={18}/></div>
+        <div style={{ flex:1, minWidth:0, opacity:dim }}>
+          <div style={{ fontSize:16, fontWeight:700, color:'var(--ink-900)' }}>{n.title}</div>
+          {n.sub && <div style={{ fontSize:14.5, fontWeight:400, color:'var(--ink-500)', marginTop:2 }}>{n.sub}</div>}
+        </div>
+        <div style={{ fontSize:13.5, color:'var(--ink-400)', flex:'none', whiteSpace:'nowrap', opacity:dim }}>
+          {n.at ? new Date(n.at).toLocaleDateString(lang==='EN'?'en-GB':'th-TH') : ''}
+        </div>
+      </button>
+    </div>
   );
 }
 
@@ -727,9 +795,9 @@ export function ExportMenu({ items, lang='TH', tt, onError, size='md', label, al
 export function Modal({ open, onClose, title, children, footer, width=480, tone }) {
   if(!open) return null;
   return createPortal(
-    <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(12,31,61,.45)', zIndex:150,
+    <div className="modal-backdrop" onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(12,31,61,.45)', zIndex:150,
       display:'flex', alignItems:'center', justifyContent:'center', padding:16, backdropFilter:'blur(2px)' }}>
-      <div className="card fade-up" onClick={e=>e.stopPropagation()} style={{ width, maxWidth:'100%', maxHeight:'90vh',
+      <div className="card modal-card" onClick={e=>e.stopPropagation()} style={{ width, maxWidth:'100%', maxHeight:'90vh',
         overflow:'auto', boxShadow:'var(--sh-lg)', borderRadius:16 }}>
         {title && <div style={{ padding:'18px 22px', borderBottom:'1px solid var(--ink-100)', display:'flex',
           alignItems:'center', justifyContent:'center', gap:12, position:'relative' }}>
@@ -743,6 +811,14 @@ export function Modal({ open, onClose, title, children, footer, width=480, tone 
     </div>,
     document.body
   );
+}
+
+/* ---- ตัวโหลด: วงกลมหมุน + จุดเด้ง แทนข้อความ "กำลังโหลด…" เฉย ๆ ---- */
+export function Loading({ label }) {
+  return <div className="loading-block fade-up" role="status" aria-live="polite">
+    <div className="loading-spinner"></div>
+    {label && <div>{label}</div>}
+  </div>;
 }
 
 /* ---- Empty state ---- */

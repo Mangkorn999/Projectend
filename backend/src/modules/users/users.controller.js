@@ -30,14 +30,15 @@ export const create = async (req, res, next) => {
 
     // เจ้าหน้าที่ตั้งรหัสผ่านชั่วคราวให้ตอนสร้างบัญชี — เจ้าตัวต้องเปลี่ยนเองตอน login ครั้งแรก
     // (ไม่มี first-setup แยกแล้ว — ใช้กลไกเดียวกับ must_change_password ที่มีอยู่แล้ว)
+    // ผู้บริหารเป็นบัญชีอ่านอย่างเดียว ไม่ต้องเก็บอีเมล/เบอร์โทร — role อื่นยังบังคับกรอกเหมือนเดิม
+    const contactRequired = role_name !== "executive";
     if (
       !psu_passport_id ||
       !password ||
       !role_name ||
       !first_name ||
       !last_name ||
-      !email ||
-      !phone
+      (contactRequired && (!email || !phone))
     ) {
       const err = new Error("กรุณากรอกข้อมูลให้ครบ");
       err.statusCode = 400;
@@ -45,7 +46,7 @@ export const create = async (req, res, next) => {
     }
 
     // ทุกช่องต้องเป็นข้อความ — ส่งตัวเลข/object มา bcrypt กับ Prisma จะพังเป็น 500
-    if ([psu_passport_id, password, first_name, last_name, email, phone].some((v) => typeof v !== "string")) {
+    if ([psu_passport_id, password, first_name, last_name].some((v) => typeof v !== "string")) {
       const err = new Error("ข้อมูลที่ส่งมาต้องเป็นข้อความทั้งหมด");
       err.statusCode = 400;
       throw err;
@@ -53,7 +54,7 @@ export const create = async (req, res, next) => {
 
     if (!CREATABLE_ROLES.includes(role_name)) {
       const err = new Error(
-        `role_name ต้องเป็นหนึ่งใน: ${CREATABLE_ROLES.join(", ")}`,
+        "ประเภทผู้ใช้งานไม่ถูกต้อง กรุณาเลือกประเภทผู้ใช้งานใหม่อีกครั้ง",
       );
       err.statusCode = 400;
       throw err;
@@ -76,7 +77,7 @@ export const create = async (req, res, next) => {
 
     const role = await UserRepo.findRoleByName(role_name);
     if (!role) {
-      const err = new Error(`ไม่พบ role '${role_name}' ในระบบ`);
+      const err = new Error("ไม่พบประเภทผู้ใช้งานนี้ในระบบ กรุณาเลือกประเภทผู้ใช้งานใหม่อีกครั้ง");
       err.statusCode = 400;
       throw err;
     }
@@ -89,8 +90,9 @@ export const create = async (req, res, next) => {
       must_change_password: true,
       first_name,
       last_name,
-      email,
-      phone,
+      // ไม่ได้กรอก (ผู้บริหาร) → เก็บเป็น null ไม่ใช่สตริงว่าง
+      email: typeof email === "string" && email ? email : null,
+      phone: typeof phone === "string" && phone ? phone : null,
     });
 
     res.status(201).json({ success: true, data: user });
@@ -107,25 +109,25 @@ export const updateRole = async (req, res, next) => {
     const targetId = Number(req.params.id);
 
     if (!role_name) {
-      const err = new Error("ต้องระบุ role_name");
+      const err = new Error("กรุณาเลือกประเภทผู้ใช้งาน");
       err.statusCode = 400;
       throw err;
     }
     if (!ASSIGNABLE_ROLES.includes(role_name)) {
       const err = new Error(
-        `role_name ต้องเป็นหนึ่งใน: ${ASSIGNABLE_ROLES.join(", ")}`,
+        "ประเภทผู้ใช้งานไม่ถูกต้อง กรุณาเลือกประเภทผู้ใช้งานใหม่อีกครั้ง",
       );
       err.statusCode = 400;
       throw err;
     }
     if (!Number.isInteger(targetId)) {
-      const err = new Error("user id ไม่ถูกต้อง");
+      const err = new Error("ไม่พบผู้ใช้งานที่ระบุ กรุณารีเฟรชหน้าแล้วลองใหม่อีกครั้ง");
       err.statusCode = 400;
       throw err;
     }
     // กัน officer ลดสิทธิ์ตัวเองจนล็อกตัวเองออกจากระบบ
     if (targetId === req.user.userId) {
-      const err = new Error("ไม่สามารถเปลี่ยน role ของตัวเองได้");
+      const err = new Error("ไม่สามารถเปลี่ยนประเภทผู้ใช้งานของตัวเองได้");
       err.statusCode = 400;
       throw err;
     }
@@ -139,7 +141,7 @@ export const updateRole = async (req, res, next) => {
 
     const role = await UserRepo.findRoleByName(role_name);
     if (!role) {
-      const err = new Error(`ไม่พบ role '${role_name}' ในระบบ`);
+      const err = new Error("ไม่พบประเภทผู้ใช้งานนี้ในระบบ กรุณาเลือกประเภทผู้ใช้งานใหม่อีกครั้ง");
       err.statusCode = 400;
       throw err;
     }
@@ -156,7 +158,7 @@ export const revokeAccess = async (req, res, next) => {
   try {
     const targetId = Number(req.params.id);
     if (!Number.isInteger(targetId)) {
-      const err = new Error("user id ไม่ถูกต้อง");
+      const err = new Error("ไม่พบผู้ใช้งานที่ระบุ กรุณารีเฟรชหน้าแล้วลองใหม่อีกครั้ง");
       err.statusCode = 400;
       throw err;
     }
@@ -188,7 +190,7 @@ export const resetPassword = async (req, res, next) => {
   try {
     const targetId = Number(req.params.id);
     if (!Number.isInteger(targetId)) {
-      const err = new Error("user id ไม่ถูกต้อง");
+      const err = new Error("ไม่พบผู้ใช้งานที่ระบุ กรุณารีเฟรชหน้าแล้วลองใหม่อีกครั้ง");
       err.statusCode = 400;
       throw err;
     }
@@ -221,7 +223,7 @@ export const resetPassword = async (req, res, next) => {
     res.json({
       success: true,
       data: {
-        message: "ตั้งรหัสผ่านชั่วคราวแล้ว ผู้ใช้ต้องเปลี่ยนรหัสตอน login ครั้งถัดไป",
+        message: "ตั้งรหัสผ่านชั่วคราวแล้ว ผู้ใช้ต้องเปลี่ยนรหัสผ่านเมื่อเข้าสู่ระบบครั้งถัดไป",
       },
     });
   } catch (err) {
@@ -238,7 +240,7 @@ export const deleteUser = async (req, res, next) => {
   try {
     const targetId = Number(req.params.id);
     if (!Number.isInteger(targetId)) {
-      const err = new Error("user id ไม่ถูกต้อง");
+      const err = new Error("ไม่พบผู้ใช้งานที่ระบุ กรุณารีเฟรชหน้าแล้วลองใหม่อีกครั้ง");
       err.statusCode = 400;
       throw err;
     }

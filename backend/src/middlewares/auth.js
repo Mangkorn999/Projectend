@@ -40,7 +40,7 @@ export const authenticate = async (req, res, next) => {
     return res.status(401).json({
       success: false,
       code: "auth_required",
-      message: "Token ไม่ถูกต้องหรือหมดอายุ",
+      message: "การเข้าสู่ระบบหมดอายุแล้ว กรุณาเข้าสู่ระบบใหม่อีกครั้ง",
     });
   }
 

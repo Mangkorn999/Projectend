@@ -84,7 +84,9 @@ export const findAllSubjects = () =>
 // (findPassedSubjectIds ฝั่ง examResults ตัดแค่รอบปัจจุบันพอ เพราะตอนนักศึกษากดส่ง
 //  รอบถัดไปยังไม่เกิดขึ้น — แต่ dashboard ย้อนดูรอบเก่าได้ เลยต้องกรองด้วยลำดับเวลา)
 //
-// เงื่อนไขอื่นตรงกับ findPassedSubjectIds: ตัดใบที่ถูกตีกลับ, วิชาที่ผ่านแล้วผ่านข้ามปีได้
+// เงื่อนไขอื่นตรงกับ findPassedSubjectIds: ตัดใบที่ถูกตีกลับ, ไม่นับแถวที่ยกผลมา (carried_forward),
+// วิชาที่ผ่านแล้วผ่านข้ามปีได้ — ต้องตรงกัน ไม่งั้นคิวตรวจจะมองว่าคนนี้ "ผ่านครบแล้ว"
+// ทั้งที่หน้ากรอกของนักศึกษายังบังคับให้กรอกวิชานั้นใหม่ (เพราะใบต้นทางถูกตีกลับ — บั๊ก B1)
 export const findEligibleWithPassedSubjects = async (round) => {
   const students = await prisma.student.findMany({
     where: { academic_year: round.academic_year, exam_eligible: true },
@@ -95,6 +97,7 @@ export const findEligibleWithPassedSubjects = async (round) => {
   const rows = await prisma.subjectResult.findMany({
     where: {
       is_passed: true,
+      carried_forward: false,
       exam_result: {
         student_id: { in: students.map((s) => s.student_id) },
         staff_status: { not: "rejected" },
@@ -146,15 +149,21 @@ export const findResultsByRound = (roundId) =>
     orderBy: { student_id: "asc" },
   });
 
-// นักศึกษาทั้งรุ่น (ทุกคนที่ import เข้ามา) พร้อมชื่อ/ห้อง — ใช้ทำรายชื่อ export ผ่าน/ไม่ผ่านรอบแรก
-// ต้องดึงทั้งรุ่น ไม่ใช่เฉพาะคนที่มีใบผลสอบ: "ไม่ผ่านรอบแรก" รวมคนที่ยังไม่ส่งผลด้วย (ตัวหารของ % คือทั้งรุ่น)
+// นักศึกษาทั้งรุ่น (ทุกคนที่ import เข้ามา) พร้อมชื่อ (ไทย/อังกฤษ) ห้อง เบอร์โทร อีเมล
+// ใช้ทำรายชื่อ export ผ่าน/ไม่ผ่านครั้งแรก และผ่าน/ไม่ผ่านภายในปีแรก
+// ต้องดึงทั้งรุ่น ไม่ใช่เฉพาะคนที่มีใบผลสอบ: "ไม่ผ่าน" รวมคนที่ยังไม่ส่งผลด้วย (ตัวหารของ % คือทั้งรุ่น)
+// เลือกเฉพาะ field ที่ต้องใช้ (select) — ห้ามเพิ่ม password_hash หรือข้อมูลรหัสผ่านใดๆ เพราะไฟล์ส่งออกถูกส่งต่อกันในคณะ
 export const findStudentsByYear = (academicYear) =>
   prisma.student.findMany({
     where: { academic_year: academicYear },
     select: {
       student_id: true,
+      first_name_en: true,
+      last_name_en: true,
       room: { select: { room_name: true } },
-      user: { select: { first_name: true, last_name: true } },
+      user: {
+        select: { first_name: true, last_name: true, email: true, phone: true },
+      },
     },
     orderBy: { student_id: "asc" },
   });

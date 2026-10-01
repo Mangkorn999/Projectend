@@ -167,9 +167,13 @@ export function buildNotifications({ role, examResults = [], news = [], lang = '
     ? news
     : news.filter((n) => n.posted_by !== userId);
 
+  // หน้าประกาศของแต่ละ role ไม่ใช่หน้าเดียวกัน: นักศึกษา = 'news', เจ้าหน้าที่ = 'newsmgmt'
+  // ผู้บริหาร/ผู้ตรวจไม่มีหน้าประกาศ → ไป dashboard (เดิมทุก role ไป 'news' เจ้าหน้าที่เลยเจอ "ไม่พบหน้าที่ต้องการ")
+  const newsPage = role === 'student' ? 'news' : role === 'officer' ? 'newsmgmt' : 'dashboard';
+
   for (const n of othersNews.slice(0, NEWS_LIMIT)) {
     items.push({
-      key: newsKey(n), tone: 'wait', icon: 'bell', page: 'news',
+      key: newsKey(n), tone: 'wait', icon: 'bell', page: newsPage,
       title: tt('notif.newsTitle'), sub: n.title, at: n.posted_at,
     });
   }

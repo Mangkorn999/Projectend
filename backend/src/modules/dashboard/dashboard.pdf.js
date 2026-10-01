@@ -112,7 +112,7 @@ export const buildReportPdf = (stats, rows, res, yearStats) => {
     section(doc, "สรุปผลสอบผ่านครั้งแรก จำแนกรายวิชา");
     doc.font("th").fontSize(9);
     doc.text(
-      `จำนวนผู้สมัครสอบ = นักศึกษาทั้งรุ่นปีการศึกษา ${yearStats.academic_year} จำนวน ${bySubject.cohort_total} คน · ส่งผลการสอบรอบแรกแล้ว ${bySubject.submitted} คน`,
+      `จำนวนผู้สมัครสอบ = นักศึกษาทั้งรุ่นปีการศึกษา ${yearStats.academic_year} จำนวน ${bySubject.cohort_total} คน · ส่งผลการสอบรอบแรกแล้ว ${bySubject.submitted} คน · หน่วยของ "จำนวน" = คน`,
       LEFT,
       doc.y,
       { width: CONTENT_WIDTH },
@@ -163,9 +163,9 @@ export const buildReportPdf = (stats, rows, res, yearStats) => {
       header: [
         "รายวิชา",
         "ผู้สมัครสอบ",
-        "จำนวน (คน)",
+        "จำนวน",
         "ร้อยละ",
-        "จำนวน (คน)",
+        "จำนวน",
         "ร้อยละ",
       ],
       rows: bsRows,
@@ -287,15 +287,21 @@ export const buildReportPdf = (stats, rows, res, yearStats) => {
   doc.end();
 };
 
-// PDF รายชื่อนักศึกษา "ผ่านครั้งแรก / ไม่ผ่านครั้งแรก" ของปีการศึกษาหนึ่ง (ข้อมูลมาจาก buildFirstAttemptList)
+// PDF รายชื่อนักศึกษา "ผ่าน / ไม่ผ่าน" ของปีการศึกษาหนึ่ง — ใช้ร่วมกัน 2 แบบ:
+//   - ผ่าน/ไม่ผ่านครั้งแรก    (ข้อมูลจาก buildFirstAttemptList)
+//   - ผ่าน/ไม่ผ่านภายในปีแรก  (ข้อมูลจาก buildFirstYearList)
+// ต่างกันแค่ข้อความหัวรายงาน ผู้เรียก (dashboard.controller.js) เป็นคนส่งมา:
+//   label    = เช่น "ผ่านครั้งแรก" → หัวรายงาน "รายชื่อนักศึกษาที่สอบผ่านครั้งแรก"
+//   subtitle = บรรทัดใต้หัวรายงาน เช่น "ปีการศึกษา 2569 — รอบสอบครั้งที่ 1"
+//   note     = หมายเหตุใต้สรุป (ไม่ส่งมา = ไม่มีหมายเหตุ)
 // รูปแบบเดียวกับ PDF รายชื่อรายวิชา (students.pdf.js) — หัวรายงาน, สรุปสั้นๆ, ตารางรายชื่อ, เลขหน้า
-export const buildFirstAttemptListPdf = ({ year, round, total, wantPassed, label, rows, res }) => {
+export const buildPassListPdf = ({ label, subtitle, note, total, rows, res }) => {
   const doc = new PDFDocument({ size: "A4", margin: 40, bufferPages: true });
   registerThaiFonts(doc);
   doc.pipe(res);
 
   doc.font("th-bold").fontSize(18).text(`รายชื่อนักศึกษาที่สอบ${label}`, { align: "center" });
-  doc.font("th").fontSize(13).text(`ปีการศึกษา ${year} — รอบสอบครั้งที่ ${round.attempt_number}`, { align: "center" });
+  doc.font("th").fontSize(13).text(subtitle, { align: "center" });
   doc.fontSize(12).fillColor("#555").text("คณะพยาบาลศาสตร์", { align: "center" });
   doc.fillColor("#000").fontSize(10).text(`ออกรายงานเมื่อ ${new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}`, { align: "center" });
   doc.moveDown(1.5);
@@ -306,11 +312,8 @@ export const buildFirstAttemptListPdf = ({ year, round, total, wantPassed, label
     `จำนวน ${rows.length} คน จากนักศึกษาทั้งรุ่น ${total} คน (ร้อยละ ${percentText})`,
     LEFT, doc.y, { width: CONTENT_WIDTH },
   );
-  if (!wantPassed) {
-    doc.fontSize(10).fillColor("#555").text(
-      "รวมนักศึกษาที่ยังไม่ส่งผลสอบ ค้างร่าง หรือถูกตีกลับ — ดูสาเหตุที่คอลัมน์ \"สถานะใบ\"",
-      LEFT, doc.y, { width: CONTENT_WIDTH },
-    );
+  if (note) {
+    doc.fontSize(10).fillColor("#555").text(note, LEFT, doc.y, { width: CONTENT_WIDTH });
     doc.fillColor("#000");
   }
   doc.moveDown(1);

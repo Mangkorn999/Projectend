@@ -256,6 +256,67 @@ const notFound = (message) => {
   return err;
 };
 
+/* ---------------------------------------------------------------------------
+   กฎ "ผ่านภายในปีแรก" — ใช้ร่วมกัน 2 ที่ ต้องได้ตัวเลขตรงกันเสมอ:
+     1. buildYearSummary   → ตัวเลข firstYear.passed บนแดชบอร์ด (/api/dashboard/history)
+     2. buildFirstYearList → ไฟล์ส่งออกรายชื่อ "ผ่าน/ไม่ผ่านภายในปีแรก"
+   แยกเป็นฟังก์ชันไว้ที่เดียว ถ้าวันหนึ่งกฎเปลี่ยน แก้ตรงนี้ที่เดียวแล้วทั้ง 2 ที่เปลี่ยนตาม
+--------------------------------------------------------------------------- */
+
+// เก็บ "วิชาที่สอบผ่านจริง" ของแต่ละคนจากใบผลสอบชุดหนึ่ง (ใบของ 1 รอบ) ลงใน passedByStudent
+//   passedByStudent = Map ของ student_id -> Set(subject_id) — เรียกซ้ำทีละรอบเพื่อสะสมผลทั้งปี
+// กฎ:
+//   1. นับเฉพาะใบที่ส่งแล้วและเจ้าหน้าที่ยืนยันแล้ว (approved) — กฎเดียวกับสถิติ "ผ่าน" ทุกตัว (ดู onlyConfirmed)
+//   2. ไม่นับแถวที่ยกผลมาจากรอบก่อน (carried_forward) — บั๊ก B1:
+//      ใบรอบ 1 ยังรอตรวจตอนเปิดรอบ 2 → รอบ 2 ยกวิชา A มาเป็นผ่าน → ภายหลังเจ้าหน้าที่ตีกลับใบรอบ 1
+//      ถ้านับแถวยกมา ใบรอบ 2 ที่ยืนยันแล้วจะทำให้คนนี้ "ผ่านวิชา A" ทั้งที่หลักฐานวิชา A ถูกตีกลับ
+//      ตัดทิ้งแล้วไม่เสียอะไร: ถ้าใบต้นทางถูกยืนยัน แถวผ่านจริงในใบต้นทางถูกนับให้อยู่แล้ว
+function addConfirmedRealPasses(passedByStudent, results) {
+  for (const r of results) {
+    // ยังกรอกไม่เสร็จ หรือยังไม่ได้ยืนยัน → ข้าม
+    if (r.student_status === "draft") continue;
+    if (r.staff_status !== "approved") continue;
+
+    if (!passedByStudent.has(r.student_id)) {
+      passedByStudent.set(r.student_id, new Set());
+    }
+    const passedSet = passedByStudent.get(r.student_id);
+
+    for (const sr of r.subject_results) {
+      if (!sr.is_passed) continue; // ไม่ผ่าน
+      if (sr.carried_forward) continue; // ยกผลมา ไม่ได้สอบจริงในใบนี้
+      passedSet.add(sr.subject_id);
+    }
+  }
+}
+
+// วิชาที่ต้องผ่านให้ครบถึงจะเรียกว่า "สอบผ่าน" ของปีนั้น = วิชาของรอบแรก (ปกติครบ 8 วิชา)
+// ปีที่ยังไม่มีรอบแรกในระบบ (หรือรอบแรกไม่เหลือวิชาเลย) ใช้รายวิชาทั้งหมดไปก่อน
+function getRequiredSubjectIds(firstRound, allSubjects) {
+  const requiredIds = [];
+  if (firstRound) {
+    const firstRoundSubjects = subjectsOfRound(firstRound, allSubjects);
+    for (const sub of firstRoundSubjects) {
+      requiredIds.push(sub.subject_id);
+    }
+  }
+  if (requiredIds.length === 0) {
+    for (const sub of allSubjects) {
+      requiredIds.push(sub.subject_id);
+    }
+  }
+  return requiredIds;
+}
+
+// คนนี้ผ่านครบทุกวิชาที่ต้องผ่านหรือยัง — passedSet ว่าง (ไม่มีใบที่ยืนยันแล้วเลย) = ยังไม่ผ่าน
+function hasPassedAll(passedSet, requiredSubjectIds) {
+  if (!passedSet) return false;
+  for (const id of requiredSubjectIds) {
+    if (!passedSet.has(id)) return false;
+  }
+  return true;
+}
+
 // รวมสถิติของ 1 รอบ — ใช้ทั้ง /stats และ /export
 export const buildStats = async (roundId) => {
   // ไม่ส่ง round_id มา → ใช้รอบที่เปิดรับอยู่ (ถ้าไม่มี ค่อยเป็นรอบล่าสุด)
@@ -372,10 +433,11 @@ const buildYearSummary = async (year, allSubjects) => {
 
   // ห้องเรียนของนักศึกษาแต่ละคน — ใช้แยกยอดตามห้องตอนท้าย
   const roomOfStudent = new Map(); // student_id -> room_id
-  // วิชาที่แต่ละคนสอบผ่านแล้ว รวมทุกรอบของปีนี้ (ยุบซ้ำด้วย Set)
+  // วิชาที่แต่ละคนสอบผ่านจริงแล้ว รวมทุกรอบของปีนี้ (ยุบซ้ำด้วย Set) — ใบที่ยืนยันแล้ว + ไม่นับแถวยกผลมา
   // ต้องรวมข้ามรอบ ไม่ใช่ดูทีละรอบ — คนสอบแก้ตัวผ่านครบก็ต่อเมื่อเอาผลรอบก่อนมารวมด้วย
+  // เติมข้อมูลด้วย addConfirmedRealPasses (กฎเดียวกับไฟล์ส่งออก "ผ่าน/ไม่ผ่านภายในปีแรก")
   const passedByStudent = new Map(); // student_id -> Set(subject_id)
-  // คนละชุดกับ passedByStudent ด้านบน (นั่นรวมใบ pending ด้วย ใช้กับ "ผ่านครบทุกวิชา")
+  // คนละชุดกับ passedByStudent ด้านบน (นั่นใช้กับ "ผ่านครบทุกวิชา" ของปี)
   // 2 ชุดนี้นับเฉพาะใบที่ยืนยันแล้ว (approved) — ใช้กับ perSubject "รวมทั้งปี" เท่านั้น กฎเดียวกับ buildPerSubject รายรอบ
   // (อัตราผ่านรายวิชา นับเฉพาะใบที่ยืนยันแล้ว + นับเฉพาะคนที่สอบจริง ไม่ใช่ carried_forward)
   const passedByStudentConfirmed = new Map(); // student_id -> Set(subject_id) ที่เคยผ่าน (ปีนี้)
@@ -386,6 +448,7 @@ const buildYearSummary = async (year, allSubjects) => {
   // ผลของรอบสอบครั้งแรก (attempt_number = 1) เก็บแยกไว้
   // ใช้ทำ "ร้อยละผ่านครั้งแรก" + ตารางผ่านกี่วิชา ซึ่งนับเฉพาะรอบแรกเท่านั้น
   // เก็บ 2 ชุด: Sent = ส่งมาแล้วทุกใบ, Counted = ตัดใบที่ถูกตีกลับออก (ใช้กับทุกตัวที่แปลว่า "ผ่าน")
+  let firstRound = null; // ตัวรอบที่ 1 ของปี (ใช้หา "วิชาที่ต้องผ่าน" — ดู getRequiredSubjectIds)
   let firstRoundSent = null;
   let firstRoundConfirmed = null; // ใบรอบแรกที่ยืนยันแล้ว — ฐานของ "ผ่านครั้งแรก" และตารางผ่านกี่วิชา
   let firstRoundSubjectIds = [];
@@ -399,6 +462,9 @@ const buildYearSummary = async (year, allSubjects) => {
     const roundSubjects = subjectsOfRound(round, allSubjects);
     const subjectIds = roundSubjects.map((s) => s.subject_id);
 
+    // สะสมวิชาที่ผ่านจริงของแต่ละคน (ใบยืนยันแล้ว + ไม่นับแถวยกผลมา) — ใช้ตัดสิน "ผ่านภายในปีแรก"
+    addConfirmedRealPasses(passedByStudent, results);
+
     for (const r of results) everStarted.add(r.student_id);
 
     // ใบล่าสุดของแต่ละคนในปีนี้ — rounds เรียงใหม่→เก่า ใบแรกที่เจอจึงเป็นใบล่าสุด
@@ -408,6 +474,7 @@ const buildYearSummary = async (year, allSubjects) => {
     }
 
     if (round.attempt_number === 1) {
+      firstRound = round;
       firstRoundSent = sent;
       firstRoundConfirmed = confirmed;
       firstRoundSubjectIds = subjectIds;
@@ -418,16 +485,7 @@ const buildYearSummary = async (year, allSubjects) => {
       everSubmitted.add(r.student_id);
       roomOfStudent.set(r.student_id, r.student.room.room_id);
 
-      // วิชาที่ผ่านสะสมของแต่ละคน นับเฉพาะใบที่ยืนยันแล้ว (ใบรอตรวจยังไม่ทำให้ใครผ่านครบ)
-      if (r.staff_status === "approved") {
-        if (!passedByStudent.has(r.student_id)) {
-          passedByStudent.set(r.student_id, new Set());
-        }
-        const passedSet = passedByStudent.get(r.student_id);
-        for (const sr of r.subject_results) {
-          if (sr.is_passed) passedSet.add(sr.subject_id);
-        }
-      }
+      // (วิชาที่ผ่านสะสมของแต่ละคน เติมไปแล้วด้านบนด้วย addConfirmedRealPasses)
 
       // นับรายคนสำหรับ perSubject "รวมทั้งปี" — เดิมส่ง array ใบทั้งปีตรงๆ เข้า buildPerSubject (นับตามใบ)
       // คนที่สอบซ้ำหลายรอบในปีเดียว (เช่น ตกวิชาเดิม 2-3 รอบ) จะถูกนับเป็นหลายใบ ทำให้ตัวเลข "ไม่ผ่าน N คน"
@@ -459,24 +517,15 @@ const buildYearSummary = async (year, allSubjects) => {
     });
   }
 
-  // วิชาที่ต้องผ่านให้ครบถึงจะเรียกว่า "สอบผ่าน" = วิชาของรอบแรก (ปกติครบ 8 วิชา)
-  // ปีที่ยังไม่มีรอบแรกในระบบ ใช้รายวิชาทั้งหมดไปก่อน
-  let requiredSubjectIds = firstRoundSubjectIds;
-  if (requiredSubjectIds.length === 0) {
-    requiredSubjectIds = allSubjects.map((s) => s.subject_id);
-  }
+  // วิชาที่ต้องผ่านให้ครบถึงจะเรียกว่า "สอบผ่าน" = วิชาของรอบแรก (ไม่มีรอบแรก = ทุกวิชา)
+  const requiredSubjectIds = getRequiredSubjectIds(firstRound, allSubjects);
 
   // ผ่านครบภายในปีนี้ = ผลรวมทุกรอบครอบคลุมวิชาที่ต้องผ่านทั้งหมด
   const fullyPassedStudents = new Set();
   for (const [studentId, passedSet] of passedByStudent) {
-    let passedAll = true;
-    for (const id of requiredSubjectIds) {
-      if (!passedSet.has(id)) {
-        passedAll = false;
-        break;
-      }
+    if (hasPassedAll(passedSet, requiredSubjectIds)) {
+      fullyPassedStudents.add(studentId);
     }
-    if (passedAll) fullyPassedStudents.add(studentId);
   }
 
   // แยกยอดตามห้องเรียน — ตัวหารคือจำนวนนักศึกษาทั้งห้อง ไม่ใช่คนที่ส่งผล
@@ -731,6 +780,25 @@ const paperStatusLabel = (result) => {
   return "รอตรวจสอบ";
 };
 
+// ข้อมูลประจำตัวของนักศึกษา 1 คน สำหรับแถวในไฟล์ส่งออกรายชื่อ (ใช้ทั้งผ่านครั้งแรกและผ่านภายในปีแรก)
+// ชื่อไทย/อังกฤษ ห้อง เบอร์โทร อีเมล — คณะเอาไปใช้ติดต่อ/ออกเอกสาร (ไม่มีเลขบัตรประชาชน)
+function studentContactColumns(student) {
+  let roomName = "";
+  if (student.room) {
+    roomName = student.room.room_name;
+  }
+  return {
+    student_id: student.student_id,
+    first_name: student.user.first_name,
+    last_name: student.user.last_name,
+    first_name_en: student.first_name_en,
+    last_name_en: student.last_name_en,
+    room_name: roomName,
+    phone: student.user.phone,
+    email: student.user.email,
+  };
+}
+
 // รายชื่อนักศึกษา "ผ่านครั้งแรก" หรือ "ไม่ผ่านครั้งแรก" ของปีการศึกษาหนึ่ง — ใช้ export
 // **กฎเดียวกับ buildYearSummary เป๊ะ** (firstAttempt.passed) ยอดในไฟล์จะได้ตรงกับตัวเลขบนการ์ดเทียบรายปี:
 //   - รอบแรก = attempt_number 1 ของปีนั้น, วิชาที่ต้องผ่าน = วิชาของรอบนั้น
@@ -772,21 +840,92 @@ export const buildFirstAttemptList = async (year, wantPassed) => {
     const passedAll = counted && result.staff_status === "approved" && passedSubjects.length === subjects.length;
     if (passedAll !== wantPassed) continue;
 
-    rows.push({
-      student_id: s.student_id,
-      first_name: s.user.first_name,
-      last_name: s.user.last_name,
-      room_name: s.room?.room_name ?? "",
-      paper_status: paperStatusLabel(result),
-      passed_text: counted ? `${passedSubjects.length}/${subjects.length}` : "",
-      failed_subjects: counted
-        ? subjects
-            .filter((sub) => !passedSubjects.includes(sub))
-            .map((sub) => sub.subject_code)
-            .join(", ")
-        : "",
-    });
+    // ข้อมูลประจำตัว (ชื่อไทย/อังกฤษ ห้อง เบอร์ อีเมล) + ผลรอบแรกของคนนี้
+    const row = studentContactColumns(s);
+    row.paper_status = paperStatusLabel(result);
+    row.passed_text = counted ? `${passedSubjects.length}/${subjects.length}` : "";
+    row.failed_subjects = counted
+      ? subjects
+          .filter((sub) => !passedSubjects.includes(sub))
+          .map((sub) => sub.subject_code)
+          .join(", ")
+      : "";
+    rows.push(row);
   }
 
   return { year, round: firstRound, total: students.length, wantPassed, rows };
+};
+
+// รายชื่อนักศึกษา "ผ่านภายในปีแรก" หรือ "ไม่ผ่านภายในปีแรก" ของปีการศึกษาหนึ่ง — ใช้ export
+// **กฎเดียวกับ firstYear.passed ใน buildYearSummary เป๊ะ** (ใช้ addConfirmedRealPasses / getRequiredSubjectIds / hasPassedAll ตัวเดียวกัน)
+//   - ผ่าน = รวมผลทุกรอบของปีนั้น (รอบ 1+2+3) แล้วผ่านครบทุกวิชาที่ต้องผ่าน
+//            นับเฉพาะใบที่ยืนยันแล้ว และไม่นับวิชาที่ยกผลมาจากรอบก่อน (carried_forward)
+//   - วิชาที่ต้องผ่าน = วิชาของรอบที่ 1 (ปีที่ไม่มีรอบที่ 1 = ทุกวิชา)
+//   - ไม่ผ่าน = นักศึกษาทั้งรุ่นที่ไม่เข้าเงื่อนไขข้างบน (รวมคนที่ไม่เคยส่งผลเลย) → ผ่าน + ไม่ผ่าน = ทั้งรุ่นเสมอ
+export const buildFirstYearList = async (year, wantPassed) => {
+  // ขั้นที่ 1: ดึงรอบทั้งหมดของปี นักศึกษาทั้งรุ่น และรายวิชาทั้งหมด
+  const [rounds, students, allSubjects] = await Promise.all([
+    dashRepo.findRoundsByYears([year]),
+    dashRepo.findStudentsByYear(year),
+    dashRepo.findAllSubjects(),
+  ]);
+
+  // ปีที่ยังไม่มีรอบสอบเลย ไม่มีอะไรให้สรุป (แดชบอร์ดก็ไม่แสดงปีนี้เหมือนกัน)
+  if (rounds.length === 0) {
+    throw notFound(`ปีการศึกษา ${year} ยังไม่มีรอบสอบในระบบ`);
+  }
+
+  // ขั้นที่ 2: ไล่ทุกรอบของปี สะสมวิชาที่ผ่านจริง + จำใบล่าสุดของแต่ละคน (ไว้บอกสถานะในไฟล์)
+  const passedByStudent = new Map(); // student_id -> Set(subject_id)
+  const latestPaperOf = new Map(); // student_id -> ใบผลสอบใบล่าสุดในปีนี้
+  let firstRound = null;
+  for (const round of rounds) {
+    if (round.attempt_number === 1) {
+      firstRound = round;
+    }
+
+    const results = await dashRepo.findResultsByRound(round.round_id);
+    addConfirmedRealPasses(passedByStudent, results);
+
+    // rounds เรียงจากรอบใหม่ไปเก่า — ใบแรกที่เจอของแต่ละคนจึงเป็นใบล่าสุด
+    for (const r of results) {
+      if (!latestPaperOf.has(r.student_id)) {
+        latestPaperOf.set(r.student_id, r);
+      }
+    }
+  }
+
+  // ขั้นที่ 3: วิชาที่ต้องผ่าน + ตารางแปลง subject_id → รหัสวิชา (ไว้เขียน "วิชาที่ยังไม่ผ่าน")
+  const requiredSubjectIds = getRequiredSubjectIds(firstRound, allSubjects);
+  const subjectCodeOf = new Map(); // subject_id -> subject_code
+  for (const sub of allSubjects) {
+    subjectCodeOf.set(sub.subject_id, sub.subject_code);
+  }
+
+  // ขั้นที่ 4: ตัดสินทีละคนในรุ่น แล้วเก็บเฉพาะกลุ่มที่ขอ (ผ่าน หรือ ไม่ผ่าน)
+  const rows = [];
+  for (const s of students) {
+    const passedSet = passedByStudent.get(s.student_id);
+    const passedAll = hasPassedAll(passedSet, requiredSubjectIds);
+    if (passedAll !== wantPassed) continue;
+
+    // นับวิชาที่ผ่านแล้ว และรายชื่อวิชาที่ยังไม่ผ่าน (เทียบเฉพาะวิชาที่ต้องผ่าน)
+    let passedCount = 0;
+    const missingCodes = [];
+    for (const id of requiredSubjectIds) {
+      if (passedSet && passedSet.has(id)) {
+        passedCount += 1;
+      } else {
+        missingCodes.push(subjectCodeOf.get(id));
+      }
+    }
+
+    const row = studentContactColumns(s);
+    row.paper_status = paperStatusLabel(latestPaperOf.get(s.student_id));
+    row.passed_text = `${passedCount}/${requiredSubjectIds.length}`;
+    row.failed_subjects = missingCodes.join(", ");
+    rows.push(row);
+  }
+
+  return { year, total: students.length, wantPassed, rows };
 };

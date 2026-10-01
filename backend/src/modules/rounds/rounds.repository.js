@@ -40,6 +40,18 @@ export const findOpenForYear = (academicYear) =>
     orderBy: { attempt_number: "desc" },
   });
 
+// รอบล่าสุดของรุ่นนี้ที่ "เริ่มแล้ว" (ถึงวันเปิดรับแล้ว) — ไม่สนว่าตอนนี้เปิดหรือปิดอยู่
+// ใช้หาว่าใบที่ถูกตีกลับหลังปิดรอบ อยู่ในรอบล่าสุดของรุ่นหรือเปล่า (examResults.service.js → findSubmittableRound)
+// รอบที่ตั้งไว้ล่วงหน้าแต่ยังไม่ถึงวันเปิด ไม่นับ — ยังไม่มีใครส่งใบของรอบนั้นได้
+export const findLatestStarted = (academicYear) =>
+  prisma.submissionRound.findFirst({
+    where: {
+      academic_year: academicYear,
+      open_date: { lte: new Date() },
+    },
+    orderBy: { attempt_number: "desc" },
+  });
+
 // หารอบของปีการศึกษานั้น + ครั้งที่นั้น — ใช้กันสร้าง/แก้เป็นรอบซ้ำ
 // findUnique ได้เพราะ schema ประกาศ @@unique([academic_year, attempt_number]) ไว้
 export const findByYearAndAttempt = (academicYear, attemptNumber) =>

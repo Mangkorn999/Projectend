@@ -248,12 +248,16 @@ export const findForExport = ({ ids, year }) =>
       student_id: true,
       academic_year: true,
       exam_eligible: true,
+      first_name_en: true,
+      last_name_en: true,
       room: { select: { room_name: true } },
       user: { select: { first_name: true, last_name: true, email: true, phone: true } },
       exam_results: {
         select: {
           student_status: true,
           staff_status: true,
+          submitted_at: true,
+          confirmed_at: true,
           round: { select: { academic_year: true, attempt_number: true } },
           subject_results: { select: { is_passed: true } },
         },

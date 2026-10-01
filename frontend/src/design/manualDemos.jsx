@@ -27,10 +27,16 @@ function DetailScreen({ status, actions, remark, doc }) {
             <MockBadge tone={pass ? 'ok' : 'reject'}>{pass ? 'ผ่าน' : 'ไม่ผ่าน'}</MockBadge>
           </div>
         ))}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, padding: '8px 10px', border: '1px solid var(--ink-200)', borderRadius: 10 }}>
+        {/* นักศึกษาแนบได้หลายไฟล์ ทั้ง PDF และรูปถ่าย — แต่ละไฟล์บอกชนิดเอกสาร/ชนิดไฟล์เป็นภาษาไทย */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, padding: '6px 10px', border: '1px solid var(--ink-200)', borderRadius: 10 }}>
           <Icon name="pdf" size={20} style={{ color: 'var(--status-reject-fg)' }} />
-          <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600 }}>ใบรายงานผลสอบ.pdf</span>
-          <Btn dm="view-file"><Icon name="eye" size={14} /> เปิดดู</Btn>
+          <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600 }}>ใบรายงานผลสอบ.pdf <span style={{ fontWeight: 400, color: 'var(--ink-500)', fontSize: 12 }}>· ใบรายงานผลสอบ · PDF</span></span>
+          <Btn dm="view-file"><Icon name="eye" size={14} /> ดู</Btn>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6, padding: '6px 10px', border: '1px solid var(--ink-200)', borderRadius: 10 }}>
+          <Icon name="image" size={20} style={{ color: 'var(--blue-600)' }} />
+          <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600 }}>ถ่ายรูปใบคะแนน.jpg <span style={{ fontWeight: 400, color: 'var(--ink-500)', fontSize: 12 }}>· ใบรายงานผลสอบ · รูปภาพ (JPG)</span></span>
+          <Btn><Icon name="eye" size={14} /> ดู</Btn>
         </div>
         {doc && (
           <div className="mn-pop" style={{ position: 'absolute', left: 14, right: 14, bottom: 8, top: 74, background: '#fff', border: '2px solid var(--navy-600)', borderRadius: 10, boxShadow: 'var(--sh-lg)', padding: 12 }}>
@@ -67,7 +73,7 @@ const approveDemo = {
   title: 'การตรวจสอบและยืนยันผลสอบ',
   steps: [
     { target: 'row-review', text: 'คลิกปุ่ม "ตรวจสอบ" ที่แถวของนักศึกษาที่อยู่ในสถานะรอตรวจสอบ' },
-    { target: 'view-file', text: 'คลิก "เปิดดู" เพื่อตรวจเอกสารหลักฐาน และเทียบกับผลรายวิชาที่นักศึกษากรอก' },
+    { target: 'view-file', text: 'คลิก "ดู" ที่ไฟล์หลักฐานทีละไฟล์ (นักศึกษาแนบได้หลายไฟล์ ทั้ง PDF และรูปถ่าย) แล้วเทียบกับผลรายวิชาที่นักศึกษากรอก' },
     { target: 'approve', text: 'เมื่อถูกต้องครบถ้วน คลิก "ยืนยันผลสอบ" สถานะจะเปลี่ยนเป็น "ยืนยันแล้ว" และนักศึกษาได้รับการแจ้งเตือน', hold: 2000 },
   ],
   stage: (done) => (
@@ -75,10 +81,10 @@ const approveDemo = {
       {done < 1 ? (
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <div className="mn-th"><span style={{ flex: 2 }}>นักศึกษา</span><span style={{ flex: 1 }}>ผลสอบ</span><span style={{ flex: 1 }}>หลักฐาน</span><span style={{ flex: 1 }}>ส่งเมื่อ</span><span style={{ width: 96 }} /></div>
-          {[['นางสาวทดสอบ ตัวอย่าง', '6610210007', '2/3', true], ['นายสมมติ ตัวอย่าง', '6610210039', '3/3', false], ['นางสาวจำลอง ระบบ', '6610210052', '3/3', false]].map(([nm, id, sc, first]) => (
+          {[['นางสาวทดสอบ ตัวอย่าง', '6610210007', '2/3', true, 2], ['นายสมมติ ตัวอย่าง', '6610210039', '3/3', false, 1], ['นางสาวจำลอง ระบบ', '6610210052', '3/3', false, 3]].map(([nm, id, sc, first, files]) => (
             <div key={id} className="mn-tr">
               <span style={{ flex: 2 }}><b>{nm}</b><br /><span className="mono" style={{ fontSize: 12, color: 'var(--ink-500)' }}>{id}</span></span>
-              <span style={{ flex: 1, fontWeight: 700 }}>{sc}</span><span style={{ flex: 1, color: 'var(--status-reject-fg)' }}>1 ไฟล์</span><span style={{ flex: 1 }}>20/9/2569</span>
+              <span style={{ flex: 1, fontWeight: 700 }}>{sc}</span><span style={{ flex: 1, color: 'var(--navy-700)' }}>{files} ไฟล์</span><span style={{ flex: 1 }}>20/9/2569</span>
               <span style={{ width: 96 }}>{first ? <Btn dm="row-review" kind="primary">ตรวจสอบ</Btn> : <Btn>ตรวจสอบ</Btn>}</span>
             </div>
           ))}
@@ -97,7 +103,7 @@ const rejectDemo = {
   steps: [
     { target: 'reject', text: 'ในหน้ารายละเอียดนักศึกษา คลิก "ตีกลับเพื่อแก้ไข" เมื่อพบว่าข้อมูลหรือเอกสารไม่ถูกต้อง' },
     { target: 'reason-chip', text: 'ระบุเหตุผลให้นักศึกษาทราบ (บังคับ) — เลือกข้อความสำเร็จรูป หรือพิมพ์เองก็ได้' },
-    { target: 'reject-confirm', text: 'คลิก "ยืนยันการตีกลับ" นักศึกษาจะได้รับเหตุผลและแก้ไขส่งใหม่ได้จนกว่ารอบจะปิด', hold: 2000 },
+    { target: 'reject-confirm', text: 'คลิก "ยืนยันการตีกลับ" นักศึกษาจะได้รับแจ้งเตือนพร้อมเหตุผล และแก้ไขส่งใหม่ได้ แม้รอบจะปิดรับแล้ว', hold: 2000 },
   ],
   stage: (done) => (
     <MockFrame title="รายละเอียดนักศึกษา">
@@ -233,7 +239,7 @@ const pendingDemo = {
         </div>
         {done === 4 && (
           <MockModal title="ลบบัญชีที่เลือก?" tone="var(--status-reject-fg)" footer={<><Btn>ยกเลิก</Btn><Btn dm="del-confirm" kind="primary" style={{ background: 'var(--fail)', borderColor: 'var(--fail)' }}>ลบ 2 บัญชี</Btn></>}>
-            <div style={{ fontSize: 14 }}>จะลบ 2 บัญชีออกจากระบบถาวร นักศึกษาเหล่านี้จะ login ไม่ได้อีก</div>
+            <div style={{ fontSize: 14 }}>จะลบ 2 บัญชีออกจากระบบถาวร นักศึกษาเหล่านี้จะเข้าสู่ระบบไม่ได้อีก</div>
           </MockModal>
         )}
         <MockToast show={removed}>ลบบัญชีแล้ว 2 คน</MockToast>

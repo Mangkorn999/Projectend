@@ -41,6 +41,41 @@ export async function logout() {
   clearSession();
 }
 
+/* ข้อความสำรองตอน backend ไม่ได้ส่งข้อความมา (หรือเชื่อมต่อไม่ได้เลย) — ภาษาไทยทางการ บอก "เกิดอะไรขึ้น + ทำอะไรต่อ"
+   เดิมใช้ "Request failed (500)" ซึ่งผู้ใช้ (พยาบาล) อ่านไม่เข้าใจ
+   status = 0 หมายถึงยังไม่ได้คำตอบจากระบบเลย (เน็ตหลุด / ระบบปิดอยู่) */
+export function fallbackMessage(status) {
+  if (status === 0) {
+    return 'เชื่อมต่อระบบไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตแล้วลองอีกครั้ง';
+  }
+  if (status === 401) {
+    return 'หมดเวลาการใช้งาน กรุณาเข้าสู่ระบบใหม่อีกครั้ง';
+  }
+  if (status === 403) {
+    return 'บัญชีนี้ไม่มีสิทธิ์ทำรายการนี้ หากคิดว่าควรมีสิทธิ์ กรุณาติดต่อเจ้าหน้าที่คณะ';
+  }
+  if (status === 404) {
+    return 'ไม่พบข้อมูลที่ต้องการ ข้อมูลอาจถูกลบไปแล้ว กรุณารีเฟรชหน้าแล้วลองอีกครั้ง';
+  }
+  if (status === 413) {
+    return 'ไฟล์มีขนาดใหญ่เกินกำหนด กรุณาลดขนาดไฟล์แล้วลองอีกครั้ง';
+  }
+  if (status >= 500) {
+    return 'ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งในอีกสักครู่ หากยังไม่ได้ กรุณาติดต่อเจ้าหน้าที่คณะ';
+  }
+  return 'ทำรายการไม่สำเร็จ กรุณาลองใหม่อีกครั้ง';
+}
+
+/* ยิง fetch แต่แปลง "เชื่อมต่อไม่ได้เลย" (เบราว์เซอร์โยน TypeError: Failed to fetch) เป็น ApiError ภาษาไทย
+   ไม่งั้นหน้าจอจะโชว์ "Failed to fetch" ภาษาอังกฤษให้ผู้ใช้เห็น */
+async function safeFetch(url, options) {
+  try {
+    return await fetch(url, options);
+  } catch {
+    throw new ApiError(fallbackMessage(0), 0);
+  }
+}
+
 /* ApiError — ให้หน้าเรียก catch แล้วอ่าน .message (ข้อความไทยจาก backend) ไปโชว์ users ได้ตรงๆ */
 export class ApiError extends Error {
   constructor(message, status, payload) {
@@ -71,7 +106,7 @@ export async function apiFetch(path, { method = 'GET', body, auth = true } = {})
     }
   }
 
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await safeFetch(`${API_BASE}${path}`, {
     method,
     headers,
     body: sendBody,
@@ -87,7 +122,7 @@ export async function apiFetch(path, { method = 'GET', body, auth = true } = {})
     // 401 จากการเช็ครหัสผ่าน (login ผิด / รหัสเดิมผิด) ไม่มี code นี้ — ต้องปล่อยให้หน้าโชว์ error เอง
     // ไม่งั้นกรอกรหัสผิดทีเดียวหน้าจะ reload ทิ้งข้อความ error ที่เพิ่งขึ้น
     if (res.status === 401 && json.code === 'auth_required') forceLogout();
-    throw new ApiError(json.message || `Request failed (${res.status})`, res.status, json);
+    throw new ApiError(json.message || fallbackMessage(res.status), res.status, json);
   }
   // backend ส่วนใหญ่ห่อคำตอบไว้ใน .data แต่บางตัว (เช่น /auth/login) ส่งมาแบนๆ
   // เช็คว่า "มี key ชื่อ data ไหม" ไม่ใช่ "data มีค่าไหม" — data: null คือคำตอบที่ตั้งใจส่งมา
@@ -107,17 +142,17 @@ function forceLogout() {
 /** โหลดไฟล์ที่ต้อง login ก่อน มาเป็น object URL — <img src> ยิงเองแล้วคุม credentials ไม่ได้
  *  ผู้เรียกต้อง URL.revokeObjectURL() เองตอนเลิกใช้ ไม่งั้น blob ค้างใน memory */
 export async function fetchAuthedObjectUrl(path) {
-  const res = await fetch(`${API_BASE}${path}`, { credentials: 'include' });
-  if (!res.ok) throw new ApiError(`Request failed (${res.status})`, res.status);
+  const res = await safeFetch(`${API_BASE}${path}`, { credentials: 'include' });
+  if (!res.ok) throw new ApiError(fallbackMessage(res.status), res.status);
   return URL.createObjectURL(await res.blob());
 }
 
-/** เปิดไฟล์ (PDF) ที่ต้อง login ก่อน ในแท็บใหม่ — ใช้กับ certificate/report ที่ดาวน์โหลดผ่าน <a href> ตรงๆ ไม่ได้ */
+/** เปิดไฟล์ (PDF หรือรูปภาพ — backend ส่งชนิดไฟล์ที่ถูกต้องมา) ที่ต้อง login ก่อน ในแท็บใหม่ — ใช้กับ certificate/report ที่ดาวน์โหลดผ่าน <a href> ตรงๆ ไม่ได้ */
 export async function openAuthedFile(path, filename) {
-  const res = await fetch(`${API_BASE}${path}`, { credentials: 'include' });
+  const res = await safeFetch(`${API_BASE}${path}`, { credentials: 'include' });
   if (!res.ok) {
     const json = await res.json().catch(() => ({}));
-    throw new ApiError(json.message || `Request failed (${res.status})`, res.status);
+    throw new ApiError(json.message || fallbackMessage(res.status), res.status);
   }
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
@@ -134,7 +169,7 @@ export async function openAuthedFile(path, filename) {
 export async function downloadFile(path, { method = 'GET', body, filename = 'download' } = {}) {
   const headers = {};
   if (body) headers['Content-Type'] = 'application/json';
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await safeFetch(`${API_BASE}${path}`, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
@@ -143,7 +178,7 @@ export async function downloadFile(path, { method = 'GET', body, filename = 'dow
   if (!res.ok) {
     const json = await res.json().catch(() => ({}));
     if (res.status === 401 && json.code === 'auth_required') forceLogout();
-    throw new ApiError(json.message || `Request failed (${res.status})`, res.status, json);
+    throw new ApiError(json.message || fallbackMessage(res.status), res.status, json);
   }
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);

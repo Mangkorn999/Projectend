@@ -340,7 +340,7 @@ res.status(statusCode).json({ success: false, message });
 
 > **อาการที่ต้องจำ:** รันเทสแล้วเจอ 401/429 รัวๆ ทั้งที่รหัสถูก = โดน rate limit เข้าให้ **แก้โดยรีสตาร์ท server** (ตัวนับอยู่ใน memory รีสตาร์ทแล้วล้างหมด).
 
-### `uploadPdf` / `uploadImage` — `src/middlewares/upload.js`
+### `uploadEvidence` / `uploadImage` — `src/middlewares/upload.js`
 ดูรายละเอียดที่ [ส่วนที่ 11](#11-ไฟล์อัปโหลด).
 
 ---
@@ -423,7 +423,7 @@ public เพราะหน้าสมัคร/ตั้งรหัสคร
 | Method | URL | สิทธิ์ | ทำอะไร |
 |---|---|---|---|
 | GET | `/api/users` | 🧑‍💼 | รายชื่อผู้ใช้ทั้งหมด |
-| POST | `/api/users` | 🧑‍💼 | สร้างบัญชี officer/executive/reviewer |
+| POST | `/api/users` | 🧑‍💼 | สร้างบัญชี officer/executive/reviewer (executive ไม่ต้องส่ง email/phone) |
 | POST | `/api/users/:id/role` | 🧑‍💼 | เปลี่ยน role |
 | POST | `/api/users/:id/revoke` | 🧑‍💼 | ถอนสิทธิ์ (ล็อก ไม่ลบ record) |
 | POST | `/api/users/:id/reset-password` | 🧑‍💼 | รีเซ็ตรหัสให้ไปตั้งใหม่เอง |
@@ -444,7 +444,7 @@ public เพราะหน้าสมัคร/ตั้งรหัสคร
 | GET | `/api/students` | 🧑‍💼 🔍 | รายชื่อนักศึกษาทั้งหมด (reviewer ใช้ทำแท็บ "ยังไม่กรอก" ในคิวตรวจ) |
 | GET | `/api/students/subject-result-list` | 🧑‍💼 | รายชื่อคนที่ผ่าน/ไม่ผ่านวิชาหนึ่ง (JSON) — query: `subject_code`, `passed=true\|false`, และ `round_id` (รอบเดียว) **หรือ** `year` (รวมทั้งปี) |
 | GET | `/api/students/export-subject` | 🧑‍💼 | รายการเดียวกันเป็นไฟล์ (query เหมือนข้างบน + `format=pdf\|xlsx` — ไม่ส่ง = PDF เหมือนเดิม) — ต้องอยู่ก่อน `/:id` ใน routes เสมอ |
-| POST | `/api/students/export` | 🧑‍💼 | ข้อมูลนักศึกษาเป็น Excel — body `{ student_ids: [...] }` (รายชื่อที่กรองอยู่บนหน้าจอ, 1–5000 รหัส) หรือ `{ year: 2569 }` (ทั้งรุ่น) **ไม่มีเลขบัตรประชาชน/password_hash ในไฟล์** — ต้องอยู่ก่อน `/:id` |
+| POST | `/api/students/export` | 🧑‍💼 | ข้อมูลนักศึกษาเป็น Excel — body `{ student_ids: [...] }` (รายชื่อที่กรองอยู่บนหน้าจอ, 1–5000 รหัส) หรือ `{ year: 2569 }` (ทั้งรุ่น) + ส่ง `by_round: true` ได้เพื่อให้ได้ Excel หลายชีต (ชีตแรกข้อมูลนักศึกษา + 1 ชีตต่อรอบสอบ) **ไม่มีเลขบัตรประชาชน/password_hash ในไฟล์** — ต้องอยู่ก่อน `/:id` |
 | GET | `/api/students/:id` | 🧑‍💼 👤 🔍 | ดูรายคน (นักศึกษาดูได้แค่ตัวเอง) — เพิ่ม `academic_year_derived` + `exam_result_count` ให้ด้วย (คำนวณตอนส่งออก ไม่ใช่คอลัมน์ใน DB) |
 | POST | `/api/students` | 🧑‍💼 | เพิ่มทีละคน — body: `student_id`, `national_id`, `academic_year` (ไม่บังคับ — ปีจบถ้าซ้ำชั้น/ลาพัก) |
 | PATCH | `/api/students/:id` | 🧑‍💼 | แก้ข้อมูลรายคน — **เปลี่ยน `academic_year` ได้เฉพาะคนที่ยังไม่มีผลสอบ** (มีแล้วตอบ 400) |
@@ -491,7 +491,7 @@ if (req.user.role === "student" && req.user.studentId !== req.params.id) → 403
 
 | Method | URL | สิทธิ์ | ทำอะไร |
 |---|---|---|---|
-| GET | `/api/rounds/active` | 👤 | รอบที่ `status=open` ของรุ่นตัวเอง (**รวมรอบที่ยังไม่ถึงวันเปิด/เลยวันปิด** — ดู `phase` ว่ากรอกได้จริงไหม, `active` เท่านั้นที่กรอกได้) + วิชาที่ต้องกรอก |
+| GET | `/api/rounds/active` | 👤 | รอบที่นักศึกษา**ส่งผลได้ตอนนี้** (`findSubmittableRound`) — ถ้าไม่มี ใช้รอบ `status=open` ของรุ่นตัวเอง (**รวมรอบที่ยังไม่ถึงวันเปิด/เลยวันปิด** — ดู `phase` ว่ากรอกได้จริงไหม) + วิชาที่ต้องกรอก + **`can_fix_rejected`** (true = รอบปิดแล้วแต่ใบถูกตีกลับ แก้ส่งใหม่ได้ แม้ `phase` จะเป็น closed/expired) · ไม่มีรอบเลย = `null` |
 | GET | `/api/rounds` | 🔑 | รอบทั้งหมด (ใหม่→เก่า) |
 | POST | `/api/rounds` | 🧑‍💼 | สร้างรอบ |
 | PUT | `/api/rounds/:id` | 🧑‍💼 | แก้ไขรอบ |
@@ -499,8 +499,13 @@ if (req.user.role === "student" && req.user.studentId !== req.params.id) → 403
 
 > **ลำดับใน routes สำคัญ:** `/active` ต้องประกาศ**ก่อน** `/:id` ไม่งั้น Express จะอ่านคำว่า "active" เป็นค่า id.
 
-**`getActive`** ผ่าน 3 ด่าน: มี student profile → `exam_eligible` เป็น true → มีรอบเปิดของ `academic_year` ตัวเอง
-ตอบกลับ: field ของ round + `subjects[]` (แต่ละวิชามี `already_passed`) + `all_passed`
+**`getActive`** ผ่าน 3 ด่าน: มี student profile → `exam_eligible` เป็น true → หารอบของ `academic_year` ตัวเอง:
+1. `findSubmittableRound(student)` (`examResults.service.js` — ตัวเดียวกับที่ `POST /api/exam-results` ใช้):
+   รอบที่เปิดรับอยู่จริง → `can_fix_rejected: false` · ไม่มีรอบเปิดแต่ใบของคนนี้ใน**รอบล่าสุดที่เริ่มแล้ว**ถูกตีกลับ → `can_fix_rejected: true`
+2. ไม่เข้าข้อ 1 → `findOpenForYear` แบบเดิม (ให้เห็นรอบที่ตั้งไว้ล่วงหน้า) + `can_fix_rejected: false`
+
+ตอบกลับ: field ของ round + `phase` + `subjects[]` (แต่ละวิชามี `already_passed`) + `all_passed` + `can_fix_rejected`
+> หน้ากรอกผลต้องเปิดฟอร์มให้กรอกเมื่อ `phase === "active"` **หรือ** `can_fix_rejected === true`
 
 **`findActive` ในrepository** — เงื่อนไข "รอบเปิดอยู่จริง" มี 4 ข้อพร้อมกัน:
 ```js
@@ -530,9 +535,9 @@ status: "open"  และ  open_date <= ตอนนี้  และ  close_dat
 
 | Method | URL | สิทธิ์ | ทำอะไร |
 |---|---|---|---|
-| POST | `/api/exam-results` | 👤 | ส่ง/แก้ผลสอบของรอบที่เปิดอยู่ |
+| POST | `/api/exam-results` | 👤 | ส่ง/แก้ผลสอบของรอบที่เปิดอยู่ — **หรือแก้ใบที่ถูกตีกลับของรอบล่าสุดแม้รอบปิดแล้ว** (`findSubmittableRound`) |
 | GET | `/api/exam-results/me` | 👤 | ประวัติของตัวเอง |
-| POST | `/api/exam-results/:id/certificates` | 👤 | แนบ PDF |
+| POST | `/api/exam-results/:id/certificates` | 👤 | แนบไฟล์หลักฐาน PDF/JPG/PNG (สูงสุด 5 ไฟล์ต่อใบ — ดู 7.8) |
 | GET | `/api/exam-results` | 🧑‍💼 🔍 | ดูทั้งหมด (กรองได้) |
 | PATCH | `/api/exam-results/:id/approve` | 🧑‍💼 🔍 | ยืนยันผล |
 | PATCH | `/api/exam-results/:id/reject` | 🧑‍💼 🔍 | ตีกลับ (ต้องมี remark) |
@@ -549,8 +554,12 @@ STAFF_STATUS   = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejected
 1. `subject_results` ต้องเป็น array ไม่ว่าง
 2. ต้องมี student profile
 3. `exam_eligible` ต้องเป็น true → ไม่งั้น **403**
-4. ต้องมีรอบเปิดของรุ่นตัวเอง (`findActive(student.academic_year)`) — **หารอบจากรุ่นตั้งแต่ต้น กรอกข้ามรุ่นจึงเป็นไปไม่ได้**
-5. **หน้าต่างแก้ไข** — ถ้าใบของรอบนี้ `staff_status = approved` → **409** ล็อก. นอกนั้น (`pending` / `rejected`) ส่งทับได้เรื่อยๆ (`isRedo`). รอบปิดไม่ต้องเช็คตรงนี้ เพราะด่าน 4 คืน null ไปแล้ว → **400**
+4. ต้องมีรอบที่ส่งได้ของรุ่นตัวเอง — `findSubmittableRound(student)` ใน **`examResults.service.js`** (ไม่มี → **400** "ขณะนี้ไม่มีรอบกรอกผลสอบที่เปิดอยู่ ... กรุณาติดต่อเจ้าหน้าที่คณะ") — **หารอบจากรุ่นตั้งแต่ต้น กรอกข้ามรุ่นจึงเป็นไปไม่ได้**
+   - ขั้น 1: `roundsRepo.findActive(year)` รอบที่เปิดรับอยู่จริง → `{ round, fixingRejected: false }`
+   - ขั้น 2: ไม่มีรอบเปิด → `roundsRepo.findLatestStarted(year)` (รอบล่าสุดที่ `open_date <= ตอนนี้`, สถานะอะไรก็ได้) ถ้าใบของคนนี้ในรอบนั้น `staff_status = rejected` → `{ round, fixingRejected: true }` (ตัดสินใจโดยเจ้าของงาน 1 ต.ค. 2569: ใบที่ถูกตีกลับหลังปิดรอบแก้ส่งใหม่ได้)
+   - ไม่เข้าทั้ง 2 ขั้น → `null` (คนไม่เคยส่ง / ใบรอตรวจ / ใบยืนยันแล้ว หลังปิดรอบ ส่งไม่ได้เหมือนเดิม)
+   - ดูเฉพาะ**รอบล่าสุด** ไม่ย้อนไปรอบเก่า — มีรอบใหม่กว่าแล้วย้อนไปแก้รอบเก่าจะทำให้ carry-forward ของรอบหลังเพี้ยน
+5. **หน้าต่างแก้ไข** — ถ้าใบของรอบนี้ `staff_status = approved` → **409** ล็อก. นอกนั้น (`pending` / `rejected`) ส่งทับได้เรื่อยๆ (`isRedo`) ขณะรอบเปิด. ถ้ามาทาง `fixingRejected` ใบเดิมต้องยัง `rejected` อยู่จริง ไม่งั้น **400** (ส่งแก้ไปแล้วใบกลับเป็น `pending` → แก้ซ้ำหลังปิดรอบไม่ได้)
 6. ทุก `subject_id` ที่ส่งมาต้องอยู่ในรอบนี้ · `is_passed` ต้องเป็น boolean แท้ๆ (string `"false"` จะกลายเป็น true) · ห้ามส่งวิชาซ้ำ
 7. ต้องกรอกครบทุกวิชาที่ยังไม่เคยผ่าน (`mustAnswer = วิชาของรอบ − วิชาที่เคยผ่าน`)
 8. บันทึก
@@ -576,7 +585,13 @@ const finalResults = roundSubjectIds.map((id) => ({
 > เรียกจาก 2 ที่: `examResults.controller.js` (`create`) และ `rounds.controller.js` (`getActive`) — ต้องส่งทั้งคู่ ไม่งั้น `already_passed` ที่หน้าเว็บเห็นจะไม่ตรงกับที่ backend ตรวจ.
 
 `carried_forward: true` แปลว่า **ไม่ได้สอบวิชานี้ในรอบนี้ ยกผลผ่านมาจากรอบก่อน**.
-dashboard นับอัตราผ่านรายวิชาเฉพาะแถวที่เป็น `false` (คนที่สอบจริง) แต่ "ผ่านครบทุกวิชา" นับทั้งหมด.
+dashboard นับอัตราผ่านรายวิชาเฉพาะแถวที่เป็น `false` (คนที่สอบจริง). "ผ่านครบทุกวิชา" **รายรอบ** (`fullyPassed` ของ `buildStats` / `rounds[]`) นับแถวยกมาด้วย แต่ตัวเลข**ระดับปี** (`firstYear`, `fullyPassed` ของปี) ไม่นับ (บั๊ก B1 ด้านล่าง).
+
+> **บั๊ก B1 (แก้ 1 ต.ค. 2569) — `findPassedSubjectIds` นับเฉพาะ `carried_forward: false`**
+> ลำดับเหตุการณ์: ใบรอบ 1 ยังรอตรวจ (วิชา A ผ่าน) → เปิดรอบ 2 → รอบ 2 ยกวิชา A มาเป็นผ่าน → เจ้าหน้าที่**ตีกลับใบรอบ 1** → ยืนยันใบรอบ 2.
+> เดิมแถวยกมาในรอบ 2 ยังนับเป็น "ผ่านวิชา A" → รอบ 3 ล็อกวิชา A และ "ผ่านภายในปีแรก" สูงเกินจริง ทั้งที่หลักฐานวิชา A ถูกตีกลับ.
+> ตัดแถวยกมาทิ้งแล้วไม่เสียอะไร: ถ้าใบต้นทางยังดีอยู่ แถวผ่านจริงในใบต้นทางถูกนับให้อยู่แล้ว.
+> ใช้กฎเดียวกันใน `dashboard.repository.js → findEligibleWithPassedSubjects` (คิวตรวจ/`canSubmit`) และ `dashboard.service.js → addConfirmedRealPasses` (`firstYear` + ไฟล์ส่งออกผ่านภายในปีแรก).
 
 **`resubmitWithSubjects`** (ส่งทับใบเดิม) — ลบผลรายวิชาชุดเดิมทิ้งทั้งชุด ใส่ชุดใหม่ แล้ว**ล้าง `remark` + `confirmed_by` + `confirmed_at`** พร้อมตั้ง `staff_status` กลับเป็น `pending` ไม่งั้นใบที่แก้แล้วยังติดเหตุผลตีกลับรอบก่อนค้างอยู่.
 
@@ -605,12 +620,19 @@ await reviewLogRepo.create({ result_id, reviewer_id: req.user.userId, action: st
 
 | Method | URL | สิทธิ์ | ทำอะไร |
 |---|---|---|---|
-| POST | `/api/exam-results/:id/certificates` | 👤 | อัปโหลด PDF (อยู่ใน routes ของ examResults) |
-| GET | `/api/certificates/:id/file` | 🔑 + 🔍 | เปิด/ดาวน์โหลดไฟล์ (เจ้าของใบ, officer, reviewer — executive ไม่ได้) |
+| POST | `/api/exam-results/:id/certificates` | 👤 | แนบไฟล์หลักฐาน **PDF / JPG / PNG** ≤10MB (อยู่ใน routes ของ examResults) — **ต่อท้าย ไม่แทนที่ไฟล์เดิม** สูงสุด **5 ไฟล์ต่อใบ** |
+| DELETE | `/api/certificates/:id` | 👤 | ลบไฟล์หลักฐานของตัวเองทีละไฟล์ → `{ success: true, data: null }` (ลบแถว DB ก่อน แล้วลบไฟล์บน disk) · ไม่พบ → 404 |
+| GET | `/api/certificates/:id/file` | 🔑 + 🔍 | เปิด/ดาวน์โหลดไฟล์ (เจ้าของใบ, officer, reviewer — executive ไม่ได้) · `Content-Type` ตาม `file_type`: pdf→`application/pdf`, jpg→`image/jpeg`, png→`image/png` (ค่าอื่น/ไฟล์เก่า = PDF) |
 
-- `certificate_type` ต้องเป็น `exam_result` (ใบผลสอบ) หรือ `license` (ใบประกอบวิชาชีพ) เท่านั้น
-- **ownership:** อัปโหลดใส่ผลสอบของคนอื่นไม่ได้ (`examResult.student_id !== req.user.studentId` → 403)
-- validate ไม่ผ่าน → `discard(req.file)` **ลบไฟล์ที่เพิ่งเขียนลง disk ทิ้ง** ไม่ให้มีขยะค้าง
+- `certificate_type` ต้องเป็น `exam_result` (ใบผลสอบ) หรือ `license` (ใบประกอบวิชาชีพ) เท่านั้น → ไม่ใช่ 400 "ประเภทเอกสารไม่ถูกต้อง ..." · ไม่แนบไฟล์ → 400 "กรุณาเลือกไฟล์ที่ต้องการแนบ"
+- **ชนิดไฟล์ตรวจจาก "หัวไฟล์" (magic bytes) จริง** ไม่เชื่อนามสกุล/mimetype (`detectFileType`): `%PDF-` → `pdf` · `FF D8 FF` → `jpg` · `89 50 4E 47 0D 0A 1A 0A` → `png` → บันทึกเป็น `file_type` · ไม่ตรงทั้ง 3 → ลบไฟล์ทิ้ง + 400 "ไฟล์ที่แนบต้องเป็น PDF, JPG หรือ PNG เท่านั้น กรุณาเลือกไฟล์ใหม่"
+- ครบ 5 ไฟล์แล้ว (`countByResult`) → 400 "แนบไฟล์ได้ไม่เกิน 5 ไฟล์ต่อใบผลสอบ กรุณาลบไฟล์เดิมก่อนเพิ่มไฟล์ใหม่" (`MAX_FILES_PER_RESULT`)
+- **ตรวจซ้ำหลังบันทึก (กัน race):** หลัง `certRepo.create` นับไฟล์ใหม่อีกรอบ + อ่านสถานะใบล่าสุด — ถ้าเกิน 5 ไฟล์ (กดแนบพร้อมกันหลาย request) หรือใบเพิ่งถูกยืนยันระหว่างอัปโหลด → ถอนแถวที่เพิ่งบันทึก (`removeById`) + ลบไฟล์ แล้วตอบ 400/409 ตามลำดับ · request ที่นับแล้วเห็นเกินจะถอนตัวเอง จึงไม่มีทางค้างเกิน 5 ไฟล์ (บางครั้งทุก request ที่ชนกันถูกปฏิเสธหมด — ผู้ใช้กดแนบใหม่ได้)
+- **ใครเปลี่ยนเอกสารได้ (ทั้งแนบและลบ ใช้ `ensureCanChangeEvidence` ตัวเดียวกัน — เป็น async):**
+  1. เจ้าของใบเท่านั้น → ไม่ใช่ 403 (route ลบเป็น `requireRole("student")` — officer/reviewer ลบไม่ได้ 403)
+  2. ใบที่ `approved` แล้ว → 409 "เจ้าหน้าที่ยืนยันผลสอบนี้แล้ว เปลี่ยนเอกสารไม่ได้"
+  3. ใบต้องอยู่ใน**รอบที่ส่งผลได้ตอนนี้** = `findSubmittableRound(student).round.round_id === examResult.round_id` (ตัวเดียวกับ `POST /api/exam-results`) → ใบของรอบที่ active อยู่ (รอตรวจ/ตีกลับ) หรือใบตีกลับของ**รอบล่าสุด**หลังปิดรอบ · นอกนั้น 409 "รอบนี้ปิดรับแล้ว เปลี่ยนเอกสารไม่ได้ กรุณาติดต่อเจ้าหน้าที่คณะ" — รวมใบรอตรวจหลังปิดรอบ และ**ใบตีกลับของรอบเก่าที่มีรอบใหม่กว่าแล้ว** (เดิมเช็คแค่ `staff_status === "rejected"` → ใบตีกลับรอบเก่าเปลี่ยนหลักฐานได้ตลอดไป)
+- **ไฟล์ที่ไม่ได้บันทึกถูกลบจาก disk ทุกทาง:** `upload` ใช้ตัวแปร `saved` — พังที่ขั้นไหนก่อนบันทึกสำเร็จ (validate ไม่ผ่าน, เลขใบแปลก/ใหญ่เกินจน Prisma error, บันทึก DB ไม่สำเร็จ, ตรวจซ้ำหลังบันทึกไม่ผ่าน) `catch` เรียก `discard(req.file)` ให้เสมอ (`discard` ห่อ try/catch — ลบไม่ได้ก็ไม่ทำให้ request ค้าง) · multer error (ไฟล์ใหญ่เกิน/ชื่อช่องผิด) multer ลบไฟล์เองก่อนถึง controller
 - ชื่อไฟล์ภาษาไทย: multer อ่านมาเป็น latin1 ต้องแปลงกลับ `Buffer.from(name, "latin1").toString("utf8")` ไม่งั้นชื่อเพี้ยน
 - path เก็บเป็น `/` เสมอ (`.split(path.sep).join("/")`) ไม่ผูกกับ `\` ของ Windows
 
@@ -658,7 +680,7 @@ await reviewLogRepo.create({ result_id, reviewer_id: req.user.userId, action: st
 
 ### 7.10 dashboard — สถิติ + รายงาน
 
-**โมดูลเดียวที่มี `service.js`** เพราะการคำนวณซับซ้อนพอที่จะแยกออกมา และใช้ซ้ำทั้งหน้าเว็บกับ PDF.
+มี `service.js` เพราะการคำนวณซับซ้อนพอที่จะแยกออกมา และใช้ซ้ำทั้งหน้าเว็บกับ PDF (อีกโมดูลที่มี service คือ `examResults.service.js` → `findSubmittableRound`).
 
 | Method | URL | สิทธิ์ | ทำอะไร |
 |---|---|---|---|
@@ -667,6 +689,13 @@ await reviewLogRepo.create({ result_id, reviewer_id: req.user.userId, action: st
 | GET | `/api/dashboard/history?years=3` | 🧑‍💼 👔 | สรุปย้อนหลังรายปี |
 | GET | `/api/dashboard/export?round_id=` | 🧑‍💼 | โหลดรายงาน PDF |
 | GET | `/api/dashboard/export-first-attempt?year=&passed=true\|false&format=xlsx\|pdf` | 🧑‍💼 | รายชื่อนักศึกษา "ผ่านครั้งแรก" / "ไม่ผ่านครั้งแรก" ของปีการศึกษา (ไม่ส่ง `format` = xlsx) — กฎเดียวกับ `firstAttempt.passed` ใน `/history` ผ่าน + ไม่ผ่าน = ทั้งรุ่น ปีที่ไม่มีรอบที่ 1 → 404 |
+| GET | `/api/dashboard/export-first-year?year=&passed=true\|false&format=xlsx\|pdf` | 🧑‍💼 | รายชื่อนักศึกษา "ผ่านภายในปีแรก" / "ไม่ผ่านภายในปีแรก" (รวมทุกรอบของปี) — `buildFirstYearList` กฎเดียวกับ `firstYear.passed` ใน `/history` (ใช้ `addConfirmedRealPasses` / `getRequiredSubjectIds` / `hasPassedAll` ตัวเดียวกัน) ผ่าน + ไม่ผ่าน = ทั้งรุ่น ปีที่ไม่มีรอบเลย → 404 |
+
+**ไฟล์ส่งออกรายชื่อผ่าน/ไม่ผ่าน (2 endpoint ข้างบน)**
+- ตรวจ query ด้วย `readListExportQuery` ตัวเดียวกัน: ปีไม่ใช่ พ.ศ. 2400–2700 / `passed` ไม่ใช่ true|false / `format` ไม่ใช่ xlsx|pdf → 400 ข้อความไทยไม่มีชื่อ field
+- คอลัมน์ Excel (`listColumns`): ลำดับ, รหัสนักศึกษา, ชื่อ, นามสกุล, ชื่อ (อังกฤษ), นามสกุล (อังกฤษ), ห้อง, เบอร์โทร, อีเมล, สถานะใบ (ผ่านครั้งแรก = "สถานะใบผลสอบรอบแรก" · ภายในปีแรก = "สถานะใบล่าสุด"), ผ่านกี่วิชา, วิชาที่ไม่ผ่าน / วิชาที่ยังไม่ผ่าน — **ไม่มีเลขบัตรประชาชน**
+- ภายในปีแรก: "ผ่านกี่วิชา" นับเฉพาะวิชาที่ผ่านจริงในใบที่ยืนยันแล้ว เทียบกับวิชาที่ต้องผ่าน (คนที่ไม่เคยส่ง = `0/N`)
+- PDF ใช้ `buildPassListPdf({ label, subtitle, note, total, rows, res })` ตัวเดียวกันทั้ง 2 แบบ (เดิมชื่อ `buildFirstAttemptListPdf`)
 
 **`buildStats(roundId)`** — ไม่ส่ง `round_id` มา จะใช้ `findDefaultRound()` = รอบที่เปิดอยู่ ถ้าไม่มีก็รอบล่าสุด
 
@@ -716,7 +745,7 @@ await reviewLogRepo.create({ result_id, reviewer_id: req.user.userId, action: st
 | `fillRate` | % คนที่ส่ง | `submitted / eligible` |
 | `passRate` | % ผ่านครบ เทียบกับคนที่ส่ง | `fullyPassed / submitted` |
 | `firstAttempt` | **ร้อยละผ่านครั้งแรก** (ตัวเลขที่คณะส่งสภาการพยาบาล) | `ผ่านครบในรอบ attempt_number = 1 / total` |
-| `firstYear` | **ร้อยละผ่านภายในปีแรก** | `fullyPassed (ทุกรอบของปี) / total` |
+| `firstYear` | **ร้อยละผ่านภายในปีแรก** | `fullyPassed (ทุกรอบของปี) / total` — รวมวิชาที่ผ่านจริงจากใบที่ยืนยันแล้วทุกรอบ **ไม่นับแถว `carried_forward`** (บั๊ก B1) |
 | `byRoom` | ส่ง/ผ่านครบ แยกตามห้องเรียน | นับรายคน |
 | `passDistribution` | ตาราง "ผ่านกี่วิชา" ของรอบแรก แยกห้อง | `buildPassDistribution()` — `null` ถ้าปีนั้นยังไม่มีรอบที่ 1 |
 | `firstAttemptBySubject` | ตารางผลรายวิชาของรอบแรก **ตัวหาร = นักศึกษาทั้งรุ่น** | `buildFirstAttemptBySubject()` — `null` ถ้าไม่มีรอบที่ 1 หรือ `total = 0` |
@@ -985,7 +1014,7 @@ throw err;
 
 | ชนิด | middleware | โฟลเดอร์ | ชนิดที่รับ | ขนาดสูงสุด |
 |---|---|---|---|---|
-| หลักฐาน PDF | `uploadPdf` | `uploads/certificates/` | `application/pdf` เท่านั้น | 10 MB |
+| หลักฐาน (ใบคะแนน) | `uploadEvidence` | `uploads/certificates/` | `application/pdf`, `image/jpeg`, `image/png` (ด่านจริงคือตรวจหัวไฟล์ใน controller) · ตั้งนามสกุล .pdf/.jpg/.png ตาม mimetype | 10 MB |
 | รูปประกอบข่าว | `uploadImage` | `uploads/news/` | JPG, PNG, WebP, GIF | 5 MB |
 | CSV รายชื่อ | `multer.memoryStorage()` | **ไม่เขียน disk** | ทุกชนิด | 5 MB |
 
@@ -1001,7 +1030,7 @@ cb(null, `${unique}.pdf`);
 **ต่อ middleware ใน route แบบนี้:**
 ```js
 router.post("/:id/certificates", authenticate, requireRole("student"),
-  uploadPdf.single("file"),   // "file" = ชื่อ field ในฟอร์ม ต้องตรงกับที่ frontend ส่ง
+  uploadEvidence.single("file"),   // "file" = ชื่อ field ในฟอร์ม ต้องตรงกับที่ frontend ส่ง
   uploadCertificate);
 ```
 หลังผ่าน multer → ข้อมูลไฟล์อยู่ที่ `req.file` (`.path`, `.originalname`, `.mimetype`, `.buffer`)
@@ -1116,6 +1145,9 @@ curl -H "Authorization: Bearer <token>" http://localhost:3000/api/subjects/1
 
 | วันที่ | เปลี่ยนอะไร |
 |---|---|
+| 2026-10-01 | **security review (เทส `smoke-phase27-security.mjs`)** — (1) `ensureCanChangeEvidence` ใช้ `findSubmittableRound` ตัวเดียวกับตอนส่งผล: ใบที่ถูกตีกลับของ**รอบเก่า** (มีรอบใหม่กว่าแล้ว) แนบ/ลบไฟล์ไม่ได้อีก → 409 (เดิมเปลี่ยนหลักฐานได้ตลอดไป) (2) กดแนบพร้อมกันหลายไฟล์เคยได้เกิน 5 ไฟล์ (10 request ได้ 6 ไฟล์) → นับซ้ำหลังบันทึก เกินแล้วถอนแถว + ตรวจซ้ำว่าใบไม่ถูกยืนยันระหว่างอัปโหลด (3) `upload` ลบไฟล์บน disk ทุกทางที่ไม่ได้บันทึก (ตัวแปร `saved` + `catch`) — เดิมเลขใบผลสอบแปลก/ใหญ่เกินทำให้ไฟล์ค้างที่ disk (4) `errorHandler`: เลข id ใหญ่เกิน INT4 (`PrismaClientUnknownRequestError` "Unable to fit integer value") → 400 ข้อความไทย แทน 500 ที่มีข้อความดิบของ Prisma (`certificates.controller.js`, `middlewares/errorHandler.js`, `tests/smoke-phase27-security.mjs`, `tests/run-clean.mjs`, `package.json`) |
+| 2026-10-01 | **flow จริงของคณะ (docs/test-plan.md, เทส `smoke-phase25-real-flow.mjs`)** — (1) **แนบหลักฐานหลายไฟล์ PDF/JPG/PNG** สูงสุด 5 ไฟล์ต่อใบ แนบเพิ่ม = ต่อท้าย (เลิกแทนที่ไฟล์ประเภทเดิม) ตรวจชนิดจากหัวไฟล์จริง (`detectFileType`) + **`DELETE /api/certificates/:id`** ให้นักศึกษาลบทีละไฟล์ + `serveFile` ส่ง Content-Type ตาม `file_type`; แนบ/ลบได้เฉพาะเจ้าของ ใบยังไม่ยืนยัน และรอบ active **หรือ** ใบถูกตีกลับ (แก้บั๊ก: ใบรอตรวจเพิ่มไฟล์ได้หลังปิดรอบ) (`certificates.controller.js`, `.repository.js` — `countByResult` แทน `findByResultAndType`, `.routes.js`, `upload.js` → `uploadEvidence`) (2) **ใบที่ถูกตีกลับแก้ส่งใหม่ได้แม้รอบปิด** — `examResults.service.js` ใหม่ → `findSubmittableRound` (รอบ active ก่อน, ไม่มีค่อยดูรอบล่าสุดที่เริ่มแล้วซึ่งใบถูกตีกลับ) ใช้ทั้ง `POST /api/exam-results` และ `GET /api/rounds/active` (เพิ่ม field `can_fix_rejected`), `rounds.repository.js → findLatestStarted` (3) **บั๊ก B1** — `findPassedSubjectIds`, `findEligibleWithPassedSubjects` และ `firstYear` ของ `buildYearSummary` ไม่นับแถว `carried_forward` (วิชาที่ยกมาจากใบที่ถูกตีกลับภายหลังเคยถูกนับว่าผ่าน) (4) **`GET /api/dashboard/export-first-year`** รายชื่อผ่าน/ไม่ผ่านภายในปีแรก (`buildFirstYearList` ใช้ helper กฎเดียวกับ `firstYear`) + export-first-attempt เพิ่มคอลัมน์ชื่อ/นามสกุลอังกฤษ เบอร์โทร อีเมล (`findStudentsByYear`), PDF รวมเป็น `buildPassListPdf` (5) ข้อความ error ทางการไม่มีชื่อ field/ศัพท์เทคนิค: errorHandler 500 → "เกิดข้อผิดพลาดภายในระบบ กรุณาลองใหม่อีกครั้ง", auth/requireRole/authController/users/students/subjects/news/dashboard, seed reviewer → "ผู้ช่วยตรวจสอบ" (6) แจ้งเตือนหลังยืนยัน/ตีกลับ/ถอนการยืนยัน `await` ก่อนตอบ (ห่อ try/catch) — เดิม fire-and-forget ทำให้ phase20 สะดุดเป็นครั้งคราว · `smoke-phase22-exports.mjs` ปรับหัวคอลัมน์ตามข้อ 4 |
+| 2026-09-30 | **ส่งออกข้อมูลนักศึกษาแยกตามรอบ + ชื่อภาษาอังกฤษ + ผู้บริหารไม่ต้องมีอีเมล/เบอร์** — (1) `POST /students/export` รับ `by_round: true` เพิ่ม (ต้องเป็น boolean `true` เท่านั้น) → Excel **หลายชีต**: ชีตแรก "ข้อมูลนักศึกษา" เหมือนเดิม + 1 ชีตต่อ 1 รอบสอบ ("รอบ 1-2569" …) มีเฉพาะนักศึกษาที่มีใบผลสอบในรอบนั้น (สถานะใบ/ผ่านกี่วิชา/ส่งเมื่อ/ยืนยันเมื่อ) เรียงรอบใหม่→เก่า. `utils/xlsxExport.js` เพิ่ม `buildXlsxWorkbook(sheets)` (รูปแบบเดียวกับ `buildXlsx` ทีละชีต). (2) ไฟล์ข้อมูลนักศึกษาเพิ่มคอลัมน์ "ชื่อ (อังกฤษ)"/"นามสกุล (อังกฤษ)" (`students.first_name_en/last_name_en` ที่เก็บอยู่แล้วตั้งแต่ complete-profile; `findForExport` select เพิ่ม + `submitted_at`/`confirmed_at`). (3) `POST /users` — **role `executive` ไม่ต้องส่ง `email`/`phone`** (เก็บเป็น null; คอลัมน์เป็น nullable อยู่แล้ว ไม่แตะ schema) role อื่นยังบังคับเหมือนเดิม. เทส: `tests/smoke-phase24-lifecycle.mjs` ใหม่ — วงจรเต็มของรุ่นหนึ่ง รอบ 1→2→3 (กรอก/ตีกลับ/ส่งใหม่/ยืนยัน/ยกผลรอบก่อน carry-forward/ประกาศ/สถิติผ่านครั้งแรก 2 จาก 5 · ผ่านภายในปีแรก 4 จาก 5/ส่งออกแยกรอบ/สร้างบัญชีผู้บริหาร) 70 ข้อ + เพิ่มตัวเลือก `ONLY=phase24 npm run test:clean` รันไฟล์เดียว, `smoke-phase22` อัปเดตหัวคอลัมน์ใหม่. **ผลเทส: `test:clean` ผ่านทุกไฟล์**. (`utils/xlsxExport.js`, `students/student.controller.js`, `student.repository.js`, `users/users.controller.js`, `tests/*`) — frontend: `officerStudentsReal.jsx` ปุ่มส่งออกเป็นเมนู (ข้อมูล / แยกรอบ / ผู้สอบไม่ผ่านครั้งแรก), ตัวนับ "แสดง N จาก M"; `manageUsersReal.jsx` ซ่อนอีเมล/เบอร์เมื่อเลือกผู้บริหาร; รายงานสรุปบันทึก PDF จากภาพรายงานบนจอ (`exportReportPdf.js`). **ข้อควรรู้:** backend ที่รันค้างอยู่ต้อง restart ถึงจะได้โค้ดนี้ (`npm start` ไม่มี auto-reload) |
 | 2026-09-29 | **แก้ `DELETE /api/users/:id` หลุด 500 พร้อม raw SQL error แทน 409** — ทดสอบด้วยข้อมูลจำลองจำนวนมากแล้วพบว่าลบบัญชีที่มี `review_logs` ผูกอยู่ (เคยตรวจ/ยืนยันผลสอบ) ตอบ 500 พร้อมข้อความ Postgres ดิบ (ชื่อ table/constraint จริงหลุดออกไปให้ client เห็น) แทนที่จะเป็น 409 ตามที่ตั้งใจ. **สาเหตุ:** ทุก FK ที่เกี่ยวข้อง (`submission_rounds.created_by`, `news.posted_by`, `review_logs.reviewer_id`) ประกาศเป็น `ON DELETE RESTRICT` ใน migration ซึ่ง Postgres ตอบกลับเป็น SQLSTATE `23001` (restrict_violation) ไม่ใช่ `23503` ที่ Prisma แปลงเป็น `P2003` ให้ — เงื่อนไข `err.code === "P2003"` เดิมจึงไม่จับ กลายเป็น `PrismaClientUnknownRequestError` หลุดไป 500 ตรงๆ. **แก้:** เพิ่ม `UserRepo.countLinkedHistory()` เช็คก่อนลบเสมอ (นับ `submission_rounds`+`news`+`review_logs` ของ user นั้น) แล้ว throw 409 ทันทีถ้ามี — ไม่พึ่ง DB error เป็นด่านหลักอีกต่อไป, catch ท้าย controller เหลือไว้เป็น fallback กันเคส race condition เท่านั้น (ครอบทั้ง `P2003` และข้อความ `restrict...foreign key constraint` ดิบ). เพิ่ม `tests/smoke-phase23-delete-user.mjs` (เคสสำคัญ: ลบสำเร็จ/ซ้ำ/ตัวเอง/role อื่น/ไม่ login/id ผิด/**ลบคนมีประวัติผูก → ต้อง 409 ไม่ใช่ raw error**) เข้า `npm test` + `test:clean`. **ผลเทส: `test:clean` 17/17 ไฟล์** (`users.controller.js`, `users.repository.js`, `tests/smoke-phase23-delete-user.mjs` ใหม่, `package.json`, `run-clean.mjs`) |
 | 2026-09-29 | **`DELETE /api/users/:id` — ลบบัญชี officer/executive/reviewer จริง** — เดิมมีแค่ `revoke` (ล็อกไม่ให้ login แต่ record ยังอยู่) เจ้าหน้าที่ต้องการปุ่ม "ลบบัญชี" จริงๆ ด้วยสำหรับบัญชีที่สร้างผิด/ซ้ำแล้วยังไม่เคยใช้งาน. `UserRepo.remove()` = `prisma.user.delete` ตรงๆ ไม่ตั้ง cascade ที่ไหน — บัญชีที่เคยสร้างรอบ/โพสต์ข่าว/ยืนยันผลสอบ/มี `review_logs` ชนกำแพง FK ตอบ `409` บอกให้กดถอนสิทธิ์แทน (วิธีเช็คแก้ใหม่ในรายการถัดขึ้นไป — ดูก่อน). กันลบตัวเอง (`targetId === req.user.userId`) เหมือน revoke/role. frontend: ปุ่ม "ลบบัญชี" แยกจาก "ถอนสิทธิ์" ในหน้าจัดการผู้ใช้ + โมดัลยืนยัน (`users.repository/controller/routes.js`, `manageUsersReal.jsx`, `i18n.js`). และเพิ่มข้อความ "ยังไม่มีข้อมูลนักศึกษา" ตอนตารางว่างในหน้าข้อมูลนักศึกษา (`officerStudentsReal.jsx`) — ก่อนหน้านี้กรองแล้วไม่มีคนตรง ตารางว่างเปล่าไม่มีข้อความอะไรเลย |
 | 2026-09-25 | **สถิติ "ผ่าน" ทุกตัวนับเฉพาะใบที่ยืนยันแล้ว (เจ้าของระบบตัดสินใจ)** — เดิมนับไม่ตรงกัน: อัตราผ่านรายวิชานับเฉพาะ approved แต่ผ่านครบ/ผ่านครั้งแรก/ผ่านภายในปีแรก/ตารางผ่านกี่วิชา/ยอดแยกห้อง นับใบ pending ด้วย → ตัวเลขในหน้าเดียวกันขัดกันเอง (วิชาหนึ่งผ่าน 40 แต่ผ่านครบ 45). ตอนนี้ใช้ `onlyConfirmed()` (staff_status = approved) ตัวเดียวเป็นฐานของทุกตัวเลข "ผ่าน" ใน `dashboard.service.js`: `buildStats` (fullyPassed, perSubject, passRateOfSitters), `buildYearSummary` (passedByStudent → fullyPassed/byRoom/firstYear, firstAttempt, passDistribution), `buildFirstAttemptBySubject`, รายชื่อ export ผ่านครั้งแรก. **ตัวหาร % ยังเป็นทั้งรุ่นเหมือนเดิม**; ใบ pending/rejected/draft/ไม่ส่ง ไปอยู่ช่อง "ยังไม่ส่ง/ยังไม่ยืนยัน" (`not_submitted`) และในไฟล์ export อยู่กลุ่ม "ไม่ผ่านครั้งแรก" พร้อมสถานะ "รอตรวจสอบ" (โชว์ผ่านกี่วิชาให้ดูได้). **ไม่แตะ:** `fillRate`/`submitted`/สัดส่วนสถานะ (ยังนับใบรอตรวจเป็น "ส่งผลแล้ว" — `notRejected` ยังใช้กับ `everSubmitted`), `canSubmit`/`alreadyPassedStudentIds` และ carry-forward ฝั่งนักศึกษา (เป็นเรื่องสิทธิ์กรอก ไม่ใช่สถิติ). **field ใหม่:** `stats.confirmed` และ `roundSummaries[].confirmed` = ใบที่ยืนยันแล้วของรอบ = ตัวหารของ `passRateOfSitters`/อัตราผ่านรายรอบ (เดิมหารด้วย `submitted` ที่รวมใบรอตรวจ — ตัวตั้งกับตัวหารต้องฐานเดียวกัน). PDF รายงานเพิ่มหมายเหตุ + จำนวนใบรอตรวจที่ยังไม่นับ. frontend: แถบเหลือง "ยังมีใบรอตรวจสอบ N ใบ ยังไม่นับ" บน Dashboard + หมายเหตุในรายงาน, ป้ายตัวหาร/แถวท้ายตารางผ่านกี่วิชาเปลี่ยนเป็น "ยืนยันแล้ว"/"ยังไม่ส่ง / ยังไม่ยืนยัน" (`dashboardReal.jsx`, `reportsReal.jsx`, `i18n.js`, `userManual.jsx`). เทสที่ปรับ: `smoke-phase11` (ใบรอตรวจยังไม่นับ → approve แล้วนับ), `smoke-phase22` (B รอตรวจอยู่ไม่ผ่าน → approve แล้วเป็นผ่านทั้งไฟล์/history/stats). **ผลเทส: `test:clean` 16/16 ไฟล์**. |

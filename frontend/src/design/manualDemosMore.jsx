@@ -85,7 +85,7 @@ const manualAddDemo = {
       ) : (
         <div className="card mn-pop" style={{ padding: 14, width: 420, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 9 }}>
           <div style={{ fontWeight: 800, fontSize: 15 }}>เพิ่มนักศึกษา 1 คน <span style={{ fontWeight: 400, fontSize: 12.5, color: 'var(--ink-500)' }}>· รหัสผ่าน = เลขบัตรประชาชนที่กรอกไว้</span></div>
-          <Field label="รหัสนักศึกษา (student_id) *"><Box dm="f-sid">{done >= 2 && done < 4 ? <MockTyped text="6610210201" /> : <Empty>6610210001</Empty>}</Box></Field>
+          <Field label="รหัสนักศึกษา *"><Box dm="f-sid">{done >= 2 && done < 4 ? <MockTyped text="6610210201" /> : <Empty>6610210001</Empty>}</Box></Field>
           <Field label="เลขบัตรประชาชน (13 หลัก) *"><Box dm="f-nid">{done >= 3 && done < 4 ? <MockTyped text="1234567890123" /> : <Empty>1234567890123</Empty>}</Box></Field>
           <Field label="ปีการศึกษาที่จบ (พ.ศ.) (ไม่บังคับ)"><Box style={{ minHeight: 20 }} /><Hint>เว้นว่าง = ระบบคำนวณจากรหัส (ปีที่เข้า + 4)</Hint></Field>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}><Btn>ล้างฟอร์ม</Btn><Btn dm="add" kind="primary"><Icon name="plus" size={14} /> เพิ่มนักศึกษา</Btn></div>
@@ -383,7 +383,7 @@ const subjectDemo = {
   ),
 };
 
-/* ============ 10) เพิ่มผู้ใช้งาน (เจ้าหน้าที่ / ผู้บริหาร) ============ */
+/* ============ 10) เพิ่มผู้ใช้งาน (เจ้าหน้าที่ / ผู้ช่วยตรวจสอบ / ผู้บริหาร) ============ */
 const userRows = (extra) => [
   ['สมหญิง ใจดี', 'staff01', 'เจ้าหน้าที่คณะ', 'ใช้งานได้', 'ok'],
   ['ประเสริฐ ผู้บริหาร', 'exec01', 'ผู้บริหารคณะ', 'ใช้งานได้', 'ok'],
@@ -404,28 +404,31 @@ function UsersTable({ extra, action }) {
   );
 }
 const userAddDemo = {
-  title: 'การเพิ่มผู้ใช้งาน (เจ้าหน้าที่ / เจ้าหน้าที่ตรวจสอบ / ผู้บริหาร)',
+  title: 'การเพิ่มผู้ใช้งาน (เจ้าหน้าที่คณะ / ผู้ช่วยตรวจสอบ / ผู้บริหารคณะ)',
   height: 470,
   steps: [
-    { target: 'add-user', text: 'ที่เมนู "ผู้ใช้งานผู้บริหาร" คลิก "เพิ่มผู้ใช้งาน"' },
-    { target: 'u-role', text: 'เลือก "บทบาท" ของบัญชี (เจ้าหน้าที่คณะ เจ้าหน้าที่ตรวจสอบ หรือผู้บริหารคณะ) แล้วกรอกรหัสผู้ใช้ และ "รหัสผ่านชั่วคราว" อย่างน้อย 8 ตัวอักษร' },
-    { target: 'u-save', text: 'กรอกชื่อ อีเมล เบอร์โทร แล้วคลิก "เพิ่มผู้ใช้งาน" ผู้ใช้ต้องตั้งรหัสผ่านใหม่เองเมื่อเข้าสู่ระบบครั้งแรก (สถานะ "รอตั้งรหัสผ่าน")', hold: 2200 },
+    { target: 'add-user', text: 'ที่เมนู "จัดการผู้ใช้งาน" คลิก "เพิ่มผู้ใช้งาน"' },
+    { target: 'u-role', text: 'เลือก "บทบาท" ของบัญชี (เจ้าหน้าที่คณะ ผู้ช่วยตรวจสอบ หรือผู้บริหารคณะ — ใต้ช่องมีคำอธิบายสิทธิ์ของแต่ละบทบาท) แล้วกรอกรหัสผู้ใช้ และ "รหัสผ่านชั่วคราว" อย่างน้อย 8 ตัวอักษร' },
+    { target: 'u-save', text: 'กรอกชื่อ-นามสกุล (เจ้าหน้าที่คณะและผู้ช่วยตรวจสอบกรอกอีเมลและเบอร์โทรด้วย ส่วนผู้บริหารไม่ต้องกรอก) แล้วคลิก "เพิ่มผู้ใช้งาน" ผู้ใช้ต้องตั้งรหัสผ่านใหม่เองเมื่อเข้าสู่ระบบครั้งแรก (สถานะ "รอตั้งรหัสผ่าน")', hold: 2200 },
   ],
   stage: (done) => (
-    <MockFrame title="จัดการผู้ใช้งานเจ้าหน้าที่/ผู้บริหาร">
+    <MockFrame title="จัดการผู้ใช้งาน">
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}><Btn dm="add-user" kind="primary"><Icon name="plus" size={14} /> เพิ่มผู้ใช้งาน</Btn></div>
-      <UsersTable extra={done >= 3 ? ['วรรณา ใหม่', 'staff02', 'เจ้าหน้าที่ตรวจสอบ', 'รอตั้งรหัสผ่าน', 'wait'] : null} />
+      <UsersTable extra={done >= 3 ? ['วรรณา ใหม่', 'staff02', 'ผู้ช่วยตรวจสอบ', 'รอตั้งรหัสผ่าน', 'wait'] : null} />
       {done >= 1 && done < 3 && (
-        <MockModal title="เพิ่มผู้ใช้งานเจ้าหน้าที่/ผู้บริหาร" footer={<><Btn>ยกเลิก</Btn><Btn dm="u-save" kind="primary">เพิ่มผู้ใช้งาน</Btn></>}>
-          <Field label="บทบาท"><Sel dm="u-role">{done >= 2 ? 'เจ้าหน้าที่ตรวจสอบ' : 'ผู้บริหารคณะ'}</Sel></Field>
+        <MockModal title="เพิ่มผู้ใช้งาน" footer={<><Btn>ยกเลิก</Btn><Btn dm="u-save" kind="primary">เพิ่มผู้ใช้งาน</Btn></>}>
+          <Field label="บทบาท"><Sel dm="u-role">{done >= 2 ? 'ผู้ช่วยตรวจสอบ' : 'ผู้บริหารคณะ'}</Sel></Field>
+          <div style={{ marginTop: 4 }}><Hint>{done >= 2
+            ? 'ผู้ช่วยตรวจสอบ — ตรวจสอบ ยืนยัน หรือตีกลับผลสอบได้เท่านั้น ไม่เห็นเมนูจัดการอื่น'
+            : 'ผู้บริหารคณะ — ดูแดชบอร์ดและรายงานสรุปได้อย่างเดียว'}</Hint></div>
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <Field label="รหัสผู้ใช้ (สำหรับ login)" style={{ flex: 1 }}><Box>{done >= 2 ? 'staff02' : <Empty>เช่น รหัสพนักงาน</Empty>}</Box></Field>
+            <Field label="รหัสผู้ใช้ (สำหรับเข้าสู่ระบบ)" style={{ flex: 1 }}><Box>{done >= 2 ? 'staff02' : <Empty>เช่น รหัสพนักงาน</Empty>}</Box></Field>
             <Field label="รหัสผ่านชั่วคราว" style={{ flex: 1 }}><Box>{done >= 2 ? 'Temp#2569' : <Empty>อย่างน้อย 8 ตัวอักษร</Empty>}</Box></Field>
           </div>
-          <div style={{ marginTop: 6 }}><Hint>ผู้ใช้ต้องเปลี่ยนรหัสผ่านตอน login ครั้งแรก · ชื่อ อีเมล เบอร์โทร กรอกต่อด้านล่าง</Hint></div>
+          <div style={{ marginTop: 6 }}><Hint>ผู้ใช้ต้องเปลี่ยนรหัสผ่านเมื่อเข้าสู่ระบบครั้งแรก · กรอกชื่อ-นามสกุลต่อด้านล่าง</Hint></div>
         </MockModal>
       )}
-      <MockToast show={done >= 3}>เพิ่มผู้ใช้งานเรียบร้อย — บัญชีต้องเปลี่ยนรหัสผ่านตอน login ครั้งแรก</MockToast>
+      <MockToast show={done >= 3}>เพิ่มผู้ใช้งานเรียบร้อย — บัญชีต้องเปลี่ยนรหัสผ่านเมื่อเข้าสู่ระบบครั้งแรก</MockToast>
     </MockFrame>
   ),
 };
@@ -442,13 +445,13 @@ const userAccessDemo = {
     { target: 'u-revoke-confirm', text: 'ตรวจชื่อในหน้าต่างยืนยัน แล้วคลิก "ถอนสิทธิ์" บัญชีและประวัติการทำงานยังอยู่ครบ แต่เข้าสู่ระบบไม่ได้อีก', hold: 2200 },
   ],
   stage: (done) => (
-    <MockFrame title="จัดการผู้ใช้งานเจ้าหน้าที่/ผู้บริหาร">
+    <MockFrame title="จัดการผู้ใช้งาน">
       <UsersTable action={(uid) => uid === 'staff01' ? (
         <><Btn dm="u-reset"><Icon name="key" size={13} /> รีเซ็ตรหัส</Btn><Btn dm="u-revoke" kind="danger"><Icon name="trash" size={13} /> ถอนสิทธิ์</Btn></>
       ) : null} />
       {(done === 1 || done === 2) && (
         <MockModal title="รีเซ็ตรหัสผ่าน?" footer={<><Btn>ยกเลิก</Btn><Btn dm="u-reset-confirm" kind="primary">รีเซ็ตรหัส</Btn></>}>
-          <div style={{ fontSize: 13.5, lineHeight: 1.6 }}>สมหญิง ใจดี จะเข้าสู่ระบบด้วยรหัสเดิมไม่ได้อีก ต้องใช้รหัสชั่วคราวที่ตั้งด้านล่างแทน แล้วเปลี่ยนเองตอน login ครั้งถัดไป</div>
+          <div style={{ fontSize: 13.5, lineHeight: 1.6 }}>สมหญิง ใจดี จะเข้าสู่ระบบด้วยรหัสเดิมไม่ได้อีก ต้องใช้รหัสชั่วคราวที่ตั้งด้านล่างแทน แล้วเปลี่ยนเองเมื่อเข้าสู่ระบบครั้งถัดไป</div>
           <Field label="รหัสผ่านชั่วคราวใหม่" style={{ marginTop: 9 }}><Box dm="u-newpw">{done >= 2 ? <MockTyped text="Temp#2570" /> : <Empty>อย่างน้อย 8 ตัวอักษร</Empty>}</Box></Field>
         </MockModal>
       )}
@@ -539,13 +542,55 @@ const reportDemo = {
   ),
 };
 
-/* ============ 14) ส่งออกรายชื่อผ่าน/ไม่ผ่านครั้งแรก (แผง "ส่งออกข้อมูล") ============ */
-const exportPanelDemo = {
-  title: 'การส่งออกรายชื่อนักศึกษาที่สอบผ่าน / ไม่ผ่านครั้งแรกของปีการศึกษา',
-  height: 420,
+/* ============ 13.1) ดูรายชื่อผ่าน/ไม่ผ่านรายวิชาบนแดชบอร์ด ============ */
+const dashSubjectDemo = {
+  title: 'การดูรายชื่อนักศึกษาที่ผ่าน / ไม่ผ่านรายวิชา บนแดชบอร์ด',
+  height: 440,
   steps: [
-    { target: 'pick-round', text: 'ที่เมนู "รายงานสรุป" เลือกปีการศึกษาที่ต้องการ (รายชื่อผ่าน/ไม่ผ่านครั้งแรกเป็นของทั้งปี ไม่ผูกกับรอบที่เลือก)' },
-    { target: 'exp-fail', text: 'ในแผง "ส่งออกข้อมูล" คลิก "ส่งออก" ที่แถว "รายชื่อนักศึกษาที่สอบไม่ผ่านครั้งแรก" (แถว "ผ่านครั้งแรก" ใช้วิธีเดียวกัน)' },
+    { target: 'dash-subject-tab', text: 'ที่เมนู "แดชบอร์ด" เลือกรอบ (หรือ "รวมทั้งปี") แล้วคลิกแท็บ "อัตราผ่านรายวิชา"' },
+    { target: 'dash-fail-num', text: 'คลิกตัวเลข "ผ่าน" หรือ "ไม่ผ่าน" ของวิชาที่ต้องการ (มีคำแนะนำ "กดตัวเลข…" อยู่ใต้กราฟ)' },
+    { target: 'dash-export', text: 'หน้าต่างรายชื่อแสดงชื่อ รหัส และห้อง คลิก "ส่งออก" เพื่อเก็บรายชื่อเป็น Excel หรือ PDF', hold: 2200 },
+  ],
+  stage: (done) => (
+    <MockFrame title="แดชบอร์ด">
+      <div style={{ display: 'inline-flex', gap: 3, padding: 4, background: 'var(--ink-100)', borderRadius: 12, marginBottom: 10 }}>
+        <span style={{ padding: '5px 13px', borderRadius: 9, fontSize: 13.5, fontWeight: 700, background: done < 1 ? '#fff' : 'transparent' }}>สัดส่วนสถานะ</span>
+        <span data-demo="dash-subject-tab" style={{ padding: '5px 13px', borderRadius: 9, fontSize: 13.5, fontWeight: 700, background: done >= 1 ? '#fff' : 'transparent' }}>อัตราผ่านรายวิชา</span>
+      </div>
+      {done >= 1 ? (
+        <div className="card mn-pop" style={{ padding: 12 }}>
+          {[['1101 · การผดุงครรภ์', '93%', 42, 3], ['1102 · การพยาบาลมารดาและทารก', '89%', 40, 5]].map(([name, rate, p, f], k) => (
+            <div key={name} style={{ padding: '6px 0', borderTop: k ? '1px solid var(--ink-100)' : 'none' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5, fontWeight: 600 }}><span>{name}</span><span>{rate}</span></div>
+              <div style={{ display: 'flex', gap: 14, fontSize: 13, marginTop: 3 }}>
+                <span style={{ color: 'var(--pass)', fontWeight: 700, textDecoration: 'underline' }}>ผ่าน {p} คน</span>
+                <span data-demo={k === 0 ? 'dash-fail-num' : undefined} style={{ color: 'var(--fail)', fontWeight: 700, textDecoration: 'underline' }}>ไม่ผ่าน {f} คน</span>
+              </div>
+            </div>
+          ))}
+          <div style={{ fontSize: 12.5, color: 'var(--ink-500)', marginTop: 8 }}>กดตัวเลข "ผ่าน" หรือ "ไม่ผ่าน" ของแต่ละวิชา เพื่อดูรายชื่อนักศึกษา และดาวน์โหลดเป็นไฟล์ Excel หรือ PDF</div>
+        </div>
+      ) : <div className="card" style={{ padding: 14, color: 'var(--ink-500)', fontSize: 14 }}>สัดส่วนสถานะของรอบที่เลือก</div>}
+      {done >= 2 && done < 3 && (
+        <MockModal title="นักศึกษาที่ไม่ผ่าน การผดุงครรภ์" footer={<><Btn>ปิด</Btn><Btn dm="dash-export"><Icon name="download" size={14} /> ส่งออก ▾</Btn></>}>
+          <div style={{ fontSize: 12.5, color: 'var(--ink-500)', marginBottom: 6 }}>พบ 3 คน · รอบ 1/2569</div>
+          {[['6610210211', 'นางสาวสุนิสา ตัวอย่าง', 'ห้องเรียนปกติ'], ['6610210212', 'นายวีระ จำลอง', 'ห้องเรียนอังกฤษ'], ['6610210213', 'นางสาวพิมพ์ ทดสอบ', 'ห้องเรียนปกติ']].map(([id, nm, room]) => (
+            <div key={id} style={{ display: 'flex', gap: 10, padding: '5px 0', borderTop: '1px solid var(--ink-100)', fontSize: 13.5 }}><span className="mono" style={{ width: 96, color: 'var(--ink-500)' }}>{id}</span><span style={{ flex: 1 }}>{nm}</span><span style={{ color: 'var(--ink-500)' }}>{room}</span></div>
+          ))}
+        </MockModal>
+      )}
+      <MockToast show={done >= 3}>กำลังสร้างไฟล์…</MockToast>
+    </MockFrame>
+  ),
+};
+
+/* ============ 14) ส่งออกรายชื่อระดับปี (ผ่าน/ไม่ผ่านครั้งแรก, ผ่าน/ไม่ผ่านภายในปีแรก) จากแผง "ส่งออกข้อมูล" ============ */
+const exportPanelDemo = {
+  title: 'การส่งออกรายชื่อนักศึกษาที่สอบผ่าน / ไม่ผ่าน (ครั้งแรก และภายในปีแรก) ของปีการศึกษา',
+  height: 470,
+  steps: [
+    { target: 'pick-round', text: 'ที่เมนู "รายงานสรุป" เลือกปีการศึกษาที่ต้องการ (รายชื่อระดับปีเป็นของทั้งปี ไม่ผูกกับรอบที่เลือก)' },
+    { target: 'exp-fail', text: 'ในแผง "ส่งออกข้อมูล" คลิก "ส่งออก" ที่แถว "รายชื่อนักศึกษาที่สอบไม่ผ่านภายในปีแรก" (แถวผ่าน/ไม่ผ่านครั้งแรก และผ่านภายในปีแรก ใช้วิธีเดียวกัน)' },
     { target: 'exp-xlsx', text: 'เลือกรูปแบบไฟล์ Excel (.xlsx) หรือ PDF ระบบสร้างไฟล์และดาวน์โหลดให้ทันที', hold: 2200 },
   ],
   stage: (done) => (
@@ -560,7 +605,9 @@ const exportPanelDemo = {
         {[
           ['รายงานสรุปผลการสอบ รอบที่ 2/2569', 'ตัวเลขสรุปทั้งหมดของรอบนี้ + รายชื่อรายคน', false],
           ['รายชื่อนักศึกษาที่สอบผ่านครั้งแรก ปี 2569', 'ผ่านครบทุกวิชาตั้งแต่รอบที่ 1', false],
-          ['รายชื่อนักศึกษาที่สอบไม่ผ่านครั้งแรก ปี 2569', 'รวมคนที่ยังไม่ส่งผลหรือถูกตีกลับ มีคอลัมน์บอกสาเหตุ', true],
+          ['รายชื่อนักศึกษาที่สอบไม่ผ่านครั้งแรก ปี 2569', 'รวมคนที่ยังไม่ส่งผลหรือถูกตีกลับ มีคอลัมน์บอกสาเหตุ', false],
+          ['รายชื่อนักศึกษาที่สอบผ่านภายในปีแรก ปี 2569', 'ผ่านครบทุกวิชาในรอบใดรอบหนึ่งของปี (รวมรอบที่ 2 และ 3)', false],
+          ['รายชื่อนักศึกษาที่สอบไม่ผ่านภายในปีแรก ปี 2569', 'ยังไม่ผ่านครบทุกวิชาภายในปีนั้น', true],
           ['ข้อมูลนักศึกษาทั้งรุ่น 2569', 'ชื่อ ห้อง ติดต่อ สิทธิ์กรอก สถานะใบล่าสุด', false],
         ].map(([title, sub, target]) => (
           <div key={title} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderTop: '1px solid var(--ink-100)', position: 'relative' }}>
@@ -577,7 +624,7 @@ const exportPanelDemo = {
           </div>
         ))}
       </div>
-      <MockToast show={done >= 3}>ดาวน์โหลด รายชื่อนักศึกษาไม่ผ่านครั้งแรก-2569.xlsx</MockToast>
+      <MockToast show={done >= 3}>ดาวน์โหลด รายชื่อนักศึกษาไม่ผ่านภายในปีแรก-2569.xlsx</MockToast>
     </MockFrame>
   ),
 };
@@ -596,5 +643,6 @@ export const MORE_DEMOS = {
   userAccess: userAccessDemo,
   news: newsDemo,
   report: reportDemo,
+  dashSubject: dashSubjectDemo,
   exportPanel: exportPanelDemo,
 };

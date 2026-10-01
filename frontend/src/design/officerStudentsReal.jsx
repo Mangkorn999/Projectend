@@ -279,13 +279,14 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
 
   // ส่งออกข้อมูลนักศึกษา (Excel) — เฉพาะที่ผ่านตัวกรองบนหน้านี้อยู่ (ค้นหา/ห้อง/ปี/สถานะ/สิทธิ์ ฯลฯ ทำฝั่งหน้าจอ
   // จึงส่ง "รายชื่อรหัส" ที่เห็นอยู่ไปให้ backend สร้างไฟล์ ไม่ต้องเขียนตัวกรองซ้ำสองที่) ไม่มีเลขบัตรประชาชนในไฟล์
-  const exportStudents = async () => {
+  // byRound = true → ไฟล์ Excel หลายชีต: ชีตแรกข้อมูลนักศึกษา + 1 ชีตต่อ 1 รอบสอบ
+  const exportStudents = async (byRound) => {
     setExportingStudents(true);
     try {
       await downloadFile('/students/export', {
         method: 'POST',
-        body: { student_ids: filtered.map(s => s.sid) },
-        filename: `ข้อมูลนักศึกษา-${filtered.length}คน.xlsx`,
+        body: { student_ids: filtered.map(s => s.sid), ...(byRound ? { by_round: true } : {}) },
+        filename: `ข้อมูลนักศึกษา-${filtered.length}คน${byRound ? '-แยกรอบ' : ''}.xlsx`,
       });
     } catch (e) {
       toast?.(e instanceof ApiError ? e.message : tt('export.failed'), 'error');
@@ -293,6 +294,12 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
       setExportingStudents(false);
     }
   };
+
+  const studentExportItems = [
+    { key: 'students', label: tt('export.studentsExcel'), icon: 'report', run: () => exportStudents(false) },
+    { key: 'byRound', label: tt('export.studentsByRoundExcel'), icon: 'report', run: () => exportStudents(true) },
+  ];
+  // ไฟล์รายชื่อผ่าน/ไม่ผ่าน (ครั้งแรก / ภายในปีแรก) อยู่ที่หน้า "รายงานสรุป" ที่เดียว — หน้านี้ส่งออกเฉพาะ "รายชื่อที่กรองอยู่"
 
   const setEligibility = (value) => setEligibilityFor([...selected], value);
   const toggleOneEligibility = (s) => {
@@ -304,7 +311,7 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
 
   return (
     <div className="fade-up">
-      <PageHead title={tt('officer.students.title')} sub={tt('officer.students.sub', { found: filtered.length, total: students.length })}
+      <PageHead title={tt('officer.students.title')} sub={tt(filtered.length < students.length ? 'officer.students.subFiltered' : 'officer.students.sub', { shown: Math.min((page + 1) * per, filtered.length), found: filtered.length, total: students.length })}
         actions={<div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           {returnView && (
             <button className="btn btn-ghost" onClick={() => onBackToDashboard?.(returnView)}>
@@ -312,11 +319,9 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
             </button>
           )}
           {/* ปุ่มส่งออกข้อมูลนักศึกษา — officer เท่านั้น (ผู้บริหารไม่มีสิทธิ์ดูข้อมูลรายบุคคล) */}
-          {!readonly && (
-            <button className="btn btn-ghost" disabled={exportingStudents || filtered.length === 0}
-              title={tt('export.studentsHint')} onClick={exportStudents}>
-              <Icon name="download" size={16} /> {exportingStudents ? tt('export.working') : tt('export.studentsBtn', { n: filtered.length })}
-            </button>
+          {!readonly && filtered.length > 0 && (
+            <ExportMenu items={studentExportItems} tt={tt} align="right" label={tt('export.studentsBtn', { n: filtered.length })}
+              onError={msg => toast?.(msg, 'error')} />
           )}
         </div>} />
 
