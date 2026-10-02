@@ -2,6 +2,7 @@ import * as roundsRepo from "./rounds.repository.js";
 import * as studentRepo from "../students/student.repository.js";
 import * as subjectsRepo from "../subjects/subjects.repository.js";
 import * as examRepo from "../examResults/examResults.repository.js";
+import { findSubmittableRound } from "../examResults/examResults.service.js";
 import { subjectsOfRound } from "../../utils/roundSubjects.js";
 import { withPhase } from "../../utils/roundPhase.js";
 
@@ -41,14 +42,26 @@ export const getActive = async (req, res, next) => {
 
     // เฉพาะรอบของรุ่นตัวเอง — รุ่นอื่นเปิดรอบอยู่ก็ไม่เกี่ยวกับคนนี้
     //
-    // ใช้ findOpenForYear (ไม่กรองวันที่) ไม่ใช่ findActive
-    // เพื่อให้รอบที่เจ้าหน้าที่ตั้งเปิดไว้ล่วงหน้าส่งกลับไปด้วย นักศึกษาจะได้เห็นว่า "จะเปิดวันที่ ..."
-    // เดิมส่ง null หน้าจอขึ้นแค่ "ไม่มีรอบเปิด" ซึ่งไม่ได้บอกว่าต้องรอถึงเมื่อไหร่
-    //
-    // ความปลอดภัยไม่เปลี่ยน: ตอนรับผลสอบจริง examResults.controller ยังเรียก findActive()
-    // ที่กรองวันที่อยู่เหมือนเดิม ส่งมาตอนยังไม่ถึงวันเปิดก็ถูกปฏิเสธอยู่ดี
-    // ฝั่งหน้าจออ่าน phase เพื่อรู้ว่าตอนนี้กรอกได้จริงไหม (active เท่านั้นที่กรอกได้)
-    const round = await roundsRepo.findOpenForYear(student.academic_year);
+    // ขั้นที่ 1: รอบที่ "ส่งผลได้จริง" ตอนนี้ (findSubmittableRound — ตัวเดียวกับที่ใช้ตอนกดส่งผล)
+    //   - รอบที่เปิดรับอยู่ → can_fix_rejected = false (กรอกตามปกติ)
+    //   - รอบปิดแล้วแต่ใบของคนนี้ถูกตีกลับ → can_fix_rejected = true
+    //     หน้าจอต้องเปิดฟอร์มให้แก้ได้ ถึง phase ของรอบจะเป็น closed/expired ก็ตาม
+    let round = null;
+    let canFixRejected = false;
+    const submittable = await findSubmittableRound(student);
+    if (submittable) {
+      round = submittable.round;
+      canFixRejected = submittable.fixingRejected;
+    } else {
+      // ขั้นที่ 2: ส่งอะไรไม่ได้ตอนนี้ → ใช้ findOpenForYear (ไม่กรองวันที่) แบบเดิม
+      // เพื่อให้รอบที่เจ้าหน้าที่ตั้งเปิดไว้ล่วงหน้าส่งกลับไปด้วย นักศึกษาจะได้เห็นว่า "จะเปิดวันที่ ..."
+      // เดิมส่ง null หน้าจอขึ้นแค่ "ไม่มีรอบเปิด" ซึ่งไม่ได้บอกว่าต้องรอถึงเมื่อไหร่
+      //
+      // ความปลอดภัยไม่เปลี่ยน: ตอนรับผลสอบจริง examResults.controller ใช้ findSubmittableRound
+      // ที่กรองวันที่อยู่ ส่งมาตอนยังไม่ถึงวันเปิดก็ถูกปฏิเสธอยู่ดี
+      // ฝั่งหน้าจออ่าน phase เพื่อรู้ว่าตอนนี้กรอกได้จริงไหม (active เท่านั้นที่กรอกได้)
+      round = await roundsRepo.findOpenForYear(student.academic_year);
+    }
     if (!round) return res.json({ success: true, data: null });
 
     // รอบนี้สอบวิชาไหนบ้าง + วิชาไหนที่นักศึกษาคนนี้ผ่านไปแล้วจากรอบก่อน
@@ -72,6 +85,8 @@ export const getActive = async (req, res, next) => {
         subjects,
         // รอบที่ไม่เหลือวิชาเลย (เช่น วิชาถูกลบ) ต้องไม่นับว่า "ผ่านครบ" — [].every() ให้ true เสมอ
         all_passed: subjects.length > 0 && subjects.every((s) => s.already_passed),
+        // true = รอบนี้ปิดแล้ว แต่ใบของนักศึกษาถูกตีกลับ → แก้ส่งใหม่ได้ (ดู findSubmittableRound)
+        can_fix_rejected: canFixRejected,
       },
     });
   } catch (err) {

@@ -19,12 +19,13 @@ import { PrismaClient } from "@prisma/client";
 import fs from "fs";
 import path from "path";
 
-const TEST_SCHEMA = "verify_tmp";
-const TEST_PORT = 3100;
+// เปลี่ยนได้ผ่าน env เพื่อรันหลายชุดพร้อมกันโดยไม่ชนกัน เช่น TEST_SCHEMA=verify_b TEST_PORT=3101 npm run test:clean
+const TEST_SCHEMA = process.env.TEST_SCHEMA || "verify_tmp";
+const TEST_PORT = Number(process.env.TEST_PORT) || 3100;
 const BASE = `http://localhost:${TEST_PORT}`;
 
 // รายชื่อไฟล์เทสตามลำดับที่ต้องรัน (เรียงตาม phase เหมือนใน package.json)
-const TEST_FILES = [
+const ALL_TEST_FILES = [
   "tests/smoke-phase1-3.mjs",
   "tests/smoke-phase4-6.mjs",
   "tests/smoke-phase9-import.mjs",
@@ -42,7 +43,16 @@ const TEST_FILES = [
   "tests/smoke-phase21-pending-accounts.mjs",
   "tests/smoke-phase22-exports.mjs",
   "tests/smoke-phase23-delete-user.mjs",
+  "tests/smoke-phase24-lifecycle.mjs",
+  "tests/smoke-phase25-real-flow.mjs",
+  "tests/smoke-phase26-edge-cases.mjs",
+  "tests/smoke-phase27-security.mjs",
 ];
+
+// รันเฉพาะไฟล์ที่ชื่อมีคำนี้: ONLY=phase24 npm run test:clean (ไม่ใส่ = รันทุกไฟล์)
+const TEST_FILES = process.env.ONLY
+  ? ALL_TEST_FILES.filter((f) => f.includes(process.env.ONLY))
+  : ALL_TEST_FILES;
 
 // ── เตรียม URL ของ DB ชั่วคราว ────────────────────────────────
 // เอา DATABASE_URL เดิมมาต่อท้ายด้วย ?schema=verify_tmp
@@ -135,6 +145,23 @@ async function stopServer(server) {
   }
 }
 
+
+// ไฟล์อัปโหลดที่ "ฐานข้อมูลทดสอบชุดนี้" อ้างถึง — เรียกก่อนลบ schema
+// ลบเฉพาะไฟล์ของชุดตัวเอง: เทสหลายชุดรันพร้อมกันได้โดยไม่ลบไฟล์ของกันและกัน
+// (เดิมลบ "ไฟล์ใหม่ทุกไฟล์ที่ฐานข้อมูลจริงไม่อ้างถึง" → ชุดที่จบก่อนลบไฟล์ของชุดที่ยังรันอยู่)
+async function findUploadsOfSchema(admin, schema) {
+  const names = [];
+  try {
+    const certs = await admin.$queryRawUnsafe(`SELECT file_path FROM "${schema}"."certificates"`);
+    for (const row of certs) names.push(path.basename(row.file_path));
+    const news = await admin.$queryRawUnsafe(`SELECT image_path FROM "${schema}"."news" WHERE image_path IS NOT NULL`);
+    for (const row of news) names.push(path.basename(row.image_path));
+  } catch {
+    // schema ยังไม่ถูกสร้าง (พังตั้งแต่ต้น) = ไม่มีไฟล์ให้ลบ
+  }
+  return names;
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) {
     console.error("ไม่พบ DATABASE_URL — ต้องรันด้วย: npm run test:clean");
@@ -218,6 +245,7 @@ async function main() {
   } finally {
     // ต้องเก็บกวาดเสมอ ถึงจะพังกลางทางก็ตาม ไม่งั้น schema ค้างไว้ในฐานข้อมูล
     await stopServer(server);
+    const ownFiles = await findUploadsOfSchema(admin, TEST_SCHEMA);
     await admin.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${TEST_SCHEMA}" CASCADE`);
     try {
       // ไฟล์ที่ฐานข้อมูลจริง (public) ยังอ้างถึงอยู่ ห้ามลบเด็ดขาด
@@ -226,10 +254,11 @@ async function main() {
         ...(await admin.news.findMany({ select: { image_path: true } })).map((r) => path.basename(r.image_path ?? "")),
       ]);
       let removed = 0;
-      for (const dir of uploadDirs) {
-        if (!fs.existsSync(dir)) continue;
-        for (const f of fs.readdirSync(dir)) {
-          if (!filesBefore.get(dir).has(f) && !inUse.has(f)) { fs.rmSync(path.join(dir, f), { force: true }); removed++; }
+      for (const name of ownFiles) {
+        if (inUse.has(name)) continue;
+        for (const dir of uploadDirs) {
+          const full = path.join(dir, name);
+          if (fs.existsSync(full)) { fs.rmSync(full, { force: true }); removed++; }
         }
       }
       console.log(`ลบไฟล์อัปโหลดที่เทสสร้างค้างไว้ ${removed} ไฟล์`);

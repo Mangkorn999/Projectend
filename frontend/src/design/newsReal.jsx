@@ -67,7 +67,7 @@ function Lightbox({ url, onClose, tt }) {
   );
 }
 
-function NewsImage({ newsId, maxHeight = 320, radius = 12, fit = 'cover', zoomable = false, tt }) {
+function NewsImage({ newsId, maxHeight = 320, height, radius = 12, fit = 'cover', zoomable = false, tt }) {
   const [url, setUrl] = useState('');
   const [zoom, setZoom] = useState(false);
   useEffect(() => {
@@ -80,7 +80,7 @@ function NewsImage({ newsId, maxHeight = 320, radius = 12, fit = 'cover', zoomab
   if (!url) return null;
   return (<>
     <img src={url} alt="" onClick={zoomable ? () => setZoom(true) : undefined}
-      style={{ display: 'block', width: '100%', maxHeight, objectFit: fit,
+      style={{ display: 'block', width: '100%', maxHeight, height, objectFit: fit,
         borderRadius: radius, border: '1px solid var(--ink-200)', background: 'var(--ink-50)',
         cursor: zoomable ? 'zoom-in' : 'default' }} />
     {zoom && <Lightbox url={url} onClose={() => setZoom(false)} tt={tt} />}
@@ -109,10 +109,20 @@ export function StudentNewsReal({ go, lang }) {
   // ไม่ใช่แค่ปุ่ม "เริ่มกรอกผลสอบ" ตายตัวเหมือนเดิม ทั้งที่กรอกไปแล้วก็ยังขึ้นแบบนี้
   // รอบที่ตั้งเปิดไว้ล่วงหน้า / เลยวันปิดแล้ว ก็ส่งมาด้วย — ป้าย "เปิดอยู่" กับปุ่มกรอกต้องดู phase ด้วย
   const acceptingNow = round?.phase === 'active';
-  const badgeText = !round ? tt('news.noOpenRound')
-    : round.phase === 'scheduled' ? tt('news.scheduledBadge')
-    : round.phase === 'expired' ? tt('news.expiredBadge')
-    : tt('news.openRoundBadge');
+  // ใบที่ถูกตีกลับแก้ได้แม้รอบปิดแล้ว — backend บอกมาทาง can_fix_rejected (ปุ่มต้องกดได้ ป้ายต้องบอกให้แก้)
+  const canFixRejected = round?.can_fix_rejected === true;
+  let badgeText = tt('news.openRoundBadge');
+  if (!round) {
+    badgeText = tt('news.noOpenRound');
+  } else if (canFixRejected && !acceptingNow) {
+    badgeText = tt('news.fixRejectedBadge');
+  } else if (round.phase === 'scheduled') {
+    badgeText = tt('news.scheduledBadge');
+  } else if (round.phase === 'expired') {
+    badgeText = tt('news.expiredBadge');
+  } else if (round.phase === 'closed') {
+    badgeText = tt('news.closedBadge');
+  }
 
   const currentResult = round && myResult ? myResult.find(r => r.round_id === round.round_id) : null;
   // ยืนยันแล้ว แก้ไขไม่ได้อีก (backend บล็อก 409) ปุ่มจึงต้องเปลี่ยนเป็นดูสถานะแทนที่จะชวนกดแล้วชนกำแพง
@@ -143,7 +153,7 @@ export function StudentNewsReal({ go, lang }) {
               <div style={{ fontSize: 15.5, color: 'var(--ink-500)', fontWeight: 600, marginBottom: currentResult ? 7 : 0 }}>{tt('news.yourStatusLabel')}</div>
               {currentResult && <StatusBadge status={STAFF_STATUS_TO_BADGE[currentResult.staff_status]} size="lg" lang={lang} />}
             </div>
-            <button className="btn btn-gold btn-lg" disabled={!acceptingNow && currentResult?.staff_status !== 'approved'}
+            <button className="btn btn-gold btn-lg" disabled={!acceptingNow && !canFixRejected && currentResult?.staff_status !== 'approved'}
               onClick={() => go(currentResult?.staff_status === 'approved' ? 'status' : 'formIntro')}>
               <Icon name="edit" size={18} /> {startBtnLabel}</button>
           </div>
@@ -231,6 +241,7 @@ export function ManageNewsReal({ toast, lang }) {
   const [imageFile, setImageFile] = useState(null);   // รูปใหม่ที่เพิ่งเลือก (ยังไม่อัปโหลด)
   const [dropImage, setDropImage] = useState(false);  // กดเอารูปเดิมออก
   const [imgError, setImgError] = useState('');
+  const [roundFilter, setRoundFilter] = useState('ALL');
   const tt = (key, vars) => t(lang, key, vars);
 
   const load = () => apiFetch('/news').then(setItems).catch(e => toast(e.message, 'error'));
@@ -293,32 +304,61 @@ export function ManageNewsReal({ toast, lang }) {
     }
   };
 
-  const itemsPage = usePagedList(items ?? [], 15);
+  // ตัวกรองเดียว = รอบ (ชื่อรอบมีปีอยู่แล้ว เช่น "รอบที่ 2/2569" จึงไม่ต้องมีตัวกรองปีแยก)
+  const filtered = (items ?? []).filter(n =>
+    roundFilter === 'ALL' || String(n.round_id) === roundFilter);
+  // 6 อันต่อหน้า — หน้านี้จะได้ไม่ยาวเกินหนึ่งจอ ไม่ต้องเลื่อนลงเรื่อย ๆ
+  const itemsPage = usePagedList(filtered, 6, roundFilter);
 
   if (!items) return <div className="fade-up"><SkeletonList count={5} /></div>;
 
   return (
     <div className="fade-up">
-      <PageHead title={tt('nav.officer.newsmgmt')} sub={tt('newsMgmt.sub')}
-        actions={<button className="btn btn-primary" onClick={() => openModal(null)}><Icon name="plus" size={17} /> {tt('newsMgmt.writeBtn')}</button>} />
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {items.length === 0 && <div style={{ color: 'var(--ink-500)', textAlign: 'center', padding: 30 }}>{tt('newsMgmt.noNews')}</div>}
-        {itemsPage.rows.map(n => (
-          <div key={n.news_id} className="card" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 15 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 11, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--blue-50)', color: 'var(--blue-600)' }}><Icon name="news" size={20} /></div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 17, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.title}</div>
-              <div style={{ fontSize: 14.5, color: 'var(--ink-500)', marginTop: 3 }}>{tt('news.roundSlash', { attempt: n.round.attempt_number, year: n.round.academic_year })} · {new Date(n.posted_at).toLocaleDateString('th-TH')} · {n.poster.first_name}</div>
-            </div>
-            {n.image_path && <div style={{ width: 64, flex: 'none' }}><NewsImage newsId={n.news_id} maxHeight={64} radius={9} /></div>}
-            <button className="btn btn-ghost btn-sm" onClick={() => openModal(n)}><Icon name="edit" size={15} /> {tt('newsMgmt.editBtn')}</button>
-            <button className="btn btn-ghost btn-sm" style={{ padding: 7, border: 'none', color: 'var(--fail)' }}
-              aria-label={tt('newsMgmt.deleteAria')} onClick={() => setDeleteTarget(n)}><Icon name="trash" size={16} /></button>
-          </div>
-        ))}
-        {itemsPage.pages > 1 && (
+      {/* ทั้งหน้ากว้างสูงสุด 1120 อยู่กลางจอ — ไม่ให้ชื่อหน้าอยู่ซ้ายสุด ปุ่มอยู่ขวาสุด */}
+      <div style={{ maxWidth: 1120, margin: '0 auto' }}>
+        <PageHead title={tt('nav.officer.newsmgmt')} sub={tt('newsMgmt.sub')}
+          actions={<button className="btn btn-primary" onClick={() => openModal(null)}><Icon name="plus" size={17} /> {tt('newsMgmt.writeBtn')}</button>} />
+
+        {items.length === 0 && <div className="card" style={{ color: 'var(--ink-500)', textAlign: 'center', padding: 40 }}>{tt('newsMgmt.noNews')}</div>}
+
+        {items.length > 0 && (
+          // การ์ดเดียวรวม: แถบตัวกรองด้านบน + รายการ (คั่นด้วยเส้น) + เลขหน้าท้ายการ์ด
+          // เดิมแต่ละประกาศเป็นการ์ดแยก ซ้อนกันยาวลงไปเรื่อย ๆ
           <div className="card" style={{ overflow: 'hidden' }}>
-            <Pagination page={itemsPage.page} pages={itemsPage.pages} onPage={itemsPage.setPage} lang={lang} />
+            <div style={{ padding: '16px 22px', display: 'flex', gap: 12, alignItems: 'center', background: 'var(--ink-50, #fafafa)', borderBottom: '1px solid var(--ink-200)' }}>
+              <Select style={{ width: 'auto', minWidth: 220 }} value={roundFilter} onChange={setRoundFilter} lang={lang}
+                ariaLabel={tt('newsMgmt.allRound')}
+                options={[{ value: 'ALL', label: tt('newsMgmt.allRound') },
+                  ...rounds.map(r => ({ value: String(r.round_id),
+                    label: tt('news.roundSlash', { attempt: r.attempt_number, year: r.academic_year }) }))]} />
+              <div style={{ flex: 1 }}></div>
+              <div style={{ fontSize: 15.5, color: 'var(--ink-500)', whiteSpace: 'nowrap' }}>{Math.min((itemsPage.page + 1) * 6, filtered.length)} / {filtered.length}</div>
+            </div>
+
+            {filtered.length === 0 && <div style={{ color: 'var(--ink-500)', textAlign: 'center', padding: 40 }}>{tt('newsMgmt.filterEmpty')}</div>}
+            {itemsPage.rows.map((n, i) => (
+              <div key={n.news_id} style={{ padding: '20px 22px', display: 'flex', alignItems: 'center', gap: 18,
+                borderTop: i === 0 ? 'none' : '1px solid var(--ink-100)' }}>
+                {n.image_path
+                  ? <div style={{ width: 76, height: 76, flex: 'none', borderRadius: 12, overflow: 'hidden' }}><NewsImage newsId={n.news_id} height={76} radius={12} /></div>
+                  : <div style={{ width: 76, height: 76, borderRadius: 12, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--blue-50)', color: 'var(--blue-600)' }}><Icon name="news" size={30} /></div>}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 19, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.title}</div>
+                  <div style={{ fontSize: 15.5, color: 'var(--ink-500)', marginTop: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {tt('news.roundSlash', { attempt: n.round.attempt_number, year: n.round.academic_year })} · {new Date(n.posted_at).toLocaleDateString('th-TH')} · {n.poster.first_name}
+                  </div>
+                </div>
+                <button className="btn btn-ghost" onClick={() => openModal(n)}><Icon name="edit" size={17} /> {tt('newsMgmt.editBtn')}</button>
+                <button className="btn btn-ghost" style={{ padding: 10, border: 'none', color: 'var(--fail)' }}
+                  aria-label={tt('newsMgmt.deleteAria')} onClick={() => setDeleteTarget(n)}><Icon name="trash" size={20} /></button>
+              </div>
+            ))}
+
+            {itemsPage.pages > 1 && (
+              <div style={{ borderTop: '1px solid var(--ink-200)' }}>
+                <Pagination page={itemsPage.page} pages={itemsPage.pages} onPage={itemsPage.setPage} lang={lang} />
+              </div>
+            )}
           </div>
         )}
       </div>

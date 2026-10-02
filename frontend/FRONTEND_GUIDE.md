@@ -172,9 +172,13 @@ const PAGE_PATH = {
 
 ### `examFormReal.jsx` → `ExamFormReal`
 - `GET /rounds/active` — ได้รอบ+รายวิชาของรอบนั้น พร้อม flag `already_passed` ต่อวิชา (วิชาที่เคยผ่านแล้วจากรอบก่อนไม่ต้องกรอกซ้ำ)
+  และ `can_fix_rejected` — ถ้า `true` ฟอร์มเปิดให้แก้ได้แม้ `phase` เป็น closed/expired (ใบที่ถูกตีกลับแก้ส่งใหม่ได้หลังปิดรอบ) ฟอร์มกรอกได้เมื่อ `phase === "active" || can_fix_rejected`
 - เช็ค `GET /exam-results/me` หาใบเก่าของรอบนี้ — ถ้า `approved` แล้วล็อกแก้ไม่ได้, ถ้า `pending`/`rejected` ดึงคำตอบเดิมมาเติมในฟอร์ม
-- Submit: `POST /exam-results` (ได้ `result_id`) → วนอัปโหลดไฟล์ทีละไฟล์ `POST /exam-results/:id/certificates`
-- `FileSlot` component ย่อยท้ายไฟล์ — เลือกไฟล์ PDF
+- **ไฟล์หลักฐาน (แก้ 1 ต.ค. 2569):** แนบได้หลายไฟล์ PDF/JPG/PNG รวมไม่เกิน 5 ไฟล์ ไฟล์ละไม่เกิน 10 MB (ค่าคงที่ + ป้ายภาษาไทยอยู่ที่ `evidenceFiles.js`)
+  ไฟล์เดิมของใบแสดงพร้อมปุ่ม "นำออก" (ลบจริงตอนกดส่ง), ไฟล์ใหม่ที่เลือกแสดงเป็นรายการ, ตรวจชนิด/ขนาด/จำนวนฝั่งหน้าจอก่อน (backend ตรวจซ้ำจากเนื้อไฟล์จริง)
+- **ลำดับตอนกดส่ง** (เพราะ backend ให้แก้ไฟล์ได้เฉพาะตอนรอบเปิดหรือใบถูกตีกลับ):
+  - ใบใหม่: `POST /exam-results` (ได้ `result_id`) → อัปโหลดทีละไฟล์ `POST /exam-results/:id/certificates`
+  - ใบเดิม: `DELETE /certificates/:id` ไฟล์ที่นำออก → อัปโหลดไฟล์ใหม่ → `POST /exam-results` (ถ้าส่งผลก่อน ใบจะกลายเป็นรอตรวจ แล้วแก้ไฟล์ไม่ได้ในกรณีรอบปิดแล้ว)
 
 ### `studentStatusReal.jsx` → `StudentStatusReal` + `StudentHistoryReal`
 - ทั้งคู่ใช้ `GET /exam-results/me` ตัวเดียวกัน (เรียง `submitted_at desc` มาจาก backend)
@@ -255,8 +259,10 @@ const PAGE_PATH = {
 ## 10. `reportsReal.jsx` — รายงาน + export PDF
 
 - โหลดปี/รอบแยกจาก dashboard (มี dropdown เลือกเองในหน้านี้)
-- `GET /dashboard/stats?round_id=` แสดงบนจอ, ปุ่ม "พิมพ์" (`window.print()`) และปุ่ม "ดาวน์โหลด PDF" (`GET /dashboard/export?round_id=` — officer เท่านั้น, backend สร้างไฟล์ PDF จริงส่งกลับมา, fetch เป็น blob เพราะต้อง login)
-- ตัวเลขบนจอกับใน PDF มาจาก endpoint เดียวกัน รับประกันว่าตรงกันเสมอ
+- `GET /dashboard/stats?round_id=` แสดงบนจอ, ปุ่ม "พิมพ์" (`window.print()` + CSS `@media print`) และปุ่ม "ดาวน์โหลด PDF"
+  ซึ่งถ่ายภาพกล่องรายงานบนจอเป็น PDF ฝั่งเบราว์เซอร์ (`exportReportPdf.js` — html2canvas + jsPDF โหลดตอนกดเท่านั้น) จึงได้หน้าตาเหมือนบนจอ
+  (endpoint PDF ฝั่ง server `GET /dashboard/export?round_id=` ยังอยู่ แต่ปุ่มบนหน้านี้ไม่ได้ใช้แล้ว)
+- แผง "ส่งออกข้อมูล" (officer): รายงานสรุป, ผ่าน/ไม่ผ่านครั้งแรก, ผ่าน/ไม่ผ่านภายในปีแรก (`yearExports.js` → `GET /dashboard/export-first-year`), ข้อมูลนักศึกษาทั้งรุ่น
 
 ---
 

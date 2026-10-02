@@ -17,11 +17,9 @@ export const findByResult = (result_id) =>
 export const findById = (id) =>
   prisma.certificate.findUnique({ where: { certificate_id: Number(id) } });
 
-// เอกสารประเภทเดียวกันของผลสอบใบเดียวกัน — ใช้หาใบเก่าตอนนักศึกษาอัปโหลดทับ
-export const findByResultAndType = (result_id, certificate_type) =>
-  prisma.certificate.findMany({
-    where: { result_id: Number(result_id), certificate_type },
-  });
+// นับว่าใบผลสอบใบนี้แนบไฟล์ไว้แล้วกี่ไฟล์ — ใช้กันแนบเกินจำนวนที่กำหนด (5 ไฟล์ต่อใบ)
+export const countByResult = (result_id) =>
+  prisma.certificate.count({ where: { result_id: Number(result_id) } });
 
 export const removeById = (id) =>
   prisma.certificate.delete({ where: { certificate_id: Number(id) } });

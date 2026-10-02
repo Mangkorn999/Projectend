@@ -94,11 +94,20 @@ export function FormIntro({ go, lang='TH' }) {
   const [blockedSub, setBlockedSub] = useState(''); // คำอธิบายใต้หัวข้อ (ว่าง = ใช้ข้อความมาตรฐาน)
   // ผ่านครบแล้ว = จบเรื่อง ไม่ต้องรอรอบถัดไป → พาไปดูผลที่หน้าสถานะ แทนที่จะบอกให้รอประกาศ
   const [allPassed, setAllPassed] = useState(false);
+  // กำลังแก้ใบที่ถูกตีกลับ (อาจหลังรอบปิดแล้ว) — ปุ่มเปลี่ยนเป็น "แก้ไขผลสอบ"
+  const [fixingRejected, setFixingRejected] = useState(false);
 
   useEffect(() => {
     apiFetch('/rounds/active')
       .then((active) => {
         if (!active) { setBlocked(tt('examform.noActiveRound')); return; }
+
+        // มีใบที่ถูกตีกลับรอแก้อยู่ — แก้และส่งใหม่ได้แม้รอบไม่ได้เปิดรับแล้ว (backend บอกมาทาง can_fix_rejected)
+        if (active.can_fix_rejected === true) {
+          setFixingRejected(true);
+          setRound(active);
+          return;
+        }
 
         // backend ส่งรอบที่ตั้งเปิดไว้ล่วงหน้ามาด้วยแล้ว (phase = scheduled)
         // บอกวันที่ไปเลย ดีกว่าขึ้นว่า "ไม่มีรอบเปิด" แล้วนักศึกษาต้องเดาว่าต้องรอถึงเมื่อไหร่
@@ -115,6 +124,13 @@ export function FormIntro({ go, lang='TH' }) {
         // เลยวันปิดรับแล้วแต่เจ้าหน้าที่ยังไม่กดปิด — บอกตรงๆ ว่าหมดเวลา ไม่ใช่ปล่อยให้กดแล้วเจอ error
         if (active.phase === 'expired') {
           setBlocked(tt('examform.expiredRound'));
+          setBlockedSub(tt('examform.expiredSub'));
+          return;
+        }
+
+        // เจ้าหน้าที่ปิดรอบแล้ว (และไม่มีใบที่ถูกตีกลับให้แก้)
+        if (active.phase === 'closed') {
+          setBlocked(tt('examform.closedRound'));
           setBlockedSub(tt('examform.expiredSub'));
           return;
         }
@@ -166,9 +182,9 @@ export function FormIntro({ go, lang='TH' }) {
               display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 18px' }}>
               <Icon name="edit" size={30} />
             </div>
-            <h3 style={{ margin:'0 0 8px', fontSize:20, fontWeight:800 }}>{tt('formintro.cardTitle')}</h3>
+            <h3 style={{ margin:'0 0 8px', fontSize:20, fontWeight:800 }}>{fixingRejected ? tt('formintro.fixTitle') : tt('formintro.cardTitle')}</h3>
             <p style={{ margin:'0 0 24px', color:'var(--ink-500)', fontSize:16, lineHeight:1.6 }}>
-              {tt('formintro.cardSub', { n: round.subjects?.length ?? 8 })}</p>
+              {fixingRejected ? tt('formintro.fixSub') : tt('formintro.cardSub', { n: round.subjects?.length ?? 8 })}</p>
             <div style={{ display:'flex', flexDirection:'column', gap:10, textAlign:'left', marginBottom:26 }}>
               {[1,2,3].map(i=>(
                 <div key={i} style={{ display:'flex', alignItems:'center', gap:11, fontSize:15.5, color:'var(--ink-900)' }}>
@@ -179,7 +195,7 @@ export function FormIntro({ go, lang='TH' }) {
               ))}
             </div>
             <button className="btn btn-primary btn-lg" style={{ width:'100%', justifyContent:'center' }} onClick={()=>go('form')}>
-              {tt('news.startBtn')} <Icon name="arrowR" size={17}/></button>
+              {fixingRejected ? tt('news.editBtn') : tt('news.startBtn')} <Icon name="arrowR" size={17}/></button>
           </>
         )}
       </div>

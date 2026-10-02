@@ -15,14 +15,16 @@ export const requireRole = (...allowedRoles) => {
       return res.status(401).json({
         success: false,
         code: "auth_required",
-        message: "ยังไม่ได้ login",
+        message: "กรุณาเข้าสู่ระบบก่อนใช้งาน",
       });
     }
 
+    // ข้อความที่ผู้ใช้เห็นต้องไม่มีชื่อ role ภาษาอังกฤษ (officer/reviewer/...) — บอกแค่ว่าไม่มีสิทธิ์ + ทำอะไรต่อ
+    // (อยากรู้ว่า route นี้ต้องการ role อะไร ดูได้จากไฟล์ routes ของโมดูลนั้น)
     if (!allowedRoles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: `ไม่มีสิทธิ์เข้าถึง — ต้องการ role: ${allowedRoles.join(" หรือ ")}`,
+        message: "ท่านไม่มีสิทธิ์ใช้งานส่วนนี้ หากจำเป็นต้องใช้งาน กรุณาติดต่อเจ้าหน้าที่คณะ",
       });
     }
 

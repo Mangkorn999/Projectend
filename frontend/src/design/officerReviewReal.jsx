@@ -19,7 +19,7 @@ import { t, roomName } from './i18n.js';
 
 const STAFF_STATUS_TO_TAB = { pending: 'SUBMITTED', approved: 'CONFIRMED', rejected: 'REJECTED' };
 const TABS = ['SUBMITTED', 'REJECTED', 'CONFIRMED', 'NOT_STARTED'];
-const PER_PAGE = 15; // ลดจาก 20 — คิวยาวแล้วไม่ขึ้นเลขหน้าจนกว่าจะครบ 20 แถวรู้สึกว่าเลื่อนนาน
+const PER_PAGE = 10; // ลดจาก 15 — เห็นเลขหน้าเร็วขึ้น ไม่ต้องรอคิวยาวถึง 15 แถวก่อนถึงจะขึ้น
 
 // รอบที่ควรเลือกให้ตอนเปิดหน้ามา — รอบที่เปิดรับอยู่ ถ้าไม่มีก็รอบล่าสุด (rounds เรียงใหม่→เก่ามาแล้ว)
 const defaultRound = (rounds) => rounds.find(r => r.status === 'open') || rounds[0];
@@ -172,7 +172,8 @@ export function OfficerReviewReal({ go, setSel, setDetailFrom, lang, restoreView
                           <div className="mono" style={{ fontSize: 14, color: 'var(--ink-500)' }}>{s.sid}</div></div></div></td>
                         <td><span className="chip" style={{ fontSize: 14 }}>{roomName(lang, s.room)}</span></td>
                         <td className="tnum" style={{ fontWeight: 700, color: s.allPass ? 'var(--pass)' : 'var(--ink-800)' }}>{s.passedCount}/{s.subjectCount}</td>
-                        <td>{s.files.length ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--status-reject-fg)', fontSize: 15 }}><Icon name="pdf" size={15} /> {tt('officer.review.filesCount', { n: s.files.length })}</span> : <span style={{ color: 'var(--ink-400)' }}>—</span>}</td>
+                        {/* แนบได้หลายไฟล์ทั้ง PDF และรูปภาพ — โชว์แค่จำนวนไฟล์ (ชนิดไฟล์ดูได้ในหน้ารายละเอียด) */}
+                        <td>{s.files.length ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--navy-700)', fontSize: 15 }}><Icon name="doc" size={15} /> {tt('officer.review.filesCount', { n: s.files.length })}</span> : <span style={{ color: 'var(--ink-400)' }}>—</span>}</td>
                         <td style={{ color: 'var(--ink-500)', fontSize: 15 }}>{s.submittedAt}</td>
                         <td style={{ textAlign: 'right' }}><button className="btn btn-subtle btn-sm" style={{ background: 'var(--navy-700)', color: '#fff' }}>{tt('officer.review.reviewBtn')} <Icon name="chevR" size={14} /></button></td>
                       </tr>

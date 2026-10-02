@@ -96,7 +96,7 @@ export const login = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ success: false, message: "server error" });
+    res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดภายในระบบ กรุณาลองใหม่อีกครั้ง" });
   }
 };
 
@@ -173,7 +173,7 @@ export const changePassword = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ success: false, message: "server error" });
+    res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดภายในระบบ กรุณาลองใหม่อีกครั้ง" });
   }
 };
 
@@ -198,6 +198,6 @@ export const getme = async (req, res) => {
     // ถ้าไม่มี token ก็จะ เเจ้ง error server
   } catch (error) {
     console.error(error);
-    res.status(500).json({ success: false, message: "server error" });
+    res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดภายในระบบ กรุณาลองใหม่อีกครั้ง" });
   }
 };

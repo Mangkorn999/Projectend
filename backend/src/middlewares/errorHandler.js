@@ -23,9 +23,16 @@ export const errorHandler = (err, req, res, next) => {
   const isNotFound = err.code === "P2025";
   // P2003 = อ้างอิงข้อมูลที่ไม่มีอยู่ หรือ ลบ/แก้ข้อมูลที่ยังมีตารางอื่นอ้างถึงอยู่
   const isForeignKey = err.code === "P2003";
-  // ค่าที่ส่งมา Prisma รับไม่ได้ (ผิดชนิด / ยาวเกิน / เป็น NaN) = ความผิดของ request ไม่ใช่ server พัง
+  // ส่งเลข id ใหญ่เกินกว่าคอลัมน์ตัวเลขเก็บได้ (เช่น /api/certificates/99999999999)
+  // Prisma โยน error แบบไม่มี code มา (PrismaClientUnknownRequestError) ข้อความดิบมีชื่อ model/ชนิดคอลัมน์ภายใน
+  // เดิมหลุดเป็น 500 (ตอน NODE_ENV=development ผู้ใช้เห็นข้อความดิบของ Prisma ทั้งก้อน) — เป็นความผิดของ request ต้องเป็น 400
+  const isNumberTooBig =
+    err.name === "PrismaClientUnknownRequestError" &&
+    typeof err.message === "string" &&
+    err.message.includes("Unable to fit integer value");
+  // ค่าที่ส่งมา Prisma รับไม่ได้ (ผิดชนิด / ยาวเกิน / เป็น NaN / ตัวเลขใหญ่เกิน) = ความผิดของ request ไม่ใช่ server พัง
   const isBadInput =
-    err.name === "PrismaClientValidationError" || err.code === "P2000";
+    err.name === "PrismaClientValidationError" || err.code === "P2000" || isNumberTooBig;
 
   let statusCode;
   if (err.statusCode) {
@@ -69,10 +76,10 @@ export const errorHandler = (err, req, res, next) => {
   }
   // 500 = โค้ดเราพังเอง — ข้อความดิบมักมีชื่อตาราง/คอลัมน์/query ของ Prisma ห้ามส่งให้ผู้ใช้ (ดูได้ใน log ของ server)
   if (statusCode === 500 && process.env.NODE_ENV !== "development") {
-    message = "เกิดข้อผิดพลาดภายใน server";
+    message = "เกิดข้อผิดพลาดภายในระบบ กรุณาลองใหม่อีกครั้ง";
   }
   if (!message) {
-    message = "เกิดข้อผิดพลาดภายใน server";
+    message = "เกิดข้อผิดพลาดภายในระบบ กรุณาลองใหม่อีกครั้ง";
   }
 
   res.status(statusCode).json({

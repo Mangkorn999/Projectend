@@ -65,7 +65,7 @@ export const createAll = async (req, res, next) => {
 export const updatasubject = async (req, res, next) => {
   try {
     const id = Number(req.params.id);
-    if (!Number.isInteger(id)) throw httpError("subject id ไม่ถูกต้อง", 400);
+    if (!Number.isInteger(id)) throw httpError("ไม่พบรายวิชาที่ระบุ กรุณารีเฟรชหน้าแล้วลองใหม่อีกครั้ง", 400);
     const data = cleanSubjectInput(req.body, false);
     if (data.subject_code) await ensureCodeFree(data.subject_code, id);
     const subject = await subjectrepo.updata(id, data);
@@ -78,7 +78,7 @@ export const updatasubject = async (req, res, next) => {
 export const deleteSubject = async (req, res, next) => {
   try {
     const id = Number(req.params.id);
-    if (!Number.isInteger(id)) throw httpError("subject id ไม่ถูกต้อง", 400);
+    if (!Number.isInteger(id)) throw httpError("ไม่พบรายวิชาที่ระบุ กรุณารีเฟรชหน้าแล้วลองใหม่อีกครั้ง", 400);
 
     // รอบที่เลือกวิชานี้ไว้ (subject_ids เป็น array ธรรมดา ไม่มี FK คุม) — ลบแล้วรอบนั้นจะเหลือวิชาไม่ครบ/ไม่เหลือเลย
     const rounds = await subjectrepo.findRoundsUsing(id);

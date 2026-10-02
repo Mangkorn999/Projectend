@@ -10,7 +10,7 @@ import * as subjectsRepo from "../subjects/subjects.repository.js";
 import * as roundsRepo from "../rounds/rounds.repository.js";
 import { calcGraduationYear, validateGraduationYear, isBlankYear } from "../../utils/academicYear.js";
 import { buildSubjectListPdf } from "./students.pdf.js";
-import { buildXlsx, sendXlsx } from "../../utils/xlsxExport.js";
+import { buildXlsx, buildXlsxWorkbook, sendXlsx } from "../../utils/xlsxExport.js";
 
 // สร้าง Error พร้อม statusCode ให้ errorHandler จัดการต่อ (ท่าเดียวกับ module อื่น)
 const httpError = (message, statusCode) => {
@@ -326,13 +326,13 @@ export const bulkSetEligible = async (req, res, next) => {
     // ถ้าปล่อยผ่าน คำขอที่ส่งมาแค่ {"exam_eligible": false} (ลืมใส่ student_ids)
     // จะปิดสิทธิ์กรอกผลสอบของนักศึกษา "ทั้งระบบ" ในคำสั่งเดียว โดยตอบ 200 เหมือนปกติ
     if (!Array.isArray(student_ids) || student_ids.length === 0) {
-      throw httpError("ต้องระบุ student_ids เป็น array อย่างน้อย 1 รายการ", 400);
+      throw httpError("กรุณาเลือกนักศึกษาอย่างน้อย 1 คน", 400);
     }
     if (typeof exam_eligible !== "boolean") {
-      throw httpError("exam_eligible ต้องเป็น true หรือ false", 400);
+      throw httpError("กรุณาเลือกว่าต้องการเปิดหรือปิดสิทธิ์กรอกผลสอบ", 400);
     }
     if (student_ids.some((id) => typeof id !== "string" || !id.trim())) {
-      throw httpError("student_ids ต้องเป็นรหัสนักศึกษาที่ไม่ว่าง", 400);
+      throw httpError("รายชื่อนักศึกษาที่เลือกไม่ถูกต้อง กรุณารีเฟรชหน้าแล้วเลือกใหม่อีกครั้ง", 400);
     }
 
     const result = await studentRepo.bulkSetEligible(
@@ -763,7 +763,7 @@ export const bulkRemove = async (req, res, next) => {
       ids.length === 0 ||
       ids.some((id) => typeof id !== "string" || !id.trim())
     ) {
-      throw httpError("ต้องระบุ student_ids เป็น array ของรหัสนักศึกษาอย่างน้อย 1 รายการ", 400);
+      throw httpError("กรุณาเลือกนักศึกษาอย่างน้อย 1 คน", 400);
     }
     if (ids.length > MAX_BULK_DELETE) {
       throw httpError(`ลบได้ครั้งละไม่เกิน ${MAX_BULK_DELETE} คน`, 400);
@@ -816,7 +816,7 @@ export const removePendingAccounts = async (req, res, next) => {
       ids.length === 0 ||
       ids.some((id) => typeof id !== "string" || !id.trim())
     ) {
-      throw httpError("ต้องระบุ student_ids เป็น array ของรหัสนักศึกษาอย่างน้อย 1 รายการ", 400);
+      throw httpError("กรุณาเลือกนักศึกษาอย่างน้อย 1 คน", 400);
     }
     if (ids.length > MAX_BULK_DELETE) {
       throw httpError(`ลบได้ครั้งละไม่เกิน ${MAX_BULK_DELETE} คน`, 400);
@@ -884,7 +884,7 @@ export const resetPassword = async (req, res, next) => {
     );
     res.json({
       success: true,
-      data: { message: "ตั้งรหัสผ่านใหม่แล้ว (เลขบัตร ปชช เดิม) นักศึกษา login ได้ทันที" },
+      data: { message: "ตั้งรหัสผ่านใหม่แล้ว (เลขบัตรประชาชนเดิม) นักศึกษาเข้าสู่ระบบได้ทันที" },
     });
   } catch (err) {
     next(err);
@@ -895,12 +895,12 @@ export const resetPassword = async (req, res, next) => {
 const resolveSubjectQuery = async (query) => {
   const { subject_code, passed, round_id, year } = query;
   if (!subject_code || (passed !== "true" && passed !== "false")) {
-    const err = new Error("ต้องระบุ subject_code และ passed (true หรือ false)");
+    const err = new Error("กรุณาเลือกรายวิชา และเลือกว่าต้องการรายชื่อผู้ที่สอบผ่านหรือไม่ผ่าน");
     err.statusCode = 400;
     throw err;
   }
   if (!round_id && !year) {
-    const err = new Error("ต้องระบุ round_id หรือ year อย่างใดอย่างหนึ่ง");
+    const err = new Error("กรุณาเลือกรอบสอบหรือปีการศึกษาอย่างใดอย่างหนึ่ง");
     err.statusCode = 400;
     throw err;
   }
@@ -969,7 +969,7 @@ export const exportSubjectList = async (req, res, next) => {
   try {
     const { subject, wantPassed, scopeLabel, rows } = await resolveSubjectQuery(req.query);
     const format = req.query.format ?? "pdf"; // ไม่ส่ง format = PDF เหมือนเดิม (ปุ่มเดิมของหน้าจอไม่พัง)
-    if (format !== "pdf" && format !== "xlsx") throw httpError("format ต้องเป็น pdf หรือ xlsx", 400);
+    if (format !== "pdf" && format !== "xlsx") throw httpError("รูปแบบไฟล์ไม่ถูกต้อง กรุณาเลือก Excel หรือ PDF", 400);
 
     const fileName = `รายชื่อ-${wantPassed ? "ผ่าน" : "ไม่ผ่าน"}-${subject.subject_code}.${format}`;
 
@@ -1013,6 +1013,12 @@ export const exportSubjectList = async (req, res, next) => {
   }
 };
 
+// วันที่-เวลาแบบไทยสำหรับคอลัมน์ในไฟล์ export — ไม่มีค่า (เช่น ยังไม่ยืนยัน) ให้เป็นช่องว่าง
+const formatThaiDateTime = (d) =>
+  d
+    ? new Date(d).toLocaleString("th-TH", { timeZone: "Asia/Bangkok", dateStyle: "short", timeStyle: "short" })
+    : "";
+
 // สถานะของใบผลสอบ (ภาษาไทย) สำหรับคอลัมน์ในไฟล์ export
 const paperStatusLabel = (r) => {
   if (r.student_status === "draft") return "ยังกรอกไม่เสร็จ";
@@ -1028,7 +1034,7 @@ const paperStatusLabel = (r) => {
 const EXPORT_MAX_IDS = 5000;
 export const exportStudents = async (req, res, next) => {
   try {
-    const { student_ids, year } = req.body ?? {};
+    const { student_ids, year, by_round } = req.body ?? {};
     let where;
     let scopeName;
     if (student_ids !== undefined) {
@@ -1038,7 +1044,7 @@ export const exportStudents = async (req, res, next) => {
         student_ids.length > EXPORT_MAX_IDS ||
         !student_ids.every((id) => typeof id === "string" && id.length > 0 && id.length <= 20)
       ) {
-        throw httpError(`student_ids ต้องเป็นรายการรหัสนักศึกษา 1-${EXPORT_MAX_IDS} รายการ`, 400);
+        throw httpError(`กรุณาเลือกนักศึกษาที่ต้องการส่งออก 1-${EXPORT_MAX_IDS} คน`, 400);
       }
       where = { ids: [...new Set(student_ids)] };
       scopeName = "ตามที่เลือก";
@@ -1046,7 +1052,7 @@ export const exportStudents = async (req, res, next) => {
       where = { year };
       scopeName = `รุ่น ${year}`;
     } else {
-      throw httpError("ต้องระบุ student_ids หรือ year (พ.ศ. 4 หลัก) อย่างใดอย่างหนึ่ง", 400);
+      throw httpError("กรุณาเลือกนักศึกษาที่ต้องการส่งออก หรือเลือกปีการศึกษา (พ.ศ.) อย่างใดอย่างหนึ่ง", 400);
     }
 
     const students = await studentRepo.findForExport(where);
@@ -1062,6 +1068,8 @@ export const exportStudents = async (req, res, next) => {
         student_id: s.student_id,
         first_name: s.user.first_name,
         last_name: s.user.last_name,
+        first_name_en: s.first_name_en,
+        last_name_en: s.last_name_en,
         room_name: s.room?.room_name ?? "",
         academic_year: s.academic_year,
         email: s.user.email,
@@ -1075,12 +1083,14 @@ export const exportStudents = async (req, res, next) => {
       };
     });
 
-    const buffer = await buildXlsx({
+    const studentSheet = {
       sheetName: "ข้อมูลนักศึกษา",
       columns: [
         { header: "รหัสนักศึกษา", key: "student_id", width: 16 },
         { header: "ชื่อ", key: "first_name", width: 18 },
         { header: "นามสกุล", key: "last_name", width: 20 },
+        { header: "ชื่อ (อังกฤษ)", key: "first_name_en", width: 18 },
+        { header: "นามสกุล (อังกฤษ)", key: "last_name_en", width: 20 },
         { header: "ห้อง", key: "room_name", width: 14 },
         { header: "ปีการศึกษาที่จบ", key: "academic_year", width: 16 },
         { header: "อีเมล", key: "email", width: 28 },
@@ -1091,8 +1101,58 @@ export const exportStudents = async (req, res, next) => {
         { header: "ผ่านกี่วิชา (ใบล่าสุด)", key: "passed_text", width: 20 },
       ],
       rows,
-    });
-    sendXlsx(res, `ข้อมูลนักศึกษา-${scopeName}.xlsx`, buffer);
+    };
+
+    let buffer;
+    if (by_round === true) {
+      // แยกตามรอบ: ชีตแรกเป็นข้อมูลนักศึกษาเหมือนเดิม แล้วต่อด้วย 1 ชีตต่อ 1 รอบสอบ
+      // แต่ละชีตมีเฉพาะนักศึกษาที่มีใบผลสอบในรอบนั้น เรียงรอบใหม่ → เก่า
+      const roundSheets = new Map(); // "ปี-ครั้งที่" → { year, attempt, rows }
+      for (const s of students) {
+        for (const r of s.exam_results) {
+          const key = `${r.round.academic_year}-${r.round.attempt_number}`;
+          if (!roundSheets.has(key)) {
+            roundSheets.set(key, { year: r.round.academic_year, attempt: r.round.attempt_number, rows: [] });
+          }
+          roundSheets.get(key).rows.push({
+            student_id: s.student_id,
+            first_name: s.user.first_name,
+            last_name: s.user.last_name,
+            first_name_en: s.first_name_en,
+            last_name_en: s.last_name_en,
+            room_name: s.room?.room_name ?? "",
+            paper_status: paperStatusLabel(r),
+            passed_text: `${r.subject_results.filter((sr) => sr.is_passed).length}/${r.subject_results.length}`,
+            submitted_at: formatThaiDateTime(r.submitted_at),
+            confirmed_at: formatThaiDateTime(r.confirmed_at),
+          });
+        }
+      }
+      const roundColumns = [
+        { header: "รหัสนักศึกษา", key: "student_id", width: 16 },
+        { header: "ชื่อ", key: "first_name", width: 18 },
+        { header: "นามสกุล", key: "last_name", width: 20 },
+        { header: "ชื่อ (อังกฤษ)", key: "first_name_en", width: 18 },
+        { header: "นามสกุล (อังกฤษ)", key: "last_name_en", width: 20 },
+        { header: "ห้อง", key: "room_name", width: 14 },
+        { header: "สถานะใบผลสอบ", key: "paper_status", width: 18 },
+        { header: "ผ่านกี่วิชา", key: "passed_text", width: 14 },
+        { header: "ส่งเมื่อ", key: "submitted_at", width: 20 },
+        { header: "ยืนยันเมื่อ", key: "confirmed_at", width: 20 },
+      ];
+      const sortedRounds = [...roundSheets.values()].sort((a, b) => b.year - a.year || a.attempt - b.attempt);
+      buffer = await buildXlsxWorkbook([
+        studentSheet,
+        ...sortedRounds.map((r) => ({
+          sheetName: `รอบ ${r.attempt}-${r.year}`,
+          columns: roundColumns,
+          rows: r.rows,
+        })),
+      ]);
+    } else {
+      buffer = await buildXlsx(studentSheet);
+    }
+    sendXlsx(res, `ข้อมูลนักศึกษา-${scopeName}${by_round === true ? "-แยกรอบ" : ""}.xlsx`, buffer);
   } catch (err) {
     next(err);
   }

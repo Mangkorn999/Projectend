@@ -9,9 +9,10 @@ import { Icon } from './data.jsx';
 import { phaseOf, phaseLabel, phaseBadgeClass } from './roundPhase.js';
 import { SkeletonDashboard } from './skeletons.jsx';
 import { PageHead, StatCard, Donut, BarRow, MultiLineChart, MultiBarChart, ColumnChart, Modal, Empty,
-  FirstAttemptSubjectTable, Select, ExportMenu } from './components.jsx';
-import { apiFetch, downloadFile } from './api.js';
+  FirstAttemptSubjectTable, Select } from './components.jsx';
+import { apiFetch } from './api.js';
 import { t, subjectName, roomName } from './i18n.js';
+import { SubjectResultModal } from './subjectResultModal.jsx';
 
 /* แท็บ "รวมทั้งปี" — ค่าคงที่ตัวเดียวใช้ทั้งไฟล์ จะได้ไม่พิมพ์ string ซ้ำแล้วสะกดต่างกัน */
 const ALL_ROUNDS = 'all';
@@ -21,11 +22,16 @@ const YEAR_ONLY_TABS = ['firstBySubject', 'firstCount'];
 
 export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreView, onRestoreConsumed, toast }) {
   const tt = (key, vars) => t(lang, key, vars);
-  // คลิก "ผ่าน/ไม่ผ่าน" ในการ์ดอัตราผ่านรายวิชา — พาไปหน้าข้อมูลนักศึกษา กรองเฉพาะคนที่ผ่าน/ไม่ผ่านวิชานั้น (ข้อมูลจริง ไม่ใช่ mock)
-  // แนบ tab/mainTab/year ปัจจุบันไปด้วย — ใช้ตอนกดปุ่ม "กลับไปหน้าแดชบอด" ที่หน้านักศึกษา จะได้กลับมาที่ widget เดิม
-  const goToSubjectStudents = (subjectCode, passed, subjectFullName) => {
-    setStudentsFilter?.({ kind: 'subject', subjectCode, passed, subjectFullName, year, tab, mainTab });
-    go('students');
+  // คลิก "ผ่าน/ไม่ผ่าน" ในการ์ดอัตราผ่านรายวิชา — เปิดหน้าต่างรายชื่อนักศึกษาของวิชานั้นบนแดชบอร์ดเลย ไม่ต้องเปลี่ยนหน้า
+  // (หน้าต่างเป็น component กลางใน subjectResultModal.jsx ตัวเดียวกับหน้ารายงานสรุป)
+  // จำขอบเขตที่ดูอยู่ ณ ตอนกดไว้ใน target: แท็บ "รวมทั้งปี" = ทั้งปี, แท็บรอบ = รอบนั้น
+  const [subjectTarget, setSubjectTarget] = useState(null); // { subjectCode, subjectName, passed, scope } | null
+  const openSubjectList = (subjectCode, passed, subjectFullName) => {
+    let scope = { roundId: Number(tab) };
+    if (tab === ALL_ROUNDS) {
+      scope = { year };
+    }
+    setSubjectTarget({ subjectCode, subjectName: subjectFullName, passed, scope });
   };
   // ปุ่ม "ดูรายชื่อ" ในการ์ดร้อยละผ่านครั้งแรกย้อนหลัง — targetYear เป็นปีของการ์ดที่กด ไม่ใช่ year (ตัวเลือกบนสุด) เพราะการ์ดนี้อยู่นอกโซนที่ผูกกับ year
   const goToFirstAttemptStudents = (targetYear, passed) => {
@@ -221,8 +227,8 @@ export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreVi
 
             {mainTab === 'subjects' && (
               tab === ALL_ROUNDS
-                ? <SubjectRateCard perSubject={yearSummary?.perSubject || []} lang={lang} tt={tt} title={tt('dashReal.subjectRateYearTitle')} onSubjectClick={goToSubjectStudents} />
-                : showingRound && <SubjectRateCard perSubject={stats.perSubject} subjectPassRate={stats.subjectPassRate} lang={lang} tt={tt} onSubjectClick={goToSubjectStudents} />
+                ? <SubjectRateCard perSubject={yearSummary?.perSubject || []} lang={lang} tt={tt} title={tt('dashReal.subjectRateYearTitle')} onSubjectClick={readonly ? undefined : openSubjectList} />
+                : showingRound && <SubjectRateCard perSubject={stats.perSubject} subjectPassRate={stats.subjectPassRate} lang={lang} tt={tt} onSubjectClick={readonly ? undefined : openSubjectList} />
             )}
 
             {/* 2 แท็บนี้มีให้กดเฉพาะตอน "รวมทั้งปี" (ดู items ของ MainTabs ข้างบน)
@@ -243,7 +249,7 @@ export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreVi
                   { key: 'fullPass', label: tt('dashReal.colFullPass') },
                 ]} />
                 <div key={reportTab} className="blur-in" style={{ marginTop: 14 }}>
-                  {reportTab === 'firstRate' && <FirstAttemptPassRate history={reportHistory} tt={tt} wide yearPicker={reportYearPicker} onViewStudents={goToFirstAttemptStudents} onExportError={msg => toast?.(msg, 'error')} />}
+                  {reportTab === 'firstRate' && <FirstAttemptPassRate history={reportHistory} tt={tt} wide yearPicker={reportYearPicker} onViewStudents={goToFirstAttemptStudents} />}
                   {reportTab === 'subjectHistory' && <SubjectHistoryChart history={reportHistory} firstRoundSubjects={firstRoundSubjects} tt={tt} yearPicker={reportYearPicker} />}
                   {reportTab === 'fullPass' && <YearCompare history={reportHistory} lang={lang} tt={tt} yearPicker={reportYearPicker} />}
                 </div>
@@ -256,7 +262,7 @@ export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreVi
       {/* ─── โซนผู้บริหาร: ตัวเลขทางการของปีที่เลือก (hero + กราฟรายครั้งที่สอบ) ─── */}
       {readonly && yearSummary && (
         <ExecutiveOverview year={yearSummary} history={history}
-          perSubject={firstRoundSubjects[year] || yearSummary.perSubject} lang={lang} tt={tt} />
+          lang={lang} tt={tt} />
       )}
       {readonly && (
         <Section title={tt('dashReal.reportSectionTitle')} sub={tt('dashReal.reportSectionMultiYearSub')}>
@@ -277,6 +283,12 @@ export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreVi
             {reportTab === 'fullPass' && <YearCompare history={reportHistory} lang={lang} tt={tt} yearPicker={reportYearPicker} />}
           </div>
         </Section>
+      )}
+
+      {/* รายชื่อผ่าน/ไม่ผ่านรายวิชา — เจ้าหน้าที่เท่านั้น (ผู้บริหารไม่มีตัวเลขให้กดอยู่แล้ว) */}
+      {subjectTarget && !readonly && (
+        <SubjectResultModal target={subjectTarget} scope={subjectTarget.scope} onClose={() => setSubjectTarget(null)}
+          lang={lang} tt={tt} toast={toast} />
       )}
     </div>
   );
@@ -600,6 +612,95 @@ function SubjectRateCard({ perSubject, subjectPassRate, title, lang, tt, onSubje
           );
         })}
       </div>
+      {/* คำแนะนำ: ตัวเลขผ่าน/ไม่ผ่านกดได้ (มีเฉพาะเจ้าหน้าที่ — ผู้บริหารไม่ส่ง onSubjectClick มา) */}
+      {onSubjectClick && (
+        <p style={{ margin: '16px 0 0', fontSize: 14.5, color: 'var(--ink-500)' }}>{tt('dashReal.subjectClickHint')}</p>
+      )}
+    </div>
+  );
+}
+
+/* ---------- วิชาที่ต้องเฝ้าระวัง (หน้าผู้บริหาร) ----------
+   วิชาที่อัตราผ่านต่ำสุดอาจไม่ใช่วิชาที่น่ากังวลที่สุด เลยดูจาก 3 มุม แล้วแต่ละมุมโชว์ได้สูงสุด 3 วิชา
+     1) ผ่านครั้งแรกต่ำสุด        — ตัวเลขชุดเดียวกับตาราง "ผ่านครั้งแรก จำแนกรายวิชา" (ตัวหาร = นักศึกษาทั้งรุ่น)
+     2) ตกลงมากสุดเทียบปีก่อน     — ร้อยละปีนี้ลบปีก่อน (ของวิชาเดียวกัน ตัวหารแบบเดียวกัน)
+     3) ยังไม่ผ่านหลังสอบทุกรอบ   — คนที่สอบวิชานั้นแล้วยังไม่ผ่านจนถึงรอบล่าสุดของปี (นับเฉพาะใบที่ยืนยันแล้ว)
+   ตัวเลขทุกตัวมาจาก /dashboard/history แล้ว ฝั่งนี้แค่เรียงลำดับ */
+function SubjectWatchCard({ year, prevYear, lang, tt }) {
+  const bySubject = year.firstAttemptBySubject;
+  // วิชาที่มีคนสอบจริงเท่านั้น (sat = 0 คือไม่มีใครสอบ ไม่ควรติดอันดับ)
+  const subjectsSat = bySubject ? bySubject.subjects.filter(s => s.sat > 0) : [];
+
+  // มุมที่ 1: เรียงอัตราผ่านจากน้อยไปมาก
+  const lowest = [...subjectsSat].sort((a, b) => a.pass_rate - b.pass_rate).slice(0, 3);
+
+  // มุมที่ 2: ส่วนต่างเทียบปีก่อน (บวก = ตกลง) เอาเฉพาะวิชาที่ตกลงจริง
+  let drops = null; // null = ไม่มีปีก่อนให้เทียบ
+  const prevSubjects = prevYear?.firstAttemptBySubject?.subjects;
+  if (prevSubjects) {
+    drops = subjectsSat
+      .map(s => {
+        const before = prevSubjects.find(p => p.subject_code === s.subject_code && p.sat > 0);
+        return before ? { ...s, drop: before.pass_rate - s.pass_rate } : null;
+      })
+      .filter(s => s !== null && s.drop > 0)
+      .sort((a, b) => b.drop - a.drop)
+      .slice(0, 3);
+  }
+
+  // มุมที่ 3: year.perSubject นับรายคนทั้งปี — fail = สอบแล้วยังไม่ผ่าน
+  const unresolved = (year.perSubject || [])
+    .filter(s => s.fail > 0)
+    .sort((a, b) => b.fail - a.fail)
+    .slice(0, 3);
+
+  // สีตัวเลขร้อยละ — ใช้เกณฑ์เดียวกับป้ายในตารางรายวิชาของรายงาน (80 / 60)
+  const rateColor = (rate) => (rate >= 80 ? 'var(--ink-900)' : rate >= 60 ? 'var(--status-wait-fg)' : 'var(--status-reject-fg)');
+
+  const columns = [
+    {
+      key: 'lowest', title: tt('dashReal.watchLowest'), note: tt('dashReal.watchLowestNote', { total: bySubject ? bySubject.cohort_total : 0 }),
+      empty: tt('dashReal.heroWatchEmpty'),
+      rows: lowest.map(s => ({ s, value: s.pass_rate.toFixed(2) + '%', color: rateColor(s.pass_rate) })),
+    },
+    {
+      key: 'drop', title: tt('dashReal.watchDrop'), note: tt('dashReal.watchDropNote', { prev: year.academic_year - 1 }),
+      empty: drops === null ? tt('dashReal.watchDropNoPrev') : tt('dashReal.watchDropNone'),
+      rows: (drops || []).map(s => ({ s, value: '▼ ' + s.drop.toFixed(2), color: 'var(--status-reject-fg)' })),
+    },
+    {
+      key: 'unresolved', title: tt('dashReal.watchUnresolved'), note: tt('dashReal.watchUnresolvedNote'),
+      empty: tt('dashReal.watchUnresolvedNone'),
+      rows: unresolved.map(s => ({ s, value: s.fail + ' ' + tt('dashReal.unitPeople'), color: 'var(--status-reject-fg)' })),
+    },
+  ];
+
+  return (
+    <div className="card card-pad" style={{ marginBottom: 20 }}>
+      <h3 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 800 }}>{tt('dashReal.heroWatchLabel')}</h3>
+      <p style={{ margin: '0 0 14px', color: 'var(--ink-500)', fontSize: 15 }}>{tt('dashReal.watchSub')}</p>
+      <div className="watch-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+        {columns.map(col => (
+          <div key={col.key} style={{ border: '1px solid var(--ink-200)', borderRadius: 12, padding: '14px 16px', minWidth: 0 }}>
+            <div style={{ fontSize: 16, fontWeight: 800 }}>{col.title}</div>
+            <div style={{ fontSize: 13.5, color: 'var(--ink-500)', margin: '2px 0 10px', lineHeight: 1.4 }}>{col.note}</div>
+            {col.rows.length === 0 ? (
+              <div style={{ fontSize: 14.5, color: 'var(--ink-500)' }}>{col.empty}</div>
+            ) : col.rows.map(({ s, value, color }) => (
+              <div key={s.subject_code} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10,
+                padding: '7px 0', borderTop: '1px solid var(--ink-100)' }}>
+                <div style={{ fontSize: 14.5, minWidth: 0 }}>
+                  <span className="mono" style={{ color: 'var(--ink-500)', marginRight: 6 }}>{s.subject_code}</span>
+                  {subjectName(lang, s.subject_code, s.subject_name)}
+                </div>
+                <div className="tnum" style={{ fontSize: 16, fontWeight: 800, flex: 'none', color }}>{value}</div>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+      {/* จอแคบ: เรียง 3 กล่องลงล่าง */}
+      <style>{`@media(max-width:860px){.watch-grid{grid-template-columns:1fr!important;}}`}</style>
     </div>
   );
 }
@@ -607,7 +708,7 @@ function SubjectRateCard({ perSubject, subjectPassRate, title, lang, tt, onSubje
 /* ---------- ภาพรวมผู้บริหาร ----------
    แถบตัวเลขหลัก 3 ตัว + กราฟ 2 ใบ ใช้ข้อมูลจริงจาก /dashboard/history ทั้งหมด
    ตัวเลขทุกตัวคำนวณที่ backend แล้ว ฝั่งนี้แค่หยิบมาแสดง */
-function ExecutiveOverview({ year, history, perSubject, lang, tt }) {
+function ExecutiveOverview({ year, history, lang, tt }) {
   // ปีก่อนหน้าของปีที่กำลังดู (ไว้คำนวณว่าดีขึ้น/แย่ลงกี่จุด)
   const prevYear = history.years.find(y => y.academic_year === year.academic_year - 1);
 
@@ -615,11 +716,6 @@ function ExecutiveOverview({ year, history, perSubject, lang, tt }) {
   const cumulative = year.firstYear || { passed: 0, rate: 0 };
   let delta = null;
   if (prevYear && prevYear.firstAttempt) delta = first.rate - prevYear.firstAttempt.rate;
-
-  // วิชาที่ต้องเฝ้าระวัง = อัตราผ่านต่ำสุดของรอบที่กำลังดู (ข้าม null = ไม่มีใครสอบวิชานั้น)
-  const sat = perSubject.filter(s => s.rate !== null);
-  const sortedByRate = [...sat].sort((a, b) => a.rate - b.rate);
-  const worst = sortedByRate[0];
 
   // อัตราผ่านของแต่ละครั้งที่สอบ = ผ่านครบทุกวิชา ÷ คนที่ส่งผลในรอบนั้น
   const attempts = [...year.rounds].sort((a, b) => a.attempt_number - b.attempt_number);
@@ -642,7 +738,7 @@ function ExecutiveOverview({ year, history, perSubject, lang, tt }) {
     <>
       <div className="card" style={{ padding: 0, marginBottom: 20, overflow: 'hidden',
         background: 'linear-gradient(135deg, var(--navy-700), var(--navy-900))', color: '#fff' }}>
-        <div className="exec-hero" style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr 1fr' }}>
+        <div className="exec-hero" style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr' }}>
           <div style={{ padding: '24px 30px', borderRight: '1px solid rgba(255,255,255,.14)' }}>
             <div style={{ fontSize: 15.5, opacity: .85, fontWeight: 600, marginBottom: 6 }}>{tt('dashReal.heroFirstLabel')}</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
@@ -661,7 +757,7 @@ function ExecutiveOverview({ year, history, perSubject, lang, tt }) {
             </div>
           </div>
 
-          <div style={{ padding: '24px 30px', borderRight: '1px solid rgba(255,255,255,.14)' }}>
+          <div style={{ padding: '24px 30px' }}>
             <div style={{ fontSize: 15.5, opacity: .85, fontWeight: 600, marginBottom: 6 }}>{tt('dashReal.heroCumulativeLabel')}</div>
             <div className="tnum" style={{ fontSize: 40, fontWeight: 800, lineHeight: 1, color: '#7fe0a8' }}>
               {cumulative.rate.toFixed(2)}%
@@ -673,27 +769,12 @@ function ExecutiveOverview({ year, history, perSubject, lang, tt }) {
               {tt('dashReal.heroCumulativeSub', { total: year.total })}
             </div>
           </div>
-
-          <div style={{ padding: '24px 30px' }}>
-            <div style={{ fontSize: 15.5, opacity: .85, fontWeight: 600, marginBottom: 6 }}>{tt('dashReal.heroWatchLabel')}</div>
-            {worst ? (
-              <>
-                <div style={{ fontSize: 18, fontWeight: 700, marginTop: 2, lineHeight: 1.35 }}>
-                  {subjectName(lang, worst.subject_code, worst.subject_name)}
-                </div>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 8, padding: '4px 11px',
-                  background: 'rgba(224,73,59,.25)', borderRadius: 999, fontSize: 15, fontWeight: 700, color: '#ffb4ab' }}>
-                  <Icon name="alert" size={14} /> {tt('dashReal.heroWatchChip', { rate: worst.rate })}
-                </div>
-              </>
-            ) : (
-              <div style={{ fontSize: 15.5, opacity: .8, marginTop: 4 }}>{tt('dashReal.heroWatchEmpty')}</div>
-            )}
-          </div>
         </div>
-        {/* จอแคบ: เรียงลงล่างแทน 3 คอลัมน์ ไม่งั้นตัวเลขโดนบีบจนอ่านไม่ออก */}
+        {/* จอแคบ: เรียงลงล่างแทน 2 คอลัมน์ ไม่งั้นตัวเลขโดนบีบจนอ่านไม่ออก */}
         <style>{`@media(max-width:860px){.exec-hero{grid-template-columns:1fr!important;}.exec-hero>div{border-right:none!important;border-bottom:1px solid rgba(255,255,255,.14);}}`}</style>
       </div>
+
+      <SubjectWatchCard year={year} prevYear={prevYear} lang={lang} tt={tt} />
 
       <div className="row wrap-m" style={{ marginBottom: 20, alignItems: 'stretch' }}>
         <div className="card card-pad" style={{ flex: 1, minWidth: 0 }}>
@@ -804,7 +885,7 @@ function RoundBar({ round, roundInfo, submitted, eligible, fillRate, total, tt }
 /* ตาราง "ผ่านกี่วิชา" ของการสอบรอบแรก แยกตามห้องเรียน + คอลัมน์รวม
    ข้อมูลจาก history.years[].passDistribution (backend คำนวณให้แล้ว ไม่คำนวณซ้ำฝั่งนี้)
    ปีที่เลือกดูตามปีของรอบที่กำลังแสดงบน dashboard */
-function PassDistribution({ year, lang, tt }) {
+export function PassDistribution({ year, lang, tt }) {
   if (!year) return null;
   const dist = year.passDistribution;
 
@@ -1006,7 +1087,7 @@ function YearCompare({ history, lang, tt, yearPicker }) {
 /* ร้อยละคนที่สอบผ่านครบทุกวิชาตั้งแต่ "รอบแรก" (attempt_number=1) ของแต่ละปี เทียบกับจำนวนนักศึกษาทั้งรุ่น
    แสดงเก่าไปใหม่ (ซ้ายไปขวา) พร้อมส่วนต่างเทียบปีก่อนหน้า
    การ์ดจริงแคบ (อยู่คอลัมน์เดียวกับ donut/ผ่านครบทุกวิชา) เลยเรียงเป็นแถวแนวตั้ง — กดขยายดูแบบเทียบข้างกันครบทุกปีในโมดัลแทน */
-function FirstAttemptPassRate({ history, tt, wide, yearPicker, onViewStudents, onExportError }) {
+function FirstAttemptPassRate({ history, tt, wide, yearPicker, onViewStudents }) {
   const [expanded, setExpanded] = useState(false);
   // คลิกการ์ดปีไหน เปิด modal แยกเป็นรายรอบของปีนั้น — เก็บทั้ง object เลยไม่ต้องหาซ้ำ
   const [roundDetailYear, setRoundDetailYear] = useState(null);
@@ -1050,21 +1131,15 @@ function FirstAttemptPassRate({ history, tt, wide, yearPicker, onViewStudents, o
         {/* แยกจากคลิกเปิด modal ข้างบน — ต้องมี onViewStudents (officer เท่านั้น ผู้บริหารดูหน้านักศึกษาไม่ได้) */}
         {onViewStudents && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8, paddingTop: 8, borderTop: '1px dashed var(--ink-100)' }}>
-            {/* 2 แถว: ผ่านครั้งแรก / ไม่ผ่านครั้งแรก — แต่ละแถวมี "ดูรายชื่อ" (ไปหน้านักศึกษา) + "ส่งออก" (Excel/PDF ของปีนี้)
-                ไฟล์ที่ส่งออกใช้กฎเดียวกับตัวเลขบนการ์ดนี้ (ผ่าน + ไม่ผ่าน = ทั้งรุ่น) */}
-            {[[true, 'viewPassedStudentsBtn', 'var(--status-ok-fg)', 'ผ่านครั้งแรก'], [false, 'viewFailedStudentsBtn', 'var(--status-reject-fg)', 'ไม่ผ่านครั้งแรก']].map(([passed, labelKey, color, fileLabel]) => (
+            {/* 2 แถว: ผ่านครั้งแรก / ไม่ผ่านครั้งแรก — "ดูรายชื่อ" (ไปหน้านักศึกษา)
+                การส่งออกไฟล์ทั้งหมดรวมไว้ที่หน้า "รายงานสรุป" ที่เดียว ไม่ซ้ำกันหลายที่ */}
+            {[[true, 'viewPassedStudentsBtn', 'var(--status-ok-fg)'], [false, 'viewFailedStudentsBtn', 'var(--status-reject-fg)']].map(([passed, labelKey, color]) => (
               <div key={String(passed)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                 <button type="button" onClick={e => { e.stopPropagation(); onViewStudents(y.academic_year, passed); }}
                   style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', display: 'flex',
                     alignItems: 'center', gap: 4, fontSize: 14, fontWeight: 700, color }}>
                   <Icon name="eye" size={13} /> {tt('dashReal.' + labelKey)}
                 </button>
-                <ExportMenu size="sm" align="right" tt={tt} onError={onExportError}
-                  items={['xlsx', 'pdf'].map(format => ({
-                    key: format, label: tt(format === 'xlsx' ? 'export.excel' : 'export.pdf'), icon: format === 'xlsx' ? 'report' : 'pdf',
-                    run: () => downloadFile(`/dashboard/export-first-attempt?year=${y.academic_year}&passed=${passed}&format=${format}`,
-                      { filename: `รายชื่อนักศึกษา${fileLabel}-${y.academic_year}.${format}` }),
-                  }))} />
               </div>
             ))}
           </div>

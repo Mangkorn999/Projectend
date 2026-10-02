@@ -1,5 +1,6 @@
 /* ============================================================
-   เจ้าหน้าที่ — จัดการบัญชีผู้บริหาร/เจ้าหน้าที่ (ข้อมูลจริงจาก backend)
+   เจ้าหน้าที่ — จัดการผู้ใช้งาน: เจ้าหน้าที่คณะ / ผู้ช่วยตรวจสอบ / ผู้บริหารคณะ (ข้อมูลจริงจาก backend)
+   ผู้ช่วยตรวจสอบ = บทบาท reviewer ในฐานข้อมูล (ตรวจ/ยืนยัน/ตีกลับผลสอบได้อย่างเดียว)
    แทนที่ ManageUsers เดิมใน officer-manage.jsx ที่ใช้ user list ปลอมในเครื่อง
    สร้างบัญชีผ่าน POST /api/users — เจ้าหน้าที่ตั้งรหัสชั่วคราวให้ตอนสร้าง บังคับเปลี่ยนตอน login ครั้งแรก
    (ไม่มี first-setup แยกแล้ว ใช้กลไก must_change_password เดียวกับ ForceChangePassword)
@@ -68,7 +69,9 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
     setSaving(true);
     setError('');
     try {
-      await apiFetch('/users', { method: 'POST', body: form });
+      // ผู้บริหารไม่ส่งอีเมล/เบอร์โทร (ช่องถูกซ่อน แต่ state อาจเหลือค่าที่พิมพ์ไว้ก่อนสลับ role)
+      const body = form.role_name === 'executive' ? { ...form, email: '', phone: '' } : form;
+      await apiFetch('/users', { method: 'POST', body });
       toast(tt('usersMgmt.addedToast'));
       setModal(null);
       setForm({ psu_passport_id: '', password: '', role_name: 'executive', first_name: '', last_name: '', email: '', phone: '' });
@@ -89,7 +92,7 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
     <div className="fade-up">
       <PageHead title={tt('usersMgmt.title')} sub={tt('usersMgmt.sub')}
         actions={<button className="btn btn-primary" onClick={() => setModal(true)}><Icon name="plus" size={17} /> {tt('usersMgmt.addBtn')}</button>} />
-      {/* กรองตามบทบาท — คณะมีทั้งเจ้าหน้าที่ ผู้ช่วยเจ้าหน้าที่ และผู้บริหารปนกันในตารางเดียว
+      {/* กรองตามบทบาท — คณะมีทั้งเจ้าหน้าที่ ผู้ช่วยตรวจสอบ และผู้บริหารปนกันในตารางเดียว
           พอบัญชีเยอะขึ้นจะหาไม่เจอว่าใครเป็นบทบาทไหน */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
         {[['all', tt('usersMgmt.filterAll'), users.length],
@@ -111,7 +114,7 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
               <td><div style={{ display: 'flex', alignItems: 'center', gap: 11 }}><Avatar name={u.first_name} size={34} bg="var(--navy-600)" />
                 <span style={{ fontWeight: 600 }}>{u.first_name} {u.last_name}</span></div></td>
               <td className="mono" style={{ fontSize: 15, color: 'var(--ink-500)' }}>{u.psu_passport_id}</td>
-              <td className="mono" style={{ fontSize: 15, color: 'var(--ink-500)' }}>{u.email}</td>
+              <td className="mono" style={{ fontSize: 15, color: 'var(--ink-500)' }}>{u.email || '—'}</td>
               <td><span className="chip" style={{ background: 'var(--blue-50)', color: 'var(--blue-600)', fontWeight: 600 }}><Icon name="chart" size={13} /> {ROLE_LABEL[u.role.role_name]}</span></td>
               {/* is_revoked = ถอนสิทธิ์ไปแล้ว (password_hash เป็น null) — แยกจาก must_change_password
                   เพราะบัญชีใหม่ก็ must_change_password=true เหมือนกัน แยกกันไม่ออกถ้าไม่มี flag นี้ */}
@@ -157,6 +160,16 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
                 { value: 'officer', label: tt('role.officer') },
                 { value: 'reviewer', label: tt('role.reviewer') },
               ]} />
+            {/* สิทธิ์ของแต่ละบทบาท 1 บรรทัด — ให้เลือกถูกตั้งแต่แรก บทบาทที่เลือกอยู่ถูกไฮไลต์ */}
+            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {MANAGED_ROLES.map(role => (
+                <div key={role} style={{ fontSize: 14, lineHeight: 1.5, padding: '6px 10px', borderRadius: 8,
+                  background: form.role_name === role ? 'var(--blue-50)' : 'transparent',
+                  color: form.role_name === role ? 'var(--navy-800)' : 'var(--ink-500)' }}>
+                  <b>{ROLE_LABEL[role]}</b> — {tt('usersMgmt.roleHint.' + role)}
+                </div>
+              ))}
+            </div>
           </div>
           <div className="field"><label>{tt('usersMgmt.fieldUsername')}</label><input className="input" value={form.psu_passport_id} onChange={e => setForm(f => ({ ...f, psu_passport_id: e.target.value }))} />
             <span className="hint">{tt('usersMgmt.usernameHint')}</span></div>
@@ -167,8 +180,11 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
             <div className="field" style={{ flex: 1 }}><label>{tt('usersMgmt.fieldFirstName')}</label><input className="input" value={form.first_name} onChange={e => setForm(f => ({ ...f, first_name: e.target.value }))} /></div>
             <div className="field" style={{ flex: 1 }}><label>{tt('usersMgmt.fieldLastName')}</label><input className="input" value={form.last_name} onChange={e => setForm(f => ({ ...f, last_name: e.target.value }))} /></div>
           </div>
-          <div className="field"><label>{tt('usersMgmt.fieldEmail')}</label><input className="input" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="name@psu.ac.th" /></div>
-          <div className="field"><label>{tt('usersMgmt.fieldPhone')}</label><input className="input" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} /></div>
+          {/* ผู้บริหารไม่ต้องกรอกอีเมล/เบอร์โทร (อ่านข้อมูลอย่างเดียว) — เจ้าหน้าที่/ผู้ช่วยตรวจสอบยังต้องกรอก */}
+          {form.role_name !== 'executive' && <>
+            <div className="field"><label>{tt('usersMgmt.fieldEmail')}</label><input className="input" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="name@psu.ac.th" /></div>
+            <div className="field"><label>{tt('usersMgmt.fieldPhone')}</label><input className="input" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} /></div>
+          </>}
           {error && <div style={{ color: 'var(--reject,#dc2626)', fontSize: 15 }}>{error}</div>}
         </div>
       </Modal>

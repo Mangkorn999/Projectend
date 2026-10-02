@@ -122,7 +122,7 @@ const removeImageFile = async (storedPath) => {
 // POST /api/news/:id/image — แนบ/เปลี่ยนรูปของประกาศ (1 ประกาศ = 1 รูป)
 export const uploadNewsImage = async (req, res, next) => {
   try {
-    if (!req.file) throw httpError("ไม่พบไฟล์ที่อัปโหลด (field: image)", 400);
+    if (!req.file) throw httpError("กรุณาเลือกรูปภาพที่ต้องการแนบ", 400);
 
     const existing = await newsRepo.findById(req.params.id);
     if (!existing) {
@@ -166,7 +166,7 @@ export const serveNewsImage = async (req, res, next) => {
 
     res.sendFile(path.resolve(existing.image_path), (err) => {
       // ไฟล์หายจาก disk (ลบทิ้งนอกระบบ) — ตอบ 404 แทน error ดิบของ Express
-      if (err && !res.headersSent) next(httpError("ไม่พบไฟล์บน server", 404));
+      if (err && !res.headersSent) next(httpError("ไม่พบรูปภาพนี้ในระบบ กรุณาแจ้งเจ้าหน้าที่คณะ", 404));
     });
   } catch (err) {
     next(err);

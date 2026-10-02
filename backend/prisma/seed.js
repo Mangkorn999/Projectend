@@ -64,7 +64,7 @@ async function main() {
     { role_name: "student", description: "นักศึกษา" },
     { role_name: "officer", description: "เจ้าหน้าที่คณะ" },
     { role_name: "executive", description: "ผู้บริหารคณะ" },
-    { role_name: "reviewer", description: "เจ้าหน้าที่ตรวจสอบ" },
+    { role_name: "reviewer", description: "ผู้ช่วยตรวจสอบ" },
   ];
   for (const role of roleData) {
     await prisma.role.create({ data: role });

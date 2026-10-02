@@ -1,6 +1,6 @@
 import * as examRepo from "./examResults.repository.js";
 import { STUDENT_STATUS, STAFF_STATUS } from "./examResults.repository.js";
-import * as roundsRepo from "../rounds/rounds.repository.js";
+import { findSubmittableRound } from "./examResults.service.js";
 import * as studentRepo from "../students/student.repository.js";
 import * as subjectsRepo from "../subjects/subjects.repository.js";
 import { subjectsOfRound } from "../../utils/roundSubjects.js";
@@ -32,18 +32,39 @@ export const create = async (req, res, next) => {
 
     // หารอบจากรุ่นของนักศึกษาเลย ไม่ใช่หารอบเปิดอันไหนก็ได้แล้วค่อยเช็คปีทีหลัง
     // แบบนี้กรอกข้ามรุ่นไม่ได้ตั้งแต่ต้น ไม่ต้องมีเงื่อนไขกันเพิ่ม
-    const round = await roundsRepo.findActive(student.academic_year);
-    if (!round) throw httpError("ขณะนี้ไม่มีรอบกรอกผลสอบที่เปิดอยู่", 400);
+    //
+    // findSubmittableRound = รอบที่เปิดรับอยู่จริงตอนนี้ หรือ (ถ้าไม่มีรอบเปิด) รอบล่าสุดที่ใบของคนนี้ถูกตีกลับ
+    // ตัวเดียวกับที่หน้ากรอกผล (GET /api/rounds/active) ใช้ — หน้าจอกับตอนส่งจริงจะได้ตัดสินตรงกัน
+    const submittable = await findSubmittableRound(student);
+    if (!submittable) {
+      throw httpError(
+        "ขณะนี้ไม่มีรอบกรอกผลสอบที่เปิดอยู่ หากต้องการส่งผลสอบ กรุณาติดต่อเจ้าหน้าที่คณะ",
+        400,
+      );
+    }
+    const round = submittable.round;
 
     const existing = await examRepo.findByStudentAndRound(
       student.student_id,
       round.round_id,
     );
     // แก้ทับได้จนกว่าเจ้าหน้าที่จะยืนยัน หรือรอบจะปิด — อย่างใดอย่างหนึ่งมาก่อน
-    // (รอบปิดไม่ต้องเช็คตรงนี้ เพราะ findActive ด้านบนคืน null ไปแล้ว)
     // ยืนยันแล้วต้องล็อก ไม่งั้นเปลี่ยนผลหลังเจ้าหน้าที่เซ็นไปแล้วได้
     if (existing?.staff_status === STAFF_STATUS.APPROVED) {
       throw httpError("เจ้าหน้าที่ยืนยันผลสอบรอบนี้แล้ว แก้ไขไม่ได้", 409);
+    }
+
+    // รอบปิดแล้ว (มาทางแก้ใบที่ถูกตีกลับ) → ต้องมีใบเดิมที่ยังถูกตีกลับอยู่จริงเท่านั้น
+    // เช็คซ้ำตรงนี้อีกชั้น เผื่อสถานะใบเปลี่ยนไประหว่างทาง — เช่น กดส่งแก้ไปแล้วรอบหนึ่ง ใบกลับเป็น "รอตรวจ"
+    // ใบรอตรวจหลังปิดรอบห้ามแก้ต่อ (ต้องรอเจ้าหน้าที่ตรวจ)
+    if (submittable.fixingRejected) {
+      const stillRejected = existing && existing.staff_status === STAFF_STATUS.REJECTED;
+      if (!stillRejected) {
+        throw httpError(
+          "ขณะนี้ไม่มีรอบกรอกผลสอบที่เปิดอยู่ หากต้องการส่งผลสอบ กรุณาติดต่อเจ้าหน้าที่คณะ",
+          400,
+        );
+      }
     }
     const isRedo = Boolean(existing);
 
@@ -166,7 +187,7 @@ const reviewExamResult = async (req, res, next, { staff_status, requireRemark })
 
     const remark = req.body?.remark?.trim();
     if (requireRemark && !remark) {
-      throw httpError("ต้องระบุเหตุผลที่ตีกลับ (remark)", 400);
+      throw httpError("กรุณาระบุเหตุผลที่ตีกลับ เพื่อให้นักศึกษาทราบว่าต้องแก้ไขอะไร", 400);
     }
 
     // ตอนตีกลับ (requireRemark = true) remark ผ่านการเช็คข้างบนแล้วว่าไม่ว่าง
@@ -204,7 +225,7 @@ const reviewExamResult = async (req, res, next, { staff_status, requireRemark })
       console.error("บันทึก review_logs ไม่สำเร็จ:", e.message);
     }
 
-    // แจ้งเตือนนักศึกษาเจ้าของผลสอบ — ยิงแบบ fire-and-forget ไม่ให้ล้มการยืนยัน/ตีกลับถ้าแจ้งเตือนพลาด
+    // แจ้งเตือนนักศึกษาเจ้าของผลสอบ — แจ้งเตือนพลาดต้องไม่ทำให้การยืนยัน/ตีกลับล้ม (ดู try/catch ด้านล่าง)
     const roundLabel = `รอบ ${existing.round.attempt_number}/${existing.round.academic_year}`;
     // ข้อความแจ้งเตือนต่างกันตามว่าเจ้าหน้าที่กดยืนยันหรือกดตีกลับ
     let message;
@@ -214,9 +235,13 @@ const reviewExamResult = async (req, res, next, { staff_status, requireRemark })
       // \n = ขึ้นบรรทัดใหม่ ฝั่งหน้าเว็บเอาบรรทัดที่ 2 ไปโชว์เป็นตัวเล็กใต้หัวข้อ
       message = `ผลสอบ${roundLabel}ถูกตีกลับ: ${remark}\nกรุณากรอกผลสอบของท่านใหม่อีกครั้ง`;
     }
-    notifRepo
-      .create({ student_id: existing.student_id, type: staff_status, message })
-      .catch((e) => console.error("สร้างแจ้งเตือนไม่สำเร็จ:", e.message));
+    // รอให้บันทึกแจ้งเตือนเสร็จก่อนตอบ (await) แต่ห่อ try/catch — แจ้งเตือนพลาดต้องไม่ทำให้การตรวจล้ม
+    // เดิมยิงแบบไม่รอ (fire-and-forget) → บางครั้งนักศึกษาเปิดดูแจ้งเตือนทันทีแล้วยังไม่เห็น (เทสสะดุดเป็นครั้งคราว)
+    try {
+      await notifRepo.create({ student_id: existing.student_id, type: staff_status, message });
+    } catch (e) {
+      console.error("สร้างแจ้งเตือนไม่สำเร็จ:", e.message);
+    }
 
     res.json({ success: true, data: result });
   } catch (err) {
@@ -259,13 +284,16 @@ export const revokeApproval = async (req, res, next) => {
     }
 
     const roundLabel = `รอบ ${existing.round.attempt_number}/${existing.round.academic_year}`;
-    notifRepo
-      .create({
+    // รอให้บันทึกแจ้งเตือนเสร็จก่อนตอบ แต่แจ้งเตือนพลาดต้องไม่ทำให้การถอนการยืนยันล้ม (เหตุผลเดียวกับ reviewExamResult)
+    try {
+      await notifRepo.create({
         student_id: existing.student_id,
         type: "revoked",
         message: `ผลสอบ${roundLabel}ถูกเปลี่ยนกลับเป็นรอตรวจสอบ: ${remark}\nเจ้าหน้าที่จะตรวจสอบใหม่อีกครั้ง`,
-      })
-      .catch((e) => console.error("สร้างแจ้งเตือนไม่สำเร็จ:", e.message));
+      });
+    } catch (e) {
+      console.error("สร้างแจ้งเตือนไม่สำเร็จ:", e.message);
+    }
 
     res.json({ success: true, data: await examRepo.findById(req.params.id) });
   } catch (err) {

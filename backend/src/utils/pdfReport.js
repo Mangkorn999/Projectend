@@ -27,18 +27,29 @@ export const registerThaiFonts = (doc) => {
 };
 
 // วาดหนึ่งแถวของตาราง
-// lineBreak: false + ellipsis: true = ข้อความยาวเกินช่องให้ตัดท้ายเป็น "…" ไม่ตัดขึ้นบรรทัดใหม่
+// ข้อความยาวเกินช่อง → ตัดท้ายเป็น "…" ให้อยู่บรรทัดเดียวเสมอ
 // จำเป็นมาก เพราะแถวถัดไปวาดที่ y + ความสูงคงที่ ถ้าปล่อยให้ขึ้นบรรทัดที่ 2
-// ตัวอักษรจะทับแถวถัดไปจนอ่านไม่ออก (ชื่อวิชายาวๆ เจอเคสนี้ประจำ)
+// ตัวอักษรจะทับแถวถัดไปจนอ่านไม่ออก (ชื่อวิชายาวๆ กับหัวคอลัมน์ "จำนวน (คน)" เจอเคสนี้)
+// ตัด/จัดวางเองด้วย widthOfString เพราะ option ellipsis ของ pdfkit ยังยอมตัดขึ้นบรรทัดใหม่อยู่
+const fitText = (doc, text, maxWidth) => {
+  if (doc.widthOfString(text) <= maxWidth) return text;
+  let cut = text;
+  while (cut.length > 1 && doc.widthOfString(cut + "…") > maxWidth) {
+    cut = cut.slice(0, -1);
+  }
+  return cut + "…";
+};
+
 export const drawRow = (doc, y, cols, widths, aligns = []) => {
   let x = LEFT;
-  cols.forEach((text, i) => {
-    doc.text(String(text), x + 5, y + 5, {
-      width: widths[i] - 10,
-      align: aligns[i] || "left",
-      lineBreak: false,
-      ellipsis: true,
-    });
+  cols.forEach((value, i) => {
+    const maxWidth = widths[i] - 10;
+    const text = fitText(doc, String(value), maxWidth);
+    const textWidth = doc.widthOfString(text);
+    let textX = x + 5; // left
+    if (aligns[i] === "right") textX = x + widths[i] - 5 - textWidth;
+    if (aligns[i] === "center") textX = x + 5 + (maxWidth - textWidth) / 2;
+    doc.text(text, textX, y + 5, { lineBreak: false });
     x += widths[i];
   });
 };
@@ -79,12 +90,9 @@ export function drawTable(doc, { y, widths, aligns, header, rows, groups }) {
     for (const g of groups) {
       const span = widths.slice(col, col + g.span).reduce((s, w) => s + w, 0);
       if (g.label) {
-        doc.text(g.label, x + 5, top + 5, {
-          width: span - 10,
-          align: "center",
-          lineBreak: false,
-          ellipsis: true,
-        });
+        // จัดกลางเอง (ไม่ใช้ option width/align) ให้สอดคล้องกับ drawRow
+        const labelW = doc.widthOfString(g.label);
+        doc.text(g.label, x + (span - labelW) / 2, top + 5, { lineBreak: false });
         doc.save().moveTo(x, top + HEAD_H).lineTo(x + span, top + HEAD_H)
           .lineWidth(0.5).strokeColor("#9a9a9a").stroke().restore();
       }

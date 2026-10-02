@@ -19,23 +19,33 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => {
     // ตั้งชื่อไฟล์เอง กันชื่อซ้ำ + กัน path traversal จากชื่อไฟล์เดิมที่ client ส่งมา
     const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    cb(null, `${unique}.pdf`);
+    let extension = ".pdf";
+    if (file.mimetype === "image/jpeg") {
+      extension = ".jpg";
+    } else if (file.mimetype === "image/png") {
+      extension = ".png";
+    }
+    cb(null, `${unique}${extension}`);
   },
 });
 
+// ชนิดไฟล์ที่นักศึกษาแนบเป็นหลักฐานได้: PDF หรือรูปถ่าย/สแกนใบคะแนน (JPG, PNG)
+// ด่านนี้ดูแค่ชนิดที่เบราว์เซอร์บอกมา (ปลอมได้) — ด่านที่ตรวจเนื้อไฟล์จริงอยู่ใน certificates.controller.js
+const EVIDENCE_TYPES = ["application/pdf", "image/jpeg", "image/png"];
+
 const fileFilter = (req, file, cb) => {
-  if (file.mimetype !== "application/pdf") {
-    const err = new Error("รับเฉพาะไฟล์ PDF เท่านั้น");
+  if (!EVIDENCE_TYPES.includes(file.mimetype)) {
+    const err = new Error("รองรับเฉพาะไฟล์ PDF, JPG และ PNG");
     err.statusCode = 400;
     return cb(err);
   }
   cb(null, true);
 };
 
-export const uploadPdf = multer({
+export const uploadEvidence = multer({
   storage,
   fileFilter,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB ต่อไฟล์
 });
 
 // ─── รูปภาพประกอบข่าว/ประกาศ ────────────────────────────

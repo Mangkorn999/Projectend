@@ -7,6 +7,7 @@ import {
   getAlerts,
   exportReport,
   exportFirstAttempt,
+  exportFirstYear,
 } from "./dashboard.controller.js";
 
 const router = express.Router();
@@ -32,5 +33,7 @@ router.get(
 router.get("/export", authenticate, requireRole("officer"), exportReport);
 // รายชื่อผ่าน/ไม่ผ่านครั้งแรกของปีการศึกษา (Excel หรือ PDF) — เฉพาะ officer เหมือน /export (ข้อมูลรายบุคคล)
 router.get("/export-first-attempt", authenticate, requireRole("officer"), exportFirstAttempt);
+// รายชื่อผ่าน/ไม่ผ่านภายในปีแรก (รวมทุกรอบของปี) — เฉพาะ officer เหมือนกัน (ข้อมูลรายบุคคล)
+router.get("/export-first-year", authenticate, requireRole("officer"), exportFirstYear);
 
 export default router;
