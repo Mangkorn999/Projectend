@@ -147,19 +147,6 @@ export async function fetchAuthedObjectUrl(path) {
   return URL.createObjectURL(await res.blob());
 }
 
-/** เปิดไฟล์ (PDF หรือรูปภาพ — backend ส่งชนิดไฟล์ที่ถูกต้องมา) ที่ต้อง login ก่อน ในแท็บใหม่ — ใช้กับ certificate/report ที่ดาวน์โหลดผ่าน <a href> ตรงๆ ไม่ได้ */
-export async function openAuthedFile(path, filename) {
-  const res = await safeFetch(`${API_BASE}${path}`, { credentials: 'include' });
-  if (!res.ok) {
-    const json = await res.json().catch(() => ({}));
-    throw new ApiError(json.message || fallbackMessage(res.status), res.status);
-  }
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  window.open(url, '_blank');
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
-}
-
 /** ดาวน์โหลดไฟล์ (Excel / PDF) ที่ต้อง login ก่อน — ใช้ตัวเดียวกันทุกปุ่ม "ส่งออก" ในระบบ
  *  ทำไมไม่ใช้ <a href> ตรงๆ: ไฟล์ต้องแนบ cookie login (fetch + credentials) แล้วค่อยแปลงเป็น blob ให้เบราว์เซอร์เซฟ
  *  filename ตั้งฝั่งหน้าจอ — ข้าม origin (5174 → 3000) เบราว์เซอร์อ่าน header Content-Disposition ไม่ได้

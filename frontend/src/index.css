@@ -13,7 +13,6 @@
 
   --sans: 'LINE Seed Sans TH', system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: 'LINE Seed Sans TH', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
 
   font: 18px/145% var(--sans);
   letter-spacing: 0.18px;
@@ -74,7 +73,7 @@ p {
 
 code,
 .counter {
-  font-family: var(--mono);
+  font-family: inherit;
   display: inline-flex;
   border-radius: 4px;
   color: var(--text-h);

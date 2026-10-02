@@ -10,7 +10,7 @@
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
 import { PageHead, Modal, StatusBadge, PassBadge, Empty, Select, Loading } from './components.jsx';
-import { apiFetch, ApiError, openAuthedFile } from './api.js';
+import { apiFetch, ApiError, fetchAuthedObjectUrl } from './api.js';
 import { t, subjectName, roomName } from './i18n.js';
 import { certificateTypeLabel, fileKindOf, fileKindLabel, fileKindIcon } from './evidenceFiles.js';
 
@@ -39,6 +39,21 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
   const [editForm, setEditForm] = useState(null);
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState('');
+  const [preview, setPreview] = useState(null); // { url, filename, kind, detail } ไฟล์หลักฐานที่กำลังดูอยู่ใน modal
+  const [previewLoadingId, setPreviewLoadingId] = useState(null); // certificate_id ที่กำลังโหลดอยู่ (กันกดซ้ำ + โชว์สปินเนอร์)
+
+  // เปิด PDF/รูปในแท็บใหม่ไม่ได้ให้ดูในหน้าเดิมเลย ต้องรอโหลดก่อนค่อยเปลี่ยนแท็บ — ขอดูในหน้าเดิมแทน
+  const openPreview = (certificate, kind, detail) => {
+    setPreviewLoadingId(certificate.certificate_id);
+    fetchAuthedObjectUrl(`/certificates/${certificate.certificate_id}/file`)
+      .then((url) => setPreview({ url, filename: certificate.file_name, kind, detail }))
+      .catch((e) => toast(e.message, 'error'))
+      .finally(() => setPreviewLoadingId(null));
+  };
+  const closePreview = () => {
+    if (preview) URL.revokeObjectURL(preview.url);
+    setPreview(null);
+  };
 
   const load = () => {
     setLoading(true);
@@ -246,8 +261,11 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
                     <div style={{ fontSize: 15.5, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.file_name}</div>
                     <div style={{ fontSize: 14, color: 'var(--ink-500)' }}>{certificateTypeLabel(tt, f.certificate_type)} · {fileKindLabel(tt, kind)}</div>
                   </div>
-                  <button className="btn btn-ghost btn-sm" style={{ flex: 'none' }} onClick={() => openAuthedFile(`/certificates/${f.certificate_id}/file`, f.file_name).catch(e => toast(e.message, 'error'))}>
-                    <Icon name="eye" size={15} /> {tt('officer.detail.viewBtn')}</button>
+                  <button className="btn btn-ghost btn-sm" style={{ flex: 'none' }} disabled={previewLoadingId === f.certificate_id}
+                    onClick={() => openPreview(f, kind, certificateTypeLabel(tt, f.certificate_type) + ' · ' + fileKindLabel(tt, kind))}>
+                    {previewLoadingId === f.certificate_id
+                      ? <span className="spinner-sm" />
+                      : <Icon name="eye" size={15} />} {tt('officer.detail.viewBtn')}</button>
                 </div>
               );
             }) : <Empty icon="doc" title={tt('officer.detail.noEvidence')} />}
@@ -427,6 +445,51 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
             )}
             {editError && <div style={{ color: 'var(--reject,#dc2626)', fontSize: 15 }}>{editError}</div>}
           </div>
+        )}
+      </Modal>
+
+      <Modal open={!!preview} onClose={closePreview} width={preview?.kind === 'pdf' || preview?.kind === 'jpg' || preview?.kind === 'png' ? 1240 : 560}
+        title={<span style={{ display: 'block', maxWidth: 520, margin: '0 auto', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+          title={preview?.filename}>{preview?.filename}</span>}
+        footer={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 10 }}>
+          <span style={{ fontSize: 14, color: 'var(--ink-500)' }}>{preview?.detail}</span>
+          <a className="btn btn-ghost btn-sm" href={preview?.url} target="_blank" rel="noreferrer">
+            <Icon name="eye" size={15} /> {tt('officer.detail.openNewTabBtn')}</a>
+        </div>}>
+        {/* ไฟล์ซ้าย + ผลที่นักศึกษาติ๊กขวา — เจ้าหน้าที่เทียบใบผลสอบกับที่กรอกได้ในจอเดียว ไม่ต้องปิดไปมา */}
+        {(preview?.kind === 'pdf' || preview?.kind === 'jpg' || preview?.kind === 'png') && (
+          <div className="preview-split">
+            <div className="preview-split-file">
+              {preview.kind === 'pdf'
+                ? <iframe src={preview.url} title={preview.filename} />
+                : <img src={preview.url} alt={preview.filename} />}
+            </div>
+            {examResult && (
+              <aside className="preview-split-side">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+                  <h4 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>{tt('officer.detail.previewSelfTitle')}</h4>
+                  <span className="tnum chip" style={{ background: allPass ? 'var(--status-ok-bg)' : 'var(--ink-100)', color: allPass ? 'var(--status-ok-fg)' : 'var(--ink-900)', fontWeight: 700 }}>
+                    {tt('officer.detail.passChip', { passed: passedCount, total: roundSubjectIds.length })}</span>
+                </div>
+                <p style={{ margin: '0 0 14px', fontSize: 14, color: 'var(--ink-500)' }}>{tt('officer.detail.previewSelfHint')}</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {subjects.filter(s => roundSubjectIds.includes(s.subject_id)).map(sub => {
+                    const r = examResult.subject_results.find(x => x.subject_id === sub.subject_id);
+                    return (
+                      <div key={sub.subject_id} className="preview-sub-row">
+                        <span className="mono" style={{ color: 'var(--ink-400)', fontSize: 13.5, flex: 'none', width: 38 }}>{sub.subject_code}</span>
+                        <span style={{ flex: 1, minWidth: 0, fontSize: 14.5, fontWeight: 600, lineHeight: 1.35 }}>{subjectName(lang, sub.subject_code, sub.subject_name)}</span>
+                        <PassBadge passed={r ? r.is_passed : undefined} lang={lang} />
+                      </div>
+                    );
+                  })}
+                </div>
+              </aside>
+            )}
+          </div>
+        )}
+        {preview && preview.kind !== 'pdf' && preview.kind !== 'jpg' && preview.kind !== 'png' && (
+          <p style={{ margin: 0, color: 'var(--ink-600)' }}>{tt('officer.detail.previewUnsupported')}</p>
         )}
       </Modal>
     </div>

@@ -3,7 +3,6 @@
    Faculty of Nursing, Prince of Songkla University
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap');
 @import url('https://cdn.jsdelivr.net/gh/lazywasabi/thai-web-fonts@7/fonts/LINESeedSansTH/LINESeedSansTH.css');
 
 :root {
@@ -76,7 +75,7 @@ a { color: var(--blue-600); text-decoration: none; }
 *::-webkit-scrollbar-thumb:hover { background: var(--ink-400); background-clip: content-box; }
 
 /* ---------- Reusable atoms ---------- */
-.mono { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
+.mono { font-family: inherit; font-variant-numeric: tabular-nums; }
 .tnum { font-variant-numeric: tabular-nums; }
 
 /* Buttons */
