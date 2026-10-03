@@ -160,6 +160,7 @@ backend/
    │  ├─ rateLimit.js        กันยิงรัวเดารหัส
    │  └─ upload.js           รับไฟล์ PDF / รูปภาพ
    ├─ utils/
+   │  ├─ actor.js            ชื่อ "ผู้ดำเนินการ" (ผู้สร้างรอบ/ผู้โพสต์ข่าว/ผู้ตรวจ) + is_closed ตัด hash ก่อนส่งออก
    │  └─ roundSubjects.js    ตอบคำถาม "รอบนี้สอบวิชาอะไรบ้าง"
    ├─ controllers/
    │  └─ authController.js   login / ตั้งรหัสครั้งแรก / เปลี่ยนรหัส / ดูข้อมูลตัวเอง
@@ -424,9 +425,9 @@ public เพราะหน้าสมัคร/ตั้งรหัสคร
 |---|---|---|---|
 | GET | `/api/users` | 🧑‍💼 | รายชื่อผู้ใช้ทั้งหมด |
 | POST | `/api/users` | 🧑‍💼 | สร้างบัญชี officer/executive/reviewer (executive ไม่ต้องส่ง email/phone) |
-| POST | `/api/users/:id/role` | 🧑‍💼 | เปลี่ยน role |
-| POST | `/api/users/:id/revoke` | 🧑‍💼 | ถอนสิทธิ์ (ล็อก ไม่ลบ record) |
-| POST | `/api/users/:id/reset-password` | 🧑‍💼 | รีเซ็ตรหัสให้ไปตั้งใหม่เอง |
+| POST | `/api/users/:id/role` | 🧑‍💼 | เปลี่ยน role (เปลี่ยนตัวเองไม่ได้ → 400) · หน้าเว็บมีปุ่ม "เปลี่ยนบทบาท" · `GET /api/users` คืน `creator` (ใครสร้างบัญชี) + `closer`/`closed_at` (ใครปิด เมื่อไหร่) |
+| POST | `/api/users/:id/revoke` | 🧑‍💼 | ปิดบัญชี/ถอนสิทธิ์ (ล็อก ไม่ลบ record) · บันทึก `closed_at` + `closed_by` |
+| POST | `/api/users/:id/reset-password` | 🧑‍💼 | รีเซ็ตรหัสให้ไปตั้งใหม่เอง · ถ้าบัญชีเคยถูกปิด = เปิดคืน (ล้าง `closed_at` / `closed_by`) |
 | DELETE | `/api/users/:id` | 🧑‍💼 | ลบบัญชีจริง (เฉพาะบัญชีที่ไม่เคยมีประวัติผูกไว้) |
 
 **กฎสำคัญ**
@@ -492,7 +493,7 @@ if (req.user.role === "student" && req.user.studentId !== req.params.id) → 403
 | Method | URL | สิทธิ์ | ทำอะไร |
 |---|---|---|---|
 | GET | `/api/rounds/active` | 👤 | รอบที่นักศึกษา**ส่งผลได้ตอนนี้** (`findSubmittableRound`) — ถ้าไม่มี ใช้รอบ `status=open` ของรุ่นตัวเอง (**รวมรอบที่ยังไม่ถึงวันเปิด/เลยวันปิด** — ดู `phase` ว่ากรอกได้จริงไหม) + วิชาที่ต้องกรอก + **`can_fix_rejected`** (true = รอบปิดแล้วแต่ใบถูกตีกลับ แก้ส่งใหม่ได้ แม้ `phase` จะเป็น closed/expired) · ไม่มีรอบเลย = `null` |
-| GET | `/api/rounds` | 🔑 | รอบทั้งหมด (ใหม่→เก่า) |
+| GET | `/api/rounds` | 🔑 | รอบทั้งหมด (ใหม่→เก่า) + `creator` (ผู้สร้างรอบ: `user_id, first_name, last_name, is_closed`) — **นักศึกษาไม่ได้ `creator`** (ตัดใน controller ตาม role ใน JWT) |
 | POST | `/api/rounds` | 🧑‍💼 | สร้างรอบ |
 | PUT | `/api/rounds/:id` | 🧑‍💼 | แก้ไขรอบ |
 | DELETE | `/api/rounds/:id` | 🧑‍💼 | ลบรอบ |
@@ -538,7 +539,7 @@ status: "open"  และ  open_date <= ตอนนี้  และ  close_dat
 | POST | `/api/exam-results` | 👤 | ส่ง/แก้ผลสอบของรอบที่เปิดอยู่ — **หรือแก้ใบที่ถูกตีกลับของรอบล่าสุดแม้รอบปิดแล้ว** (`findSubmittableRound`) |
 | GET | `/api/exam-results/me` | 👤 | ประวัติของตัวเอง |
 | POST | `/api/exam-results/:id/certificates` | 👤 | แนบไฟล์หลักฐาน PDF/JPG/PNG (สูงสุด 5 ไฟล์ต่อใบ — ดู 7.8) |
-| GET | `/api/exam-results` | 🧑‍💼 🔍 | ดูทั้งหมด (กรองได้) |
+| GET | `/api/exam-results` | 🧑‍💼 🔍 | ดูทั้งหมด (กรองได้) + `confirmer` (ผู้ตรวจล่าสุด) + `review_logs` (ประวัติตรวจทุกครั้ง เก่า→ใหม่ พร้อม `reviewer`) — แต่ละคนมี `is_closed` |
 | PATCH | `/api/exam-results/:id/approve` | 🧑‍💼 🔍 | ยืนยันผล |
 | PATCH | `/api/exam-results/:id/reject` | 🧑‍💼 🔍 | ตีกลับ (ต้องมี remark) |
 | PATCH | `/api/exam-results/:id/revoke-approval` | 🧑‍💼 | **ถอนการยืนยัน** (ยืนยันผิด) approved → pending · ต้องมี `remark` (≤500) · เฉพาะ officer (reviewer ไม่ได้) · บันทึก `review_logs` action `revoked` + แจ้งเตือนนักศึกษา (`type: "revoked"`) · ใบที่ไม่ใช่ approved ตอบ 409 |
@@ -657,7 +658,7 @@ await reviewLogRepo.create({ result_id, reviewer_id: req.user.userId, action: st
 
 | Method | URL | สิทธิ์ | ทำอะไร |
 |---|---|---|---|
-| GET | `/api/news` | 🔑 | ข่าว (ใหม่→เก่า) — **นักศึกษาเห็นเฉพาะของรุ่นตัวเอง** |
+| GET | `/api/news` | 🔑 | ข่าว (ใหม่→เก่า) — **นักศึกษาเห็นเฉพาะของรุ่นตัวเอง** · `poster` มี `is_closed` (ปิดบัญชีแล้วหน้าจอต่อท้าย "(ปิดบัญชีแล้ว)") |
 | POST | `/api/news` | 🧑‍💼 | โพสต์ |
 | PUT | `/api/news/:id` | 🧑‍💼 | แก้ไข |
 | DELETE | `/api/news/:id` | 🧑‍💼 | ลบ |
@@ -796,16 +797,16 @@ await reviewLogRepo.create({ result_id, reviewer_id: req.user.userId, action: st
 | model | ตารางจริง | เก็บอะไร |
 |---|---|---|
 | `Role` | `roles` | 4 บทบาท: student / officer / executive / reviewer |
-| `User` | `users` | ทุกคนที่เข้าระบบได้ + `password_hash` |
+| `User` | `users` | ทุกคนที่เข้าระบบได้ + `password_hash` + audit: `created_by` / `closed_at` / `closed_by` |
 | `Faculty` | `faculties` | คณะ (ตอนนี้มีแค่คณะพยาบาลศาสตร์) |
 | `Room` | `rooms` | ห้องเรียนปกติ / ห้องเรียนอังกฤษ |
-| `Student` | `students` | ข้อมูลนักศึกษา + `exam_eligible` |
+| `Student` | `students` | ข้อมูลนักศึกษา + `exam_eligible` + audit: `eligible_set_by` / `eligible_set_at` |
 | `Subject` | `subjects` | รายวิชา 8 วิชา |
-| `SubmissionRound` | `submission_rounds` | รอบการกรอก + `subject_ids` |
+| `SubmissionRound` | `submission_rounds` | รอบการกรอก + `subject_ids` + audit: `updated_by` / `updated_at` |
 | `ExamResult` | `exam_results` | 1 ใบ = 1 คน 1 รอบ |
 | `SubjectResult` | `subject_results` | ผ่าน/ไม่ผ่าน รายวิชา + `carried_forward` (ยกผลมาจากรอบก่อน ไม่ได้สอบรอบนี้) |
 | `Certificate` | `certificates` | ไฟล์หลักฐาน (เก็บแค่ path) |
-| `News` | `news` | ข่าว/ประกาศ |
+| `News` | `news` | ข่าว/ประกาศ + audit: `updated_by` (`updated_at` มีเดิม) |
 | `Notification` | `notifications` | แจ้งเตือนรายคน (`type` = `approved` / `rejected` / `eligible`) |
 | `ReviewLog` | `review_logs` | audit log insert-only ของทุกครั้งที่ approve/reject (`reviewer_id`, `action`, `remark` ตอนนั้น) |
 
@@ -863,6 +864,7 @@ User ──1:M── SubmissionRound (creator, ผ่าน created_by)
 | `20260810171137_remove_sessions_table` | ลบตาราง `sessions` ที่ไม่ได้ใช้ |
 | `20260812000000_add_unique_round_year_attempt` | unique `submission_rounds(academic_year, attempt_number)` — กันรอบซ้ำ |
 | `20260921112343_add_reviewer_role` | `review_logs` + ชื่ออังกฤษนักศึกษา + ข้อมูล user ว่างได้ |
+| `20261003100000_add_audit_actor_columns` | คอลัมน์ "ใครทำอะไร": `users.created_by/closed_at/closed_by`, `students.eligible_set_by/eligible_set_at`, `submission_rounds.updated_by/updated_at`, `news.updated_by` — ทุกช่องว่างได้, FK `ON DELETE SET NULL` (ลบบัญชีผู้ทำแล้วช่องกลับเป็นว่าง ไม่ทำให้ลบไม่ได้) |
 | `20260922120000_add_user_import_academic_year` | เพิ่ม `users.import_academic_year` (ว่างได้) — ปีจบที่เจ้าหน้าที่ระบุตอน import |
 
 **ขั้นตอนแก้ตาราง**: แก้ `prisma/schema.prisma` → `npx prisma migrate dev --name อธิบายสั้นๆ` → Prisma สร้างโฟลเดอร์ migration ใหม่ + อัปเดต DB + สร้าง client ใหม่ให้อัตโนมัติ.
@@ -1145,6 +1147,7 @@ curl -H "Authorization: Bearer <token>" http://localhost:3000/api/subjects/1
 
 | วันที่ | เปลี่ยนอะไร |
 |---|---|
+| 2026-10-03 | **ผู้ดำเนินการ (ใครทำอะไร) + ปิดบัญชีแล้วประวัติไม่หาย (ข้อเสนอแนะอาจารย์ที่ปรึกษา; เทส `smoke-phase28-actor.mjs`)** — `utils/actor.js` ใหม่: `ACTOR_SELECT` + `toActor()` (ดึง `password_hash` มาแค่คำนวณ `is_closed` แล้วตัดทิ้งก่อนส่งออก ใช้ร่วมกันทุกที่) → `GET /api/rounds` แนบ `creator` (นักศึกษาไม่เห็น), `GET /api/news` `poster` มี `is_closed`, `GET /api/exam-results` แนบ `confirmer` + `review_logs` (`news.repository.js`, `rounds.repository.js` + `rounds.controller.js`, `examResults.repository.js`). (รอบแรกไม่แก้ schema เพราะ `created_by` / `posted_by` / `confirmed_by` / `review_logs` มีอยู่แล้ว). **รอบต่อมา (ข้อเสนอแนะอาจารย์ "เพิ่มคอลัมน์ใน DB") เพิ่มคอลัมน์ audit + migration `20261003100000_add_audit_actor_columns`:** `users.created_by/closed_at/closed_by`, `students.eligible_set_by/eligible_set_at`, `submission_rounds.updated_by/updated_at`, `news.updated_by` — controller อ่านผู้ทำจาก JWT (`req.user.userId`) แล้วบันทึกตอนสร้างบัญชี / ปิดบัญชี (`revokeAccess`) / รีเซ็ตรหัส (ล้าง closed_*) / แก้รอบ / แก้ข่าว (รวมเปลี่ยน/ลบรูป) / เปิด-ปิดสิทธิ์กรอก (`bulkSetEligible`); API คืนเป็น actor (ตัด hash ผ่าน `toActor`) — **นักศึกษาไม่เห็น** `creator`/`updater` ของรอบ, `updater` ของข่าว, `eligible_setter`; `studentRepo.findById` แปลง actor ใน repository เองกัน hash หลุด. หน้าเว็บ: ปุ่ม "เปลี่ยนบทบาท" (ใช้ `POST /users/:id/role` เดิม), "สร้างโดย"/"ปิดโดย" ในหน้าผู้ใช้, "แก้ไขล่าสุดโดย" ในรอบ/ข่าว, "เปิดสิทธิ์โดย" ในหน้านักศึกษา, คอลัมน์ "ผู้ตรวจ/ตรวจเมื่อ" ในแท็บยืนยันแล้ว/ถูกตีกลับ, ปุ่มยืนยัน/ตีกลับใน modal ดูไฟล์. **ต้องรัน `npx prisma migrate deploy` + `npx prisma generate` กับ DB จริงก่อนใช้ (generate จะ EPERM ถ้า backend ยังรันอยู่ — ปิดก่อน)**; `seedDemoYears.js` เติมค่าคอลัมน์ใหม่ + เจ้าหน้าที่/ผู้ช่วยตรวจตัวอย่างหลายคน (รวม 2 บัญชีที่ปิดแล้ว) + `review_logs`. frontend: ซ่อนปุ่ม "ลบบัญชี" เหลือ "ปิดบัญชี" (= `revoke` เดิม), โชว์ผู้สร้างรอบ / ผู้โพสต์ข่าว / ประวัติผู้ตรวจ พร้อมป้าย "(ปิดบัญชีแล้ว)" |
 | 2026-10-01 | **security review (เทส `smoke-phase27-security.mjs`)** — (1) `ensureCanChangeEvidence` ใช้ `findSubmittableRound` ตัวเดียวกับตอนส่งผล: ใบที่ถูกตีกลับของ**รอบเก่า** (มีรอบใหม่กว่าแล้ว) แนบ/ลบไฟล์ไม่ได้อีก → 409 (เดิมเปลี่ยนหลักฐานได้ตลอดไป) (2) กดแนบพร้อมกันหลายไฟล์เคยได้เกิน 5 ไฟล์ (10 request ได้ 6 ไฟล์) → นับซ้ำหลังบันทึก เกินแล้วถอนแถว + ตรวจซ้ำว่าใบไม่ถูกยืนยันระหว่างอัปโหลด (3) `upload` ลบไฟล์บน disk ทุกทางที่ไม่ได้บันทึก (ตัวแปร `saved` + `catch`) — เดิมเลขใบผลสอบแปลก/ใหญ่เกินทำให้ไฟล์ค้างที่ disk (4) `errorHandler`: เลข id ใหญ่เกิน INT4 (`PrismaClientUnknownRequestError` "Unable to fit integer value") → 400 ข้อความไทย แทน 500 ที่มีข้อความดิบของ Prisma (`certificates.controller.js`, `middlewares/errorHandler.js`, `tests/smoke-phase27-security.mjs`, `tests/run-clean.mjs`, `package.json`) |
 | 2026-10-01 | **flow จริงของคณะ (docs/test-plan.md, เทส `smoke-phase25-real-flow.mjs`)** — (1) **แนบหลักฐานหลายไฟล์ PDF/JPG/PNG** สูงสุด 5 ไฟล์ต่อใบ แนบเพิ่ม = ต่อท้าย (เลิกแทนที่ไฟล์ประเภทเดิม) ตรวจชนิดจากหัวไฟล์จริง (`detectFileType`) + **`DELETE /api/certificates/:id`** ให้นักศึกษาลบทีละไฟล์ + `serveFile` ส่ง Content-Type ตาม `file_type`; แนบ/ลบได้เฉพาะเจ้าของ ใบยังไม่ยืนยัน และรอบ active **หรือ** ใบถูกตีกลับ (แก้บั๊ก: ใบรอตรวจเพิ่มไฟล์ได้หลังปิดรอบ) (`certificates.controller.js`, `.repository.js` — `countByResult` แทน `findByResultAndType`, `.routes.js`, `upload.js` → `uploadEvidence`) (2) **ใบที่ถูกตีกลับแก้ส่งใหม่ได้แม้รอบปิด** — `examResults.service.js` ใหม่ → `findSubmittableRound` (รอบ active ก่อน, ไม่มีค่อยดูรอบล่าสุดที่เริ่มแล้วซึ่งใบถูกตีกลับ) ใช้ทั้ง `POST /api/exam-results` และ `GET /api/rounds/active` (เพิ่ม field `can_fix_rejected`), `rounds.repository.js → findLatestStarted` (3) **บั๊ก B1** — `findPassedSubjectIds`, `findEligibleWithPassedSubjects` และ `firstYear` ของ `buildYearSummary` ไม่นับแถว `carried_forward` (วิชาที่ยกมาจากใบที่ถูกตีกลับภายหลังเคยถูกนับว่าผ่าน) (4) **`GET /api/dashboard/export-first-year`** รายชื่อผ่าน/ไม่ผ่านภายในปีแรก (`buildFirstYearList` ใช้ helper กฎเดียวกับ `firstYear`) + export-first-attempt เพิ่มคอลัมน์ชื่อ/นามสกุลอังกฤษ เบอร์โทร อีเมล (`findStudentsByYear`), PDF รวมเป็น `buildPassListPdf` (5) ข้อความ error ทางการไม่มีชื่อ field/ศัพท์เทคนิค: errorHandler 500 → "เกิดข้อผิดพลาดภายในระบบ กรุณาลองใหม่อีกครั้ง", auth/requireRole/authController/users/students/subjects/news/dashboard, seed reviewer → "ผู้ช่วยตรวจสอบ" (6) แจ้งเตือนหลังยืนยัน/ตีกลับ/ถอนการยืนยัน `await` ก่อนตอบ (ห่อ try/catch) — เดิม fire-and-forget ทำให้ phase20 สะดุดเป็นครั้งคราว · `smoke-phase22-exports.mjs` ปรับหัวคอลัมน์ตามข้อ 4 |
 | 2026-09-30 | **ส่งออกข้อมูลนักศึกษาแยกตามรอบ + ชื่อภาษาอังกฤษ + ผู้บริหารไม่ต้องมีอีเมล/เบอร์** — (1) `POST /students/export` รับ `by_round: true` เพิ่ม (ต้องเป็น boolean `true` เท่านั้น) → Excel **หลายชีต**: ชีตแรก "ข้อมูลนักศึกษา" เหมือนเดิม + 1 ชีตต่อ 1 รอบสอบ ("รอบ 1-2569" …) มีเฉพาะนักศึกษาที่มีใบผลสอบในรอบนั้น (สถานะใบ/ผ่านกี่วิชา/ส่งเมื่อ/ยืนยันเมื่อ) เรียงรอบใหม่→เก่า. `utils/xlsxExport.js` เพิ่ม `buildXlsxWorkbook(sheets)` (รูปแบบเดียวกับ `buildXlsx` ทีละชีต). (2) ไฟล์ข้อมูลนักศึกษาเพิ่มคอลัมน์ "ชื่อ (อังกฤษ)"/"นามสกุล (อังกฤษ)" (`students.first_name_en/last_name_en` ที่เก็บอยู่แล้วตั้งแต่ complete-profile; `findForExport` select เพิ่ม + `submitted_at`/`confirmed_at`). (3) `POST /users` — **role `executive` ไม่ต้องส่ง `email`/`phone`** (เก็บเป็น null; คอลัมน์เป็น nullable อยู่แล้ว ไม่แตะ schema) role อื่นยังบังคับเหมือนเดิม. เทส: `tests/smoke-phase24-lifecycle.mjs` ใหม่ — วงจรเต็มของรุ่นหนึ่ง รอบ 1→2→3 (กรอก/ตีกลับ/ส่งใหม่/ยืนยัน/ยกผลรอบก่อน carry-forward/ประกาศ/สถิติผ่านครั้งแรก 2 จาก 5 · ผ่านภายในปีแรก 4 จาก 5/ส่งออกแยกรอบ/สร้างบัญชีผู้บริหาร) 70 ข้อ + เพิ่มตัวเลือก `ONLY=phase24 npm run test:clean` รันไฟล์เดียว, `smoke-phase22` อัปเดตหัวคอลัมน์ใหม่. **ผลเทส: `test:clean` ผ่านทุกไฟล์**. (`utils/xlsxExport.js`, `students/student.controller.js`, `student.repository.js`, `users/users.controller.js`, `tests/*`) — frontend: `officerStudentsReal.jsx` ปุ่มส่งออกเป็นเมนู (ข้อมูล / แยกรอบ / ผู้สอบไม่ผ่านครั้งแรก), ตัวนับ "แสดง N จาก M"; `manageUsersReal.jsx` ซ่อนอีเมล/เบอร์เมื่อเลือกผู้บริหาร; รายงานสรุปบันทึก PDF จากภาพรายงานบนจอ (`exportReportPdf.js`). **ข้อควรรู้:** backend ที่รันค้างอยู่ต้อง restart ถึงจะได้โค้ดนี้ (`npm start` ไม่มี auto-reload) |

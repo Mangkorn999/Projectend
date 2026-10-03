@@ -471,7 +471,7 @@ export function App() {
       if(page==='detail') return <StudentDetailReal student={sel} go={go} backTo={detailFrom} toast={showToast} canEdit canReview lang={lang} />;
       if(page==='rounds') return <ManageRoundsSubjectsReal toast={showToast} lang={lang} />;
       if(page==='usermgmt') return <ManageUsersReal toast={showToast} currentUserId={currentUser?.id} lang={lang} />;
-      if(page==='newsmgmt') return <ManageNewsReal toast={showToast} lang={lang} />;
+      if(page==='newsmgmt') return <ManageNewsReal toast={showToast} lang={lang} currentUserName={currentUser?.name} />;
       if(page==='reports') return <ReportsReal toast={showToast} lang={lang} />;
       if(page==='manual') return <OfficerManual />;
     }

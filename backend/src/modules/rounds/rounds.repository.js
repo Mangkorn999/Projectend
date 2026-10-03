@@ -1,10 +1,15 @@
 import prisma from "../../config/db.js";
+import { ACTOR_SELECT, toActor } from "../../utils/actor.js";
 
 // ดึงรอบทั้งหมด — รอบใหม่สุดขึ้นก่อน
-export const findAll = () =>
-  prisma.submissionRound.findMany({
+// แนบ creator (ผู้สร้างรอบ) ไปด้วยให้หน้าจัดการรอบโชว์ว่าใครสร้าง
+export const findAll = async () => {
+  const rows = await prisma.submissionRound.findMany({
     orderBy: [{ academic_year: "desc" }, { attempt_number: "desc" }],
+    include: { creator: { select: ACTOR_SELECT }, updater: { select: ACTOR_SELECT } },
   });
+  return rows.map((r) => ({ ...r, creator: toActor(r.creator), updater: toActor(r.updater) }));
+};
 
 export const findById = (id) =>
   prisma.submissionRound.findUnique({

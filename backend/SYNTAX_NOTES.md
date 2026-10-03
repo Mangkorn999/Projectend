@@ -840,3 +840,54 @@ const FILE_SIGNATURES = [
 - ทำไมใช้ hex: เอกสารรูปแบบไฟล์ทุกที่เขียนหัวไฟล์เป็น hex (เช่น "PNG ขึ้นต้นด้วย 89 50 4E 47") เขียนแบบเดียวกันจะเทียบกับเอกสารได้ตรงๆ
 - วิธีตรวจ (`certificates.controller.js → detectFileType`): อ่าน 8 ไบต์แรกของไฟล์ แล้ว `for` วนทีละชนิด → `for` ซ้อนเทียบทีละไบต์ ตรงครบทุกไบต์ = เป็นไฟล์ชนิดนั้น ไม่ตรงสักชนิด = ปฏิเสธ
 - ต่อยอดจาก 5.32 (เดิมตรวจแค่ PDF) — ชนิดที่เบราว์เซอร์บอกมา (mimetype) และนามสกุลไฟล์ปลอมได้ แต่เนื้อไฟล์จริงปลอมยากกว่า
+
+### 5.37 `const { a, ...rest } = obj` — เอาบาง field ออก แล้วเก็บที่เหลือ (ตัด `password_hash` ก่อนส่งออก)
+
+```js
+export const toActor = (user) => {
+  if (!user) return null;
+  const { password_hash, ...rest } = user;      // แยก password_hash ออกมา ที่เหลือทั้งหมดอยู่ใน rest
+  return { ...rest, is_closed: password_hash === null };
+};
+```
+
+- `...rest` ฝั่งซ้าย (ตอนแกะ) = "เก็บที่เหลือทุก field ไว้ในตัวแปรนี้" · `...rest` ฝั่งขวา (ตอนสร้าง object) = "ก๊อปทุก field มาวางตรงนี้" — หน้าตาเหมือนกันแต่ทำงานตรงข้าม
+- ใช้ดึง `password_hash` มาคำนวณ (ว่าบัญชีถูกปิดไหม) แล้วทิ้งก่อนส่งออก — ไฟล์ `utils/actor.js`
+- `password_hash` ที่แกะออกมาแต่ไม่ได้ใช้ต่อ ถูกต้องแล้ว: มันถูกใช้ในบรรทัด `is_closed` ไปแล้ว
+
+### 5.38 `...(เงื่อนไข ? {} : { ... })` — ใส่ field ลงใน object เฉพาะบางกรณี
+
+```js
+data: {
+  status: isLatest ? "open" : "closed",
+  ...(isLatest ? {} : { updated_by: someId, updated_at: new Date() }),   // รอบที่ปิดแล้วเท่านั้นที่มีคนแก้
+  subject_ids: need,
+}
+```
+
+- `...{}` (object ว่าง) = ไม่ใส่อะไรเลย · `...{ a, b }` = ใส่ a, b ลงมา — เลือกได้ด้วย `? :`
+- ใช้แทนการเขียน `if` แยกสร้าง object สองแบบ
+
+### 5.39 `delete obj.key` — ลบ field ออกจาก object ก่อนส่งให้ผู้ใช้
+
+```js
+if (req.user.role === "student") {
+  delete round.creator;     // นักศึกษาไม่ต้องเห็นชื่อเจ้าหน้าที่ที่สร้างรอบ
+  delete round.updater;
+}
+```
+
+- ใช้กับ object ที่เราสร้างเอง (เช่นผลจาก `withPhase`) ได้เลย · role ต้องอ่านจาก JWT (`req.user.role`) เท่านั้น ห้ามเชื่อค่าที่ client ส่งมา
+
+### 5.40 Prisma — ความสัมพันธ์ที่ชี้กลับตารางเดียวกัน (`users.created_by` → `users`) + `onDelete: SetNull`
+
+```prisma
+created_by    Int?
+creator       User?   @relation("UserCreatedBy", fields: [created_by], references: [user_id], onDelete: SetNull)
+created_users User[]  @relation("UserCreatedBy")
+```
+
+- ตารางชี้กลับตัวเอง (self-relation) ต้องตั้งชื่อความสัมพันธ์ (`"UserCreatedBy"`) ทั้งสองฝั่ง และถ้ามีหลายอัน (`created_by`, `closed_by`) แต่ละอันชื่อไม่ซ้ำกัน ไม่งั้น Prisma แยกไม่ออก
+- `Int?` = ว่างได้ (แถวเก่าที่มีก่อนมีคอลัมน์นี้ไม่มีค่า)
+- `onDelete: SetNull` = ถ้าคนที่ถูกอ้างถึงถูกลบ ช่องนี้กลับเป็นว่าง แทนที่จะห้ามลบ (ค่าปกติของระบบนี้คือ `RESTRICT` ซึ่งลบไม่ได้) — ใช้กับ "ใครทำ" เพราะเป็นแค่ข้อมูลประกอบ ไม่ควรขวางการลบบัญชี
+- สร้าง SQL ของ migration โดยไม่ต้องมี shadow database: `npx prisma migrate diff --from-url "<DB ที่ migrate ถึงล่าสุดแล้ว>" --to-schema-datamodel prisma/schema.prisma --script`

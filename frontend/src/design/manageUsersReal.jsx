@@ -9,7 +9,7 @@
    ============================================================ */
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, Modal, Avatar, Select, Pagination } from './components.jsx';
+import { PageHead, Modal, Avatar, Select, Pagination, actorLabel } from './components.jsx';
 import { usePagedList } from './usePagedList.js';
 import { SkeletonTable } from './skeletons.jsx';
 import { apiFetch, ApiError } from './api.js';
@@ -24,6 +24,9 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
   const [confirm, setConfirm] = useState(null); // { user, action: 'reset' | 'revoke' | 'delete' }
   const [resetPassword, setResetPassword] = useState(''); // รหัสชั่วคราวที่เจ้าหน้าที่ตั้งให้ตอน reset
   const [confirmError, setConfirmError] = useState('');
+  const [roleEdit, setRoleEdit] = useState(null); // { user, role_name } กล่องเปลี่ยนบทบาท
+  const [roleSaving, setRoleSaving] = useState(false);
+  const [roleError, setRoleError] = useState('');
   const [roleFilter, setRoleFilter] = useState('all'); // 'all' | 'officer' | 'executive' | 'reviewer'
   const tt = (key, vars) => t(lang, key, vars);
   const ROLE_LABEL = { officer: tt('role.officer'), executive: tt('role.executive'), reviewer: tt('role.reviewer') };
@@ -62,6 +65,22 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
     } catch (e) {
       // ลบไม่ได้เพราะมีประวัติผูกอยู่ (409) — backend บอกให้ถอนสิทธิ์แทน โชว์ข้อความนั้นตรงๆ
       setConfirmError(e instanceof ApiError ? e.message : tt(action === 'delete' ? 'usersMgmt.deleteFailMsg' : 'usersMgmt.revokeFailMsg'));
+    }
+  };
+
+  // เปลี่ยนบทบาท (เจ้าหน้าที่ / ผู้บริหาร / ผู้ช่วยตรวจ) — backend อ่านบทบาทจาก DB ทุก request จึงมีผลทันที
+  const saveRole = async () => {
+    setRoleSaving(true);
+    setRoleError('');
+    try {
+      await apiFetch(`/users/${roleEdit.user.user_id}/role`, { method: 'POST', body: { role_name: roleEdit.role_name } });
+      toast(tt('usersMgmt.changeRoleToast'), 'success');
+      setRoleEdit(null);
+      load();
+    } catch (e) {
+      setRoleError(e instanceof ApiError ? e.message : tt('usersMgmt.changeRoleFail'));
+    } finally {
+      setRoleSaving(false);
     }
   };
 
@@ -112,7 +131,11 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
           <tbody>{usersPage.rows.map(u => (
             <tr key={u.user_id}>
               <td><div style={{ display: 'flex', alignItems: 'center', gap: 11 }}><Avatar name={u.first_name} size={34} bg="var(--navy-600)" />
-                <span style={{ fontWeight: 600 }}>{u.first_name} {u.last_name}</span></div></td>
+                <div>
+                  <div style={{ fontWeight: 600 }}>{u.first_name} {u.last_name}</div>
+                  {/* ใครสร้างบัญชีนี้ — บัญชีเก่าที่ไม่มีข้อมูลก็ไม่โชว์ */}
+                  {u.creator && <div style={{ fontSize: 13.5, color: 'var(--ink-500)' }}>{tt('usersMgmt.createdBy', { name: actorLabel(u.creator, tt) })}</div>}
+                </div></div></td>
               <td className="mono" style={{ fontSize: 15, color: 'var(--ink-500)' }}>{u.psu_passport_id}</td>
               <td className="mono" style={{ fontSize: 15, color: 'var(--ink-500)' }}>{u.email || '—'}</td>
               <td><span className="chip" style={{ background: 'var(--blue-50)', color: 'var(--blue-600)', fontWeight: 600 }}><Icon name="chart" size={13} /> {ROLE_LABEL[u.role.role_name]}</span></td>
@@ -120,7 +143,12 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
                   เพราะบัญชีใหม่ก็ must_change_password=true เหมือนกัน แยกกันไม่ออกถ้าไม่มี flag นี้ */}
               <td>
                 {u.is_revoked
-                  ? <span className="badge reject"><span className="dot" />{tt('usersMgmt.statusRevoked')}</span>
+                  ? <div>
+                      <span className="badge reject"><span className="dot" />{tt('usersMgmt.statusRevoked')}</span>
+                      {/* ใครปิด เมื่อไหร่ (users.closed_by / closed_at) — บัญชีที่ปิดก่อนมีคอลัมน์นี้จะไม่มีข้อมูล */}
+                      {u.closed_at && <div style={{ fontSize: 13.5, color: 'var(--ink-500)', marginTop: 4 }}>
+                        {tt('usersMgmt.closedBy', { name: u.closer ? actorLabel(u.closer, tt) : '—', date: new Date(u.closed_at).toLocaleDateString('th-TH') })}</div>}
+                    </div>
                   : u.must_change_password
                   ? <span className="badge wait"><span className="dot" />{tt('usersMgmt.statusPending')}</span>
                   : <span className="badge ok"><span className="dot" />{tt('usersMgmt.statusActive')}</span>}
@@ -133,11 +161,12 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
                   <Icon name="key" size={15} /> {tt('usersMgmt.resetBtn')}</button>
                 <button className="btn btn-ghost btn-sm" style={{ marginRight: 6 }} disabled={u.user_id === currentUserId || u.is_revoked}
                   title={u.is_revoked ? tt('usersMgmt.revokedHint') : undefined}
+                  onClick={() => { setRoleEdit({ user: u, role_name: u.role.role_name }); setRoleError(''); }}>
+                  <Icon name="edit" size={15} /> {tt('usersMgmt.changeRoleBtn')}</button>
+                <button className="btn btn-ghost btn-sm" style={{ marginRight: 6 }} disabled={u.user_id === currentUserId || u.is_revoked}
+                  title={u.is_revoked ? tt('usersMgmt.revokedHint') : undefined}
                   onClick={() => { setConfirm({ user: u, action: 'revoke' }); setConfirmError(''); }}>
                   <Icon name="xCircle" size={15} /> {tt('usersMgmt.revokeBtn')}</button>
-                <button className="btn btn-danger btn-sm" disabled={u.user_id === currentUserId}
-                  onClick={() => { setConfirm({ user: u, action: 'delete' }); setConfirmError(''); }}>
-                  <Icon name="trash" size={15} /> {tt('usersMgmt.deleteBtn')}</button>
               </td>
             </tr>
           ))}</tbody>
@@ -215,6 +244,22 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
             {confirmError && <div style={{ color: 'var(--reject,#dc2626)', fontSize: 15, marginTop: 10 }}>{confirmError}</div>}
           </>
         )}
+      </Modal>
+
+      {/* เปลี่ยนบทบาท — เลือกได้เฉพาะบทบาทของเจ้าหน้าที่ฝั่งคณะ (ไม่รวมนักศึกษา) */}
+      <Modal open={!!roleEdit} onClose={() => !roleSaving && setRoleEdit(null)} width={460} title={tt('usersMgmt.changeRoleTitle')}
+        footer={<><button className="btn btn-ghost" disabled={roleSaving} onClick={() => setRoleEdit(null)}>{tt('officer.detail.cancelBtn')}</button>
+          <button className="btn btn-primary" disabled={roleSaving || roleEdit?.role_name === roleEdit?.user.role.role_name} onClick={saveRole}>
+            {roleSaving ? tt('usersMgmt.changeRoleSaving') : tt('usersMgmt.changeRoleConfirm')}</button></>}>
+        {roleEdit && <>
+          <p style={{ margin: '0 0 14px', color: 'var(--ink-600)', fontSize: 16, lineHeight: 1.6 }}>
+            {tt('usersMgmt.changeRoleBody', { name: `${roleEdit.user.first_name} ${roleEdit.user.last_name}` })}</p>
+          <div className="field"><label>{tt('usersMgmt.colRole')}</label>
+            <Select value={roleEdit.role_name} onChange={v => setRoleEdit(r => ({ ...r, role_name: v }))} lang={lang}
+              options={MANAGED_ROLES.map(r => ({ value: r, label: ROLE_LABEL[r] }))} />
+          </div>
+          {roleError && <div style={{ marginTop: 12, color: 'var(--status-reject-fg)', fontSize: 15 }}>{roleError}</div>}
+        </>}
       </Modal>
     </div>
   );

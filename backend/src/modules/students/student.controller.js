@@ -79,6 +79,12 @@ export const getById = async (req, res, next) => {
     }
 
     const student = await studentRepo.findById(req.params.id);
+    // ชื่อเจ้าหน้าที่ที่เปิดสิทธิ์เป็นข้อมูลภายในคณะ — นักศึกษาที่เปิดดูข้อมูลตัวเองไม่ต้องเห็น
+    if (student && req.user.role === "student") {
+      delete student.eligible_setter;
+      delete student.eligible_set_by;
+      delete student.eligible_set_at;
+    }
     // ไม่เจอ = 404 ไม่ใช่ 200 + data:null — ฝั่งหน้าเว็บจะได้รู้ว่าไม่มีคนนี้จริง ไม่ใช่โหลดพลาด
     if (!student) {
       const err = new Error("ไม่พบนักศึกษา");
@@ -338,6 +344,7 @@ export const bulkSetEligible = async (req, res, next) => {
     const result = await studentRepo.bulkSetEligible(
       student_ids,
       exam_eligible,
+      req.user.userId,
     );
 
     // แจ้งเตือนเฉพาะตอนเปิดสิทธิ์ — ปิดสิทธิ์ไม่ต้องแจ้ง ไม่ใช่ข่าวดีที่นักศึกษาต้องรู้ทันที

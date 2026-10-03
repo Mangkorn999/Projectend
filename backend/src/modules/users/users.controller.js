@@ -88,6 +88,7 @@ export const create = async (req, res, next) => {
       password_hash: await bcrypt.hash(password, SALT_ROUNDS),
       // รหัสที่เจ้าหน้าที่ตั้งให้เป็นแค่รหัสชั่วคราว — บังคับเปลี่ยนตอน login ครั้งแรก (ForceChangePassword)
       must_change_password: true,
+      created_by: req.user.userId, // ใครเป็นคนสร้างบัญชีนี้ — อ่านจาก JWT เท่านั้น
       first_name,
       last_name,
       // ไม่ได้กรอก (ผู้บริหาร) → เก็บเป็น null ไม่ใช่สตริงว่าง
@@ -176,7 +177,7 @@ export const revokeAccess = async (req, res, next) => {
       throw err;
     }
 
-    const user = await UserRepo.revokeAccess(targetId);
+    const user = await UserRepo.revokeAccess(targetId, req.user.userId);
     res.json({ success: true, data: user });
   } catch (err) {
     next(err);

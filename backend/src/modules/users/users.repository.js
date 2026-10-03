@@ -1,4 +1,5 @@
 import prisma from "../../config/db.js";
+import { ACTOR_SELECT, toActor } from "../../utils/actor.js";
 
 // field ที่ดึงจาก DB — มี password_hash ด้วยเพื่อคำนวณ is_revoked เท่านั้น
 // ต้องผ่าน toPublicUser() ก่อนส่งออกเสมอ ห้าม return ตรงๆ เด็ดขาด (จะหลุด hash ออกไป)
@@ -13,6 +14,10 @@ const USER_FIELDS_WITH_HASH = {
   email: true,
   phone: true,
   created_at: true,
+  // ใครสร้างบัญชี / ใครปิดบัญชี เมื่อไหร่ — ผ่าน toPublicUser() ก่อนส่งออกเสมอ (ACTOR_SELECT มี password_hash ไว้คำนวณ is_closed)
+  closed_at: true,
+  creator: { select: ACTOR_SELECT },
+  closer: { select: ACTOR_SELECT },
   role: true,
 };
 
@@ -21,7 +26,7 @@ const USER_FIELDS_WITH_HASH = {
 const toPublicUser = (user) => {
   if (!user) return user;
   const { password_hash, ...rest } = user;
-  return { ...rest, is_revoked: password_hash === null };
+  return { ...rest, creator: toActor(rest.creator), closer: toActor(rest.closer), is_revoked: password_hash === null };
 };
 
 //find ALL
@@ -65,20 +70,22 @@ export const updateRole = async (id, role_id) => {
 
 // ถอนสิทธิ์ — ไม่ลบ record (กัน FK พังจากประวัติ news/rounds/exam ที่ user นี้เคยสร้าง/ยืนยันไว้)
 // เคลียร์ password_hash เป็น null ถาวร — login ไม่ได้อีกจนกว่าเจ้าหน้าที่จะ resetPassword ให้ใหม่ (ไม่ใช่ตั้งเอง ไม่มี first-setup แล้ว)
-export const revokeAccess = async (id) => {
+// closedBy = user_id ของเจ้าหน้าที่ที่กดปิด (อ่านจาก JWT ที่ controller) — เก็บคู่กับเวลา ไว้ตอบว่าใครปิดเมื่อไหร่
+export const revokeAccess = async (id, closedBy) => {
   const user = await prisma.user.update({
     where: { user_id: Number(id) },
-    data: { password_hash: null, must_change_password: true },
+    data: { password_hash: null, must_change_password: true, closed_at: new Date(), closed_by: closedBy },
     select: USER_FIELDS_WITH_HASH,
   });
   return toPublicUser(user);
 };
 
 // รีเซ็ตรหัสผ่าน — ตั้งรหัสชั่วคราวใหม่ให้ทันที (ต่างจาก revokeAccess ที่ล้างเป็น null ถาวร)
+// ตั้งรหัสใหม่ = เปิดบัญชีคืนถ้าเคยถูกปิด จึงล้าง closed_at / closed_by ด้วย
 export const setPassword = async (id, password_hash) => {
   const user = await prisma.user.update({
     where: { user_id: Number(id) },
-    data: { password_hash, must_change_password: true },
+    data: { password_hash, must_change_password: true, closed_at: null, closed_by: null },
     select: USER_FIELDS_WITH_HASH,
   });
   return toPublicUser(user);

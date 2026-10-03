@@ -11,6 +11,9 @@
  *   - รุ่นล่าสุด: รอบ 1 ปิดและตรวจครบ, รอบ 2 **เปิดรับอยู่** และค้างกลางคัน
  *     (มีทั้งใบรอตรวจ / ตีกลับ / ยืนยันแล้ว / ยังไม่กรอก) — คิวตรวจของเจ้าหน้าที่จะมีงานจริง
  *
+ * ทีมเจ้าหน้าที่ตัวอย่าง: สร้าง/อัปเดตเจ้าหน้าที่ + ผู้ช่วยตรวจเพิ่ม (รหัสผ่าน demo1234) และบัญชีที่ "ปิดแล้ว" 2 บัญชี
+ *   ไว้ให้หน้าจอโชว์ได้ว่าใครสร้างรอบ / โพสต์ข่าว / ตรวจผลสอบ (ปิดบัญชีแล้วชื่อยังอยู่ + ป้าย "ปิดบัญชีแล้ว")
+ *   ใช้ PRNG แยกอีกตัวสำหรับเลือกคน → ผลสอบของนักศึกษาออกมาเหมือนเดิมเป๊ะ
  * ของที่ต้องมีอยู่แล้วใน DB: roles, faculties, rooms (>=2), subjects (8 วิชา), บัญชี officer
  * รันซ้ำได้ — ลบข้อมูลของปีที่ระบุทิ้งก่อนเสมอ ไม่แตะปีอื่นและไม่แตะบัญชีเจ้าหน้าที่/ผู้บริหาร
  *
@@ -39,6 +42,29 @@ const mulberry32 = (a) => () => {
 let rand = mulberry32(20260812);
 const pick = (arr) => arr[Math.floor(rand() * arr.length)];
 const between = (lo, hi) => lo + Math.floor(rand() * (hi - lo + 1));
+
+// PRNG อีกตัว ใช้เลือก "คนตรวจ/คนสร้าง" โดยเฉพาะ — ไม่ปนกับ rand() ข้างบน
+// ถ้าใช้ตัวเดียวกัน การเพิ่มบรรทัดเลือกคนจะทำให้ผลสอบของนักศึกษาทุกคนเปลี่ยนไปหมด
+const actorRand = mulberry32(777);
+const pickActor = (list) => list[Math.floor(actorRand() * list.length)];
+
+// เหตุผลที่ตีกลับ (ไว้ใส่ในประวัติการตรวจ)
+const REJECT_REMARKS = [
+  "เอกสารหลักฐานไม่ชัดเจน กรุณาอัปโหลดใหม่",
+  "ผลสอบที่กรอกไม่ตรงกับใบผลสอบที่แนบ",
+  "ไฟล์ที่แนบไม่ใช่ใบผลสอบ กรุณาแนบไฟล์ที่ถูกต้อง",
+  "ใบผลสอบไม่ครบทุกหน้า",
+];
+
+// เจ้าหน้าที่/ผู้ช่วยตรวจตัวอย่าง (สร้างเพิ่มจากบัญชีที่มีอยู่) — closed = true คือบัญชีที่ปิดไปแล้ว
+const DEMO_STAFF = [
+  { psu: "officer02", role: "officer", first: "สุนิสา", last: "ใจดี", closed: false },
+  { psu: "officer03", role: "officer", first: "วิชัย", last: "พงษ์เจริญ", closed: false },
+  { psu: "officer04", role: "officer", first: "มาลี", last: "รักษาศิลป์", closed: true },
+  { psu: "reviewer02", role: "reviewer", first: "ปวีณา", last: "สุขสวัสดิ์", closed: false },
+  { psu: "reviewer03", role: "reviewer", first: "ธนากร", last: "ศรีสุข", closed: false },
+  { psu: "reviewer04", role: "reviewer", first: "อรุณี", last: "แสนดี", closed: true },
+];
 
 const FIRST_NAMES = [
   "ณัฐพงศ์", "พิมพ์ชนก", "ธนกฤต", "สุพรรษา", "อรรถพล", "กมลชนก", "วรเมธ", "ปิยะนุช",
@@ -103,6 +129,57 @@ const main = async () => {
   const studentRole = await prisma.role.findFirst({ where: { role_name: "student" } });
   if (!studentRole) throw new Error("ไม่มี role student");
 
+  // ── ทีมเจ้าหน้าที่ตัวอย่าง ── (upsert = มีอยู่แล้วก็อัปเดต ไม่มีก็สร้าง รันซ้ำได้)
+  const staffHash = await bcrypt.hash(DEMO_PASSWORD, 10);
+  const staffUsers = [];
+  for (const m of DEMO_STAFF) {
+    const role = await prisma.role.findFirst({ where: { role_name: m.role } });
+    if (!role) throw new Error("ไม่มี role " + m.role);
+    // บัญชีที่ปิดแล้ว = password_hash เป็น null (เหมือนที่ปุ่ม "ปิดบัญชี" ในระบบทำ) login ไม่ได้ แต่ประวัติยังอยู่
+    const data = {
+      role_id: role.role_id,
+      first_name: m.first,
+      last_name: m.last,
+      email: m.psu + "@demo.local",
+      phone: "0800000000",
+      password_hash: m.closed ? null : staffHash,
+      must_change_password: m.closed ? true : false,
+      created_by: officer.user_id,
+      closed_at: m.closed ? new Date("2026-09-15T10:00:00+07:00") : null,
+      closed_by: m.closed ? officer.user_id : null,
+    };
+    const user = await prisma.user.upsert({
+      where: { psu_passport_id: m.psu },
+      update: data,
+      create: { psu_passport_id: m.psu, ...data },
+    });
+    staffUsers.push({ ...m, user });
+  }
+  const demoOf = (role, closed) => staffUsers.filter((x) => x.role === role && x.closed === closed).map((x) => x.user);
+  const existingReviewer = await prisma.user.findFirst({
+    where: {
+      role: { role_name: "reviewer" },
+      password_hash: { not: null },
+      psu_passport_id: { notIn: DEMO_STAFF.map((m) => m.psu) },
+    },
+  });
+
+  // คนที่ใช้ได้ในแต่ละปี — 2 ปีแรกมีบัญชีที่ปิดแล้วปนอยู่ (ทำงานตอนนั้น ตอนนี้ปิดบัญชีไปแล้ว) ปีหลังๆ มีแต่คนที่ยังใช้งานอยู่
+  const OLD_YEARS = 2;
+  const officersOf = (year) => [
+    officer,
+    ...demoOf("officer", false),
+    ...(year - START_YEAR < OLD_YEARS ? demoOf("officer", true) : []),
+  ];
+  const reviewersOf = (year) => [
+    ...(existingReviewer ? [existingReviewer] : []),
+    ...demoOf("reviewer", false),
+    ...(year - START_YEAR < OLD_YEARS ? demoOf("reviewer", true) : []),
+  ];
+  // คนตรวจ = ผู้ช่วยตรวจเป็นหลัก (นับ 2 เท่า) + เจ้าหน้าที่ตรวจเองบ้าง
+  const checkersOf = (year) => [...reviewersOf(year), ...reviewersOf(year), ...officersOf(year)];
+  const daysAgo = (n) => new Date(Date.now() - n * 24 * 60 * 60 * 1000);
+
   // ความยากของแต่ละวิชา 0..1 — fix ไว้ต่อ subject_id จะได้เห็นวิชาที่ยากกว่าเพื่อนในกราฟทุกปี
   const difficultyOf = new Map();
   subjects.forEach((s, i) => difficultyOf.set(s.subject_id, [0.15, 0.55, 0.3, 0.7, 0.25, 0.6, 0.4, 0.45][i % 8]));
@@ -143,6 +220,7 @@ const main = async () => {
 
   for (const year of years) {
     const isLatest = year === latestYear;
+    const eligibleSetter = pickActor(officersOf(year)); // คนที่กดเปิดสิทธิ์ให้ทั้งรุ่นปีนี้
     const count = between(150, 200);
     const firstRoomCount = Math.round(count * 0.7);
     const prefix = idPrefixOf(year);
@@ -207,6 +285,8 @@ const main = async () => {
         academic_year: year,
         room_id: p.room,
         exam_eligible: true,
+        eligible_set_by: eligibleSetter.user_id,
+        eligible_set_at: new Date(`${toCE(year)}-05-20T09:00:00+07:00`),
         // ข้อมูลเดโมไม่มีชื่ออังกฤษ — ใส่ placeholder กัน schema บังคับ NOT NULL
         first_name_en: `Student${p.id.slice(-4)}`,
         last_name_en: "Demo",
@@ -217,12 +297,14 @@ const main = async () => {
     const ce = toCE(year);
     const round1 = await prisma.submissionRound.create({
       data: {
-        created_by: officer.user_id,
+        created_by: pickActor(officersOf(year)).user_id,
         academic_year: year,
         attempt_number: 1,
         open_date: new Date(`${ce}-06-01T00:00:00+07:00`),
         close_date: new Date(`${ce}-06-30T23:59:59+07:00`),
         status: "closed",
+        updated_by: pickActor(officersOf(year)).user_id,
+        updated_at: new Date(`${ce}-07-01T10:00:00+07:00`),
         subject_ids: subjects.map((s) => s.subject_id),
       },
     });
@@ -270,17 +352,35 @@ const main = async () => {
         staff: statusOf(p),
       }));
 
-    const writePapers = (roundId, papers, rejectRemark) =>
+    // round = แถวรอบทั้งก้อน (ต้องใช้ close_date/status คำนวณวันที่ตรวจ) · ใบที่ตรวจแล้วจะได้ผู้ตรวจ + วันที่ตรวจ + ประวัติ review_logs
+    const writePapers = (round, papers, rejectRemark) =>
       (async () => {
+        const roundId = round.round_id;
+        for (const paper of papers) {
+          if (paper.staff === "pending") continue;
+          paper.reviewer = pickActor(checkersOf(year));
+          // รอบที่ปิดแล้ว: ตรวจหลังปิดรอบ 1–7 วัน · รอบที่ยังเปิด: ตรวจเมื่อ 1–10 วันก่อน
+          paper.reviewedAt =
+            round.status === "open"
+              ? daysAgo(1 + Math.floor(actorRand() * 10))
+              : new Date(round.close_date.getTime() + (1 + Math.floor(actorRand() * 7)) * 24 * 60 * 60 * 1000);
+        }
+        // ใบที่ตรวจแล้ว: ส่งก่อนวันตรวจ 6 วัน · ใบที่ยังรอตรวจ (รอบที่เปิดอยู่): ส่งเมื่อ 1–8 วันก่อน
+        for (const paper of papers) {
+          paper.submittedAt = paper.reviewedAt
+            ? new Date(paper.reviewedAt.getTime() - 6 * 24 * 60 * 60 * 1000)
+            : daysAgo(1 + Math.floor(actorRand() * 8));
+        }
         await prisma.examResult.createMany({
           data: papers.map((paper) => ({
             student_id: paper.student_id,
             round_id: roundId,
+            submitted_at: paper.submittedAt,
             student_status: "submitted",
             staff_status: paper.staff,
             remark: paper.staff === "rejected" ? rejectRemark : null,
-            confirmed_by: paper.staff === "pending" ? null : officer.user_id,
-            confirmed_at: paper.staff === "pending" ? null : new Date(),
+            confirmed_by: paper.staff === "pending" ? null : paper.reviewer.user_id,
+            confirmed_at: paper.staff === "pending" ? null : paper.reviewedAt,
           })),
         });
         const created = await prisma.examResult.findMany({
@@ -293,11 +393,35 @@ const main = async () => {
             paper.marks.map((m) => ({ result_id: resultIdOf.get(paper.student_id), ...m })),
           ),
         });
+
+        // ประวัติการตรวจ (review_logs) — ใบที่ตรวจแล้วมี 1 รายการ · ใบที่ยืนยันแล้ว ~15% เคยถูกตีกลับก่อน (แก้แล้วส่งใหม่)
+        const logs = [];
+        for (const paper of papers) {
+          if (paper.staff === "pending") continue;
+          const resultId = resultIdOf.get(paper.student_id);
+          if (paper.staff === "approved" && actorRand() < 0.15) {
+            logs.push({
+              result_id: resultId,
+              reviewer_id: pickActor(checkersOf(year)).user_id,
+              action: "rejected",
+              remark: pickActor(REJECT_REMARKS),
+              created_at: new Date(paper.reviewedAt.getTime() - (2 + Math.floor(actorRand() * 3)) * 24 * 60 * 60 * 1000),
+            });
+          }
+          logs.push({
+            result_id: resultId,
+            reviewer_id: paper.reviewer.user_id,
+            action: paper.staff,
+            remark: paper.staff === "rejected" ? rejectRemark : null,
+            created_at: paper.reviewedAt,
+          });
+        }
+        if (logs.length > 0) await prisma.reviewLog.createMany({ data: logs });
         return created.length;
       })();
 
     const round1People = people.filter((p) => !skippers.has(p.id));
-    await writePapers(round1.round_id, buildPapers(allSubjectIds, 1, round1People, () => "approved"));
+    await writePapers(round1, buildPapers(allSubjectIds, 1, round1People, () => "approved"));
 
     const stillFailing = (p) => allSubjectIds.some((sid) => !(passedBy.get(p.id)?.has(sid)));
 
@@ -308,13 +432,14 @@ const main = async () => {
       const need = allSubjectIds.filter((sid) => round2People.some((p) => !passedBy.get(p.id)?.has(sid)));
       round2 = await prisma.submissionRound.create({
         data: {
-          created_by: officer.user_id,
+          created_by: pickActor(officersOf(year)).user_id,
           academic_year: year,
           attempt_number: 2,
           // รุ่นล่าสุดยังเปิดรับอยู่จริง ต้องคร่อมวันนี้ ไม่งั้น findActive มองไม่เห็น
           open_date: isLatest ? new Date(`${ce}-08-01T00:00:00+07:00`) : new Date(`${ce}-10-01T00:00:00+07:00`),
           close_date: isLatest ? new Date(`${ce}-09-30T23:59:59+07:00`) : new Date(`${ce}-10-31T23:59:59+07:00`),
           status: isLatest ? "open" : "closed",
+          ...(isLatest ? {} : { updated_by: pickActor(officersOf(year)).user_id, updated_at: new Date(`${ce}-11-01T10:00:00+07:00`) }),
           subject_ids: need,
         },
       });
@@ -328,7 +453,7 @@ const main = async () => {
           if (r < 0.7) return "rejected";
           return "approved";
         });
-        await writePapers(round2.round_id, papers, "เอกสารหลักฐานไม่ชัดเจน กรุณาอัปโหลดใหม่");
+        await writePapers(round2, papers, "เอกสารหลักฐานไม่ชัดเจน กรุณาอัปโหลดใหม่");
 
         // แจ้งเตือนของใบที่ถูกตีกลับ — หน้านักศึกษาจะได้มีของจริงให้ดู
         const rejected = papers.filter((p) => p.staff === "rejected");
@@ -343,7 +468,7 @@ const main = async () => {
         }
       } else {
         const papers = buildPapers(need, 2, round2People, () => "approved");
-        await writePapers(round2.round_id, papers);
+        await writePapers(round2, papers);
       }
     }
 
@@ -355,23 +480,27 @@ const main = async () => {
         const need = allSubjectIds.filter((sid) => remaining.some((p) => !passedBy.get(p.id)?.has(sid)));
         round3 = await prisma.submissionRound.create({
           data: {
-            created_by: officer.user_id,
+            created_by: pickActor(officersOf(year)).user_id,
             academic_year: year,
             attempt_number: 3,
             open_date: new Date(`${ce + 1}-02-01T00:00:00+07:00`),
             close_date: new Date(`${ce + 1}-02-28T23:59:59+07:00`),
             status: "closed",
+            updated_by: pickActor(officersOf(year)).user_id,
+            updated_at: new Date(`${ce + 1}-03-01T10:00:00+07:00`),
             subject_ids: need,
           },
         });
-        await writePapers(round3.round_id, buildPapers(need, 3, remaining, () => "approved"));
+        await writePapers(round3, buildPapers(need, 3, remaining, () => "approved"));
       }
     }
 
     // ── ประกาศผูกกับรอบแรกของปี ──
     await prisma.news.create({
       data: {
-        posted_by: officer.user_id,
+        posted_by: pickActor(officersOf(year)).user_id,
+        updated_by: actorRand() < 0.35 ? pickActor(officersOf(year)).user_id : null,
+        posted_at: round1.open_date,
         round_id: round1.round_id,
         title: `เปิดรับผลสอบใบประกอบวิชาชีพ ปีการศึกษา ${year} ครั้งที่ 1`,
         content:
@@ -380,6 +509,21 @@ const main = async () => {
           `หากมีข้อสงสัยติดต่องานบริการการศึกษา คณะพยาบาลศาสตร์`,
       },
     });
+
+    // ประกาศเปิดรับรอบ 2 (ถ้ามีรอบ 2) — โพสต์โดยเจ้าหน้าที่อีกคน
+    if (round2) {
+      await prisma.news.create({
+        data: {
+          posted_by: pickActor(officersOf(year)).user_id,
+          posted_at: round2.open_date,
+          round_id: round2.round_id,
+          title: "เปิดรับผลสอบใบประกอบวิชาชีพ ปีการศึกษา " + year + " ครั้งที่ 2",
+          content:
+            "รอบนี้เปิดรับเฉพาะนักศึกษาที่ยังมีวิชาที่สอบไม่ผ่านจากรอบที่ 1\n" +
+            "กรอกผลสอบเฉพาะวิชาที่ต้องสอบใหม่ พร้อมแนบใบผลสอบ (PDF) ภายในวันที่กำหนด",
+        },
+      });
+    }
 
     const fullyPassed = people.filter((p) => !stillFailing(p)).length;
     summary.push({

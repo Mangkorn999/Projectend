@@ -516,7 +516,8 @@ html { scroll-behavior: smooth; scrollbar-gutter: stable; }
 
 /* พรีวิวเอกสารหลักฐาน: ไฟล์ซ้าย + ผลที่นักศึกษาติ๊กขวา (ติดขอบ modal ด้วย margin ติดลบหักล้าง padding ของ Modal)
    สูง 90vh - หัว/ท้าย modal พอดี → ไม่มีแถบเลื่อนซ้อนนอก */
-.preview-split { display:flex; margin:-20px -22px; height:calc(90vh - 134px); }
+/* --preview-footer-extra = ความสูงส่วนที่ footer ของ modal เพิ่มขึ้น (ข้อความเตือนหลายไฟล์ / ช่องเหตุผลตีกลับ) ตั้งจาก studentDetailReal.jsx — ไม่งั้นปุ่มยืนยัน/ตีกลับถูกดันตกขอบจอ */
+.preview-split { display:flex; margin:-20px -22px; height:calc(90vh - 134px - var(--preview-footer-extra, 0px)); }
 .preview-split-file { flex:1; min-width:0; background:var(--ink-50); display:flex; align-items:center; justify-content:center; overflow:auto; }
 .preview-split-file iframe { display:block; width:100%; height:100%; border:none; }
 .preview-split-file img { display:block; max-width:calc(100% - 32px); max-height:calc(100% - 32px); border-radius:6px; box-shadow:var(--sh-sm); }

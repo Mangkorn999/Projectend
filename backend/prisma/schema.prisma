@@ -40,6 +40,21 @@ model User {
   role            Role              @relation(fields: [role_id], references: [role_id])
   review_logs     ReviewLog[]
 
+  // ── ใครทำอะไร (audit) — ทุกช่องว่างได้: แถวเก่าที่มีมาก่อน / บัญชีที่ seed สร้าง ไม่มีค่า หน้าจอแสดง "—"
+  // ใครเป็นคนสร้างบัญชีนี้ (เจ้าหน้าที่ที่กดเพิ่มผู้ใช้) — นักศึกษาที่ import ไม่ใช้ช่องนี้
+  created_by      Int?
+  // ปิดบัญชีเมื่อไหร่ / ใครปิด — ว่าง = ยังไม่เคยถูกปิด · รีเซ็ตรหัสผ่านเพื่อเปิดคืนแล้วจะล้างสองช่องนี้
+  closed_at       DateTime?
+  closed_by       Int?
+  // onDelete: SetNull = ถ้าคนที่สร้าง/คนที่ปิดถูกลบบัญชีภายหลัง ช่องนี้กลับเป็นว่าง ไม่ทำให้ลบไม่ได้
+  creator         User?             @relation("UserCreatedBy", fields: [created_by], references: [user_id], onDelete: SetNull)
+  created_users   User[]            @relation("UserCreatedBy")
+  closer          User?             @relation("UserClosedBy", fields: [closed_by], references: [user_id], onDelete: SetNull)
+  closed_users    User[]            @relation("UserClosedBy")
+  news_edited     News[]            @relation("NewsUpdatedBy")
+  rounds_edited   SubmissionRound[] @relation("RoundUpdatedBy")
+  students_eligible_set Student[]   @relation("StudentEligibleSetBy")
+
   @@map("users")
 }
 
@@ -72,6 +87,10 @@ model Student {
   notifications            Notification[]
   // เปิดสิทธิ์กรอกผลสอบให้อัตโนมัติตั้งแต่เพิ่มนักศึกษาเข้าระบบ — เจ้าหน้าที่ค่อยกดถอนสิทธิ์เองถ้าไม่ต้องการ
   exam_eligible Boolean @default(true)
+  // ใครเปิด/ปิดสิทธิ์กรอกผลสอบล่าสุด และเมื่อไหร่ — ว่าง = ยังไม่เคยถูกแก้หลังเพิ่มเข้าระบบ
+  eligible_set_by          Int?
+  eligible_set_at          DateTime?
+  eligible_setter          User?        @relation("StudentEligibleSetBy", fields: [eligible_set_by], references: [user_id], onDelete: SetNull)
   faculty                  Faculty      @relation(fields: [faculty_id], references: [faculty_id])
   room                     Room         @relation(fields: [room_id], references: [room_id])
   user                     User         @relation(fields: [user_id], references: [user_id])
@@ -105,6 +124,10 @@ model SubmissionRound {
   news           News[]
   notifications  Notification[]
   creator        User         @relation("UserToRound", fields: [created_by], references: [user_id])
+  // ใครแก้รอบนี้ล่าสุด (แก้วัน/เปิด/ปิดรอบ) และเมื่อไหร่ — ว่าง = ยังไม่เคยแก้หลังสร้าง
+  updated_by     Int?
+  updated_at     DateTime?
+  updater        User?        @relation("RoundUpdatedBy", fields: [updated_by], references: [user_id], onDelete: SetNull)
 
   // หนึ่งรุ่นมีสอบครั้งที่ n ได้ครั้งเดียว — กันรอบซ้ำที่ระดับ DB ไม่ใช่แค่ที่ controller
   @@unique([academic_year, attempt_number])
@@ -200,6 +223,9 @@ model News {
   image_path String?         @db.VarChar(255)
   posted_at  DateTime        @default(now())
   updated_at DateTime        @updatedAt
+  // ใครแก้ประกาศล่าสุด — ว่าง = ยังไม่เคยแก้หลังโพสต์ (updated_at อัปเดตเองทุกครั้งที่บันทึก รวมตอนสร้างด้วย จึงใช้ updated_by เป็นตัวบอกว่า "เคยถูกแก้")
+  updated_by Int?
+  updater    User?           @relation("NewsUpdatedBy", fields: [updated_by], references: [user_id], onDelete: SetNull)
   poster     User            @relation("UserToNews", fields: [posted_by], references: [user_id])
   round      SubmissionRound @relation(fields: [round_id], references: [round_id])
 

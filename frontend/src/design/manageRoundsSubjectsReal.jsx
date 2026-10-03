@@ -5,7 +5,7 @@
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
 import { phaseOf, phaseLabel, phaseBadgeClass } from './roundPhase.js';
-import { PageHead, Modal, Select, Pagination } from './components.jsx';
+import { PageHead, Modal, Select, Pagination, actorLabel } from './components.jsx';
 import { usePagedList } from './usePagedList.js';
 import { SkeletonCards } from './skeletons.jsx';
 import { apiFetch, ApiError } from './api.js';
@@ -190,6 +190,9 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
               </div>
               <div style={{ fontSize: 20, fontWeight: 800 }}>{tt('roundsMgmt.roundLine', { attempt: r.attempt_number, year: r.academic_year })}</div>
               <div style={{ fontSize: 14.5, color: 'var(--ink-500)', marginTop: 4 }}>{tt('roundsMgmt.targetLine', { year: r.academic_year })}</div>
+              {r.creator && <div style={{ fontSize: 14, color: 'var(--ink-500)', marginTop: 2 }}>{tt('roundsMgmt.createdBy', { name: actorLabel(r.creator, tt) })}</div>}
+              {/* แก้ล่าสุดโดยใคร เมื่อไหร่ (submission_rounds.updated_by / updated_at) — ยังไม่เคยแก้ก็ไม่โชว์ */}
+              {r.updater && <div style={{ fontSize: 14, color: 'var(--ink-500)', marginTop: 2 }}>{tt('roundsMgmt.updatedBy', { name: actorLabel(r.updater, tt), date: new Date(r.updated_at).toLocaleDateString('th-TH') })}</div>}
               <div className="hr" style={{ margin: '14px 0' }}></div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 15 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--ink-500)' }}>{tt('roundsMgmt.openDateLabel')}</span><b>{showThaiDateTime(r.open_date)}</b></div>

@@ -9,10 +9,13 @@
    ============================================================ */
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, Modal, StatusBadge, PassBadge, Empty, Select, Loading } from './components.jsx';
+import { PageHead, Modal, StatusBadge, PassBadge, Empty, Select, Loading, actorLabel } from './components.jsx';
 import { apiFetch, ApiError, fetchAuthedObjectUrl } from './api.js';
 import { t, subjectName, roomName } from './i18n.js';
 import { certificateTypeLabel, fileKindOf, fileKindLabel, fileKindIcon } from './evidenceFiles.js';
+
+// action ที่เก็บใน review_logs -> key ข้อความบนจอ
+const REVIEW_LOG_LABEL = { approved: 'officer.detail.logApproved', rejected: 'officer.detail.logRejected', revoked: 'officer.detail.logRevoked' };
 
 const STAFF_STATUS_TO_BADGE = { pending: 'SUBMITTED', approved: 'CONFIRMED', rejected: 'REJECTED' };
 
@@ -40,6 +43,7 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState('');
   const [preview, setPreview] = useState(null); // { url, filename, kind, detail } ไฟล์หลักฐานที่กำลังดูอยู่ใน modal
+  const [previewRejecting, setPreviewRejecting] = useState(false); // true = กำลังพิมพ์เหตุผลตีกลับอยู่ใน modal ดูไฟล์ (ไฟล์ยังเปิดค้างให้ดูระหว่างพิมพ์)
   const [previewLoadingId, setPreviewLoadingId] = useState(null); // certificate_id ที่กำลังโหลดอยู่ (กันกดซ้ำ + โชว์สปินเนอร์)
 
   // เปิด PDF/รูปในแท็บใหม่ไม่ได้ให้ดูในหน้าเดิมเลย ต้องรอโหลดก่อนค่อยเปลี่ยนแท็บ — ขอดูในหน้าเดิมแทน
@@ -53,6 +57,7 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
   const closePreview = () => {
     if (preview) URL.revokeObjectURL(preview.url);
     setPreview(null);
+    setPreviewRejecting(false);
   };
 
   const load = () => {
@@ -100,11 +105,25 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
       toast(action === 'approve' ? tt('officer.detail.confirmToast') : tt('officer.detail.rejectToast'), action === 'approve' ? 'success' : 'info');
       setReject(false);
       load(); // ดึงสถานะล่าสุดจาก backend ใหม่ ไม่เชื่อ state เดิมที่เดาเอง
+      return true;
     } catch (e) {
       toast(e instanceof ApiError ? e.message : tt('detailReal.actionFailMsg'), 'error');
+      return false;
     } finally {
       setBusy(false);
     }
+  };
+
+  // ยืนยัน/ตีกลับจากใน modal ดูไฟล์ — ใช้ review() ตัวเดียวกับปุ่มในหน้า (กฎเดียวกัน API เดียวกัน)
+  // สำเร็จแล้วปิด modal ให้กลับมาที่หน้ารายละเอียดซึ่งโหลดสถานะใหม่แล้ว
+  // footer ของ modal ดูไฟล์สูงขึ้นเมื่อมีข้อความเตือนหลายไฟล์ / ช่องเหตุผลตีกลับ — หักความสูงส่วนที่เพิ่มออกจากกรอบไฟล์ (ดู .preview-split ใน styles.css)
+  const previewFooterExtra = (canReview && status === 'SUBMITTED')
+    ? ((examResult?.certificates?.length || 0) > 1 ? 58 : 0) + (previewRejecting ? 108 : 0)
+    : 0;
+
+  const reviewFromPreview = async (action) => {
+    const ok = await review(action, remark);
+    if (ok) { closePreview(); setRemark(''); }
   };
 
   const revoke = async () => {
@@ -214,7 +233,9 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
           {/* ชื่อ-สกุลภาษาอังกฤษ (students.first_name_en/last_name_en) ที่นักศึกษากรอกตอนตั้งโปรไฟล์ */}
           {studentFull?.first_name_en && <> · {studentFull.first_name_en} {studentFull.last_name_en}</>}
           {/* เบอร์โทรมาจาก users.phone (GET /students/:id) — ไม่มีเบอร์ก็ไม่ต้องโชว์ช่องเปล่า */}
-          {studentFull?.user?.phone && <> · {tt('officer.detail.phoneLabel')} {studentFull.user.phone}</>}</span>}
+          {studentFull?.user?.phone && <> · {tt('officer.detail.phoneLabel')} {studentFull.user.phone}</>}
+          {/* ใครเปิด/ปิดสิทธิ์กรอกผลสอบล่าสุด เมื่อไหร่ (students.eligible_set_by / eligible_set_at) */}
+          {studentFull?.eligible_setter && <> · {tt('officer.detail.eligibleSetBy', { name: actorLabel(studentFull.eligible_setter, tt), date: new Date(studentFull.eligible_set_at).toLocaleDateString('th-TH') })}</>}</span>}
         actions={<div style={{ display: 'flex', gap: 8 }}>
           {canEdit && <button className="btn btn-ghost" onClick={openEdit}><Icon name="edit" size={16} /> {tt('officer.detail.editBtn')}</button>}
           {canEdit && <button className="btn btn-ghost" style={{ color: 'var(--fail)' }}
@@ -331,7 +352,15 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
             <div style={{ fontSize: 15, color: 'var(--ink-500)', fontWeight: 600, marginBottom: 12 }}>{tt('officer.detail.historyTitle')}</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 13, fontSize: 15 }}>
               {[[tt('officer.detail.step1'), examResult ? new Date(examResult.submitted_at).toLocaleString('th-TH') : '—', 'user'],
-                [tt('officer.review.reviewBtn'), status === 'SUBMITTED' ? tt('officer.detail.waitAction') : (examResult?.confirmed_at ? new Date(examResult.confirmed_at).toLocaleString('th-TH') : '—'), 'shield']].map(([l, d, ic], i) => (
+                // มีประวัติการตรวจ (review_logs) → โชว์ทุกครั้งที่ตรวจ พร้อมชื่อผู้ตรวจ (ปิดบัญชีแล้วก็ยังเห็นชื่อ)
+                // ใบเก่าที่ตรวจก่อนมี review_logs จะไม่มีแถวพวกนี้ → ใช้แถว "ตรวจสอบ" แบบเดิมแทน
+                ...(examResult?.review_logs?.length
+                  ? examResult.review_logs.map(log => [
+                      tt(REVIEW_LOG_LABEL[log.action] || 'officer.review.reviewBtn'),
+                      new Date(log.created_at).toLocaleString('th-TH') + ' · ' + tt('officer.detail.logBy', { name: actorLabel(log.reviewer, tt) }) + (log.remark ? ' · “' + log.remark + '”' : ''),
+                      'shield'])
+                  : [[tt('officer.review.reviewBtn'), status === 'SUBMITTED' ? tt('officer.detail.waitAction') : (examResult?.confirmed_at ? new Date(examResult.confirmed_at).toLocaleString('th-TH') : '—'), 'shield']])
+              ].map(([l, d, ic], i) => (
                 <div key={i} style={{ display: 'flex', gap: 10 }}>
                   <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--ink-100)', color: 'var(--ink-500)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}><Icon name={ic} size={15} /></div>
                   <div><div style={{ fontWeight: 600, color: 'var(--ink-800)' }}>{l}</div><div style={{ fontSize: 14, color: 'var(--ink-500)' }}>{d}</div></div>
@@ -451,14 +480,41 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
       <Modal open={!!preview} onClose={closePreview} width={preview?.kind === 'pdf' || preview?.kind === 'jpg' || preview?.kind === 'png' ? 1240 : 560}
         title={<span style={{ display: 'block', maxWidth: 520, margin: '0 auto', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
           title={preview?.filename}>{preview?.filename}</span>}
-        footer={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 10 }}>
-          <span style={{ fontSize: 14, color: 'var(--ink-500)' }}>{preview?.detail}</span>
-          <a className="btn btn-ghost btn-sm" href={preview?.url} target="_blank" rel="noreferrer">
-            <Icon name="eye" size={15} /> {tt('officer.detail.openNewTabBtn')}</a>
+        footer={<div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
+          {/* ใบมีหลายไฟล์ — กันเข้าใจผิดว่ายืนยัน/ตีกลับเฉพาะไฟล์ที่เปิดอยู่ (จริงๆ มีผลทั้งใบ) */}
+          {canReview && status === 'SUBMITTED' && (examResult?.certificates?.length || 0) > 1 && (
+            <div style={{ padding: '8px 12px', background: 'var(--blue-50)', color: 'var(--navy-700)', borderRadius: 10, fontSize: 14.5, display: 'flex', gap: 8 }}>
+              <Icon name="info" size={16} style={{ flex: 'none', marginTop: 3 }} /> <span>{tt('officer.detail.previewMultiFile', { n: examResult.certificates.length })}</span>
+            </div>
+          )}
+          {previewRejecting && (
+            <div className="field" style={{ margin: 0 }}>
+              <label>{tt('officer.detail.rejectFieldLabel')}</label>
+              <textarea className="input" rows={2} placeholder={tt('officer.detail.rejectPlaceholder')} value={remark} onChange={e => setRemark(e.target.value)} />
+            </div>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 14, color: 'var(--ink-500)' }}>{preview?.detail}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <a className="btn btn-ghost btn-sm" href={preview?.url} target="_blank" rel="noreferrer">
+                <Icon name="eye" size={15} /> {tt('officer.detail.openNewTabBtn')}</a>
+              {/* ปุ่มตัดสิน: เฉพาะคนที่มีสิทธิ์ตรวจ และใบยังรอตรวจ (เงื่อนไขเดียวกับปุ่มในหน้า) */}
+              {canReview && status === 'SUBMITTED' && (previewRejecting ? <>
+                <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setPreviewRejecting(false)}>{tt('officer.detail.cancelBtn')}</button>
+                <button className="btn btn-sm" style={{ background: 'var(--fail)', color: '#fff' }} disabled={!remark.trim() || busy} onClick={() => reviewFromPreview('reject')}>
+                  <Icon name="send" size={15} /> {tt('officer.detail.confirmRejectBtn')}</button>
+              </> : <>
+                <button className="btn btn-danger btn-sm" disabled={busy} onClick={() => setPreviewRejecting(true)}>
+                  <Icon name="xCircle" size={15} /> {tt('officer.detail.rejectBtn')}</button>
+                <button className="btn btn-success btn-sm" disabled={busy} onClick={() => reviewFromPreview('approve')}>
+                  <Icon name="checkCircle" size={15} /> {tt('officer.detail.confirmBtn')}</button>
+              </>)}
+            </div>
+          </div>
         </div>}>
         {/* ไฟล์ซ้าย + ผลที่นักศึกษาติ๊กขวา — เจ้าหน้าที่เทียบใบผลสอบกับที่กรอกได้ในจอเดียว ไม่ต้องปิดไปมา */}
         {(preview?.kind === 'pdf' || preview?.kind === 'jpg' || preview?.kind === 'png') && (
-          <div className="preview-split">
+          <div className="preview-split" style={{ '--preview-footer-extra': previewFooterExtra + 'px' }}>
             <div className="preview-split-file">
               {preview.kind === 'pdf'
                 ? <iframe src={preview.url} title={preview.filename} />

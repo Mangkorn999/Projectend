@@ -40,7 +40,9 @@ export const getAll = async (req, res, next) => {
       academicYear = student.academic_year;
     }
     const news = await newsRepo.findAll(academicYear);
-    res.json({ success: true, data: news });
+    // ผู้แก้ประกาศเป็นข้อมูลภายในคณะ — นักศึกษาเห็นแค่ผู้โพสต์ ตัด updater ก่อนส่ง (อ่าน role จาก JWT)
+    const data = req.user.role === "student" ? news.map(({ updater, ...rest }) => rest) : news;
+    res.json({ success: true, data });
   } catch (err) {
     next(err);
   }
@@ -88,6 +90,7 @@ export const updateNews = async (req, res, next) => {
       data.round_id = Number(round_id);
     }
 
+    data.updated_by = req.user.userId; // ใครแก้ล่าสุด (อ่านจาก JWT)
     const news = await newsRepo.update(req.params.id, data);
     res.json({ success: true, data: news });
   } catch (err) {
@@ -132,6 +135,7 @@ export const uploadNewsImage = async (req, res, next) => {
 
     const news = await newsRepo.update(existing.news_id, {
       image_path: toStoredPath(req.file.path),
+      updated_by: req.user.userId,
     });
     // เปลี่ยนรูปใหม่แล้ว รูปเก่าไม่มีใครอ้างถึงอีก ลบทิ้ง
     await removeImageFile(existing.image_path);
@@ -149,7 +153,7 @@ export const deleteNewsImage = async (req, res, next) => {
     if (!existing) throw httpError("ไม่พบประกาศ", 404);
     if (!existing.image_path) throw httpError("ประกาศนี้ไม่มีรูปภาพ", 400);
 
-    const news = await newsRepo.update(existing.news_id, { image_path: null });
+    const news = await newsRepo.update(existing.news_id, { image_path: null, updated_by: req.user.userId });
     await removeImageFile(existing.image_path);
 
     res.json({ success: true, data: news });

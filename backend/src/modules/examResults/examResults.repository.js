@@ -1,4 +1,5 @@
 import prisma from "../../config/db.js";
+import { ACTOR_SELECT, toActor } from "../../utils/actor.js";
 
 // ค่าที่ใช้ในคอลัมน์สถานะ (ใช้ให้ตรงกันทั้งระบบ)
 export const STUDENT_STATUS = { DRAFT: "draft", SUBMITTED: "submitted" };
@@ -95,17 +96,33 @@ export const findPassedSubjectIds = async (student_id, excludeRoundId = null) =>
 // ฝั่งเจ้าหน้าที่ — ดูผลสอบทุกคน กรองได้ตามรอบ/สถานะ/นักศึกษา
 // ({ a, b } = {}) = รับ object 1 ก้อนแล้วแกะออกเป็นตัวแปรทันที
 //   ส่วน = {} ข้างหลัง คือค่าตั้งต้น กันเรียก findAll() เปล่าๆ แล้วพังเพราะแกะ undefined ไม่ได้
-export const findAll = ({ round_id, staff_status, student_id } = {}) => {
+export const findAll = async ({ round_id, staff_status, student_id } = {}) => {
   const where = {};
   if (round_id) where.round_id = Number(round_id);
   if (staff_status) where.staff_status = staff_status;
   if (student_id) where.student_id = student_id;
 
-  return prisma.examResult.findMany({
+  const rows = await prisma.examResult.findMany({
     where,
-    include: { ...withDetails, student: studentSafeSelect },
+    include: {
+      ...withDetails,
+      student: studentSafeSelect,
+      // ใครเป็นคนตรวจล่าสุด + ประวัติการตรวจทุกครั้ง (เก่า → ใหม่) ให้เจ้าหน้าที่/ผู้ช่วยตรวจดูย้อนหลังได้
+      // route นี้เข้าได้เฉพาะ officer/reviewer จึงโชว์ชื่อผู้ตรวจได้ (getMine ของนักศึกษาไม่ใช้ฟังก์ชันนี้)
+      confirmer: { select: ACTOR_SELECT },
+      review_logs: {
+        orderBy: { created_at: "asc" },
+        include: { reviewer: { select: ACTOR_SELECT } },
+      },
+    },
     orderBy: { submitted_at: "desc" },
   });
+
+  return rows.map((r) => ({
+    ...r,
+    confirmer: toActor(r.confirmer),
+    review_logs: r.review_logs.map((log) => ({ ...log, reviewer: toActor(log.reviewer) })),
+  }));
 };
 
 // เจ้าหน้าที่ยืนยัน/ตีกลับ — ทำได้แค่ตอนใบยังเป็น "pending" (ยังไม่มีใครตรวจ) เท่านั้น

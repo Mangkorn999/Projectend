@@ -12,7 +12,7 @@
    ============================================================ */
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, Avatar, Empty, Pagination, Select } from './components.jsx';
+import { PageHead, Avatar, Empty, Pagination, Select, actorLabel } from './components.jsx';
 import { SkeletonTable } from './skeletons.jsx';
 import { apiFetch } from './api.js';
 import { t, roomName } from './i18n.js';
@@ -113,9 +113,13 @@ export function OfficerReviewReal({ go, setSel, setDetailFrom, lang, restoreView
     subjectCount,
     files: r.certificates,
     submittedAt: new Date(r.submitted_at).toLocaleDateString('th-TH'),
+    // ใครตรวจ + ตรวจเมื่อไหร่ (confirmed_by / confirmed_at) — ใช้โชว์ในแท็บที่ตรวจแล้ว (ยืนยันแล้ว / ถูกตีกลับ)
+    reviewer: r.confirmer,
+    reviewedAt: r.confirmed_at ? new Date(r.confirmed_at).toLocaleDateString('th-TH') : '—',
   }));
   rows.forEach(r => { r.allPass = r.passedCount === subjectCount; });
 
+  const showReviewer = tab === 'CONFIRMED' || tab === 'REJECTED'; // แท็บรอตรวจยังไม่มีผู้ตรวจ ไม่ต้องมีคอลัมน์
   const list = tab === 'NOT_STARTED' ? notStarted : rows;
   const pages = Math.ceil(list.length / PER_PAGE);
   const pageRows = list.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
@@ -164,7 +168,7 @@ export function OfficerReviewReal({ go, setSel, setDetailFrom, lang, restoreView
                     ))}</tbody>
                   </table>
                 : <table className="tbl">
-                    <thead><tr><th>{tt('officer.review.colStudent')}</th><th>{tt('officer.review.colRoom')}</th><th>{tt('officer.review.colResult')}</th><th>{tt('officer.review.colEvidence')}</th><th>{tt('officer.review.colSubmitted')}</th><th></th></tr></thead>
+                    <thead><tr><th>{tt('officer.review.colStudent')}</th><th>{tt('officer.review.colRoom')}</th><th>{tt('officer.review.colResult')}</th><th>{tt('officer.review.colEvidence')}</th><th>{tt('officer.review.colSubmitted')}</th>{showReviewer && <><th>{tt('officer.review.colReviewer')}</th><th>{tt('officer.review.colReviewedAt')}</th></>}<th></th></tr></thead>
                     <tbody>{pageRows.map(s => (
                       <tr key={s.resultId} className="clickable" onClick={() => openDetail(s)}>
                         <td><div style={{ display: 'flex', alignItems: 'center', gap: 11 }}><Avatar name={s.firstName} size={34} />
@@ -175,6 +179,10 @@ export function OfficerReviewReal({ go, setSel, setDetailFrom, lang, restoreView
                         {/* แนบได้หลายไฟล์ทั้ง PDF และรูปภาพ — โชว์แค่จำนวนไฟล์ (ชนิดไฟล์ดูได้ในหน้ารายละเอียด) */}
                         <td>{s.files.length ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--navy-700)', fontSize: 15 }}><Icon name="doc" size={15} /> {tt('officer.review.filesCount', { n: s.files.length })}</span> : <span style={{ color: 'var(--ink-400)' }}>—</span>}</td>
                         <td style={{ color: 'var(--ink-500)', fontSize: 15 }}>{s.submittedAt}</td>
+                        {showReviewer && <>
+                          <td style={{ fontSize: 15 }}>{s.reviewer ? actorLabel(s.reviewer, tt) : '—'}</td>
+                          <td style={{ color: 'var(--ink-500)', fontSize: 15 }}>{s.reviewedAt}</td>
+                        </>}
                         <td style={{ textAlign: 'right' }}><button className="btn btn-subtle btn-sm" style={{ background: 'var(--navy-700)', color: '#fff' }}>{tt('officer.review.reviewBtn')} <Icon name="chevR" size={14} /></button></td>
                       </tr>
                     ))}</tbody>

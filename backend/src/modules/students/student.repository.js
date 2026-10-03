@@ -1,4 +1,5 @@
 import prisma from "../../config/db.js";
+import { ACTOR_SELECT, toActor } from "../../utils/actor.js";
 
 // ข้อมูล user ที่ส่งออกได้ — ห้ามมี password_hash เด็ดขาด
 const PUBLIC_USER_FIELDS = {
@@ -66,11 +67,19 @@ export const findMatchingSubjectResult = async ({ subjectCode, passed, roundId, 
     .filter((s) => s.everPassed === passed)
     .map((s) => ({ student: s.student, submitted_at: s.submitted_at }));
 };
-export const findById = (id) =>
-  prisma.student.findUnique({
+export const findById = async (id) => {
+  const student = await prisma.student.findUnique({
     where: { student_id: id },
-    include: { user: { select: PUBLIC_USER_FIELDS }, faculty: true, room: true },
+    include: {
+      user: { select: PUBLIC_USER_FIELDS },
+      faculty: true,
+      room: true,
+      // ใครเปิด/ปิดสิทธิ์กรอกผลสอบล่าสุด — แปลงด้วย toActor ตรงนี้เลย เพื่อไม่ให้ password_hash หลุดออกจาก repository
+      eligible_setter: { select: ACTOR_SELECT },
+    },
   });
+  return student ? { ...student, eligible_setter: toActor(student.eligible_setter) } : student;
+};
 
 // เช็คสิทธิ์กรอกผล + ปีการศึกษา แบบเบาที่สุด — เรียกทุกครั้งที่นักศึกษาเปิดกระดิ่ง (poll ทุก 30 วิ)
 // เพื่อดูว่ามีรอบใหม่เปิดให้รุ่นตัวเองไหม จึง select เท่าที่ใช้จริง ไม่ include ความสัมพันธ์อื่น
@@ -80,10 +89,11 @@ export const findEligibilityYear = (student_id) =>
     select: { academic_year: true, exam_eligible: true },
   });
 
-export const bulkSetEligible = (studentIds, value) =>
+// setBy = user_id ของเจ้าหน้าที่ที่กดเปิด/ปิดสิทธิ์ (จาก JWT) เก็บคู่กับเวลา
+export const bulkSetEligible = (studentIds, value, setBy) =>
   prisma.student.updateMany({
     where: { student_id: { in: studentIds } },
-    data: { exam_eligible: value },
+    data: { exam_eligible: value, eligible_set_by: setBy, eligible_set_at: new Date() },
   });
 
 export const findRoleByName = (role_name) =>

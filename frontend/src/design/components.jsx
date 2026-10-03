@@ -1148,3 +1148,10 @@ export function Stepper({ steps, current }) {
     </div>
   );
 }
+
+// ชื่อ "ผู้ดำเนินการ" (ผู้โพสต์ข่าว / ผู้สร้างรอบ / ผู้ตรวจ) — ถ้าบัญชีถูกปิดแล้วต่อท้ายว่า "(ปิดบัญชีแล้ว)"
+// ชื่อยังโชว์ตามเดิม เพราะประวัติที่เขาทำไว้ยังอยู่ แค่บอกให้รู้ว่าตอนนี้ไม่ได้ใช้งานแล้ว
+export const actorLabel = (actor, tt) => {
+  if (!actor) return '';
+  return `${actor.first_name} ${actor.last_name}${actor.is_closed ? tt('actor.closed') : ''}`;
+};

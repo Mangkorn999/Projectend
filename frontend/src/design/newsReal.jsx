@@ -4,7 +4,7 @@
    ============================================================ */
 import { useState, useEffect, useRef } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, Modal, StatusBadge, Select, Pagination } from './components.jsx';
+import { PageHead, Modal, StatusBadge, Select, Pagination, actorLabel } from './components.jsx';
 import { usePagedList } from './usePagedList.js';
 import { SkeletonList } from './skeletons.jsx';
 import { apiFetch, ApiError, fetchAuthedObjectUrl } from './api.js';
@@ -90,6 +90,22 @@ function NewsImage({ newsId, maxHeight = 320, height, radius = 12, fit = 'cover'
 // staff_status (backend) -> key ที่ StatusBadge เข้าใจ — pattern เดียวกับ studentDetailReal.jsx
 const STAFF_STATUS_TO_BADGE = { pending: 'SUBMITTED', approved: 'CONFIRMED', rejected: 'REJECTED' };
 
+// หน้าตาประกาศเต็ม — ใช้ทั้งตอนนักศึกษาเปิดอ่าน และตอนเจ้าหน้าที่กด "ดูตัวอย่าง" ก่อนเผยแพร่
+// ใช้ component เดียวกันเพื่อให้ตัวอย่างเหมือนที่นักศึกษาเห็นจริงเป๊ะ (ไม่ต้องแก้ 2 ที่ให้ตรงกัน)
+function NewsPostView({ round, postedAt, image, content, postedBy, tt }) {
+  return <>
+    <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+      {round && <span className="chip">{tt('news.roundSlash', { attempt: round.attempt_number, year: round.academic_year })}</span>}
+      <span className="chip" style={{ background: 'transparent', color: 'var(--ink-500)' }}><Icon name="calendar" size={13} /> {new Date(postedAt).toLocaleDateString('th-TH')}</span>
+    </div>
+    {image && <div style={{ marginBottom: 14 }}>{image}</div>}
+    <p style={{ margin: 0, fontSize: 17, lineHeight: 1.7, color: 'var(--ink-900)', whiteSpace: 'pre-wrap' }}>{content}</p>
+    <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--ink-100)', fontSize: 15, color: 'var(--ink-500)' }}>
+      {tt('news.postedByFooter', { name: postedBy })}
+    </div>
+  </>;
+}
+
 export function StudentNewsReal({ go, lang }) {
   const [news, setNews] = useState(null);
   const [round, setRound] = useState(null);
@@ -174,7 +190,7 @@ export function StudentNewsReal({ go, lang }) {
                 <div style={{ fontSize: 15.5, color: 'var(--ink-700)', marginTop: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.content}</div>
                 <div style={{ fontSize: 14.5, color: 'var(--ink-600)', marginTop: 9, display: 'flex', gap: 14 }}>
                   <span><Icon name="calendar" size={13} style={{ verticalAlign: -2, marginRight: 4 }} />{new Date(n.posted_at).toLocaleDateString('th-TH')}</span>
-                  <span>{n.poster.first_name} {n.poster.last_name}</span>
+                  <span>{actorLabel(n.poster, tt)}</span>
                 </div>
               </div>
               {n.image_path && <div style={{ width: 76, flex: 'none' }}><NewsImage newsId={n.news_id} maxHeight={76} radius={9} /></div>}
@@ -191,23 +207,26 @@ export function StudentNewsReal({ go, lang }) {
 
       <Modal open={!!open} onClose={() => setOpen(null)} title={open?.title} width={560}
         footer={<button className="btn btn-ghost" onClick={() => setOpen(null)}>{tt('common.close')}</button>}>
-        {open && <>
-          <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-            <span className="chip">{tt('news.roundSlash', { attempt: open.round.attempt_number, year: open.round.academic_year })}</span>
-            <span className="chip" style={{ background: 'transparent', color: 'var(--ink-500)' }}><Icon name="calendar" size={13} /> {new Date(open.posted_at).toLocaleDateString('th-TH')}</span>
-          </div>
-          {open.image_path && <div style={{ marginBottom: 14 }}>
+        {open && <NewsPostView round={open.round} postedAt={open.posted_at} content={open.content}
+          postedBy={actorLabel(open.poster, tt)} tt={tt}
+          image={open.image_path && <>
             <NewsImage newsId={open.news_id} maxHeight={420} fit="contain" zoomable tt={tt} />
             <div className="hint" style={{ marginTop: 6, textAlign: 'center' }}>{tt('news.zoomHint')}</div>
-          </div>}
-          <p style={{ margin: 0, fontSize: 17, lineHeight: 1.7, color: 'var(--ink-900)', whiteSpace: 'pre-wrap' }}>{open.content}</p>
-          <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--ink-100)', fontSize: 15, color: 'var(--ink-500)' }}>
-            {tt('news.postedByFooter', { name: `${open.poster.first_name} ${open.poster.last_name}` })}
-          </div>
-        </>}
+          </>} />}
       </Modal>
     </div>
   );
+}
+
+// รูปที่เพิ่งเลือกจากเครื่อง แสดงเต็มความกว้างแบบที่นักศึกษาจะเห็น (ใช้ในหน้า "ดูตัวอย่าง" ไม่มีปุ่มลบ)
+function LocalImage({ file }) {
+  const [url, setUrl] = useState('');
+  useEffect(() => {
+    const u = URL.createObjectURL(file);
+    setUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [file]);
+  return url ? <img src={url} alt="" style={{ display: 'block', width: '100%', maxHeight: 420, objectFit: 'contain', borderRadius: 12 }} /> : null;
 }
 
 // พรีวิวรูปที่เพิ่งเลือกจากเครื่อง (ยังไม่ได้อัปโหลด)
@@ -231,8 +250,9 @@ function ImagePreview({ file, onRemove, label }) {
   );
 }
 
-export function ManageNewsReal({ toast, lang }) {
+export function ManageNewsReal({ toast, lang, currentUserName }) {
   const [items, setItems] = useState(null);
+  const [showPreview, setShowPreview] = useState(false); // true = โมดัลกำลังโชว์ "ตัวอย่างที่นักศึกษาจะเห็น" แทนฟอร์ม
   const [rounds, setRounds] = useState([]);
   const [modal, setModal] = useState(null); // {} (new) | news | null
   const [form, setForm] = useState({ title: '', content: '', round_id: '' });
@@ -250,7 +270,7 @@ export function ManageNewsReal({ toast, lang }) {
   const openModal = (n) => {
     setModal(n || {});
     setForm({ title: n?.title || '', content: n?.content || '', round_id: n?.round_id ?? (rounds[0]?.round_id || '') });
-    setImageFile(null); setDropImage(false); setImgError('');
+    setImageFile(null); setDropImage(false); setImgError(''); setShowPreview(false);
   };
 
   const pickImage = (file) => {
@@ -345,7 +365,8 @@ export function ManageNewsReal({ toast, lang }) {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 19, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.title}</div>
                   <div style={{ fontSize: 15.5, color: 'var(--ink-500)', marginTop: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {tt('news.roundSlash', { attempt: n.round.attempt_number, year: n.round.academic_year })} · {new Date(n.posted_at).toLocaleDateString('th-TH')} · {n.poster.first_name}
+                    {tt('news.roundSlash', { attempt: n.round.attempt_number, year: n.round.academic_year })} · {new Date(n.posted_at).toLocaleDateString('th-TH')} · {actorLabel(n.poster, tt)}
+                    {n.updater && <> · {tt('newsMgmt.editedBy', { name: actorLabel(n.updater, tt) })}</>}
                   </div>
                 </div>
                 <button className="btn btn-ghost" onClick={() => openModal(n)}><Icon name="edit" size={17} /> {tt('newsMgmt.editBtn')}</button>
@@ -370,9 +391,26 @@ export function ManageNewsReal({ toast, lang }) {
         <p style={{ margin: 0, fontSize: 16, lineHeight: 1.7 }}>{tt('newsMgmt.deleteBody', { title: deleteTarget?.title })}</p>
       </Modal>
 
-      <Modal open={!!modal} onClose={() => setModal(null)} title={modal?.news_id ? tt('newsMgmt.editModalTitle') : tt('newsMgmt.newModalTitle')} width={560}
+      <Modal open={!!modal} onClose={() => setModal(null)}
+        title={showPreview ? (form.title.trim() || tt('newsMgmt.previewNoTitle')) : (modal?.news_id ? tt('newsMgmt.editModalTitle') : tt('newsMgmt.newModalTitle'))} width={560}
         footer={<><button className="btn btn-ghost" onClick={() => setModal(null)}>{tt('newsMgmt.cancelBtn')}</button>
+          <button className="btn btn-ghost" onClick={() => setShowPreview(p => !p)}>
+            <Icon name={showPreview ? 'edit' : 'eye'} size={16} /> {showPreview ? tt('newsMgmt.backToEditBtn') : tt('newsMgmt.previewBtn')}</button>
           <button className="btn btn-primary" disabled={saving} onClick={submit}><Icon name="send" size={16} /> {saving ? tt('newsMgmt.publishing') : modal?.news_id ? tt('newsMgmt.saveEditBtn') : tt('newsMgmt.publishBtn')}</button></>}>
+        {showPreview ? (
+          <>
+            <div style={{ marginBottom: 14, padding: '10px 13px', background: 'var(--blue-50)', color: 'var(--navy-700)', borderRadius: 10, fontSize: 15, lineHeight: 1.6, display: 'flex', gap: 8 }}>
+              <Icon name="info" size={17} style={{ flex: 'none', marginTop: 3 }} /> <span>{tt('newsMgmt.previewNote')}</span>
+            </div>
+            <NewsPostView tt={tt}
+              round={rounds.find(r => String(r.round_id) === String(form.round_id))}
+              postedAt={modal?.posted_at || new Date()}
+              content={form.content.trim() || tt('newsMgmt.previewNoContent')}
+              postedBy={modal?.poster ? actorLabel(modal.poster, tt) : currentUserName}
+              image={imageFile ? <LocalImage file={imageFile} />
+                : (modal?.image_path && !dropImage) ? <NewsImage newsId={modal.news_id} maxHeight={420} fit="contain" tt={tt} /> : null} />
+          </>
+        ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div className="field"><label>{tt('newsMgmt.fieldTitle')}</label><input className="input" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder={tt('newsMgmt.titlePh')} /></div>
           <div className="field"><label>{tt('newsMgmt.fieldRound')}</label>
@@ -403,6 +441,7 @@ export function ManageNewsReal({ toast, lang }) {
             </span>
           </div>
         </div>
+        )}
       </Modal>
     </div>
   );

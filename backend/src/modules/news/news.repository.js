@@ -1,17 +1,19 @@
 import prisma from "../../config/db.js";
+import { ACTOR_SELECT, toActor } from "../../utils/actor.js";
 
 // ดึงข่าว — ข่าวใหม่สุดขึ้นก่อน
 // ส่ง academicYear มา = เอาเฉพาะประกาศของรุ่นนั้น (ข่าวผูกกับรอบ รอบผูกกับรุ่น)
 // ไม่ส่งมา = ทุกประกาศ (เจ้าหน้าที่/ผู้บริหารต้องเห็นครบเพื่อจัดการ)
-export const findAll = (academicYear) =>
-  prisma.news.findMany({
+export const findAll = async (academicYear) => {
+  const rows = await prisma.news.findMany({
     where:
       academicYear === undefined
         ? undefined
         : { round: { academic_year: academicYear } },
     orderBy: { posted_at: "desc" },
     include: {
-      poster: { select: { user_id: true, first_name: true, last_name: true } },
+      poster: { select: ACTOR_SELECT },
+      updater: { select: ACTOR_SELECT }, // ใครแก้ล่าสุด (ว่าง = ยังไม่เคยแก้)
       round: {
         select: {
           round_id: true,
@@ -22,6 +24,10 @@ export const findAll = (academicYear) =>
       },
     },
   });
+
+  // ...n = ก๊อปทุก field ของข่าวมา แล้วเขียนทับ poster ด้วยเวอร์ชันที่ตัด hash แล้ว (มี is_closed)
+  return rows.map((n) => ({ ...n, poster: toActor(n.poster), updater: toActor(n.updater) }));
+};
 
 // หาข่าวรายตัว (ใช้เช็คว่ามีจริงก่อน update/delete)
 export const findById = (id) =>

@@ -18,7 +18,16 @@ export const getAll = async (req, res, next) => {
     const rounds = await roundsRepo.findAll();
     // แปะ phase ให้ทุกรอบ — หน้าจัดการรอบจะได้เขียนป้ายสถานะตรงกับความจริง
     // ("รอถึงกำหนดเปิด" / "เปิดรับอยู่" / "เลยกำหนดปิด" แทนที่จะเขียน "เปิด" เหมือนกันหมด)
-    res.json({ success: true, data: rounds.map(withPhase) });
+    // ชื่อผู้สร้างรอบเป็นข้อมูลภายในคณะ — นักศึกษาไม่ต้องเห็น ตัดทิ้งก่อนส่ง (อ่าน role จาก JWT เท่านั้น)
+    const data = rounds.map((r) => {
+      const round = withPhase(r);
+      if (req.user.role === "student") {
+        delete round.creator;
+        delete round.updater;
+      }
+      return round;
+    });
+    res.json({ success: true, data });
   } catch (err) {
     next(err);
   }
@@ -342,6 +351,9 @@ export const update = async (req, res, next) => {
       if (current.status !== "open") ensureNotAlreadyExpired(new Date(finalClose));
     }
 
+    // ใครแก้รอบนี้ล่าสุด เมื่อไหร่ (อ่านจาก JWT) — รวมถึงตอนกดเปิด/ปิดรอบ
+    data.updated_by = req.user.userId;
+    data.updated_at = new Date();
     const round = await roundsRepo.update(req.params.id, data);
     res.json({ success: true, data: withPhase(round) });
   } catch (err) {
