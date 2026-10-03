@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { validateEnv } from "./config/env.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
+import { scheduleMirror } from "./utils/supabaseMirror.js";
 
 // Routes
 import authRouter from "./modules/auth/auth.routes.js";
@@ -57,6 +58,19 @@ app.use(express.json());
 // อ่าน cookie ที่ browser ส่งมาแล้วใส่ไว้ที่ req.cookies ให้ middleware ใช้
 // ต้องอยู่ก่อน routes ทุกตัว ไม่งั้น req.cookies จะเป็น undefined
 app.use(cookieParser());
+
+// มีการเพิ่ม/แก้/ลบข้อมูลสำเร็จ (POST/PUT/PATCH/DELETE ตอบ 2xx-3xx) → นัดคัดลอกขึ้น Supabase (ปิดอยู่ถ้าไม่ได้ตั้ง SUPABASE_DATABASE_URL)
+// login/logout ไม่ได้เปลี่ยนข้อมูล ข้ามไป ไม่งั้นทุกครั้งที่มีคน login จะคัดลอกทั้งฐานโดยเปล่าประโยชน์
+const WRITE_METHODS = ["POST", "PUT", "PATCH", "DELETE"];
+const NO_DATA_CHANGE = ["/api/auth/login", "/api/auth/logout"];
+app.use((req, res, next) => {
+  if (WRITE_METHODS.includes(req.method) && !NO_DATA_CHANGE.includes(req.originalUrl)) {
+    res.on("finish", () => {
+      if (res.statusCode < 400) scheduleMirror();
+    });
+  }
+  next();
+});
 
 // ─── Routes ──────────────────────────────────────────
 app.use("/api/auth", authRouter);

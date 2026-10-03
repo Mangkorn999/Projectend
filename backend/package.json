@@ -9,6 +9,8 @@
     "demo:seed": "node --env-file=.env prisma/demoSeed.js",
     "seed:cohort": "node --env-file=.env prisma/seedCohort.js",
     "seed:demo-years": "node --env-file=.env prisma/seedDemoYears.js",
+    "sync:supabase": "node --env-file=.env scripts/syncSupabase.js",
+    "supabase:migrate": "node --env-file=.env scripts/migrateSupabase.js",
     "test:clean": "node --env-file=.env tests/run-clean.mjs",
     "test:e2e": "node --env-file=.env tests/e2e/run-e2e.mjs"
   },

@@ -184,7 +184,8 @@ async function main() {
   }
 
   const testUrl = buildTestUrl(process.env.DATABASE_URL);
-  const testEnv = { DATABASE_URL: testUrl };
+  // SUPABASE_DATABASE_URL ว่าง = server ทดสอบไม่คัดลอกข้อมูลเทสขึ้น Supabase เด็ดขาด (กันอีกชั้นนอกจากเช็ค schema)
+  const testEnv = { DATABASE_URL: testUrl, SUPABASE_DATABASE_URL: "" };
 
   // client ตัวนี้ชี้ไป schema เดิม (public) — ใช้แค่สั่ง CREATE/DROP SCHEMA เท่านั้น
   const admin = new PrismaClient();
