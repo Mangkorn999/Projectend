@@ -6,7 +6,17 @@ import { buildXlsx, sendXlsx } from "../../utils/xlsxExport.js";
 export const getStats = async (req, res, next) => {
   try {
     const stats = await dashService.buildStats(req.query.round_id);
-    res.json({ success: true, data: stats });
+
+    // alreadyPassedStudentIds = รหัสนักศึกษารายคนที่ผ่านครบแล้ว — ใช้เฉพาะหน้าคิวตรวจของเจ้าหน้าที่
+    // ผู้บริหารต้องเห็นแค่ภาพรวม ไม่เห็นรายบุคคล จึงตัด field นี้ออก (ยังเหลือตัวเลข alreadyPassed ให้ดูจำนวนได้)
+    // ทำสำเนาก่อนค่อยลบ เพราะ stats เป็น object ที่ service สร้างมา ไม่ควรแก้ของเดิมตรงๆ
+    // role อ่านจาก JWT เท่านั้น
+    let data = stats;
+    if (req.user.role === "executive") {
+      data = { ...stats };
+      delete data.alreadyPassedStudentIds;
+    }
+    res.json({ success: true, data });
   } catch (err) {
     next(err);
   }
@@ -25,7 +35,7 @@ export const getHistory = async (req, res, next) => {
 };
 
 // GET /api/dashboard/alerts — officer, executive
-// แจ้งเตือนสถานะปัจจุบัน (รอบใกล้ปิด / ยังไม่ส่งผล / รอตรวจ / สรุปรอบที่เพิ่งปิด)
+// แจ้งเตือนสถานะปัจจุบัน (รอบใกล้ปิด / ยังไม่ส่งผล / รอตรวจ)
 // role อ่านจาก JWT เท่านั้น — ผู้บริหารจะไม่ได้เรื่อง "รอตรวจ" เพราะไม่มีสิทธิ์ตรวจ
 export const getAlerts = async (req, res, next) => {
   try {

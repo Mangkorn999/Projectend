@@ -30,9 +30,18 @@ export const errorHandler = (err, req, res, next) => {
     err.name === "PrismaClientUnknownRequestError" &&
     typeof err.message === "string" &&
     err.message.includes("Unable to fit integer value");
+  // ข้อความที่ส่งมามีอักขระ NUL (ไบต์ศูนย์) — Postgres เก็บไม่ได้ (รหัส 22021, "invalid byte sequence ... 0x00")
+  // เช่น login ด้วยรหัสที่มีไบต์ศูนย์ หรือค้นด้วย ?student_id=%00 เป็นความผิดของ request ไม่ใช่ server พัง
+  // ข้อความดิบมีรายละเอียด query ภายใน จึงต้องจับตรงนี้แล้วตอบ 400 แทน
+  const rawMessage = typeof err.message === "string" ? err.message : "";
+  const isNulByte =
+    err.code === "22021" ||
+    rawMessage.includes("22021") ||
+    rawMessage.includes("invalid byte sequence") ||
+    rawMessage.includes("0x00");
   // ค่าที่ส่งมา Prisma รับไม่ได้ (ผิดชนิด / ยาวเกิน / เป็น NaN / ตัวเลขใหญ่เกิน) = ความผิดของ request ไม่ใช่ server พัง
   const isBadInput =
-    err.name === "PrismaClientValidationError" || err.code === "P2000" || isNumberTooBig;
+    err.name === "PrismaClientValidationError" || err.code === "P2000" || isNumberTooBig || isNulByte;
 
   let statusCode;
   if (err.statusCode) {

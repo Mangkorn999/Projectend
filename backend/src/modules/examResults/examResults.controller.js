@@ -81,6 +81,13 @@ export const create = async (req, res, next) => {
     // วิชาที่ยังต้องตอบจริงในรอบนี้ = วิชาของรอบ ลบวิชาที่เคยผ่านแล้ว
     const mustAnswer = roundSubjectIds.filter((id) => !passedIds.includes(id));
 
+    // ผ่านครบทุกวิชาของรอบนี้ไปแล้ว (จากใบที่ไม่ถูกตีกลับของรอบก่อน) = ไม่มีอะไรต้องกรอก
+    // ถ้าปล่อยผ่านจะเกิดใบ "ว่าง" (ยกผลมาทั้งหมด) โผล่ในคิวตรวจของเจ้าหน้าที่
+    // เคสแก้ใบที่ถูกตีกลับไม่โดน: findPassedSubjectIds ตัดใบของรอบนี้ออกไปแล้ว mustAnswer จึงไม่ว่าง
+    if (mustAnswer.length === 0) {
+      throw httpError("ผ่านครบทุกวิชาของรอบนี้แล้ว ไม่ต้องกรอกผลสอบอีก", 400);
+    }
+
     // ตรวจของที่ส่งมาทีละรายการก่อน ไม่ปล่อยให้ค่าแปลกๆ ไหลลง DB
     const answers = new Map();
     for (const item of subject_results) {
@@ -185,15 +192,24 @@ const reviewExamResult = async (req, res, next, { staff_status, requireRemark })
       throw httpError("ใบนี้ถูกตรวจไปแล้ว กรุณารีเฟรชหน้า", 409);
     }
 
-    const remark = req.body?.remark?.trim();
+    // remark ต้องเป็นข้อความเท่านั้น — ถ้า client ส่งตัวเลข/object มา .trim() จะพังเป็น 500
+    // เลยเช็คชนิดก่อน ไม่ใช่ข้อความ = ถือว่าไม่ได้ใส่ (แล้วให้ด่านเช็คข้างล่างตอบ 400 เองกรณีตีกลับ)
+    let remark = "";
+    if (typeof req.body?.remark === "string") {
+      remark = req.body.remark.trim();
+    }
     if (requireRemark && !remark) {
       throw httpError("กรุณาระบุเหตุผลที่ตีกลับ เพื่อให้นักศึกษาทราบว่าต้องแก้ไขอะไร", 400);
     }
+    // ยาวไม่เกิน 500 ตัวอักษร เท่ากับตอนถอนการยืนยัน (revokeApproval)
+    if (remark.length > 500) {
+      throw httpError("เหตุผลยาวเกินไป (ไม่เกิน 500 ตัวอักษร)", 400);
+    }
 
     // ตอนตีกลับ (requireRemark = true) remark ผ่านการเช็คข้างบนแล้วว่าไม่ว่าง
-    // ตอนยืนยัน เจ้าหน้าที่จะใส่ remark มาหรือไม่ก็ได้ — ไม่ใส่มาเลยให้เก็บ null ลง DB
+    // ตอนยืนยัน เจ้าหน้าที่จะใส่ remark มาหรือไม่ก็ได้ — ว่างให้เก็บ null ลง DB
     let remarkToSave = remark;
-    if (remarkToSave === undefined || remarkToSave === null) {
+    if (remarkToSave === "") {
       remarkToSave = null;
     }
 

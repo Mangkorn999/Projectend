@@ -495,8 +495,8 @@ if (req.user.role === "student" && req.user.studentId !== req.params.id) → 403
 |---|---|---|---|
 | GET | `/api/rounds/active` | 👤 | รอบที่นักศึกษา**ส่งผลได้ตอนนี้** (`findSubmittableRound`) — ถ้าไม่มี ใช้รอบ `status=open` ของรุ่นตัวเอง (**รวมรอบที่ยังไม่ถึงวันเปิด/เลยวันปิด** — ดู `phase` ว่ากรอกได้จริงไหม) + วิชาที่ต้องกรอก + **`can_fix_rejected`** (true = รอบปิดแล้วแต่ใบถูกตีกลับ แก้ส่งใหม่ได้ แม้ `phase` จะเป็น closed/expired) · ไม่มีรอบเลย = `null` |
 | GET | `/api/rounds` | 🔑 | รอบทั้งหมด (ใหม่→เก่า) + `creator` (ผู้สร้างรอบ: `user_id, first_name, last_name, is_closed`) — **นักศึกษาไม่ได้ `creator`** (ตัดใน controller ตาม role ใน JWT) |
-| POST | `/api/rounds` | 🧑‍💼 | สร้างรอบ |
-| PUT | `/api/rounds/:id` | 🧑‍💼 | แก้ไขรอบ |
+| POST | `/api/rounds` | 🧑‍💼 | สร้างรอบ — `status` (ถ้าส่งมา) ต้องเป็น `"open"` หรือ `"closed"` เท่านั้น ค่าอื่น → 400 |
+| PUT | `/api/rounds/:id` | 🧑‍💼 | แก้ไขรอบ — `status` ต้องเป็น `"open"` หรือ `"closed"` เท่านั้น ค่าอื่น → 400 (ตรวจด้วย `ensureValidStatus`) |
 | DELETE | `/api/rounds/:id` | 🧑‍💼 | ลบรอบ |
 
 > **ลำดับใน routes สำคัญ:** `/active` ต้องประกาศ**ก่อน** `/:id` ไม่งั้น Express จะอ่านคำว่า "active" เป็นค่า id.
@@ -537,12 +537,12 @@ status: "open"  และ  open_date <= ตอนนี้  และ  close_dat
 
 | Method | URL | สิทธิ์ | ทำอะไร |
 |---|---|---|---|
-| POST | `/api/exam-results` | 👤 | ส่ง/แก้ผลสอบของรอบที่เปิดอยู่ — **หรือแก้ใบที่ถูกตีกลับของรอบล่าสุดแม้รอบปิดแล้ว** (`findSubmittableRound`) |
+| POST | `/api/exam-results` | 👤 | ส่ง/แก้ผลสอบของรอบที่เปิดอยู่ — **หรือแก้ใบที่ถูกตีกลับของรอบล่าสุดแม้รอบปิดแล้ว** (`findSubmittableRound`) — **ผ่านครบทุกวิชาของรอบแล้ว (ไม่มีวิชาที่ต้องกรอก) → 400 "ผ่านครบทุกวิชาของรอบนี้แล้ว ไม่ต้องกรอกผลสอบอีก"** ไม่สร้างใบว่าง (เคสแก้ใบที่ถูกตีกลับไม่โดน เพราะใบของรอบนี้ไม่นับเป็น "ผ่านแล้ว") |
 | GET | `/api/exam-results/me` | 👤 | ประวัติของตัวเอง |
 | POST | `/api/exam-results/:id/certificates` | 👤 | แนบไฟล์หลักฐาน PDF/JPG/PNG (สูงสุด 5 ไฟล์ต่อใบ — ดู 7.8) |
 | GET | `/api/exam-results` | 🧑‍💼 🔍 | ดูทั้งหมด (กรองได้) + `confirmer` (ผู้ตรวจล่าสุด) + `review_logs` (ประวัติตรวจทุกครั้ง เก่า→ใหม่ พร้อม `reviewer`) — แต่ละคนมี `is_closed` |
-| PATCH | `/api/exam-results/:id/approve` | 🧑‍💼 🔍 | ยืนยันผล |
-| PATCH | `/api/exam-results/:id/reject` | 🧑‍💼 🔍 | ตีกลับ (ต้องมี remark) |
+| PATCH | `/api/exam-results/:id/approve` | 🧑‍💼 🔍 | ยืนยันผล — `remark` ไม่บังคับ (ว่าง/ไม่ใช่ข้อความ → เก็บ `null`) ยาวเกิน 500 ตัวอักษร → 400 |
+| PATCH | `/api/exam-results/:id/reject` | 🧑‍💼 🔍 | ตีกลับ (ต้องมี `remark` เป็นข้อความ ไม่ว่าง ไม่เกิน 500 ตัวอักษร — ส่งตัวเลข/object/array มา → 400 ไม่ใช่ 500) |
 | PATCH | `/api/exam-results/:id/revoke-approval` | 🧑‍💼 | **ถอนการยืนยัน** (ยืนยันผิด) approved → pending · ต้องมี `remark` (≤500) · เฉพาะ officer (reviewer ไม่ได้) · บันทึก `review_logs` action `revoked` + แจ้งเตือนนักศึกษา (`type: "revoked"`) · ใบที่ไม่ใช่ approved ตอบ 409 |
 
 **สถานะ 2 ชุด แยกกันคนละเรื่อง**
@@ -651,6 +651,7 @@ await reviewLogRepo.create({ result_id, reviewer_id: req.user.userId, action: st
 - คนที่ยิงแจ้งเตือนตอนนี้:
   - `examResults.controller.js` → เจ้าหน้าที่ approve/reject ผลสอบ (`type: "approved" | "rejected"`)
   - `student.controller.js` → `bulkSetEligible` ตอน **เปิด** สิทธิ์เท่านั้น (`type: "eligible"`) ปิดสิทธิ์ไม่แจ้ง
+  - `notifications.controller.js` → `notifyIfRoundJustOpened` (ตอนนักศึกษา poll `GET /me`) สร้าง `type: "round_open"` ครั้งเดียวต่อรอบ — **ไม่สร้างให้คนที่ผ่านครบทุกวิชาของรอบนั้นแล้ว** (ใช้ `findPassedSubjectIds` + `subjectsOfRound` เหมือนตอนส่งผล) ส่วนคนที่ใบถูกตีกลับยังได้ตามปกติ
 - ยิงแบบ fire-and-forget (`.catch(console.error)`) — แจ้งเตือนพลาดต้องไม่ทำให้ approve/reject ล้มไปด้วย
 - `markRead` ใช้ `updateMany` ที่ where ด้วย `student_id` เสมอ — เดา `notification_id` ถูกก็ mark ของคนอื่นไม่ได้
 - **`serveFile` เช็คสิทธิ์ก่อนส่งไฟล์เสมอ:** เจ้าของ หรือ officer เท่านั้น (executive ไม่ได้) — ไฟล์ไม่ได้เปิด public ให้เดา id เอา
@@ -686,10 +687,10 @@ await reviewLogRepo.create({ result_id, reviewer_id: req.user.userId, action: st
 
 | Method | URL | สิทธิ์ | ทำอะไร |
 |---|---|---|---|
-| GET | `/api/dashboard/alerts` | 🧑‍💼 👔 | แจ้งเตือนสถานะปัจจุบัน (คำนวณสด ไม่เก็บ DB) |
-| GET | `/api/dashboard/stats?round_id=` | 🧑‍💼 👔 | สถิติของ 1 รอบ |
+| GET | `/api/dashboard/alerts` | 🧑‍💼 👔 | แจ้งเตือนสถานะปัจจุบัน (คำนวณสด ไม่เก็บ DB) — "ยังไม่ส่งผลสอบ N คน" นับจาก**ฐานคนของรอบ** = `roundNotStarted + by.draft` ของ `buildStats` (detail: "จากผู้ที่ต้องกรอกในรอบนี้ {roundTotal} คน") ไม่ใช่ทั้งรุ่น |
+| GET | `/api/dashboard/stats?round_id=` | 🧑‍💼 👔 | สถิติของ 1 รอบ — **ผู้บริหารไม่ได้ field `alreadyPassedStudentIds`** (รหัสนักศึกษารายคน ตัดใน controller ตาม role ใน JWT, ยังได้ตัวเลข `alreadyPassed`) |
 | GET | `/api/dashboard/history?years=3` | 🧑‍💼 👔 | สรุปย้อนหลังรายปี |
-| GET | `/api/dashboard/export?round_id=` | 🧑‍💼 | โหลดรายงาน PDF |
+| GET | `/api/dashboard/export?round_id=` | 🧑‍💼 | โหลดรายงาน PDF — ส่วนสถานะรายรอบใช้ฐานคนของรอบ (`roundTotal`/`roundNotStarted`/`roundFillRate`) + แถว "ค้างร่าง" ถ้ามี + หมายเหตุ `alreadyPassed` ถ้า > 0 · ตัวเลขสภาการพยาบาล (`firstAttempt`/`firstYear`/`passDistribution`/`firstAttemptBySubject`) ตัวหารยังเป็นทั้งรุ่นเหมือนเดิม |
 | GET | `/api/dashboard/export-first-attempt?year=&passed=true\|false&format=xlsx\|pdf` | 🧑‍💼 | รายชื่อนักศึกษา "ผ่านครั้งแรก" / "ไม่ผ่านครั้งแรก" ของปีการศึกษา (ไม่ส่ง `format` = xlsx) — กฎเดียวกับ `firstAttempt.passed` ใน `/history` ผ่าน + ไม่ผ่าน = ทั้งรุ่น ปีที่ไม่มีรอบที่ 1 → 404 |
 | GET | `/api/dashboard/export-first-year?year=&passed=true\|false&format=xlsx\|pdf` | 🧑‍💼 | รายชื่อนักศึกษา "ผ่านภายในปีแรก" / "ไม่ผ่านภายในปีแรก" (รวมทุกรอบของปี) — `buildFirstYearList` กฎเดียวกับ `firstYear.passed` ใน `/history` (ใช้ `addConfirmedRealPasses` / `getRequiredSubjectIds` / `hasPassedAll` ตัวเดียวกัน) ผ่าน + ไม่ผ่าน = ทั้งรุ่น ปีที่ไม่มีรอบเลย → 404 |
 
@@ -708,9 +709,13 @@ await reviewLogRepo.create({ result_id, reviewer_id: req.user.userId, action: st
 | `total` | นักศึกษาทั้งรุ่น | นับจาก `academic_year` ของรอบ |
 | `eligible` | คนที่เปิดสิทธิ์กรอกแล้ว | `exam_eligible = true` |
 | `canSubmit` | รอบนี้กรอกฟอร์มได้กี่คน | เปิดสิทธิ์ **และ** ยังผ่านวิชาของรอบนี้ไม่ครบ — ลดลงทุกรอบ |
-| `alreadyPassedStudentIds` | `student_id[]` ของคนที่ผ่านครบไปแล้วตั้งแต่รอบก่อน | อีกครึ่งของ loop เดียวกับ `canSubmit` (คนที่ `passedAll`) |
+| `alreadyPassedStudentIds` | `student_id[]` ของคนที่ผ่านครบไปแล้วตั้งแต่รอบก่อน — **เฉพาะ officer** (executive ไม่ได้ field นี้ เพราะเป็นรายบุคคล) | อีกครึ่งของ loop เดียวกับ `canSubmit` (คนที่ `passedAll`) |
 | `by` | แยกตามสถานะ | `{ draft, submitted, approved, rejected }` |
 | `not_started` | ยังไม่กรอกเลย | `eligible − จำนวนใบในรอบ` |
+| `roundTotal` | **คนของรอบนี้** — ฐานของโดนัท/แถบความคืบหน้ารายรอบบน dashboard | คนที่กรอกได้ในรอบนี้ (`canSubmit`) ∪ คนที่มีใบในรอบนี้ — ไม่รวมคนที่ผ่านครบแล้ว |
+| `roundNotStarted` | ยังไม่เริ่มกรอก (เฉพาะคนของรอบนี้) | `roundTotal − จำนวนใบในรอบ` · 5 ช่อง (approved+submitted+rejected+draft+`roundNotStarted`) รวมกันได้ `roundTotal` พอดี |
+| `roundFillRate` | % ส่งแล้วของคนของรอบนี้ | `submitted / roundTotal` (รอบ 1 เท่ากับ `fillRate` ถ้าเปิดสิทธิ์ทั้งรุ่น) |
+| `alreadyPassed` | จำนวนคนที่ผ่านครบตั้งแต่รอบก่อน | `alreadyPassedStudentIds.length` — หน้าจอใช้เป็นบรรทัดหมายเหตุใต้โดนัท |
 | `fillRate` | % คนที่ส่งแล้ว | `submitted / eligible` ← **หารด้วย eligible ไม่ใช่ total** |
 | `fullyPassed` | คนที่ผ่านครบทุกวิชาของรอบ | เทียบทีละ `subject_id` ไม่ใช่นับจำนวน |
 | `fullyPassedRate` | % ผ่านครบ (รายคน) | `fullyPassed / submitted` |
@@ -1148,6 +1153,8 @@ curl -H "Authorization: Bearer <token>" http://localhost:3000/api/subjects/1
 
 | วันที่ | เปลี่ยนอะไร |
 |---|---|
+| 2026-10-03 | **เก็บกวาดจากรอบตรวจ (11 เรื่อง)** — (1) `GET /dashboard/stats`: executive ไม่ได้ `alreadyPassedStudentIds` (รหัสรายคน) officer ยังได้เหมือนเดิม (`dashboard.controller.js`). (2) `POST /exam-results`: ผ่านครบทุกวิชาของรอบแล้ว → 400 ไม่สร้างใบว่าง (`examResults.controller.js`). (3) approve/reject: `remark` ชนิดผิด (ตัวเลข/object) ไม่ 500 แล้ว — reject → 400, approve → เก็บ null; ยาวเกิน 500 → 400 (`examResults.controller.js`). (4) `errorHandler`: error อักขระ NUL จาก Postgres (22021 / "invalid byte sequence" / "0x00") → 400 เหมือน `isBadInput`; `login` ส่ง error เข้า `next(err)` แทนตอบ 500 เอง ไม่งั้น errorHandler ไม่เห็น (`errorHandler.js`, `authController.js`). (5) `POST/PUT /rounds`: `status` ต้องเป็น open/closed (`rounds.controller.js`) — ยังไม่ได้ล็อกปี/ครั้งที่/วิชาของรอบที่มีผลสอบ (รอเจ้าของระบบตัดสินใจ). (6) แจ้งเตือน "เปิดรับผลสอบรอบ N" ไม่สร้างให้คนที่ผ่านครบแล้ว (`notifications.controller.js`). (7) alert "ยังไม่ส่งผลสอบ N คน" ใช้ฐานคนของรอบ (`roundNotStarted + by.draft`) แทนทั้งรุ่น และเปลี่ยนข้อความ detail (`dashboard.service.js`). (8) PDF รายงานรายรอบใช้ `roundTotal/roundNotStarted/roundFillRate` + แถวค้างร่าง + หมายเหตุ `alreadyPassed`, ป้าย "ส่งผลการสอบรอบแรก" → "ยืนยันผลการสอบรอบแรก" (`dashboard.pdf.js`). (9) ลบ field `overallPassRate` ที่ไม่มีใครใช้ออกจาก `buildStats` + ลบคอมเมนต์ล้าสมัยของ `getAlerts`. (10)(11) เทสเพิ่มใน `smoke-phase29/30` และเพิ่มสองไฟล์นี้ต่อท้ายสคริปต์ `npm test` |
+| 2026-10-03 | `/dashboard/stats` เพิ่ม `roundTotal`, `roundNotStarted`, `roundFillRate`, `alreadyPassed` — มุมมองรายรอบของ dashboard เดิมหารด้วยทั้งรุ่น (155) ทั้งที่รอบ 2 มีแค่ 42 คนที่ต้องกรอก (อีก 113 ผ่านครบแล้ว) ทำให้แถบบอก 19% และโดนัทมีวง "ยังไม่เริ่ม" 126 คน. **field เดิม (`total`, `not_started`, `fillRate`) ไม่แก้** — หน้ารายงาน/PDF ยังใช้อยู่และยังรวมกันได้เท่า `total`. % ผ่านทุกตัวยังหารทั้งรุ่น (`dashboard.service.js`, `dashboardReal.jsx`, `i18n.js`) |
 | 2026-10-03 | **กระจกสะท้อน local -> Supabase (`utils/supabaseMirror.js`)** — ตั้ง `SUPABASE_DATABASE_URL` ใน `.env` แล้วหลังมีการ POST/PUT/PATCH/DELETE ที่สำเร็จ (ยกเว้น login/logout) รอเงียบ 5 วินาที (debounce) แล้วคัดลอก**ทุกตาราง**ขึ้น Supabase ให้เหมือน local: อ่านต้นทางใน transaction เดียว → ปลายทาง `TRUNCATE ... RESTART IDENTITY CASCADE` + `INSERT ... SELECT * FROM jsonb_populate_recordset(...)` ใน transaction เดียว (ล้มเหลวกลางทางไม่เหลือข้อมูลครึ่งๆ) แล้ว `setval` ตัวนับ id. **ทางเดียว** local → Supabase (ปลายทางถูกล้างแล้วเขียนใหม่ทุกครั้ง ห้ามแก้ที่ Supabase ตรงๆ); ไม่คัดลอกไฟล์ใน `uploads/`; ปฏิเสธถ้า migration สองฐานไม่ตรงกัน (`npm run supabase:migrate` ก่อน); ผิดพลาดแค่ log + ลองใหม่ใน 1 นาที ไม่กระทบคำขอจริง; ปิดเองเมื่อต้นทางเป็น schema ชั่วคราวของเทส/ปลายทางซ้ำต้นทาง และ `run-clean.mjs` ตั้ง `SUPABASE_DATABASE_URL` ว่างให้ server ทดสอบอีกชั้น. คำสั่งใหม่: `npm run supabase:migrate` (สร้างตารางบน Supabase), `npm run sync:supabase` (คัดลอกทันที 1 ครั้ง) — ใช้ connection string แบบ Session pooler/Direct พอร์ต 5432 (ไม่ใช่ 6543). **`supabase:migrate` ล็อกตารางด้วย:** เปิด Row Level Security ทุกตาราง + `REVOKE` สิทธิ์ `anon`/`authenticated` — ไม่งั้น Supabase เปิดตารางใน schema `public` ให้เรียกผ่าน REST API ด้วย publishable key (คีย์สาธารณะ) ได้ ข้อมูลนักศึกษารั่ว (ตรวจแล้ว: เรียก REST ด้วย key นั้นได้ `permission denied for table users`); backend เข้าด้วย role `postgres` (เจ้าของตาราง) ซึ่งข้าม RLS จึงใช้งานปกติ. **รหัสผ่านใน `SUPABASE_DATABASE_URL` ที่มีอักขระพิเศษต้องเข้ารหัส %** (`#`→`%23`, `@`→`%40`, `:`→`%3A`, `/`→`%2F`, `?`→`%3F`) ไม่งั้น URL ไม่ถูกต้อง. ทดสอบแล้ว: 2 schema ในเครื่อง (เนื้อหาเหมือนเป๊ะ, แก้/ลบ/เพิ่มตามทัน, sequence ไม่ชน, ปฏิเสธเมื่อ migrate ไม่ครบ) และ Supabase จริง (สร้างข่าวผ่าน API → ขึ้นที่ Supabase เองใน ~5 วินาที, ลบแล้วกลับเท่าเดิม). **การเทียบข้อมูลสองฐานต้องใช้ `to_jsonb(row)::text` ไม่ใช่ `row::text`** เพราะ `row::text` ใส่เครื่องหมาย `"` ครอบข้อความไทยต่างกันตาม locale ของเครื่อง ทำให้ md5 ไม่ตรงทั้งที่ข้อมูลเหมือนกัน (`scripts/syncSupabase.js`, `scripts/migrateSupabase.js`, `app.js`, `package.json`, `.env.example`, `tests/run-clean.mjs`) |
 | 2026-10-03 | **ผู้ดำเนินการ (ใครทำอะไร) + ปิดบัญชีแล้วประวัติไม่หาย (ข้อเสนอแนะอาจารย์ที่ปรึกษา; เทส `smoke-phase28-actor.mjs`)** — `utils/actor.js` ใหม่: `ACTOR_SELECT` + `toActor()` (ดึง `password_hash` มาแค่คำนวณ `is_closed` แล้วตัดทิ้งก่อนส่งออก ใช้ร่วมกันทุกที่) → `GET /api/rounds` แนบ `creator` (นักศึกษาไม่เห็น), `GET /api/news` `poster` มี `is_closed`, `GET /api/exam-results` แนบ `confirmer` + `review_logs` (`news.repository.js`, `rounds.repository.js` + `rounds.controller.js`, `examResults.repository.js`). (รอบแรกไม่แก้ schema เพราะ `created_by` / `posted_by` / `confirmed_by` / `review_logs` มีอยู่แล้ว). **รอบต่อมา (ข้อเสนอแนะอาจารย์ "เพิ่มคอลัมน์ใน DB") เพิ่มคอลัมน์ audit + migration `20261003100000_add_audit_actor_columns`:** `users.created_by/closed_at/closed_by`, `students.eligible_set_by/eligible_set_at`, `submission_rounds.updated_by/updated_at`, `news.updated_by` — controller อ่านผู้ทำจาก JWT (`req.user.userId`) แล้วบันทึกตอนสร้างบัญชี / ปิดบัญชี (`revokeAccess`) / รีเซ็ตรหัส (ล้าง closed_*) / แก้รอบ / แก้ข่าว (รวมเปลี่ยน/ลบรูป) / เปิด-ปิดสิทธิ์กรอก (`bulkSetEligible`); API คืนเป็น actor (ตัด hash ผ่าน `toActor`) — **นักศึกษาไม่เห็น** `creator`/`updater` ของรอบ, `updater` ของข่าว, `eligible_setter`; `studentRepo.findById` แปลง actor ใน repository เองกัน hash หลุด. หน้าเว็บ: ปุ่ม "เปลี่ยนบทบาท" (ใช้ `POST /users/:id/role` เดิม), "สร้างโดย"/"ปิดโดย" ในหน้าผู้ใช้, "แก้ไขล่าสุดโดย" ในรอบ/ข่าว, "เปิดสิทธิ์โดย" ในหน้านักศึกษา, คอลัมน์ "ผู้ตรวจ/ตรวจเมื่อ" ในแท็บยืนยันแล้ว/ถูกตีกลับ, ปุ่มยืนยัน/ตีกลับใน modal ดูไฟล์. **ต้องรัน `npx prisma migrate deploy` + `npx prisma generate` กับ DB จริงก่อนใช้ (generate จะ EPERM ถ้า backend ยังรันอยู่ — ปิดก่อน)**; `seedDemoYears.js` เติมค่าคอลัมน์ใหม่ + เจ้าหน้าที่/ผู้ช่วยตรวจตัวอย่างหลายคน (รวม 2 บัญชีที่ปิดแล้ว) + `review_logs`. frontend: ซ่อนปุ่ม "ลบบัญชี" เหลือ "ปิดบัญชี" (= `revoke` เดิม), โชว์ผู้สร้างรอบ / ผู้โพสต์ข่าว / ประวัติผู้ตรวจ พร้อมป้าย "(ปิดบัญชีแล้ว)" |
 | 2026-10-01 | **security review (เทส `smoke-phase27-security.mjs`)** — (1) `ensureCanChangeEvidence` ใช้ `findSubmittableRound` ตัวเดียวกับตอนส่งผล: ใบที่ถูกตีกลับของ**รอบเก่า** (มีรอบใหม่กว่าแล้ว) แนบ/ลบไฟล์ไม่ได้อีก → 409 (เดิมเปลี่ยนหลักฐานได้ตลอดไป) (2) กดแนบพร้อมกันหลายไฟล์เคยได้เกิน 5 ไฟล์ (10 request ได้ 6 ไฟล์) → นับซ้ำหลังบันทึก เกินแล้วถอนแถว + ตรวจซ้ำว่าใบไม่ถูกยืนยันระหว่างอัปโหลด (3) `upload` ลบไฟล์บน disk ทุกทางที่ไม่ได้บันทึก (ตัวแปร `saved` + `catch`) — เดิมเลขใบผลสอบแปลก/ใหญ่เกินทำให้ไฟล์ค้างที่ disk (4) `errorHandler`: เลข id ใหญ่เกิน INT4 (`PrismaClientUnknownRequestError` "Unable to fit integer value") → 400 ข้อความไทย แทน 500 ที่มีข้อความดิบของ Prisma (`certificates.controller.js`, `middlewares/errorHandler.js`, `tests/smoke-phase27-security.mjs`, `tests/run-clean.mjs`, `package.json`) |

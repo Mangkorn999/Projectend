@@ -219,6 +219,15 @@ const validateSubjectIds = async (rawIds) => {
   return unique;
 };
 
+// status ของรอบมีได้แค่ 2 ค่า: "open" (เปิดรับ) หรือ "closed" (ปิด) — ค่าอื่นห้ามลง DB
+// ไม่ส่งมา (undefined) ถือว่าไม่ได้แก้ ปล่อยผ่าน
+const ensureValidStatus = (status) => {
+  if (status === undefined) return;
+  if (status !== "open" && status !== "closed") {
+    throw httpError('สถานะของรอบต้องเป็น "เปิดรับ" หรือ "ปิด" เท่านั้น', 400);
+  }
+};
+
 // หนึ่งปีการศึกษามี "ครั้งที่ n" ได้รอบเดียว — เช็คก่อนบันทึกเพื่อให้ได้ 400 พร้อมข้อความที่อ่านรู้เรื่อง
 // exceptRoundId = รอบที่กำลังแก้อยู่ ต้องข้ามไป ไม่งั้นแก้รอบเป็นค่าเดิมของตัวเองจะโดนบล็อก
 const ensureNotDuplicate = async (academicYear, attemptNumber, exceptRoundId) => {
@@ -270,6 +279,7 @@ export const create = async (req, res, next) => {
       );
     }
 
+    ensureValidStatus(status);
     await ensureNotDuplicate(Number(academic_year), Number(attempt_number));
     if (status === "open") await ensureNoOtherOpenRound();
 
@@ -313,6 +323,8 @@ export const update = async (req, res, next) => {
 
     const current = await roundsRepo.findById(req.params.id);
     if (!current) throw httpError("ไม่พบรอบการกรอกนี้", 404);
+
+    ensureValidStatus(status);
 
     if (subject_ids !== undefined) {
       // เปิดรอบไปแล้วห้ามเปลี่ยนวิชา — นักศึกษาอาจกรอกไปแล้วตามรายการเดิม

@@ -365,13 +365,24 @@ export const buildStats = async (roundId) => {
   // ผ่านครบทุกวิชาไปแล้วตั้งแต่รอบก่อนหน้า — คิวตรวจสอบ (officerReviewReal) เอาไปตัดออกจาก
   // แท็บ "ยังไม่กรอก" ของรอบนี้ ไม่งั้นคนที่ผ่านครบแล้วจะค้างโชว์เป็น "ยังไม่กรอก" ไปทุกรอบถัดไป
   const alreadyPassedStudentIds = [];
+  const canSubmitIds = [];
   for (const s of eligibleStudents) {
     const passedAll = subjectIds.every((id) =>
       s.passed_subject_ids.includes(id),
     );
-    if (!passedAll) canSubmit += 1;
-    else alreadyPassedStudentIds.push(s.student_id);
+    if (!passedAll) {
+      canSubmit += 1;
+      canSubmitIds.push(s.student_id);
+    } else alreadyPassedStudentIds.push(s.student_id);
   }
+
+  // "คนของรอบนี้" = คนที่กรอกได้ในรอบนี้ + คนที่มีใบในรอบนี้อยู่แล้ว (กันกรณีมีใบแต่ถูกถอนสิทธิ์ทีหลัง)
+  // ใช้เป็นฐานของโดนัท/แถบความคืบหน้าของมุมมองรายรอบ — รอบ 2 ขึ้นไปคนที่ผ่านครบแล้วไม่ต้องกรอก
+  // จึงไม่ควรอยู่ในตัวหาร (ไม่งั้นแถบบอก 29/155 ทั้งที่คนที่ต้องกรอกมีแค่ 42)
+  // ตัวหารของ % "ผ่าน" ยังเป็นทั้งรุ่นเหมือนเดิม — อันนั้นเป็นสูตรที่ส่งสภาการพยาบาล
+  const roundPeople = new Set(canSubmitIds);
+  for (const r of results) roundPeople.add(r.student_id);
+  const roundTotal = roundPeople.size;
 
   return {
     round: {
@@ -394,6 +405,12 @@ export const buildStats = async (roundId) => {
     // ยังไม่มีใบในรอบนี้เลย — ทั้งรุ่นลบคนที่มีใบแล้ว
     // 5 ช่องนี้ (approved+submitted+rejected+draft+not_started) ต้องบวกกันได้เท่า total พอดี
     not_started: Math.max(total - results.length, 0),
+    // ฐาน "คนของรอบนี้" — มุมมองรายรอบของ dashboard ใช้ชุดนี้ ไม่ใช่ total/not_started ข้างบน
+    // 5 ช่อง (approved+submitted+rejected+draft+roundNotStarted) บวกกันได้เท่า roundTotal พอดี
+    roundTotal,
+    roundNotStarted: Math.max(roundTotal - results.length, 0),
+    roundFillRate: percent(submitted, roundTotal),
+    alreadyPassed: alreadyPassedStudentIds.length, // ผ่านครบตั้งแต่ก่อนรอบนี้ — ไม่ต้องกรอก ไม่อยู่ในฐานข้างบน
     submitted,
     fillRate: percent(submitted, total),
     fullyPassed,
@@ -405,7 +422,6 @@ export const buildStats = async (roundId) => {
     // ใช้ตอบคำถาม "คนที่เข้าสอบรอบนี้ ผ่านกี่ %" ต้องติดป้ายให้ชัดทุกที่ที่เอาไปโชว์
     // (ตัวตั้งกับตัวหารต้องมาจากใบที่ยืนยันแล้วเหมือนกัน ไม่งั้นใบรอตรวจจะลากอัตราลง)
     passRateOfSitters: percent(fullyPassed, confirmed.length),
-    overallPassRate: percent(fullyPassed, confirmed.length), // ชื่อเดิม เก็บไว้ไม่ให้หน้าเก่าพัง
     perSubject,
   };
 };
@@ -699,11 +715,11 @@ export const buildAlerts = async (role) => {
 
     // --- 2. ยังไม่ส่งผลกี่คน (เตือนเฉพาะตอนใกล้ปิด ไม่งั้นรกตั้งแต่วันเปิดรอบ) ---
     if (left >= 0 && left <= CLOSING_SOON_DAYS) {
-      const [cohort, results] = await Promise.all([
-        dashRepo.countStudentsByYear(round.academic_year),
-        dashRepo.findResultsByRound(round.round_id),
-      ]);
-      const missing = cohort - onlySent(results).length;
+      // ฐานคือ "คนที่ต้องกรอกในรอบนี้" (roundTotal) ไม่ใช่ทั้งรุ่น — รอบ 2 ขึ้นไปคนที่ผ่านครบแล้วไม่ต้องกรอก
+      // ถ้านับจากทั้งรุ่น จะเตือนว่า "ยังไม่ส่ง" คนที่ไม่มีอะไรต้องส่งอีกแล้ว
+      // ยังไม่ส่ง = ยังไม่มีใบเลย (roundNotStarted) + ค้างร่างยังไม่กดส่ง (draft)
+      const roundStats = await buildStats(round.round_id);
+      const missing = roundStats.roundNotStarted + roundStats.by.draft;
       if (missing > 0) {
         push({
           key: `round-missing-${round.round_id}`,
@@ -711,7 +727,7 @@ export const buildAlerts = async (role) => {
           tone: "wait",
           icon: "users",
           title: `ยังไม่ส่งผลสอบ ${missing} คน`,
-          detail: `${label} · จากนักศึกษาทั้งรุ่น ${cohort} คน`,
+          detail: `${label} · จากผู้ที่ต้องกรอกในรอบนี้ ${roundStats.roundTotal} คน`,
           round_id: round.round_id,
           count: missing,
         });

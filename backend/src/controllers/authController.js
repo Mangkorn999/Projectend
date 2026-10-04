@@ -25,7 +25,7 @@ const TOKEN_COOKIE_OPTIONS = {
 
 // login ด้วย psu_passport_id + password ในระบบเอง
 // (เดิมใช้ PSU One Passport แต่ขอ credential ไม่ได้ เลยทำ auth เอง)
-export const login = async (req, res) => {
+export const login = async (req, res, next) => {
   try {
     const { psu_passport_id, password } = req.body;
 
@@ -95,8 +95,9 @@ export const login = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดภายในระบบ กรุณาลองใหม่อีกครั้ง" });
+    // ส่งต่อให้ errorHandler กลาง — มันแยก error ที่เกิดจากข้อมูลที่ส่งมาผิด (เช่น อักขระ NUL ในรหัสผู้ใช้) เป็น 400
+    // ได้ แทนที่จะตอบ 500 ทุกกรณี และข้อความ 500 ก็ยังเป็นข้อความกลางเดิม ไม่หลุดรายละเอียดภายใน
+    next(error);
   }
 };
 

@@ -45,22 +45,28 @@ export const buildReportPdf = (stats, rows, res, yearStats) => {
   // ── สรุปภาพรวม ──
   section(doc, "สรุปภาพรวม");
   doc.font("th").fontSize(11);
-  // % ทุกตัวต้องบอกด้วยว่าหารด้วยอะไร ไม่งั้นคนอ่านรายงานจะเอาไปเทียบกับตัวเลขผิดตัว
+  // ส่วนสถานะของรอบ ใช้ "ฐานคนของรอบนี้" (roundTotal) = คนที่ต้องกรอกในรอบนี้ + คนที่มีใบในรอบนี้แล้ว
+  // รอบ 2 ขึ้นไปคนที่ผ่านครบแล้วไม่ต้องกรอก จึงไม่อยู่ในฐาน (ไม่งั้น "ยังไม่เริ่มกรอก" จะรวมคนที่ไม่มีอะไรต้องส่ง)
+  // แถว ส่งแล้ว/รอตรวจ/ยืนยัน/ตีกลับ/ค้างร่าง/ยังไม่เริ่ม บวกกันได้เท่า roundTotal พอดี — เรียงให้คนอ่านบวกตามได้
   const summary = [
     ["นักศึกษาทั้งรุ่น", `${stats.total} คน`],
     ["เปิดสิทธิ์กรอกอยู่", `${stats.eligible} คน`],
-    ["กรอกฟอร์มได้ในรอบนี้", `${stats.canSubmit} คน (ที่เหลือผ่านครบแล้ว)`],
-    ["ส่งผลสอบแล้ว", `${stats.submitted} คน (${stats.fillRate}% ของทั้งรุ่น)`],
-    ["ยังไม่เริ่มกรอก", `${stats.not_started} คน`],
-    ["รอตรวจ", `${stats.by.submitted} คน`],
-    ["ยืนยันแล้ว", `${stats.by.approved} คน`],
-    ["ตีกลับ", `${stats.by.rejected} คน`],
-    [
-      "ผ่านครบทุกวิชาของรอบนี้",
-      `${stats.fullyPassed} คน (${stats.fullyPassedRate}% ของทั้งรุ่น / ${stats.passRateOfSitters}% ของผู้ที่ยืนยันแล้ว ${stats.confirmed} คน)`,
-    ],
-    ["อัตราผ่านเฉลี่ยรายวิชา", `${stats.subjectPassRate}%`],
+    ["ผู้ที่ต้องกรอกในรอบนี้", `${stats.roundTotal} คน`],
+    ["ส่งผลสอบแล้ว", `${stats.submitted} คน (${stats.roundFillRate}% ของผู้ที่ต้องกรอกในรอบนี้)`],
+    ["ยังไม่เริ่มกรอก", `${stats.roundNotStarted} คน`],
   ];
+  // ค้างร่าง = เริ่มกรอกแล้วแต่ยังไม่กดส่ง — มีเมื่อไรค่อยโชว์ ไม่งั้นยอดรวมของแถวสถานะจะไม่ครบ
+  if (stats.by.draft > 0) {
+    summary.push(["ค้างร่าง (ยังไม่กดส่ง)", `${stats.by.draft} คน`]);
+  }
+  summary.push(["รอตรวจ", `${stats.by.submitted} คน`]);
+  summary.push(["ยืนยันแล้ว", `${stats.by.approved} คน`]);
+  summary.push(["ตีกลับ", `${stats.by.rejected} คน`]);
+  summary.push([
+    "ผ่านครบทุกวิชาของรอบนี้",
+    `${stats.fullyPassed} คน (${stats.fullyPassedRate}% ของทั้งรุ่น / ${stats.passRateOfSitters}% ของผู้ที่ยืนยันแล้ว ${stats.confirmed} คน)`,
+  ]);
+  summary.push(["อัตราผ่านเฉลี่ยรายวิชา", `${stats.subjectPassRate}%`]);
   summary.forEach(([label, value]) => {
     if (doc.y + 16 > BOTTOM) doc.addPage();
     doc.text(`${label} : ${value}`, LEFT, doc.y, { width: CONTENT_WIDTH });
@@ -70,6 +76,13 @@ export const buildReportPdf = (stats, rows, res, yearStats) => {
     `หมายเหตุ: ตัวเลข "ผ่าน" ทุกตัวนับเฉพาะใบผลสอบที่เจ้าหน้าที่ตรวจสอบและยืนยันแล้ว${stats.by.submitted > 0 ? ` (ขณะออกรายงานยังมีใบรอตรวจสอบ ${stats.by.submitted} ใบ ที่ยังไม่นับ)` : ""}`,
     LEFT, doc.y + 2, { width: CONTENT_WIDTH },
   );
+  // คนที่ผ่านครบทุกวิชาไปแล้วตั้งแต่ก่อนรอบนี้ ไม่อยู่ในฐาน "ผู้ที่ต้องกรอกในรอบนี้" — บอกไว้กันคนอ่านสงสัยว่าหายไปไหน
+  if (stats.alreadyPassed > 0) {
+    doc.fontSize(10).fillColor("#555").text(
+      `หมายเหตุ: มีผู้ที่ผ่านครบทุกวิชาไปแล้วก่อนรอบนี้ ${stats.alreadyPassed} คน ไม่ต้องกรอกในรอบนี้ จึงไม่นับรวมในฐาน "ผู้ที่ต้องกรอกในรอบนี้"`,
+      LEFT, doc.y + 2, { width: CONTENT_WIDTH },
+    );
+  }
   doc.fillColor("#000").fontSize(11);
   doc.moveDown(1);
 
@@ -112,7 +125,7 @@ export const buildReportPdf = (stats, rows, res, yearStats) => {
     section(doc, "สรุปผลสอบผ่านครั้งแรก จำแนกรายวิชา");
     doc.font("th").fontSize(9);
     doc.text(
-      `จำนวนผู้สมัครสอบ = นักศึกษาทั้งรุ่นปีการศึกษา ${yearStats.academic_year} จำนวน ${bySubject.cohort_total} คน · ส่งผลการสอบรอบแรกแล้ว ${bySubject.submitted} คน · หน่วยของ "จำนวน" = คน`,
+      `จำนวนผู้สมัครสอบ = นักศึกษาทั้งรุ่นปีการศึกษา ${yearStats.academic_year} จำนวน ${bySubject.cohort_total} คน · ยืนยันผลการสอบรอบแรกแล้ว ${bySubject.submitted} คน · หน่วยของ "จำนวน" = คน`,
       LEFT,
       doc.y,
       { width: CONTENT_WIDTH },
