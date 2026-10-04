@@ -42,7 +42,8 @@ const YEAR = 2599; // far from seed data so it cannot collide with other tests
 const OTHER_YEAR = 2598;
 const STAMP = Date.now().toString().slice(-6);
 // 2 หลักแรกของรหัสนักศึกษาคำนวณเป็นปีจบฝั่ง server (entry+4) — ต้องตั้งให้ตรงกับปีที่ต้องการทดสอบ
-const makeStudentId = (year, salt) => `${String(year - 4).slice(-2)}${salt}${STAMP}`;
+// ต้องครบ 10 หลักพอดี (ปี 2 หลัก + salt 1 หลัก + "0" + เวลา 6 หลัก) ตามกฎรหัสนักศึกษาของระบบ
+const makeStudentId = (year, salt) => `${String(year - 4).slice(-2)}${salt}0${STAMP}`;
 const makeNationalId = (salt) => `1${STAMP}${salt}`.padEnd(13, "0").slice(0, 13);
 const STUDENT_ID = makeStudentId(YEAR, "1");
 const OTHER_ID = makeStudentId(OTHER_YEAR, "2"); // same run, different academic year

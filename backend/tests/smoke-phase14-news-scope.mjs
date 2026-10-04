@@ -28,8 +28,8 @@ const STAMP = String(Date.now()).slice(-6);
 const YEAR_A = 2591;
 const YEAR_B = 2592;
 // 2 หลักแรกของรหัสนักศึกษาคำนวณเป็นปีจบฝั่ง server (entry+4) — ต้องตั้งให้ตรงกับ YEAR_A/YEAR_B
-const A_ID = `${String(YEAR_A - 4).slice(-2)}1${STAMP}`;
-const B_ID = `${String(YEAR_B - 4).slice(-2)}2${STAMP}`;
+const A_ID = `${String(YEAR_A - 4).slice(-2)}10${STAMP}`; // 2+2+6 = 10 หลักพอดี ตามกฎรหัสนักศึกษา
+const B_ID = `${String(YEAR_B - 4).slice(-2)}20${STAMP}`;
 const A_NATIONAL_ID = `1${STAMP}1`.padEnd(13, "0").slice(0, 13);
 const B_NATIONAL_ID = `1${STAMP}2`.padEnd(13, "0").slice(0, 13);
 const PAST = { open_date: "2020-01-01", close_date: "2020-01-31" };
