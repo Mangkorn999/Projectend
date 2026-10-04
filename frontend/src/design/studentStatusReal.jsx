@@ -66,10 +66,12 @@ export function StudentStatusReal({ go, lang }) {
           </div>
           <div className="card card-pad">
             <h3 style={{ margin: '0 0 14px', fontSize: 18, fontWeight: 800 }}>{tt('statuspage.subjectSummaryTitle')}</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 9 }}>
+            {/* minmax(0, 1fr) ไม่ใช่ 1fr: ช่อง 1fr ขยายตามความกว้างขั้นต่ำของเนื้อหา ชื่อวิชา nowrap ยาวๆ
+                เลยดันการ์ดกว้างกว่าจอมือถือ (เคยวัดได้ 774px บนจอ 390px) — minmax(0, …) ให้หดได้แล้วตัดด้วย … */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 9 }}>
               {latest.subject_results.map(s => (
-                <div key={s.subject_result_id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '9px 13px', background: '#fff', border: '1px solid var(--ink-200)', borderRadius: 9 }}>
-                  <span style={{ fontSize: 15, color: 'var(--ink-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subjectName(lang, s.subject.subject_code, s.subject.subject_name)}</span>
+                <div key={s.subject_result_id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '9px 13px', background: '#fff', border: '1px solid var(--ink-200)', borderRadius: 9, minWidth: 0 }}>
+                  <span style={{ fontSize: 15, color: 'var(--ink-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{subjectName(lang, s.subject.subject_code, s.subject.subject_name)}</span>
                   <PassBadge passed={s.is_passed} lang={lang} />
                 </div>
               ))}

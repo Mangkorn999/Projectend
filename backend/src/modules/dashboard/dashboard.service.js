@@ -743,18 +743,27 @@ export const buildAlerts = async (role) => {
       }
     }
 
-    // --- 3. ใบที่รอตรวจ (เจ้าหน้าที่เท่านั้น ผู้บริหารไม่มีสิทธิ์ตรวจอยู่แล้ว) ---
-    if (role === "officer") {
+  }
+
+  // --- 3. ใบที่รอตรวจ (เจ้าหน้าที่เท่านั้น ผู้บริหารไม่มีสิทธิ์ตรวจอยู่แล้ว) ---
+  // ดู "ทุกรอบ" ไม่ใช่เฉพาะรอบที่เปิดอยู่ — ใบที่ยังค้างตรวจตอนปิดรอบต้องไม่หายจากการเตือน
+  // (เดิมวนเฉพาะรอบที่เปิด ใบค้างของรอบเก่าเลยถูกลืมจนไม่มีใครเห็น)
+  if (role === "officer") {
+    for (const round of rounds) {
       const results = await dashRepo.findResultsByRound(round.round_id);
       const pending = countByStatus(results).submitted;
       if (pending > 0) {
+        let detail = `รอบ ${round.attempt_number}/${round.academic_year}`;
+        if (round.status !== "open") {
+          detail += " · ปิดรับแล้ว";
+        }
         push({
           key: `round-pending-${round.round_id}`,
           type: "pending_review",
           tone: "navy",
           icon: "checkCircle",
           title: `มีผลสอบรอตรวจ ${pending} ใบ`,
-          detail: label,
+          detail,
           round_id: round.round_id,
           count: pending,
         });

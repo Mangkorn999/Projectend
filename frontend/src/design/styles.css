@@ -302,6 +302,17 @@ select.input, select.select {
 .row { display:flex; gap:18px; }
 @media (max-width:860px){ .row.wrap-m { flex-direction:column; } .exam-aside{ width:100%!important; } }
 
+/* จอมือถือ: ตารางที่กว้างกว่าจอต้องเลื่อนแนวนอนได้ที่ตัวตารางเอง
+   ไม่งั้นทั้งหน้าล้นขอบ หรือการ์ด (overflow:hidden) ตัดคอลัมน์/ปุ่มทางขวาทิ้งจนกดไม่ถึง (หน้าจัดการผู้ใช้, รายงาน, นำเข้า)
+   screen เท่านั้น — ตอนพิมพ์/ถ่ายเป็น PDF ใช้กฎของ .report-sheet ด้านล่างเหมือนเดิม */
+@media screen and (max-width:680px){
+  table.tbl { display:block; max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  /* การ์ดตัวเลขสรุปในรายงาน (เดิม 4 คอลัมน์ตายตัว → ล้นจอ) เหลือ 2 คอลัมน์ */
+  .report-grid { grid-template-columns:repeat(2,1fr) !important; }
+  /* กล่องรายงานลดขอบด้านในลง เหลือที่ให้เนื้อหามากขึ้น */
+  .report-sheet { padding:20px 14px !important; }
+}
+
 /* print */
 @media print {
   .app-sidebar, header, .no-print { display:none !important; }

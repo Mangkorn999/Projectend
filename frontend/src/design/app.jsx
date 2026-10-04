@@ -296,18 +296,14 @@ export function App() {
   };
 
   // นับผลสอบที่ยังรอตรวจใหม่ทุกครั้งที่เปลี่ยนหน้า — ตรวจเสร็จกลับมา badge ต้องลดลงเอง
-  // นับเฉพาะรอบที่เปิดอยู่ (ไม่มีก็รอบล่าสุด) ให้ตรงกับที่หน้าคิวตรวจสอบเปิดมาเจอ
-  // ถ้านับรวมทุกรอบทุกปี เลข badge จะไม่มีวันตรงกับลิสต์ที่เห็นจริง
+  // นับ "ทุกรอบ" ที่ยังมีใบรอตรวจ — ใบที่ค้างตอนปิดรอบต้องยังขึ้นเลขเตือน ไม่ให้ถูกลืม
+  // (เดิมนับเฉพาะรอบที่เปิดอยู่ เลยไม่เห็นใบค้างของรอบเก่า แม้หน้าคิวตรวจเลือกดูรอบนั้นได้)
+  // ส่งไม่ระบุ round_id = ทุกรอบ (backend รองรับ) · ตัวเลขจึงอาจมากกว่าแท็บ "รอตรวจ" ของรอบที่เลือกอยู่ในหน้าคิวตรวจ
   // นับใหม่อีกเมื่อหน้ารายละเอียดยิง 'review-changed' (ยืนยัน/ตีกลับเสร็จ) — เจ้าหน้าที่ยังอยู่หน้าเดิม page ไม่เปลี่ยน
   useEffect(()=>{
     if (role !== 'officer') { setPendingCount(0); return; }
-    const recount = () => apiFetch('/rounds')
-      .then(rounds => {
-        const round = rounds.find(r => r.status === 'open') || rounds[0];
-        if (!round) return setPendingCount(0);
-        return apiFetch(`/exam-results?round_id=${round.round_id}&staff_status=pending`)
-          .then(rows => setPendingCount(rows.length));
-      })
+    const recount = () => apiFetch('/exam-results?staff_status=pending')
+      .then(rows => setPendingCount(rows.length))
       .catch(()=>{});
     recount();
     window.addEventListener('review-changed', recount);

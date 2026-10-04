@@ -389,7 +389,7 @@ function RoundModal({ round, allSubjects, cohorts, onClose, onSave, saving, tt, 
         </div>
 
         {!isNew && <label style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 16, fontWeight: 600, cursor: 'pointer' }}>
-          <input type="checkbox" checked={status === 'open'} onChange={e => setStatus(e.target.checked ? 'open' : 'closed')} style={{ width: 17, height: 17 }} /> {tt('roundsMgmt.statusOpenLabel')}
+          <input type="checkbox" checked={status === 'open'} onChange={e => setStatus(e.target.checked ? 'open' : 'closed')} style={{ width: 17, height: 17 }} /> {status === 'open' ? tt('roundsMgmt.statusOpenLabel') : tt('roundsMgmt.statusClosedLabel')}
         </label>}
 
         {/* สรุปก่อนกดบันทึก: รอบนี้จะเปิดให้ใครบ้าง
@@ -397,7 +397,8 @@ function RoundModal({ round, allSubjects, cohorts, onClose, onSave, saving, tt, 
             พิมพ์ปีผิดไปตัวเดียวก็เปิดให้คนผิดรุ่น/ไม่เปิดให้ใครเลย ซึ่งเดิมไม่มีทางรู้จนกว่านักศึกษาจะโทรมาถาม
             เลขที่โชว์มาจาก cohorts (นับจากตาราง students จริง) ไม่ใช่เดาจากปี */}
         {/* รอให้พิมพ์ครบ 4 หลักก่อน — โหมดพิมพ์ปีเองจะเตือน "ไม่มีรุ่น 25" ตั้งแต่พิมพ์ตัวที่สองถ้าไม่เช็ค */}
-        {String(academicYear).length === 4 &&
+        {/* ตอนแก้รอบแล้วเอาติ๊กออก (กำลังปิดรอบ) ไม่โชว์กล่อง "จะเปิดให้ N คน" — ขัดกับสิ่งที่กำลังจะเกิด (เคยทำให้เข้าใจผิดว่ายังเปิดอยู่) */}
+        {String(academicYear).length === 4 && (isNew || status === 'open') &&
           <CohortPreview year={Number(academicYear)} cohorts={cohorts} tt={tt} />}
 
       </div>
