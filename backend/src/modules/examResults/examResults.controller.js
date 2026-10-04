@@ -387,34 +387,41 @@ const reviewExamResult = async (req, res, next, { staff_status, requireRemark })
   }
 };
 
-// เจ้าหน้าที่ "ถอนการยืนยัน" — กรณียืนยันผิด/กดพลาด ใบที่ approved แล้วนักศึกษาแก้ไม่ได้และตรวจซ้ำไม่ได้ (409)
-// ถอนแล้วใบกลับเป็น "รอตรวจ" → เจ้าหน้าที่ยืนยัน/ตีกลับใหม่ได้ตามปกติ
+// ───────────────────────────────────────────────────────────────
+// แก้ไขผลการตรวจ (ให้ตรวจใหม่) — ใบที่ตัดสินแล้วกลับเป็น "รอตรวจ" เพื่อยืนยัน/ตีกลับใหม่
 //
-// ต้องใส่เหตุผลเสมอ และบันทึกลง review_logs (action = "revoked") — เป็นการกลับคำตัดสินที่เคยเซ็นแล้ว ต้องตรวจย้อนหลังได้
+// วงจรสถานะที่ตั้งใจให้เป็น (ทางเดียว ไม่ซ้ำซ้อน):
+//   รอตรวจ ──ยืนยัน──▶ ยืนยันแล้ว ──แก้ไขผลการตรวจ──▶ รอตรวจ
+//   รอตรวจ ──ตีกลับ──▶ ถูกตีกลับ  ──แก้ไขผลการตรวจ──▶ รอตรวจ   (หรือนักศึกษาแก้แล้วส่งใหม่ → รอตรวจ)
+// ยืนยัน/ตีกลับ ทำได้เฉพาะใบ "รอตรวจ" (ใบที่ตัดสินแล้วต้องกดแก้ไขก่อน) → ตีกลับซ้ำ/ยืนยันซ้ำไม่ได้ (409)
+//
+// ต้องใส่เหตุผลเสมอ และบันทึกลง review_logs — เป็นการกลับคำตัดสินที่เคยเซ็นแล้ว ต้องตรวจย้อนหลังได้
 // เฉพาะ officer (routes) ไม่รวม reviewer: reviewer ตรวจใบที่รอตรวจได้ แต่ไม่ควรกลับคำตัดสินของคนอื่น
 //
 // นักศึกษาแก้ผลได้อีกหรือไม่ = กติกาเดิมของใบ "รอตรวจ": แก้ได้เฉพาะตอนรอบยังเปิดรับ
 // ถ้ารอบปิด/หมดเวลาแล้ว เจ้าหน้าที่ต้องเลื่อนวันปิดรอบก่อนนักศึกษาถึงจะแก้ได้ (ไม่มีข้อยกเว้นรายคน)
-export const revokeApproval = async (req, res, next) => {
+// ───────────────────────────────────────────────────────────────
+const reopenPaper = async (req, res, next, { allowedFrom, logAction, wrongStatusMessage, noReasonMessage }) => {
   try {
     const existing = await examRepo.findById(req.params.id);
     if (!existing) throw httpError("ไม่พบผลสอบที่ระบุ", 404);
-    if (existing.staff_status !== STAFF_STATUS.APPROVED) {
-      throw httpError("ถอนการยืนยันได้เฉพาะใบที่ยืนยันแล้วเท่านั้น", 409);
+    if (!allowedFrom.includes(existing.staff_status)) {
+      throw httpError(wrongStatusMessage, 409);
     }
 
     const remark = typeof req.body?.remark === "string" ? req.body.remark.trim() : "";
-    if (!remark) throw httpError("ต้องระบุเหตุผลที่ถอนการยืนยัน", 400);
+    if (!remark) throw httpError(noReasonMessage, 400);
     if (remark.length > 500) throw httpError("เหตุผลยาวเกินไป (ไม่เกิน 500 ตัวอักษร)", 400);
 
-    const { count } = await examRepo.revokeApprovalIfApproved(req.params.id);
+    // where ใช้สถานะที่เพิ่งอ่านมา — ถ้ามีคนเปลี่ยนแทรกก่อน count = 0 → 409
+    const { count } = await examRepo.reopenIfStatus(req.params.id, existing.staff_status);
     if (count === 0) throw httpError("ใบนี้ถูกเปลี่ยนสถานะไปแล้ว กรุณารีเฟรชหน้า", 409);
 
     try {
       await reviewLogRepo.create({
         result_id: Number(req.params.id),
         reviewer_id: req.user.userId, // อ่านจาก JWT เท่านั้น
-        action: "revoked",
+        action: logAction,
         remark,
       });
     } catch (e) {
@@ -422,13 +429,15 @@ export const revokeApproval = async (req, res, next) => {
     }
 
     const roundLabel = `รอบ ${existing.round.attempt_number}/${existing.round.academic_year}`;
-    // รอให้บันทึกแจ้งเตือนเสร็จก่อนตอบ แต่แจ้งเตือนพลาดต้องไม่ทำให้การถอนการยืนยันล้ม (เหตุผลเดียวกับ reviewExamResult)
+    const wasRejected = existing.staff_status === STAFF_STATUS.REJECTED;
+    const message = wasRejected
+      ? `ผลสอบ${roundLabel}ที่ถูกตีกลับ ถูกเปลี่ยนกลับเป็นรอตรวจสอบ: ${remark}
+เจ้าหน้าที่จะตรวจสอบใหม่อีกครั้ง`
+      : `ผลสอบ${roundLabel}ถูกเปลี่ยนกลับเป็นรอตรวจสอบ: ${remark}
+เจ้าหน้าที่จะตรวจสอบใหม่อีกครั้ง`;
+    // รอให้บันทึกแจ้งเตือนเสร็จก่อนตอบ แต่แจ้งเตือนพลาดต้องไม่ทำให้การแก้ไขล้ม (เหตุผลเดียวกับ reviewExamResult)
     try {
-      await notifRepo.create({
-        student_id: existing.student_id,
-        type: "revoked",
-        message: `ผลสอบ${roundLabel}ถูกเปลี่ยนกลับเป็นรอตรวจสอบ: ${remark}\nเจ้าหน้าที่จะตรวจสอบใหม่อีกครั้ง`,
-      });
+      await notifRepo.create({ student_id: existing.student_id, type: "revoked", message });
     } catch (e) {
       console.error("สร้างแจ้งเตือนไม่สำเร็จ:", e.message);
     }
@@ -438,6 +447,24 @@ export const revokeApproval = async (req, res, next) => {
     next(err);
   }
 };
+
+// แก้ไขผลการตรวจ — ใช้ได้ทั้งใบที่ยืนยันแล้ว และใบที่ถูกตีกลับ (ปุ่มเดียวบนหน้าจอ)
+export const reopen = (req, res, next) =>
+  reopenPaper(req, res, next, {
+    allowedFrom: [STAFF_STATUS.APPROVED, STAFF_STATUS.REJECTED],
+    logAction: "reopened",
+    wrongStatusMessage: "แก้ไขผลการตรวจได้เฉพาะใบที่ยืนยันแล้วหรือถูกตีกลับเท่านั้น (ใบรอตรวจยืนยัน/ตีกลับได้เลย)",
+    noReasonMessage: "ต้องระบุเหตุผลที่แก้ไขผลการตรวจ",
+  });
+
+// เจ้าหน้าที่ "ถอนการยืนยัน" — endpoint เดิม (เก็บไว้ไม่ให้ของเก่าพัง): เฉพาะใบที่ยืนยันแล้ว
+export const revokeApproval = (req, res, next) =>
+  reopenPaper(req, res, next, {
+    allowedFrom: [STAFF_STATUS.APPROVED],
+    logAction: "revoked",
+    wrongStatusMessage: "ถอนการยืนยันได้เฉพาะใบที่ยืนยันแล้วเท่านั้น",
+    noReasonMessage: "ต้องระบุเหตุผลที่ถอนการยืนยัน",
+  });
 
 export const approve = (req, res, next) =>
   reviewExamResult(req, res, next, {

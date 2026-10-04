@@ -9,6 +9,7 @@ import {
   approve,
   reject,
   revokeApproval,
+  reopen,
 } from "./examResults.controller.js";
 import { upload as uploadCertificate } from "../certificates/certificates.controller.js";
 
@@ -31,5 +32,7 @@ router.patch("/:id/approve", authenticate, requireRole("officer", "reviewer"), a
 router.patch("/:id/reject", authenticate, requireRole("officer", "reviewer"), reject);
 // ถอนการยืนยัน (ยืนยันผิด) — เฉพาะ officer
 router.patch("/:id/revoke-approval", authenticate, requireRole("officer"), revokeApproval);
+// แก้ไขผลการตรวจ — ใบที่ยืนยันแล้ว/ถูกตีกลับ → กลับเป็นรอตรวจ (เฉพาะ officer) ปุ่มเดียวบนหน้าจอแทนการแยกถอนยืนยัน/ถอนตีกลับ
+router.patch("/:id/reopen", authenticate, requireRole("officer"), reopen);
 
 export default router;

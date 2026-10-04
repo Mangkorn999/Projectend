@@ -178,12 +178,13 @@ export const reviewWithLock = (result_id, { staff_status, remark, confirmed_by }
     return count;
   });
 
-// ถอนการยืนยัน (เจ้าหน้าที่ยืนยันผิด) — approved → pending ให้ตรวจใหม่ได้
-// updateMany + where staff_status = approved: ถ้ามีใครถอน/แก้ไปก่อนแล้ว count = 0 (กดซ้ำ/กดพร้อมกันไม่ทับกัน)
-// ล้าง confirmed_by/at เหมือนตอน resubmit — ใบกลับไปเป็น "ยังไม่มีใครตรวจ" จริงๆ ประวัติเก็บไว้ที่ review_logs
-export const revokeApprovalIfApproved = (result_id) =>
+// ให้ตรวจใหม่ — ใบที่ตัดสินแล้ว (ยืนยันแล้ว หรือ ถูกตีกลับ) → กลับเป็น pending
+// updateMany + where staff_status = fromStatus: ถ้ามีใครแก้/ถอนไปก่อนแล้ว count = 0 (กดซ้ำ/กดพร้อมกันไม่ทับกัน)
+// ล้าง remark/confirmed_by/at เหมือนตอน resubmit — ใบกลับไปเป็น "ยังไม่มีใครตรวจ" จริงๆ
+// (เหตุผลที่ตีกลับครั้งก่อนไม่ควรค้างให้นักศึกษาเห็น) ประวัติทั้งหมดเก็บไว้ที่ review_logs
+export const reopenIfStatus = (result_id, fromStatus) =>
   prisma.examResult.updateMany({
-    where: { result_id: Number(result_id), staff_status: STAFF_STATUS.APPROVED },
+    where: { result_id: Number(result_id), staff_status: fromStatus },
     data: {
       staff_status: STAFF_STATUS.PENDING,
       remark: null,
@@ -191,6 +192,10 @@ export const revokeApprovalIfApproved = (result_id) =>
       confirmed_at: null,
     },
   });
+
+// ถอนการยืนยัน (เจ้าหน้าที่ยืนยันผิด) — approved → pending (endpoint เดิม revoke-approval ยังใช้ตัวนี้)
+export const revokeApprovalIfApproved = (result_id) =>
+  reopenIfStatus(result_id, STAFF_STATUS.APPROVED);
 
 export const findByStudent = (student_id) =>
   prisma.examResult.findMany({

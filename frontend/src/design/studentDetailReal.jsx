@@ -15,7 +15,7 @@ import { t, subjectName, roomName } from './i18n.js';
 import { certificateTypeLabel, fileKindOf, fileKindLabel, fileKindIcon } from './evidenceFiles.js';
 
 // action ที่เก็บใน review_logs -> key ข้อความบนจอ
-const REVIEW_LOG_LABEL = { approved: 'officer.detail.logApproved', rejected: 'officer.detail.logRejected', revoked: 'officer.detail.logRevoked' };
+const REVIEW_LOG_LABEL = { approved: 'officer.detail.logApproved', rejected: 'officer.detail.logRejected', revoked: 'officer.detail.logRevoked', reopened: 'officer.detail.logReopened' };
 
 const STAFF_STATUS_TO_BADGE = { pending: 'SUBMITTED', approved: 'CONFIRMED', rejected: 'REJECTED' };
 
@@ -34,9 +34,9 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
   const [deleteOpen, setDeleteOpen] = useState(false); // ยืนยันลบนักศึกษา (เฉพาะ officer)
   // "ตอนนี้" จับครั้งเดียวตอนเปิดหน้า ไว้เทียบกับวันปิดรอบ — เรียก Date.now() ตรงๆ ระหว่าง render ไม่ได้ (ผลไม่นิ่ง)
   const [nowMs] = useState(() => Date.now());
-  // ถอนการยืนยัน (ยืนยันผิด) — เฉพาะ officer (canEdit)
-  const [revokeOpen, setRevokeOpen] = useState(false);
-  const [revokeRemark, setRevokeRemark] = useState('');
+  // แก้ไขผลการตรวจ (ใบที่ยืนยันแล้ว/ถูกตีกลับ → กลับเป็นรอตรวจ) — เฉพาะ officer (canEdit)
+  const [reopenOpen, setReopenOpen] = useState(false);
+  const [reopenRemark, setReopenRemark] = useState('');
   const [busy, setBusy] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState(null);
@@ -164,18 +164,18 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
     if (ok) { closePreview(); setRemark(''); }
   };
 
-  const revoke = async () => {
+  const reopen = async () => {
     setBusy(true);
     try {
-      await apiFetch(`/exam-results/${examResult.result_id}/revoke-approval`, {
+      await apiFetch(`/exam-results/${examResult.result_id}/reopen`, {
         method: 'PATCH',
-        body: { remark: revokeRemark },
+        body: { remark: reopenRemark },
       });
       window.dispatchEvent(new Event('review-changed')); // badge "รอตรวจ" ต้องนับใหม่ — ใบกลับมารอตรวจแล้ว
-      toast(tt('officer.detail.revokeToast'), 'info');
-      setRevokeOpen(false);
-      setRevokeRemark('');
-      load(examResult.result_id); // อยู่ใบเดิมที่เพิ่งถอนการยืนยัน ไม่เด้งไปใบล่าสุด
+      toast(tt('officer.detail.reopenToast'), 'info');
+      setReopenOpen(false);
+      setReopenRemark('');
+      load(examResult.result_id); // อยู่ใบเดิมที่เพิ่งแก้ไขผลการตรวจ ไม่เด้งไปใบล่าสุด
     } catch (e) {
       toast(e instanceof ApiError ? e.message : tt('detailReal.actionFailMsg'), 'error');
     } finally {
@@ -185,7 +185,7 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
 
   // สถานะรอบของใบที่เปิดดู: 'closed' = ปิดรับแล้ว · 'soon' = เหลือไม่ถึง 3 วัน · null = ยังเปิดรับอีกนาน
   // ตีกลับ: นักศึกษาแก้ใบที่ถูกตีกลับได้แม้รอบปิดแล้ว → แค่บอกให้รู้ (ไม่ต้องเลื่อนวันปิดรอบ)
-  // ถอนการยืนยัน: ใบกลับเป็น "รอตรวจสอบ" ซึ่งนักศึกษาแก้เองได้เฉพาะตอนรอบเปิด → ยังต้องเตือน
+  // แก้ไขผลการตรวจ: ใบกลับเป็น "รอตรวจสอบ" ซึ่งนักศึกษาแก้เองได้เฉพาะตอนรอบเปิด → ยังต้องเตือน
   const roundWarn = (() => {
     const r = examResult?.round;
     if (!r) return null;
@@ -345,8 +345,10 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
               <button className="btn btn-danger btn-block" disabled={busy} onClick={() => setReject(true)}>
                 <Icon name="xCircle" size={17} /> {tt('officer.detail.rejectBtn')}</button>
             </div>}
-            {canEdit && status === 'CONFIRMED' && <button className="btn btn-ghost btn-block" style={{ marginTop: 10 }} disabled={busy} onClick={() => setRevokeOpen(true)}>
-              <Icon name="xCircle" size={16} /> {tt('officer.detail.revokeBtn')}</button>}
+            {/* ใบที่ตัดสินแล้ว (ยืนยันแล้ว หรือ ถูกตีกลับ) มีปุ่มเดียว = แก้ไขผลการตรวจ → กลับเป็นรอตรวจ แล้วค่อยเลือกยืนยัน/ตีกลับใหม่
+                ปุ่มยืนยัน/ตีกลับโชว์เฉพาะใบรอตรวจ (ข้างบน) จึงยืนยันซ้ำ/ตีกลับซ้ำไม่ได้ */}
+            {canEdit && (status === 'CONFIRMED' || status === 'REJECTED') && <button className="btn btn-ghost btn-block" style={{ marginTop: 14 }} disabled={busy} onClick={() => setReopenOpen(true)}>
+              <Icon name="edit" size={16} /> {tt('officer.detail.reopenBtn')}</button>}
             {status === 'DRAFT' && <div style={{ marginTop: 12, fontSize: 15, color: 'var(--ink-500)' }}>{tt('detailReal.notFilledYet')}</div>}
           </div>
 
@@ -445,13 +447,13 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
         )}
       </Modal>
 
-      <Modal open={revokeOpen} onClose={() => setRevokeOpen(false)} title={tt('officer.detail.revokeModalTitle')} tone="var(--status-reject-fg)"
-        footer={<><button className="btn btn-ghost" onClick={() => setRevokeOpen(false)}>{tt('officer.detail.cancelBtn')}</button>
-          <button className="btn" style={{ background: 'var(--fail)', color: '#fff' }} disabled={!revokeRemark.trim() || busy} onClick={revoke}>
-            <Icon name="send" size={16} /> {tt('officer.detail.revokeConfirmBtn')}</button></>}>
-        <p style={{ margin: '0 0 14px', color: 'var(--ink-600)', fontSize: 16, lineHeight: 1.6 }}>{tt('officer.detail.revokeHint')}</p>
-        <div className="field"><label>{tt('officer.detail.revokeFieldLabel')}</label>
-          <textarea className="input" rows={3} maxLength={500} placeholder={tt('officer.detail.revokePlaceholder')} value={revokeRemark} onChange={e => setRevokeRemark(e.target.value)} />
+      <Modal open={reopenOpen} onClose={() => setReopenOpen(false)} title={tt('officer.detail.reopenModalTitle')} tone="var(--status-reject-fg)"
+        footer={<><button className="btn btn-ghost" onClick={() => setReopenOpen(false)}>{tt('officer.detail.cancelBtn')}</button>
+          <button className="btn" style={{ background: 'var(--fail)', color: '#fff' }} disabled={!reopenRemark.trim() || busy} onClick={reopen}>
+            <Icon name="send" size={16} /> {tt('officer.detail.reopenConfirmBtn')}</button></>}>
+        <p style={{ margin: '0 0 14px', color: 'var(--ink-600)', fontSize: 16, lineHeight: 1.6 }}>{tt(status === 'REJECTED' ? 'officer.detail.reopenHintRejected' : 'officer.detail.reopenHintApproved')}</p>
+        <div className="field"><label>{tt('officer.detail.reopenFieldLabel')}</label>
+          <textarea className="input" rows={3} maxLength={500} placeholder={tt('officer.detail.reopenPlaceholder')} value={reopenRemark} onChange={e => setReopenRemark(e.target.value)} />
         </div>
         {roundWarnBox && <div style={{ marginTop: -4 }}>{roundWarnBox}</div>}
       </Modal>

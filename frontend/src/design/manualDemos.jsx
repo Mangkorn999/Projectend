@@ -11,7 +11,7 @@ import { Icon } from './data.jsx';
 import { StepDemo, MockFrame, MockToast, MockTyped, MockModal, MockBadge, Field, Box, Btn } from './manualDemo.jsx';
 import { MORE_DEMOS } from './manualDemosMore.jsx';
 
-/* ---------- หน้ารายละเอียดนักศึกษา (ใช้ในเดโม ตรวจ/ตีกลับ/ถอนการยืนยัน) ---------- */
+/* ---------- หน้ารายละเอียดนักศึกษา (ใช้ในเดโม ตรวจ/ตีกลับ/แก้ไขผลการตรวจ) ---------- */
 const SUBJECTS = [['1101', 'การผดุงครรภ์', true], ['1102', 'การพยาบาลมารดาและทารก', true], ['1103', 'การพยาบาลเด็กและวัยรุ่น', false]];
 
 function DetailScreen({ status, actions, remark, doc }) {
@@ -64,7 +64,7 @@ const PendingActions = () => (
 const ConfirmedActions = () => (
   <>
     <div style={{ padding: '7px 9px', borderRadius: 9, background: 'var(--status-ok-bg)', color: 'var(--status-ok-fg)', fontSize: 13, fontWeight: 700 }}>✓ ยืนยันแล้ว</div>
-    <Btn dm="revoke" style={{ width: '100%' }}><Icon name="xCircle" size={15} /> ถอนการยืนยัน</Btn>
+    <Btn dm="revoke" style={{ width: '100%' }}><Icon name="edit" size={15} /> แก้ไขผลการตรวจ</Btn>
   </>
 );
 
@@ -123,25 +123,25 @@ const rejectDemo = {
   ),
 };
 
-/* ============ 3) ถอนการยืนยัน ============ */
+/* ============ 3) แก้ไขผลการตรวจ (ยืนยันแล้ว/ถูกตีกลับ → กลับเป็นรอตรวจ) ============ */
 const revokeDemo = {
-  title: 'การถอนการยืนยัน (กรณียืนยันผลสอบผิดพลาด)',
+  title: 'การแก้ไขผลการตรวจ (กรณียืนยันหรือตีกลับผิดพลาด)',
   steps: [
-    { target: 'revoke', text: 'ในใบที่ "ยืนยันแล้ว" คลิก "ถอนการยืนยัน" (เฉพาะเจ้าหน้าที่คณะ)' },
-    { target: 'revoke-reason', text: 'ระบุเหตุผลที่ถอน (บังคับ) ระบบบันทึกประวัติไว้ตรวจย้อนหลัง' },
-    { target: 'revoke-confirm', text: 'คลิก "ถอนการยืนยัน" ใบจะกลับเป็น "รอตรวจสอบ" เพื่อยืนยันหรือตีกลับใหม่ และนักศึกษาได้รับแจ้งเตือน', hold: 2000 },
+    { target: 'revoke', text: 'ในใบที่ "ยืนยันแล้ว" หรือ "ถูกตีกลับ" คลิก "แก้ไขผลการตรวจ" (เฉพาะเจ้าหน้าที่คณะ)' },
+    { target: 'revoke-reason', text: 'ระบุเหตุผลที่แก้ไข (บังคับ) ระบบบันทึกประวัติไว้ตรวจย้อนหลัง' },
+    { target: 'revoke-confirm', text: 'คลิก "แก้ไขผลการตรวจ" ใบจะกลับเป็น "รอตรวจสอบ" เพื่อยืนยันหรือตีกลับใหม่ และนักศึกษาได้รับแจ้งเตือน', hold: 2000 },
   ],
   stage: (done) => (
     <MockFrame title="รายละเอียดนักศึกษา">
       <DetailScreen status={done >= 3 ? 'pending' : 'approved'} actions={done >= 3 ? <PendingActions /> : <ConfirmedActions />} />
       {done >= 1 && done < 3 && (
-        <MockModal title="ถอนการยืนยันผลสอบ" tone="var(--status-reject-fg)"
-          footer={<><Btn>ยกเลิก</Btn><Btn dm="revoke-confirm" kind="primary" style={{ background: done >= 2 ? 'var(--fail)' : 'var(--ink-300)', borderColor: 'transparent' }}><Icon name="send" size={14} /> ถอนการยืนยัน</Btn></>}>
+        <MockModal title="แก้ไขผลการตรวจ" tone="var(--status-reject-fg)"
+          footer={<><Btn>ยกเลิก</Btn><Btn dm="revoke-confirm" kind="primary" style={{ background: done >= 2 ? 'var(--fail)' : 'var(--ink-300)', borderColor: 'transparent' }}><Icon name="send" size={14} /> แก้ไขผลการตรวจ</Btn></>}>
           <div style={{ fontSize: 13, color: 'var(--ink-600)', marginBottom: 8 }}>ใบนี้จะกลับเป็น "รอตรวจสอบ" แล้วยืนยันหรือตีกลับใหม่ได้</div>
-          <Field label="เหตุผลที่ถอนการยืนยัน (จำเป็น)"><Box dm="revoke-reason" style={{ minHeight: 44 }}>{done >= 2 ? <MockTyped text="กดยืนยันผิดใบ" /> : <span style={{ color: 'var(--ink-400)' }}>เช่น กดยืนยันผิดใบ</span>}</Box></Field>
+          <Field label="เหตุผลที่แก้ไขผลการตรวจ (จำเป็น)"><Box dm="revoke-reason" style={{ minHeight: 44 }}>{done >= 2 ? <MockTyped text="กดยืนยันผิดใบ" /> : <span style={{ color: 'var(--ink-400)' }}>เช่น กดยืนยันผิดใบ</span>}</Box></Field>
         </MockModal>
       )}
-      <MockToast show={done >= 3}>ถอนการยืนยันแล้ว · ใบกลับเป็นรอตรวจสอบ</MockToast>
+      <MockToast show={done >= 3}>แก้ไขผลการตรวจแล้ว · ใบกลับเป็นรอตรวจสอบ</MockToast>
     </MockFrame>
   ),
 };

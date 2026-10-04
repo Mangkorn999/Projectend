@@ -87,6 +87,7 @@ const MATRIX = [
   ["PATCH", "/api/exam-results/99999999/approve", OR],
   ["PATCH", "/api/exam-results/99999999/reject", OR],
   ["PATCH", "/api/exam-results/99999999/revoke-approval", OFFICER],
+  ["PATCH", "/api/exam-results/99999999/reopen", OFFICER],
   ["GET", "/api/certificates/99999999/file", ALL],
   ["DELETE", "/api/certificates/99999999", STUDENT],
   ["GET", "/api/news", ALL],

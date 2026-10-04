@@ -20,7 +20,7 @@
 //    8. ปิดรอบ → S1 เห็นแจ้งเตือน + ยังแก้ใบที่ถูกตีกลับได้ → ส่งใหม่
 //    9. S1 ปัดแจ้งเตือนทิ้ง (ลากไปซ้ายเกิน 90 px) → หายถาวร · ลากสั้นไม่หาย
 //   10. เจ้าหน้าที่ยืนยัน S1 หลังปิดรอบ + เมนูส่งออกมี "ภายในปีแรก"
-//   11. เจ้าหน้าที่ถอนการยืนยันผ่านหน้าเว็บ (ใส่เหตุผล) → นักศึกษาได้แจ้งเตือน
+//   11. เจ้าหน้าที่แก้ไขผลการตรวจผ่านหน้าเว็บ (ใส่เหตุผล) → นักศึกษาได้แจ้งเตือน
 //   12. เจ้าหน้าที่แก้ไข + ลบประกาศผ่านหน้าเว็บ
 //   13. เจ้าหน้าที่สร้างบัญชี "ผู้ช่วยตรวจสอบ" → เข้าครั้งแรกต้องเปลี่ยนรหัส → เห็นแค่คิวตรวจ
 //   14. หน้าข้อมูลนักศึกษา: ตัวนับ "แสดง N จาก M คน" + แบ่งหน้า + ทุกเมนูส่งออกได้ไฟล์จริง
@@ -868,8 +868,8 @@ try {
     check("แผงส่งออกในรายงานมี 'ภายในปีแรก'", await O.page.getByText(/ภายในปีแรก/).count() > 0, true);
   });
 
-  // ════════ 11. ถอนการยืนยันผ่านหน้าเว็บ ════════
-  await section("11. เจ้าหน้าที่ถอนการยืนยันผ่านหน้าเว็บ → นักศึกษาได้แจ้งเตือน", async () => {
+  // ════════ 11. แก้ไขผลการตรวจผ่านหน้าเว็บ (ยืนยันแล้ว/ถูกตีกลับ → รอตรวจ) ════════
+  await section("11. เจ้าหน้าที่แก้ไขผลการตรวจผ่านหน้าเว็บ → นักศึกษาได้แจ้งเตือน + ปุ่มตรงกับสถานะ", async () => {
     const O = sessions.O;
     const T = sessions.T;
     const REASON = "ยืนยันผิดคน ขอตรวจใหม่อีกครั้ง";
@@ -885,11 +885,34 @@ try {
     await O.page.waitForTimeout(600);
     if (await safeClick(O.page.locator("tbody tr", { hasText: S3.id }), "แถวของ S3 ในรายชื่อนักศึกษา")) {
       await O.page.waitForTimeout(1800);
-      if (await safeClick(O.page.getByRole("button", { name: /ถอนการยืนยัน/ }), "ปุ่มถอนการยืนยัน")) {
+      // ใบที่ยืนยันแล้ว: ปุ่มเดียวคือ "แก้ไขผลการตรวจ" (ไม่มีปุ่มยืนยัน/ตีกลับซ้ำ)
+      const btn = (name) => O.page.getByRole("button", { name });
+      check("ใบยืนยันแล้ว: เห็นปุ่มแก้ไขผลการตรวจ ไม่เห็นปุ่มยืนยัน/ตีกลับ",
+        [await btn(/แก้ไขผลการตรวจ/).count() > 0, await btn(/^ยืนยันผลสอบ$/).count(), await btn(/ตีกลับเพื่อแก้ไข/).count()], [true, 0, 0]);
+      if (await safeClick(btn(/แก้ไขผลการตรวจ/), "ปุ่มแก้ไขผลการตรวจ")) {
         await O.page.waitForTimeout(400);
-        await scanScreen(O.page, "กล่องถอนการยืนยัน");
-        await safeFill(O.page.locator(".modal-card textarea"), REASON, "ช่องเหตุผลถอนการยืนยัน");
-        await safeClick(O.page.locator(".modal-card button", { hasText: "ถอนการยืนยัน" }), "ปุ่มยืนยันการถอน");
+        await scanScreen(O.page, "กล่องแก้ไขผลการตรวจ");
+        await safeFill(O.page.locator(".modal-card textarea"), REASON, "ช่องเหตุผลแก้ไขผลการตรวจ");
+        await safeClick(O.page.locator(".modal-card button", { hasText: "แก้ไขผลการตรวจ" }), "ปุ่มยืนยันการแก้ไข");
+        await O.page.waitForTimeout(1800);
+      }
+      // กลับเป็นรอตรวจ: ปุ่มยืนยัน/ตีกลับกลับมา ปุ่มแก้ไขหายไป
+      check("ใบรอตรวจ: เห็นปุ่มยืนยัน+ตีกลับ ไม่เห็นปุ่มแก้ไขผลการตรวจ",
+        [await btn(/^ยืนยันผลสอบ$/).count() > 0, await btn(/ตีกลับเพื่อแก้ไข/).count() > 0, await btn(/แก้ไขผลการตรวจ/).count()], [true, true, 0]);
+      // ตีกลับผ่านหน้าเว็บ → ใบที่ถูกตีกลับก็ต้องมีปุ่มเดียวคือ "แก้ไขผลการตรวจ" (ซ้ำซ้อนเดิม: ตีกลับแล้วไม่มีทางแก้)
+      if (await safeClick(btn(/ตีกลับเพื่อแก้ไข/), "ปุ่มตีกลับเพื่อแก้ไข (S3)")) {
+        await O.page.waitForTimeout(400);
+        await safeFill(O.page.locator(".modal-card textarea"), "ตีกลับเพื่อทดสอบปุ่มแก้ไข", "ช่องเหตุผลตีกลับ (S3)");
+        await safeClick(O.page.locator(".modal-card button", { hasText: "ยืนยันการตีกลับ" }), "ปุ่มยืนยันการตีกลับ (S3)");
+        await O.page.waitForTimeout(1800);
+      }
+      check("ใบถูกตีกลับ: เห็นปุ่มแก้ไขผลการตรวจ ไม่เห็นปุ่มยืนยัน/ตีกลับ",
+        [await btn(/แก้ไขผลการตรวจ/).count() > 0, await btn(/^ยืนยันผลสอบ$/).count(), await btn(/ตีกลับเพื่อแก้ไข/).count()], [true, 0, 0]);
+      // คืนใบเป็นรอตรวจด้วยปุ่มเดียวกันผ่านหน้าเว็บ (ให้หัวข้อถัดไปเจอสถานะเหมือนเดิม) — เหตุผลเดิมใช้เช็คแจ้งเตือนด้านล่าง
+      if (await safeClick(btn(/แก้ไขผลการตรวจ/), "ปุ่มแก้ไขผลการตรวจ (ใบที่ถูกตีกลับ)")) {
+        await O.page.waitForTimeout(400);
+        await safeFill(O.page.locator(".modal-card textarea"), REASON, "ช่องเหตุผลแก้ไขผลการตรวจ (ใบที่ถูกตีกลับ)");
+        await safeClick(O.page.locator(".modal-card button", { hasText: "แก้ไขผลการตรวจ" }), "ปุ่มยืนยันการแก้ไข (ใบที่ถูกตีกลับ)");
         await O.page.waitForTimeout(1800);
       }
     }
@@ -900,12 +923,12 @@ try {
     for (const n of notes) {
       if (n.type === "revoked" && n.message.includes(REASON)) gotNote = true;
     }
-    check("S3 ได้แจ้งเตือนถอนการยืนยันพร้อมเหตุผล (หลังบ้าน)", gotNote, true);
+    check("S3 ได้แจ้งเตือนแก้ไขผลการตรวจพร้อมเหตุผล (หลังบ้าน)", gotNote, true);
     await T.page.goto(FE + "/news");
     await T.page.waitForTimeout(2000);
     if (await safeClick(T.page.getByRole("button", { name: "การแจ้งเตือน" }), "ปุ่มการแจ้งเตือน (S3)")) {
       await T.page.waitForTimeout(700);
-      check("S3 เห็นแจ้งเตือนถอนการยืนยันบนหน้าเว็บ", await T.page.getByText(new RegExp(REASON)).count() > 0, true);
+      check("S3 เห็นแจ้งเตือนแก้ไขผลการตรวจบนหน้าเว็บ", await T.page.getByText(new RegExp(REASON)).count() > 0, true);
       await T.page.mouse.click(5, 400);
     }
   });
