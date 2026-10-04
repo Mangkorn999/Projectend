@@ -18,8 +18,17 @@
    ============================================================ */
 import writeXlsxFile from "write-excel-file/node";
 
-// ชื่อชีตใน Excel: ห้ามเกิน 31 ตัวอักษร และห้ามมี \ / ? * [ ] :
-const safeSheetName = (name) => String(name).replace(/[\/?*[\]:]/g, " ").slice(0, 31) || "Sheet1";
+// ชื่อชีตใน Excel: ห้ามเกิน 31 ตัวอักษร และห้ามมี \ / ? * [ ] : (Excel เปิดไฟล์ไม่ได้ถ้ามี)
+// ในวงเล็บ [...] ของ regex: \\ = เครื่องหมาย \ หนึ่งตัว, \/ = /, \] = ] (ต้องมี \ นำหน้าไม่งั้นถือว่าปิดวงเล็บ)
+// เดิมขาด \\ → ชื่อที่มี \ หลุดไปถึง Excel แล้วไฟล์เสีย
+// export ไว้ให้เทส (tests/smoke-phase31) เรียกตรวจได้ด้วย
+export const safeSheetName = (name) => {
+  const cleaned = String(name).replace(/[\\\/?*[\]:]/g, " ").slice(0, 31);
+  if (cleaned.trim() === "") {
+    return "Sheet1";
+  }
+  return cleaned;
+};
 
 const toCell = (value, type) => {
   if (value === null || value === undefined || value === "") return null;

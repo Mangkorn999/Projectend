@@ -21,9 +21,12 @@ const httpError = (message, statusCode) => {
 
 const REQUIRED_COLUMNS = ["student_id", "national_id"];
 const NATIONAL_ID_PATTERN = /^\d{13}$/;
-// รหัสนักศึกษาต้องเป็นตัวเลขล้วน อย่างน้อย 2 หลัก — 2 หลักแรกใช้คำนวณปีจบใน academicYear.js
+// รหัสนักศึกษาต้องเป็นตัวเลขล้วน 2–20 หลัก — 2 หลักแรกใช้คำนวณปีจบใน academicYear.js
 // (ไม่ล็อกความยาวตายตัวเป็น 10 หลัก เพราะ smoke test สร้างรหัสทดสอบสั้นกว่านั้น)
-const STUDENT_ID_PATTERN = /^\d{2,}$/;
+// ไม่เกิน 20 หลัก = ขนาดคอลัมน์ students.student_id (VarChar(20)) — เดิมไม่จำกัด รหัสยาวเกินผ่านด่านนี้ไปพังตอนบันทึก
+// ใช้ตัวเดียวกันทั้งเพิ่มทีละคน, นำเข้าไฟล์ และตรวจไฟล์ก่อนนำเข้า (dry run) กฎจะได้ตรงกันทุกทาง
+const STUDENT_ID_PATTERN = /^\d{2,20}$/;
+const STUDENT_ID_RULE_MESSAGE = "รหัสนักศึกษาต้องเป็นตัวเลข 2 ถึง 20 หลัก";
 // รูปแบบที่ Excel แปลงเลขยาวให้ เช่น 1.23457E+12
 const SCIENTIFIC_NOTATION_PATTERN = /^\d+(\.\d+)?e[+-]?\d+$/i;
 const SALT_ROUNDS = 10;
@@ -140,7 +143,7 @@ export const create = async (req, res, next) => {
     }
 
     if (!STUDENT_ID_PATTERN.test(student_id)) {
-      const err = new Error("รหัสนักศึกษาต้องเป็นตัวเลขอย่างน้อย 2 หลัก");
+      const err = new Error(STUDENT_ID_RULE_MESSAGE);
       err.statusCode = 400;
       throw err;
     }
@@ -498,9 +501,18 @@ const rowsFromCsv = (buffer) => {
       skip_records_with_empty_values: true,
       trim: true, // ตัดช่องว่างหัว-ท้ายทุกฟิลด์ กัน " 6610210631" มาจาก copy-paste
       bom: true, // เผื่อยังเหลือ BOM ติดมาในสตริง
+      // บางแถวมีคอลัมน์มากหรือน้อยกว่าหัวตาราง (เช่น มีหมายเหตุพิมพ์เกินมาท้ายแถว / ช่องท้ายแถวหาย)
+      // ค่าปกติของ csv-parse คือปฏิเสธทั้งไฟล์ — เปิดตัวนี้ให้อ่านต่อได้: ช่องเกินถูกทิ้ง ช่องที่หายเป็นค่าว่าง
+      // แถวที่ข้อมูลไม่ครบจะถูกข้ามพร้อมเหตุผลในด่านตรวจแถวข้างล่างเอง ไม่ทำให้แถวอื่นล้มไปด้วย
+      relax_column_count: true,
     });
   } catch (parseErr) {
-    const err = new Error(`อ่านไฟล์ CSV ไม่ได้: ${parseErr.message}`);
+    // ข้อความของ csv-parse เป็นภาษาอังกฤษเชิงเทคนิค (เช่น "Quote Not Closed") — เก็บไว้ใน log ฝั่ง server
+    // แล้วบอกผู้ใช้เป็นภาษาไทยว่าต้องทำอะไรต่อแทน
+    console.error("อ่านไฟล์ CSV ไม่ได้:", parseErr.message);
+    const err = new Error(
+      "อ่านไฟล์ CSV ไม่ได้ อาจมีเครื่องหมายคำพูดไม่ครบคู่หรือรูปแบบไฟล์ผิด กรุณาบันทึกไฟล์ใหม่เป็น CSV หรืออัปโหลดไฟล์ Excel (.xlsx) แทน",
+    );
     err.statusCode = 400;
     throw err;
   }
@@ -614,7 +626,12 @@ export const bulkImport = async (req, res, next) => {
       const rowNum = i + 2; // +1 เพราะแถวแรกคือ header, +1 เพราะนับแบบ 1-indexed ให้ตรงกับที่เห็นใน Excel
       const row = rows[i];
       // academic_year เป็นคอลัมน์ไม่บังคับ — ไฟล์เก่าที่ไม่มีคอลัมน์นี้ก็ได้ undefined ถือว่าเว้นว่าง
-      const academic_year = mapping.academic_year ? plainNumberText(row[mapping.academic_year]) : undefined;
+      // ผ่าน cleanIdText เหมือนรหัส/เลขบัตร — ปีที่พิมพ์เป็นเลขไทย (๒๕๖๙) หรือเลขเต็มความกว้างต้องอ่านได้เหมือนกัน
+      // เดิมใช้แค่ plainNumberText → "๒๕๖๙" ถูกปฏิเสธว่า "ต้องเป็นตัวเลข พ.ศ. 4 หลัก" ทั้งที่เป็นปีที่ถูกต้อง
+      let academic_year = undefined;
+      if (mapping.academic_year) {
+        academic_year = plainNumberText(cleanIdText(row[mapping.academic_year]));
+      }
       // ตัดช่องว่างซ้ำอีกชั้น — csv-parse ไม่ตัดช่องว่างที่อยู่ในเครื่องหมายคำพูด (เช่น "1234567890123 ")
       const student_id = plainNumberText(cleanIdText(row[mapping.student_id]));
       const national_id = plainNumberText(cleanIdText(row[mapping.national_id]));
@@ -643,7 +660,7 @@ export const bulkImport = async (req, res, next) => {
         skipped.push({
           row: rowNum,
           student_id,
-          reason: "รหัสนักศึกษาต้องเป็นตัวเลขอย่างน้อย 2 หลัก",
+          reason: STUDENT_ID_RULE_MESSAGE,
         });
         continue;
       }

@@ -45,14 +45,34 @@ export const findOpenForYear = (academicYear) =>
     orderBy: { attempt_number: "desc" },
   });
 
-// รอบล่าสุดของรุ่นนี้ที่ "เริ่มแล้ว" (ถึงวันเปิดรับแล้ว) — ไม่สนว่าตอนนี้เปิดหรือปิดอยู่
+// รอบล่าสุดของรุ่นนี้ที่ "เริ่มแล้ว" — ไม่สนว่าตอนนี้เปิดหรือปิดอยู่
 // ใช้หาว่าใบที่ถูกตีกลับหลังปิดรอบ อยู่ในรอบล่าสุดของรุ่นหรือเปล่า (examResults.service.js → findSubmittableRound)
-// รอบที่ตั้งไว้ล่วงหน้าแต่ยังไม่ถึงวันเปิด ไม่นับ — ยังไม่มีใครส่งใบของรอบนั้นได้
+//
+// "เริ่มแล้ว" ต้องครบ 2 ข้อ:
+//   1. ถึงวันเปิดรับแล้ว (open_date <= ตอนนี้) — รอบที่ตั้งไว้ล่วงหน้าแต่ยังไม่ถึงวัน ยังไม่มีใครส่งใบได้
+//   2. เคยเปิดใช้งานจริง = สถานะ "open" อยู่ หรือ มีใบผลสอบอย่างน้อย 1 ใบแล้ว
+// ข้อ 2 กันกรณี "รอบร่าง": เจ้าหน้าที่สร้างรอบ 2 เตรียมไว้ (ยังปิดอยู่ ยังไม่มีใคร) วันเปิดเป็นวันนี้
+//   ถ้านับรอบร่างนี้เป็นรอบล่าสุด นักศึกษาที่ใบรอบ 1 ถูกตีกลับจะแก้ใบไม่ได้ทันที ทั้งที่รอบ 2 ยังไม่ได้เริ่มจริง
+//   รอบร่างไม่มีใบเลย จึงไม่มีผลที่ยกต่อ (carry-forward) ให้เพี้ยน — ข้ามไปดูรอบก่อนหน้าได้ปลอดภัย
 export const findLatestStarted = (academicYear) =>
   prisma.submissionRound.findFirst({
     where: {
       academic_year: academicYear,
       open_date: { lte: new Date() },
+      // OR = ข้อใดข้อหนึ่งเป็นจริงก็พอ · { some: {} } = "มีใบผลสอบผูกอยู่อย่างน้อย 1 ใบ" (ไม่สนว่าใบเป็นแบบไหน)
+      OR: [{ status: "open" }, { exam_results: { some: {} } }],
+    },
+    orderBy: { attempt_number: "desc" },
+  });
+
+// มีรอบของรุ่นเดียวกันที่ "ใหม่กว่า" (ครั้งที่มากกว่า) และมีใบผลสอบแล้วไหม — ใช้กันเปิดรอบเก่าซ้ำ
+// คืนรอบนั้น 1 รอบ (ไม่มี = null)
+export const findNewerRoundWithResults = (academicYear, attemptNumber) =>
+  prisma.submissionRound.findFirst({
+    where: {
+      academic_year: academicYear,
+      attempt_number: { gt: attemptNumber },
+      exam_results: { some: {} },
     },
     orderBy: { attempt_number: "desc" },
   });

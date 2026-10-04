@@ -49,12 +49,18 @@ const countByStatus = (results) => {
 //   .every(...)  = จริงหมดทุกตัวไหม → true/false
 //   .some(...)   = มีสักตัวที่จริงไหม → true/false
 //   .length      = นับจำนวนที่เหลือหลังคัด
-const countFullyPassed = (sent, subjectIds) =>
-  sent.filter((r) =>
+//
+// รอบที่ไม่มีวิชาเลย (subjectIds ว่าง) ตอบ 0 — [].every(...) ให้ true เสมอ ถ้าไม่กันทุกใบจะถูกนับว่า "ผ่านครบ"
+const countFullyPassed = (sent, subjectIds) => {
+  if (subjectIds.length === 0) {
+    return 0;
+  }
+  return sent.filter((r) =>
     subjectIds.every((id) =>
       r.subject_results.some((sr) => sr.subject_id === id && sr.is_passed),
     ),
   ).length;
+};
 
 // ผ่าน/ไม่ผ่าน แยกรายวิชา นับเฉพาะคนที่ "สอบวิชานั้นจริงในรอบนี้"
 // วิชาที่ทุกคนยกผลผ่านมาจากรอบก่อน (carried_forward) ไม่มีใครสอบ ต้องไม่ขึ้น 100%
@@ -367,9 +373,12 @@ export const buildStats = async (roundId) => {
   const alreadyPassedStudentIds = [];
   const canSubmitIds = [];
   for (const s of eligibleStudents) {
-    const passedAll = subjectIds.every((id) =>
-      s.passed_subject_ids.includes(id),
-    );
+    // รอบที่ไม่มีวิชาเลย (subjectIds ว่าง) ห้ามนับใครว่า "ผ่านครบแล้ว"
+    // เพราะ [].every(...) ให้ true เสมอ → ทุกคนจะกลายเป็นผ่านครบ ทั้งที่ยังไม่ได้สอบสักวิชา
+    let passedAll = false;
+    if (subjectIds.length > 0) {
+      passedAll = subjectIds.every((id) => s.passed_subject_ids.includes(id));
+    }
     if (!passedAll) {
       canSubmit += 1;
       canSubmitIds.push(s.student_id);

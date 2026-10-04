@@ -125,18 +125,57 @@ export const findAll = async ({ round_id, staff_status, student_id } = {}) => {
   }));
 };
 
-// เจ้าหน้าที่ยืนยัน/ตีกลับ — ทำได้แค่ตอนใบยังเป็น "pending" (ยังไม่มีใครตรวจ) เท่านั้น
-// updateMany (ไม่ใช่ update) เพราะต้องใส่เงื่อนไข staff_status ลง where ได้ด้วย (optimistic guard กัน 2 คนตรวจใบเดียวกันทับกัน)
-// update ธรรมดารับ where เฉพาะ unique field เท่านั้น ใส่เงื่อนไขสถานะเพิ่มไม่ได้
-export const updateStaffStatusIfPending = (result_id, { staff_status, remark, confirmed_by }) =>
-  prisma.examResult.updateMany({
-    where: { result_id: Number(result_id), staff_status: STAFF_STATUS.PENDING },
-    data: {
-      staff_status,
-      remark: remark ?? null,
-      confirmed_by,
-      confirmed_at: new Date(),
-    },
+// ─── ล็อกใบผลสอบ (SELECT ... FOR UPDATE) ───────────────────────
+//
+// ปัญหาที่ต้องกัน: ผู้ตรวจเปิดใบดูอยู่ → นักศึกษาลบไฟล์/ส่งผลใหม่ → ผู้ตรวจกดยืนยัน
+// ถ้าต่างคนต่างทำ ระบบจะ "ยืนยัน" ใบที่หน้าตาไม่ตรงกับที่ผู้ตรวจเห็นจริง (เช่น ไฟล์ที่ผู้ตรวจเปิดดูหายไปแล้ว)
+//
+// วิธีกัน: ทุกงานที่ "เปลี่ยนเนื้อหาใบ" หรือ "ตัดสินใบ" ต้องล็อกแถวของใบนั้นในตาราง exam_results ก่อนเสมอ
+//   - ยืนยัน/ตีกลับ (reviewWithLock)
+//   - ส่งผลทับใบเดิม (resubmitWithSubjects)
+//   - แนบไฟล์ / ลบไฟล์ (certificates.repository.js → createWithLock / removeWithLock)
+// FOR UPDATE = "แถวนี้ฉันจองแล้ว" ใครมาขอล็อกแถวเดียวกันต้องรอจนเราจบ transaction (commit/rollback)
+// จึงไม่มีทางที่ 2 งานข้างบนทำกับใบเดียวกันพร้อมกันได้ — ต้องเข้าแถวทีละงาน แล้วงานที่มาทีหลังจะเห็นของที่งานแรกทำไปแล้ว
+//
+// ลำดับล็อกเหมือนกันทุกงาน: ล็อกแถว exam_results ใบเดียวก่อน แล้วค่อยแตะตารางลูก (certificates / subject_results)
+// ไม่มีงานไหนล็อก 2 ใบ หรือล็อกตารางลูกก่อน → ไม่เกิด deadlock (ต่างคนต่างรอของที่อีกฝ่ายถืออยู่)
+//
+// ต้องเรียกภายใน prisma.$transaction เท่านั้น (ส่ง tx มา) — ล็อกจะปล่อยเองตอน transaction จบ
+// ใช้ $queryRaw แบบ `...${ค่า}...` (tagged template) Prisma ส่งค่าแยกเป็นพารามิเตอร์ให้เอง ไม่ใช่ต่อข้อความ SQL → ไม่โดน SQL injection
+// คืน true = เจอใบและล็อกได้แล้ว, false = ไม่มีใบนี้
+export const lockExamResultRow = async (tx, result_id) => {
+  const rows = await tx.$queryRaw`SELECT result_id FROM exam_results WHERE result_id = ${Number(result_id)} FOR UPDATE`;
+  return rows.length > 0;
+};
+
+// เจ้าหน้าที่ยืนยัน/ตีกลับ แบบล็อกใบไว้ก่อน — ทำได้แค่ตอนใบยังเป็น "pending" (ยังไม่มีใครตรวจ) เท่านั้น
+//
+// checkBeforeSave = ฟังก์ชันที่ controller ส่งมา ใช้ตัดสินว่า "ใบตอนนี้ ยังตรวจได้ไหม" (ยังรอตรวจ + เหมือนที่ผู้ตรวจเห็น)
+//   ถูกเรียก "หลังล็อกแล้ว" กับข้อมูลใบล่าสุด (มี submitted_at + รายการไฟล์) — ไม่ผ่านให้ throw ออกมา
+//   throw ใน transaction = ยกเลิกทั้งก้อน ไม่มีอะไรถูกบันทึก (error เดิมถูกส่งต่อไปถึง controller)
+// ทำแบบนี้เพราะกฎ (ข้อความ error / เทียบอะไรกับอะไร) เป็นเรื่องของ controller แต่ต้องตรวจ "ระหว่างถือล็อก" ซึ่งอยู่ในนี้
+//
+// updateMany + where staff_status = pending ยังคงไว้เป็นด่านสุดท้าย (optimistic guard เดิม) — คืน count ให้ controller เช็ค
+export const reviewWithLock = (result_id, { staff_status, remark, confirmed_by }, checkBeforeSave) =>
+  prisma.$transaction(async (tx) => {
+    await lockExamResultRow(tx, result_id);
+
+    const current = await tx.examResult.findUnique({
+      where: { result_id: Number(result_id) },
+      include: { certificates: { select: { certificate_id: true } } },
+    });
+    checkBeforeSave(current);
+
+    const { count } = await tx.examResult.updateMany({
+      where: { result_id: Number(result_id), staff_status: STAFF_STATUS.PENDING },
+      data: {
+        staff_status,
+        remark: remark ?? null,
+        confirmed_by,
+        confirmed_at: new Date(),
+      },
+    });
+    return count;
   });
 
 // ถอนการยืนยัน (เจ้าหน้าที่ยืนยันผิด) — approved → pending ให้ตรวจใหม่ได้
@@ -180,14 +219,36 @@ const toSubjectRows = (subjectResults) =>
 // ต้องกันใบที่ "ยืนยันแล้ว" ตรงนี้ด้วย ไม่ใช่เช็คแค่ใน controller
 // controller เช็คแล้วค่อยมาเรียกฟังก์ชันนี้ — ระหว่างนั้นเจ้าหน้าที่อาจกดยืนยันพอดี
 // ถ้าไม่มีด่านนี้ นักศึกษาจะเขียนทับใบที่ยืนยันแล้วและใบกลับไปเป็น "รอตรวจ" (ล็อกหลุด)
-// ใช้ updateMany + where staff_status ≠ approved ใน transaction เดียว — count = 0 แปลว่าใบถูกยืนยันไปก่อน
-export const resubmitWithSubjects = (result_id, subjectResults) =>
+//
+// ล็อกแถวใบนี้ก่อน (lockExamResultRow) แล้วอ่านสถานะล่าสุด "ระหว่างถือล็อก" — เหมือนฝั่งยืนยัน/แนบไฟล์/ลบไฟล์
+// ผู้ตรวจที่กำลังกดยืนยันพร้อมกันพอดีจะต้องรอเราเสร็จก่อน แล้วจะเห็นว่า submitted_at เปลี่ยนไปแล้ว (ได้ 409 ให้โหลดหน้าใหม่)
+// submitted_at ถูกตั้งใหม่ทุกครั้งที่ส่งทับ — ฝั่งยืนยันใช้ค่านี้ดูว่า "นักศึกษาแก้ใบหลังจากผู้ตรวจเปิดดูหรือยัง"
+//
+// mustStillBeRejected = true เมื่อมาทาง "แก้ใบที่ถูกตีกลับหลังปิดรอบ" (fixingRejected)
+//   ใบต้องยังถูกตีกลับอยู่จริง ณ ตอนถือล็อก — ถ้ากดส่งแก้ไปแล้ว (ใบกลับเป็นรอตรวจ) ห้ามแก้ซ้ำหลังปิดรอบ
+export const resubmitWithSubjects = (result_id, subjectResults, mustStillBeRejected = false) =>
   prisma.$transaction(async (tx) => {
-    const { count } = await tx.examResult.updateMany({
-      where: {
-        result_id: Number(result_id),
-        staff_status: { not: STAFF_STATUS.APPROVED },
-      },
+    await lockExamResultRow(tx, result_id);
+
+    const current = await tx.examResult.findUnique({
+      where: { result_id: Number(result_id) },
+      select: { staff_status: true },
+    });
+    if (!current || current.staff_status === STAFF_STATUS.APPROVED) {
+      const err = new Error("เจ้าหน้าที่ยืนยันผลสอบรอบนี้แล้ว แก้ไขไม่ได้");
+      err.statusCode = 409;
+      throw err;
+    }
+    if (mustStillBeRejected && current.staff_status !== STAFF_STATUS.REJECTED) {
+      const err = new Error(
+        "ขณะนี้ไม่มีรอบกรอกผลสอบที่เปิดอยู่ หากต้องการส่งผลสอบ กรุณาติดต่อเจ้าหน้าที่คณะ",
+      );
+      err.statusCode = 400;
+      throw err;
+    }
+
+    await tx.examResult.update({
+      where: { result_id: Number(result_id) },
       data: {
         staff_status: STAFF_STATUS.PENDING,
         remark: null,
@@ -196,11 +257,6 @@ export const resubmitWithSubjects = (result_id, subjectResults) =>
         submitted_at: new Date(),
       },
     });
-    if (count === 0) {
-      const err = new Error("เจ้าหน้าที่ยืนยันผลสอบรอบนี้แล้ว แก้ไขไม่ได้");
-      err.statusCode = 409;
-      throw err;
-    }
 
     // ลบผลรายวิชาเดิมทั้งชุดแล้วใส่ชุดใหม่
     await tx.subjectResult.deleteMany({ where: { result_id: Number(result_id) } });

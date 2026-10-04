@@ -20,6 +20,9 @@ export const findRoundsUsing = (id) =>
     where: { subject_ids: { has: Number(id) } },
     select: { round_id: true, academic_year: true, attempt_number: true },
   });
+// จำนวนผลสอบรายวิชา (subject_results) ที่อ้างวิชานี้อยู่ — ใช้กันลบวิชาที่มีนักศึกษากรอกผลไปแล้ว
+export const countSubjectResults = (id) =>
+  prisma.subjectResult.count({ where: { subject_id: Number(id) } });
 // อัพเดท วิชา
 export const updata = (id, data) =>
   prisma.subject.update({ where: { subject_id: Number(id) }, data });

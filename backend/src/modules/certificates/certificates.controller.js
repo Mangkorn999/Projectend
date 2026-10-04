@@ -46,7 +46,7 @@ const discard = async (file) => {
   }
 };
 
-// error ตอนแนบไฟล์เกินจำนวน — ใช้ 2 ที่ (ก่อนบันทึก และตอนตรวจซ้ำหลังบันทึก) ข้อความต้องตรงกัน
+// error ตอนแนบไฟล์เกินจำนวน (ตรวจระหว่างถือล็อกใบ ใน upload → checkBeforeSave)
 const tooManyFilesError = () =>
   httpError(
     `แนบไฟล์ได้ไม่เกิน ${MAX_FILES_PER_RESULT} ไฟล์ต่อใบผลสอบ กรุณาลบไฟล์เดิมก่อนเพิ่มไฟล์ใหม่`,
@@ -90,20 +90,71 @@ const detectFileType = async (filePath) => {
   return null;
 };
 
+// ช่วงผ่อนผันหลังปิดรอบ สำหรับ "แนบไฟล์เพิ่ม" เท่านั้น (นาที)
+// ทำไมต้องมี: หน้าจอส่งผลสอบก่อน แล้วค่อยอัปโหลดไฟล์ตามทีละไฟล์ — นักศึกษาที่กดส่งนาทีสุดท้าย
+// ผลสอบเข้าทันเวลา แต่ไฟล์ที่กำลังอัปโหลดตามไปถึงหลังเวลาปิด แล้วถูกปฏิเสธ → ได้ใบที่ไม่มีหลักฐาน ทั้งที่ไม่ได้ผิดอะไร
+// จึงยอมให้แนบเพิ่มได้อีก 15 นาทีหลังเวลาปิด เฉพาะใบที่ "ส่งผลทันเวลา" และยังรอตรวจอยู่
+// ลบไฟล์ไม่ได้รับผ่อนผัน — เหตุผลของช่วงนี้คือไฟล์ที่ส่งตามไปไม่ทัน ไม่ใช่การแก้หลักฐานหลังหมดเวลา
+const EVIDENCE_GRACE_MINUTES = 15;
+
+// ใบนี้อยู่ในช่วงผ่อนผันแนบไฟล์หลังปิดรอบไหม (ดู EVIDENCE_GRACE_MINUTES)
+// ต้องครบทุกข้อ: ยังรอตรวจ + ส่งผลก่อนหรือตรงเวลาปิด + ตอนนี้เลยเวลาปิดมาแล้วไม่เกิน 15 นาที
+const isInEvidenceGrace = (examResult) => {
+  if (examResult.staff_status !== "pending") {
+    return false;
+  }
+  if (!examResult.round) {
+    return false;
+  }
+
+  const closeTime = new Date(examResult.round.close_date).getTime();
+  const submittedTime = new Date(examResult.submitted_at).getTime();
+  const graceEnd = closeTime + EVIDENCE_GRACE_MINUTES * 60 * 1000;
+  const now = Date.now();
+
+  // ส่งผลหลังเวลาปิด = ไม่ได้ส่งทันเวลาตั้งแต่ต้น ไม่เข้าข่ายผ่อนผัน
+  if (submittedTime > closeTime) {
+    return false;
+  }
+  // ยังไม่ถึงเวลาปิด = ไม่ใช่เรื่องผ่อนผัน (ถ้ารอบถูกกดปิดก่อนกำหนด ก็ถือว่าปิดตามที่เจ้าหน้าที่ตั้งใจ)
+  if (now <= closeTime) {
+    return false;
+  }
+  // เลยช่วงผ่อนผันไปแล้ว
+  if (now > graceEnd) {
+    return false;
+  }
+  return true;
+};
+
 // ตรวจว่านักศึกษาคนนี้ "เปลี่ยนเอกสาร" ของใบผลสอบนี้ได้ไหม — ใช้ทั้งตอนแนบไฟล์และตอนลบไฟล์ (กฎเดียวกัน)
+// isAdding = true ตอนแนบไฟล์เพิ่ม (ได้รับช่วงผ่อนผันหลังปิดรอบ), false ตอนลบไฟล์ (ไม่ได้รับ)
 // ไม่ผ่านข้อไหน → throw error ออกไปเลย (ผู้เรียกต้องลบไฟล์ที่เพิ่งอัปโหลดทิ้งเอง)
-const ensureCanChangeEvidence = async (examResult, user) => {
+//
+// ด่านพวกนี้ตรวจ "ก่อน" ล็อกใบ — ส่วนสถานะใบ (ยืนยันแล้วหรือยัง) ถูกตรวจซ้ำอีกครั้งระหว่างถือล็อก
+// ใน createWithLock / removeWithLock เพราะเป็นสิ่งเดียวที่เปลี่ยนได้ระหว่างทางโดยคนอื่น (ผู้ตรวจกดยืนยันพอดี)
+const ensureCanChangeEvidence = async (examResult, user, isAdding) => {
   // 1. ต้องเป็นใบของตัวเองเท่านั้น — กันเดา id แล้วไปแนบ/ลบไฟล์ในใบของคนอื่น
   if (examResult.student_id !== user.studentId) {
     throw httpError("ท่านไม่มีสิทธิ์เปลี่ยนเอกสารของผลสอบนี้", 403);
   }
 
-  // 2. ใบที่เจ้าหน้าที่ยืนยันแล้วต้องล็อกหลักฐานด้วย — ไม่งั้นเปลี่ยนไฟล์ทีหลังได้ ทั้งที่ผลถูกเซ็นรับรองไปแล้ว
+  // 2. ต้องยังมีสิทธิ์กรอกผลสอบอยู่ — คนที่ถูกถอนสิทธิ์ ส่งผลไม่ได้แล้ว ก็ต้องเปลี่ยนเอกสารไม่ได้ด้วย
+  //    ข้อความเดียวกับตอนส่งผล (examResults.controller.js → create) ให้นักศึกษาเห็นเหตุผลเดียวกัน
+  const student = await studentRepo.findById(user.studentId);
+  if (!student) {
+    throw httpError("ไม่พบข้อมูลนักศึกษา", 404);
+  }
+  if (!student.exam_eligible) {
+    throw httpError("ยังไม่ได้รับสิทธิ์กรอกผลสอบ กรุณาติดต่อเจ้าหน้าที่คณะ", 403);
+  }
+
+  // 3. ใบที่เจ้าหน้าที่ยืนยันแล้วต้องล็อกหลักฐานด้วย — ไม่งั้นเปลี่ยนไฟล์ทีหลังได้ ทั้งที่ผลถูกเซ็นรับรองไปแล้ว
   if (examResult.staff_status === "approved") {
     throw httpError("เจ้าหน้าที่ยืนยันผลสอบนี้แล้ว เปลี่ยนเอกสารไม่ได้", 409);
   }
 
-  // 3. ใบนี้ต้องอยู่ใน "รอบที่ส่งผลได้ตอนนี้" ของนักศึกษาคนนี้เท่านั้น
+  // 4. ใบนี้ต้องอยู่ใน "รอบที่ส่งผลได้ตอนนี้" ของนักศึกษาคนนี้เท่านั้น
   //    ใช้ findSubmittableRound ตัวเดียวกับตอนกดส่งผล (examResults.service.js) — กฎของหลักฐานกับของผลสอบจะได้ตรงกันเสมอ
   //    เปลี่ยนเอกสารได้ 2 กรณี:
   //      - ใบของรอบที่เปิดรับอยู่จริงตอนนี้ (รอตรวจ หรือถูกตีกลับ ก็ได้)
@@ -111,18 +162,20 @@ const ensureCanChangeEvidence = async (examResult, user) => {
   //    นอกนั้นห้ามทั้งหมด เช่น ใบรอตรวจหลังปิดรอบ หรือใบที่ถูกตีกลับของ "รอบเก่า" ที่มีรอบใหม่กว่าแล้ว
   //    (เดิมเช็คแค่ว่า "ใบถูกตีกลับ" → ใบตีกลับของรอบเก่าเปลี่ยนหลักฐานได้ตลอดไป ทั้งที่ส่งผลใบนั้นใหม่ไม่ได้แล้ว
   //     หลักฐานของใบที่เจ้าหน้าที่ตีกลับไปแล้วจึงถูกสลับทีหลังได้ ประวัติการตรวจย้อนหลังไม่ตรงกับของจริง)
-  const student = await studentRepo.findById(user.studentId);
-  let submittable = null;
-  if (student) {
-    submittable = await findSubmittableRound(student);
-  }
+  const submittable = await findSubmittableRound(student);
 
   let isSubmittableRound = false;
   if (submittable && submittable.round.round_id === examResult.round_id) {
     isSubmittableRound = true;
   }
 
-  if (!isSubmittableRound) {
+  // 5. ไม่ใช่รอบที่ส่งได้แล้ว แต่ถ้าเป็นการแนบไฟล์เพิ่มในช่วงผ่อนผัน 15 นาทีหลังปิดรอบ ยังยอมให้
+  let inGrace = false;
+  if (!isSubmittableRound && isAdding) {
+    inGrace = isInEvidenceGrace(examResult);
+  }
+
+  if (!isSubmittableRound && !inGrace) {
     throw httpError(
       "รอบนี้ปิดรับแล้ว เปลี่ยนเอกสารไม่ได้ กรุณาติดต่อเจ้าหน้าที่คณะ",
       409,
@@ -158,8 +211,9 @@ export const upload = async (req, res, next) => {
       throw httpError("ไม่พบผลสอบที่ระบุ กรุณารีเฟรชหน้าแล้วลองใหม่", 404);
     }
 
-    // เจ้าของใบ + ยังไม่ยืนยัน + ใบอยู่ในรอบที่ส่งผลได้ตอนนี้ (ดู ensureCanChangeEvidence)
-    await ensureCanChangeEvidence(examResult, req.user);
+    // เจ้าของใบ + ยังมีสิทธิ์ + ยังไม่ยืนยัน + ใบอยู่ในรอบที่ส่งผลได้ตอนนี้ หรืออยู่ในช่วงผ่อนผัน
+    // (true = กำลังแนบเพิ่ม ได้รับช่วงผ่อนผัน 15 นาทีหลังปิดรอบ — ดู ensureCanChangeEvidence)
+    await ensureCanChangeEvidence(examResult, req.user, true);
 
     // ดูเนื้อไฟล์จริงว่าเป็น PDF / JPG / PNG — ไม่เชื่อชนิดที่เบราว์เซอร์บอกมา (แก้เองได้)
     const fileType = await detectFileType(req.file.path);
@@ -170,44 +224,39 @@ export const upload = async (req, res, next) => {
       );
     }
 
-    // จำกัดจำนวนไฟล์ต่อใบ — กันแนบรัวๆ จนเจ้าหน้าที่ต้องไล่เปิดไฟล์จำนวนมาก
-    const fileCount = await certRepo.countByResult(examResult.result_id);
-    if (fileCount >= MAX_FILES_PER_RESULT) {
-      throw tooManyFilesError();
-    }
-
     // multer อ่าน originalname มาเป็น latin1 — ชื่อไฟล์ภาษาไทยจะเพี้ยนถ้าไม่แปลงกลับเป็น utf8
     const fileName = Buffer.from(req.file.originalname, "latin1").toString("utf8");
     // เก็บเป็น / เสมอ ไม่ผูกกับ path separator ของ Windows
     const filePath = path.relative(process.cwd(), req.file.path).split(path.sep).join("/");
 
-    // บันทึกไม่สำเร็จ (เช่น ชื่อไฟล์ยาวเกิน) → ไปที่ catch → ไฟล์บน disk ถูกลบทิ้ง
-    const certificate = await certRepo.create({
-      result_id: examResult.result_id,
-      certificate_type: certificateType,
-      file_name: fileName,
-      file_path: filePath,
-      file_type: fileType, // ชนิดจริงจากหัวไฟล์ ไม่ใช่จากนามสกุล
-    });
+    // ด่านที่ตรวจ "ระหว่างถือล็อกใบ" (repository เรียกฟังก์ชันนี้หลังล็อกแล้ว ด้วยข้อมูลล่าสุด)
+    //   - ใบถูกยืนยันไประหว่างที่ไฟล์กำลังอัปโหลด → ไม่ให้ไฟล์ไปติดในใบที่ยืนยันแล้ว
+    //   - ไฟล์ครบ 5 แล้ว → กันแนบรัวๆ จนเจ้าหน้าที่ต้องไล่เปิดไฟล์จำนวนมาก
+    //     (นับตอนถือล็อก จึงแม่นแม้กดแนบพร้อมกันหลายไฟล์ — เทส phase27 แนบพร้อมกัน 10 ไฟล์ต้องได้แค่ 5)
+    const checkBeforeSave = (current, fileCount) => {
+      if (!current) {
+        throw httpError("ไม่พบผลสอบที่ระบุ กรุณารีเฟรชหน้าแล้วลองใหม่", 404);
+      }
+      if (current.staff_status === "approved") {
+        throw httpError("เจ้าหน้าที่ยืนยันผลสอบนี้แล้ว เปลี่ยนเอกสารไม่ได้", 409);
+      }
+      if (fileCount >= MAX_FILES_PER_RESULT) {
+        throw tooManyFilesError();
+      }
+    };
 
-    // ด่านสุดท้าย: ตรวจซ้ำ "หลัง" บันทึกแล้ว — กันกรณีมีหลาย request เข้ามาพร้อมกัน
-    //   - กดแนบหลายไฟล์พร้อมกัน: ทุก request นับได้ 4 ไฟล์ในเวลาเดียวกัน → ผ่านด่านนับไฟล์ข้างบนหมด
-    //     → ในใบมีเกิน 5 ไฟล์ (เทส phase27 แนบพร้อมกัน 10 ไฟล์ เดิมได้ 6 ไฟล์)
-    //   - เจ้าหน้าที่กดยืนยันใบนี้ระหว่างที่ไฟล์กำลังอัปโหลด → ไฟล์ไปติดอยู่ในใบที่ยืนยันแล้ว
-    // เจออย่างใดอย่างหนึ่ง → ถอนแถวที่เพิ่งบันทึกออก แล้ว throw (ไฟล์บน disk ถูกลบใน catch)
-    // request ไหนที่นับหลังบันทึกแล้วเห็นเกิน จะถอนตัวเองออก → สุดท้ายในใบมีไม่เกิน 5 ไฟล์เสมอ
-    const countAfterSave = await certRepo.countByResult(examResult.result_id);
-    const latestResult = await examRepo.findById(examResult.result_id);
-    let problemAfterSave = null;
-    if (countAfterSave > MAX_FILES_PER_RESULT) {
-      problemAfterSave = tooManyFilesError();
-    } else if (!latestResult || latestResult.staff_status === "approved") {
-      problemAfterSave = httpError("เจ้าหน้าที่ยืนยันผลสอบนี้แล้ว เปลี่ยนเอกสารไม่ได้", 409);
-    }
-    if (problemAfterSave) {
-      await certRepo.removeById(certificate.certificate_id);
-      throw problemAfterSave;
-    }
+    // บันทึกไม่สำเร็จ (ด่านข้างบนไม่ผ่าน / ชื่อไฟล์ยาวเกิน ฯลฯ) → transaction ยกเลิกทั้งก้อน
+    // → ไปที่ catch → ไฟล์บน disk ถูกลบทิ้ง (saved ยังเป็น false)
+    const certificate = await certRepo.createWithLock(
+      {
+        result_id: examResult.result_id,
+        certificate_type: certificateType,
+        file_name: fileName,
+        file_path: filePath,
+        file_type: fileType, // ชนิดจริงจากหัวไฟล์ ไม่ใช่จากนามสกุล
+      },
+      checkBeforeSave,
+    );
 
     saved = true;
     res.json({ success: true, data: certificate });
@@ -234,13 +283,40 @@ export const remove = async (req, res, next) => {
       throw httpError("ไม่พบผลสอบที่เกี่ยวข้องกับไฟล์นี้", 404);
     }
 
-    await ensureCanChangeEvidence(examResult, req.user);
+    // false = ลบไฟล์ ไม่ได้รับช่วงผ่อนผันหลังปิดรอบ
+    await ensureCanChangeEvidence(examResult, req.user, false);
 
-    // ลบแถวใน DB ก่อน แล้วค่อยลบไฟล์บน disk
+    // ลบแถวใน DB ก่อน (ระหว่างถือล็อกใบ) แล้วค่อยลบไฟล์บน disk หลัง transaction สำเร็จ
     // ถ้าลบไฟล์ก่อนแล้ว DB พัง จะเหลือแถวที่ชี้ไปหาไฟล์ที่ไม่มีอยู่จริง (เจ้าหน้าที่กดเปิดแล้วเจอ 404)
-    await certRepo.removeById(certificate.certificate_id);
-    // force: true = ไฟล์หายไปก่อนแล้วก็ไม่ต้อง error
-    await fs.rm(path.resolve(certificate.file_path), { force: true });
+    // ล็อกใบไว้: ถ้าผู้ตรวจกดยืนยันพร้อมกันพอดี จะได้อย่างใดอย่างหนึ่งเท่านั้น —
+    //   ยืนยันก่อน → เราเห็นว่า approved แล้วไม่ลบ (409) · เราลบก่อน → ผู้ตรวจเห็นชุดไฟล์เปลี่ยน (409 ให้โหลดใหม่)
+    // ไม่มีทางเกิด "ใบถูกยืนยันแล้ว แต่ไฟล์ที่ผู้ตรวจเห็นหายไป"
+    const checkBeforeSave = (current) => {
+      if (!current) {
+        throw httpError("ไม่พบผลสอบที่เกี่ยวข้องกับไฟล์นี้", 404);
+      }
+      if (current.staff_status === "approved") {
+        throw httpError("เจ้าหน้าที่ยืนยันผลสอบนี้แล้ว เปลี่ยนเอกสารไม่ได้", 409);
+      }
+    };
+    const removedCount = await certRepo.removeWithLock(
+      certificate.certificate_id,
+      certificate.result_id,
+      checkBeforeSave,
+    );
+    // ไม่มีแถวให้ลบ = มีคนลบไฟล์นี้ไปก่อนแล้ว (เช่น กดลบพร้อมกัน 2 แท็บ)
+    if (removedCount === 0) {
+      throw httpError("ไม่พบไฟล์ที่ต้องการลบ อาจถูกลบไปแล้ว กรุณารีเฟรชหน้า", 404);
+    }
+
+    // ลบไฟล์บน disk — force: true = ไฟล์หายไปก่อนแล้วก็ไม่ต้อง error
+    // ห่อ try/catch: แถวใน DB ถูกลบไปแล้วจริง ถ้าลบไฟล์ไม่สำเร็จ (เช่น ไฟล์ถูกเปิดค้างบน Windows)
+    // ต้องไม่ตอบ error กลับไป ไม่งั้นนักศึกษาเห็นว่า "ลบไม่สำเร็จ" ทั้งที่ไฟล์หายจากใบแล้ว
+    try {
+      await fs.rm(path.resolve(certificate.file_path), { force: true });
+    } catch (rmErr) {
+      console.error("ลบไฟล์หลักฐานบน disk ไม่สำเร็จ:", rmErr.message);
+    }
 
     res.json({ success: true, data: null });
   } catch (err) {

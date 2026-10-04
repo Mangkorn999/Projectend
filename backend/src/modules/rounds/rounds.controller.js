@@ -126,6 +126,9 @@ const END_OF_DAY = { h: 23, m: 59, s: 59, ms: 999 };
 //   ปิดรับ:  23:59 → 23:59:59.999 (สิ้นสุดนาทีนั้น) — คนอ่าน "ปิดรับ 23:59" คือรับถึงสิ้นนาทีนั้น
 //   ถ้าเก็บเป็น 23:59:00 นักศึกษาที่ส่งตอน 23:59:30 จะถูกปฏิเสธทั้งที่หน้าจอบอกว่ายังไม่ปิด
 const parseThaiDateTime = (value, fieldLabel, defaultTime, missingSeconds = { s: 0, ms: 0 }) => {
+  // ไม่ใส่ $ ท้าย regex ตั้งใจ: ค่าที่มีส่วนต่อท้าย เช่น "2026-08-09T14:30:00.000Z" (จาก toISOString())
+  // ต้องยังรับได้ — เทสและสคริปต์เดิมส่งแบบนี้ ส่วน timezone ท้ายข้อความถูกอ่านเป็นเวลาไทยเสมอ
+  // (หน้าเว็บส่งแบบไม่มี Z จึงไม่โดนเรื่องนี้) ถ้าจะบังคับห้ามมี Z ต้องแก้เทสเดิมพร้อมกัน
   const matched = String(value ?? "").match(
     /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/,
   );
@@ -219,6 +222,79 @@ const validateSubjectIds = async (rawIds) => {
   return unique;
 };
 
+// ─── ปีการศึกษา / ครั้งที่สอบ ───────────────────────────
+//
+// เดิมแปลงด้วย Number() เฉยๆ แล้วเช็คว่า "มีค่าไหม" (!academic_year) — ปัญหา:
+//   - ส่ง 0 มา → !0 เป็นจริง → ได้ข้อความ "กรอกไม่ครบ" ทั้งที่กรอกมาแล้ว (แค่ค่าผิด)
+//   - ส่ง 2569.5 / -1 / 99 มา → ผ่านเข้าไปเป็นรอบปีแปลกๆ ที่ไม่มีนักศึกษารุ่นไหนเห็น
+// จึงแยกเป็น 2 ขั้น: ว่างไหม (กรอกไม่ครบ) → ถ้าไม่ว่าง ค่าถูกรูปแบบไหม (บอกให้ชัดว่าผิดตรงไหน)
+const YEAR_MIN = 2500;
+const YEAR_MAX = 2700;
+
+// ช่องนี้ "ไม่ได้กรอก" ไหม — ไม่ส่งมา / null / ข้อความว่าง
+const isBlankValue = (value) => {
+  if (value === undefined || value === null) {
+    return true;
+  }
+  if (typeof value === "string" && value.trim() === "") {
+    return true;
+  }
+  return false;
+};
+
+// แปลงเป็นจำนวนเต็ม — รับได้ทั้งตัวเลข (2569) และข้อความตัวเลขล้วน ("2569" จากช่องกรอกบนหน้าเว็บ)
+// ค่าอื่น (ทศนิยม, ติดลบ, ข้อความปน, true/false) คืน NaN ให้ผู้เรียกปฏิเสธ
+const toWholeNumber = (value) => {
+  if (typeof value === "number") {
+    if (Number.isInteger(value)) {
+      return value;
+    }
+    return NaN;
+  }
+  if (typeof value === "string" && /^\d+$/.test(value.trim())) {
+    return Number(value.trim());
+  }
+  return NaN;
+};
+
+// ปีการศึกษา (พ.ศ.) ต้องเป็นจำนวนเต็ม 2500–2700
+const parseAcademicYear = (value) => {
+  const year = toWholeNumber(value);
+  if (!Number.isInteger(year) || year < YEAR_MIN || year > YEAR_MAX) {
+    throw httpError(
+      `ปีการศึกษาต้องเป็นปี พ.ศ. ระหว่าง ${YEAR_MIN} ถึง ${YEAR_MAX} กรุณาตรวจสอบอีกครั้ง`,
+      400,
+    );
+  }
+  return year;
+};
+
+// ครั้งที่สอบต้องเป็นจำนวนเต็มตั้งแต่ 1 ขึ้นไป
+const parseAttemptNumber = (value) => {
+  const attempt = toWholeNumber(value);
+  if (!Number.isInteger(attempt) || attempt < 1) {
+    throw httpError("ครั้งที่สอบต้องเป็นจำนวนเต็มตั้งแต่ 1 ขึ้นไป กรุณาตรวจสอบอีกครั้ง", 400);
+  }
+  return attempt;
+};
+
+// ชุดรหัสวิชา 2 ชุดเหมือนกันไหม (ไม่สนลำดับ) — ใช้ดูว่าเจ้าหน้าที่ "เปลี่ยนวิชา" จริงหรือแค่ส่งชุดเดิมกลับมา
+const sameIdSet = (idsA, idsB) => {
+  const a = [...new Set(idsA)];
+  const b = [...new Set(idsB)];
+  if (a.length !== b.length) {
+    return false;
+  }
+  a.sort((x, y) => x - y);
+  b.sort((x, y) => x - y);
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) {
+      return false;
+    }
+  }
+  return true;
+};
+
 // status ของรอบมีได้แค่ 2 ค่า: "open" (เปิดรับ) หรือ "closed" (ปิด) — ค่าอื่นห้ามลง DB
 // ไม่ส่งมา (undefined) ถือว่าไม่ได้แก้ ปล่อยผ่าน
 const ensureValidStatus = (status) => {
@@ -272,15 +348,23 @@ export const create = async (req, res, next) => {
       subject_ids,
     } = req.body;
 
-    if (!academic_year || !attempt_number || !open_date || !close_date) {
+    if (
+      isBlankValue(academic_year) ||
+      isBlankValue(attempt_number) ||
+      isBlankValue(open_date) ||
+      isBlankValue(close_date)
+    ) {
       throw httpError(
         "กรุณากรอกข้อมูลให้ครบ (ปีการศึกษา, ครั้งที่สอบ, วันที่เปิด-ปิดรับ)",
         400,
       );
     }
+    // กรอกมาแล้ว แต่ค่าต้องถูกรูปแบบด้วย (0 / ทศนิยม / ปีนอกช่วง → บอกให้ชัดว่าผิดตรงไหน)
+    const yearNumber = parseAcademicYear(academic_year);
+    const attemptNumber = parseAttemptNumber(attempt_number);
 
     ensureValidStatus(status);
-    await ensureNotDuplicate(Number(academic_year), Number(attempt_number));
+    await ensureNotDuplicate(yearNumber, attemptNumber);
     if (status === "open") await ensureNoOtherOpenRound();
 
     // ไม่ส่ง subject_ids มา = ใช้ทุกวิชาที่มีในระบบ (พฤติกรรมเดิมก่อนมี field นี้)
@@ -296,8 +380,8 @@ export const create = async (req, res, next) => {
 
     const round = await roundsRepo.create({
       subject_ids: subjectIds,
-      academic_year: Number(academic_year),
-      attempt_number: Number(attempt_number),
+      academic_year: yearNumber,
+      attempt_number: attemptNumber,
       open_date: openDate,
       close_date: closeDate,
       status: status ?? "closed",
@@ -331,12 +415,34 @@ export const update = async (req, res, next) => {
       if (current.status === "open") {
         throw httpError("รอบนี้เปิดให้กรอกแล้ว แก้ไขรายวิชาไม่ได้ ต้องปิดรอบก่อน", 400);
       }
-      data.subject_ids = await validateSubjectIds(subject_ids);
+      const newSubjectIds = await validateSubjectIds(subject_ids);
+
+      // วิชาที่รอบนี้ใช้อยู่ตอนนี้ (รอบเก่าที่ subject_ids ว่าง = ใช้ทุกวิชา — ดู subjectsOfRound)
+      const allSubjects = await subjectsRepo.findAll();
+      const currentSubjectIds = [];
+      for (const subject of subjectsOfRound(current, allSubjects)) {
+        currentSubjectIds.push(subject.subject_id);
+      }
+
+      // เปลี่ยนวิชาจริงเท่านั้นถึงต้องเช็ค — หน้าแก้ไขรอบส่งรายการวิชาชุดเดิมมาทุกครั้งที่กดบันทึก
+      // (เช่น แค่เลื่อนวันปิด หรือกดเปิดรอบซ้ำ) ถ้าบล็อกทุกครั้งที่ส่งมา จะแก้วันที่ของรอบที่มีผลสอบไม่ได้เลย
+      if (!sameIdSet(newSubjectIds, currentSubjectIds)) {
+        // รอบที่มีผลสอบแล้วห้ามเปลี่ยนวิชา — ใบที่ส่งมาแล้วกรอกตามรายวิชาชุดเดิม
+        // เปลี่ยนทีหลังสถิติรายวิชา/ผ่านครบ ของรอบนี้จะนับจากชุดวิชาที่ไม่ตรงกับใบจริง
+        const resultCount = await roundsRepo.countExamResults(current.round_id);
+        if (resultCount > 0) {
+          throw httpError("รอบนี้มีผลสอบแล้ว แก้ไขรายวิชาไม่ได้", 409);
+        }
+        data.subject_ids = newSubjectIds;
+      }
     }
 
-    if (academic_year !== undefined) data.academic_year = Number(academic_year);
-    if (attempt_number !== undefined)
-      data.attempt_number = Number(attempt_number);
+    if (academic_year !== undefined) {
+      data.academic_year = parseAcademicYear(academic_year);
+    }
+    if (attempt_number !== undefined) {
+      data.attempt_number = parseAttemptNumber(attempt_number);
+    }
 
     // แก้ปี/ครั้งที่ ต้องไม่ไปชนรอบอื่นที่มีอยู่ — ค่าที่ไม่ได้ส่งมาให้ใช้ของเดิม
     if (academic_year !== undefined || attempt_number !== undefined) {
@@ -361,6 +467,25 @@ export const update = async (req, res, next) => {
       await ensureNoOtherOpenRound(current.round_id);
       // เปิดรอบที่เลยกำหนดปิดแล้วไม่ได้ — ยกเว้นรอบนี้เปิดค้างอยู่แล้ว (กดบันทึกซ้ำโดยไม่ได้ตั้งใจเปิดใหม่)
       if (current.status !== "open") ensureNotAlreadyExpired(new Date(finalClose));
+
+      // เปิดรอบเก่าซ้ำ ทั้งที่รอบที่ใหม่กว่าของรุ่นเดียวกันมีผลสอบแล้ว → ห้าม
+      // เหตุผล: ใบรอบใหม่ยกวิชาที่ผ่านแล้วต่อมาจากรอบเก่า (carry-forward) ถ้าเปิดให้แก้ใบรอบเก่าได้อีก
+      // ผลที่ยกไปแล้วในรอบใหม่จะไม่ตรงกับใบต้นทาง และลำดับ "ครั้งที่สอบ" ของสถิติผ่านครั้งแรก/ภายในปีแรกจะเพี้ยน
+      // เช็คเฉพาะตอนเปลี่ยนจากปิด → เปิด (กดบันทึกรอบที่เปิดอยู่แล้วซ้ำ ไม่ใช่การเปิดซ้ำ)
+      if (current.status !== "open") {
+        let finalYear = current.academic_year;
+        if (data.academic_year !== undefined) {
+          finalYear = data.academic_year;
+        }
+        let finalAttempt = current.attempt_number;
+        if (data.attempt_number !== undefined) {
+          finalAttempt = data.attempt_number;
+        }
+        const newer = await roundsRepo.findNewerRoundWithResults(finalYear, finalAttempt);
+        if (newer) {
+          throw httpError("มีรอบที่ใหม่กว่ามีผลสอบแล้ว เปิดรอบเก่าซ้ำไม่ได้", 409);
+        }
+      }
     }
 
     // ใครแก้รอบนี้ล่าสุด เมื่อไหร่ (อ่านจาก JWT) — รวมถึงตอนกดเปิด/ปิดรอบ

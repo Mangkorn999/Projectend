@@ -10,6 +10,26 @@ export const hasRoundOpenNotice = (student_id, round_id) =>
     select: { notification_id: true },
   });
 
+// แจ้งเตือน "รอบนี้เปิดแล้ว" ของคนนี้ทุกแถว เรียง id น้อย → มาก (แถวแรก = แถวที่สร้างก่อน)
+// ใช้หาแถวซ้ำที่เกิดจากเปิดหลายแท็บพร้อมกัน (ดู notifications.controller.js → removeDuplicateRoundOpen)
+export const findRoundOpenNoticeIds = async (student_id, round_id) => {
+  const rows = await prisma.notification.findMany({
+    where: { student_id, round_id, type: "round_open" },
+    select: { notification_id: true },
+    orderBy: { notification_id: "asc" },
+  });
+  const ids = [];
+  for (const row of rows) {
+    ids.push(row.notification_id);
+  }
+  return ids;
+};
+
+// ลบแจ้งเตือนตามรายการ id — deleteMany: ถ้าแถวถูกลบไปแล้ว (อีกแท็บลบก่อน) ไม่ error แค่ได้ count = 0
+// ⚠️ ids ต้องเป็น array ที่มีของเสมอ — ผู้เรียกเช็คแล้ว (ดู SYNTAX_NOTES 5.28 เรื่อง { in: undefined })
+export const removeByIds = (ids) =>
+  prisma.notification.deleteMany({ where: { notification_id: { in: ids } } });
+
 // รองรับยิงให้หลายคนพร้อมกัน (เช่น เปิดสิทธิ์กรอกทีละรุ่น)
 export const createMany = (student_ids, { type, message }) =>
   prisma.notification.createMany({

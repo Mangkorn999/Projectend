@@ -17,6 +17,11 @@ const notifyIfRoundJustOpened = async (studentId) => {
   const already = await notifRepo.hasRoundOpenNotice(studentId, round.round_id);
   if (already) return;
 
+  // ส่งผลรอบนี้ไปแล้ว (มีใบในรอบนี้) → รู้อยู่แล้วว่ารอบเปิด ไม่ต้องแจ้ง "เปิดรับผลสอบ" ทีหลัง
+  // เช็คใบก่อน เพราะเป็น query เดียวจบ — ไม่ต้องไปดึงรายวิชา + วิชาที่ผ่านแล้วข้างล่างให้เปลือง
+  const paper = await examRepo.findByStudentAndRound(studentId, round.round_id);
+  if (paper) return;
+
   // ผ่านครบทุกวิชาของรอบนี้ไปแล้ว → ไม่มีอะไรต้องกรอก ไม่ต้องบอกว่า "เปิดรับผลสอบ"
   // ใช้วิธีเดียวกับตอนส่งผล (examResults.controller.js → create): วิชาของรอบ ลบวิชาที่เคยผ่านแล้ว
   // ส่ง round_id ไปตัดใบของรอบนี้ออก — คนที่ใบถูกตีกลับจึงยังได้แจ้งเตือนตามปกติ
@@ -26,14 +31,37 @@ const notifyIfRoundJustOpened = async (studentId) => {
   const mustAnswer = roundSubjectIds.filter((id) => !passedIds.includes(id));
   if (roundSubjectIds.length > 0 && mustAnswer.length === 0) return;
 
-  await notifRepo
-    .create({
+  try {
+    await notifRepo.create({
       student_id: studentId,
       type: "round_open",
       round_id: round.round_id,
       message: `เปิดรับผลสอบรอบ ${round.attempt_number}/${round.academic_year} แล้ว\nกรอกผลสอบได้ตั้งแต่วันนี้ถึงวันปิดรับ`,
-    })
-    .catch((e) => console.error("สร้างแจ้งเตือนรอบเปิดไม่สำเร็จ:", e.message));
+    });
+    await removeDuplicateRoundOpen(studentId, round.round_id);
+  } catch (e) {
+    console.error("สร้างแจ้งเตือนรอบเปิดไม่สำเร็จ:", e.message);
+  }
+};
+
+// เก็บกวาดแจ้งเตือน "รอบเปิด" ที่ซ้ำกัน — เกิดตอนนักศึกษาเปิดเว็บหลายแท็บพร้อมกัน
+// ทุกแท็บ poll กระดิ่งเข้ามาเกือบพร้อมกัน → ทุกแท็บเช็คว่า "ยังไม่เคยแจ้ง" ก่อนที่ใครจะสร้างเสร็จ → ได้หลายแถว
+//
+// ทางแก้ที่ไม่ต้องแก้ตาราง: หลังสร้างแล้ว นับซ้ำ ถ้ามีมากกว่า 1 แถว เก็บแถวแรกสุด (id น้อยสุด) ลบที่เหลือ
+// ทุกแท็บลบ "แถวที่ไม่ใช่แถวแรก" เหมือนกันหมด จึงไม่มีทางลบจนไม่เหลือสักแถว
+// และแท็บที่สร้างทีหลังจะเห็นแถวของแท็บแรกเสมอ (แถวแรกถูกบันทึกก่อน) → แถวซ้ำถูกลบแน่นอน
+// (ทางที่แน่นกว่าคือใส่ unique index ใน schema — แต่ต้องแก้ schema/migration จึงไม่ทำ)
+const removeDuplicateRoundOpen = async (studentId, roundId) => {
+  const ids = await notifRepo.findRoundOpenNoticeIds(studentId, roundId);
+  if (ids.length <= 1) {
+    return;
+  }
+  // ids เรียงน้อย → มากอยู่แล้ว ตัวแรก (ids[0]) คือแถวที่เก็บไว้ ที่เหลือลบทิ้ง
+  const extraIds = [];
+  for (let i = 1; i < ids.length; i++) {
+    extraIds.push(ids[i]);
+  }
+  await notifRepo.removeByIds(extraIds);
 };
 
 // นักศึกษาดูแจ้งเตือนของตัวเอง — ล่าสุดก่อน

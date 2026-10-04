@@ -90,11 +90,21 @@ export const deleteSubject = async (req, res, next) => {
       throw httpError(`ลบวิชานี้ไม่ได้ เพราะมีรอบสอบใช้อยู่ (รอบ ${names}${more})`, 409);
     }
 
+    // มีผลสอบของนักศึกษาอ้างวิชานี้อยู่ → ห้ามลบ (ประวัติผลสอบจะชี้ไปหาวิชาที่ไม่มีแล้ว)
+    // ต้องนับเองก่อนลบ: foreign key ของ subject_results ตั้งเป็น RESTRICT ซึ่ง Postgres ฟ้องเป็นรหัส 23001
+    // ที่ Prisma ไม่แปลงเป็น P2003 ให้ — เดิมจึงหลุดเป็น 500 แทนที่จะได้ข้อความนี้
+    const resultCount = await subjectrepo.countSubjectResults(id);
+    if (resultCount > 0) {
+      throw httpError("ลบวิชานี้ไม่ได้ เพราะมีผลสอบของนักศึกษาใช้วิชานี้อยู่แล้ว", 409);
+    }
+
     try {
       await subjectrepo.remove(id);
     } catch (err) {
-      // P2003 = มีผลสอบรายวิชาอ้างถึงวิชานี้อยู่ — บอกเหตุผลตรงๆ ดีกว่าข้อความทั่วไป
-      if (err.code === "P2003") {
+      // กันอีกชั้นเผื่อมีคนส่งผลวิชานี้เข้ามาพอดีระหว่างนับกับลบ (P2003 / 23001 RESTRICT)
+      // — บอกเหตุผลตรงๆ ดีกว่าข้อความทั่วไป
+      const message = typeof err.message === "string" ? err.message : "";
+      if (err.code === "P2003" || message.includes("23001") || message.includes("violates RESTRICT")) {
         throw httpError("ลบวิชานี้ไม่ได้ เพราะมีผลสอบของนักศึกษาใช้วิชานี้อยู่แล้ว", 409);
       }
       throw err;

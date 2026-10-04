@@ -47,7 +47,9 @@ export const buildReportPdf = (stats, rows, res, yearStats) => {
   doc.font("th").fontSize(11);
   // ส่วนสถานะของรอบ ใช้ "ฐานคนของรอบนี้" (roundTotal) = คนที่ต้องกรอกในรอบนี้ + คนที่มีใบในรอบนี้แล้ว
   // รอบ 2 ขึ้นไปคนที่ผ่านครบแล้วไม่ต้องกรอก จึงไม่อยู่ในฐาน (ไม่งั้น "ยังไม่เริ่มกรอก" จะรวมคนที่ไม่มีอะไรต้องส่ง)
-  // แถว ส่งแล้ว/รอตรวจ/ยืนยัน/ตีกลับ/ค้างร่าง/ยังไม่เริ่ม บวกกันได้เท่า roundTotal พอดี — เรียงให้คนอ่านบวกตามได้
+  // แถวที่บวกกันได้เท่า roundTotal พอดี คือ รอตรวจ + ยืนยันแล้ว + ตีกลับ + ค้างร่าง + ยังไม่เริ่มกรอก
+  // ("ส่งผลสอบแล้ว" = รอตรวจ + ยืนยันแล้ว + ตีกลับ รวมกันอยู่แล้ว ห้ามบวกซ้ำกับ 3 แถวนั้น
+  //  เดิมคอมเมนต์นี้เขียนว่ารวม "ส่งแล้ว" ด้วย ซึ่งจะนับใบที่ส่งแล้วซ้ำ 2 ครั้ง)
   const summary = [
     ["นักศึกษาทั้งรุ่น", `${stats.total} คน`],
     ["เปิดสิทธิ์กรอกอยู่", `${stats.eligible} คน`],
@@ -62,9 +64,15 @@ export const buildReportPdf = (stats, rows, res, yearStats) => {
   summary.push(["รอตรวจ", `${stats.by.submitted} คน`]);
   summary.push(["ยืนยันแล้ว", `${stats.by.approved} คน`]);
   summary.push(["ตีกลับ", `${stats.by.rejected} คน`]);
+  // ยังไม่มีใบที่ยืนยันแล้วเลย (confirmed = 0) → % ของผู้ที่ยืนยันแล้ว "ยังไม่มีข้อมูล" ต้องพิมพ์ขีด
+  // ไม่ใช่ 0% ซึ่งคนอ่านจะเข้าใจว่า "ยืนยันแล้วแต่ไม่มีใครผ่านเลย" คนละความหมาย
+  let sittersRateText = "—";
+  if (stats.confirmed > 0) {
+    sittersRateText = `${stats.passRateOfSitters}%`;
+  }
   summary.push([
     "ผ่านครบทุกวิชาของรอบนี้",
-    `${stats.fullyPassed} คน (${stats.fullyPassedRate}% ของทั้งรุ่น / ${stats.passRateOfSitters}% ของผู้ที่ยืนยันแล้ว ${stats.confirmed} คน)`,
+    `${stats.fullyPassed} คน (${stats.fullyPassedRate}% ของทั้งรุ่น / ${sittersRateText} ของผู้ที่ยืนยันแล้ว ${stats.confirmed} คน)`,
   ]);
   summary.push(["อัตราผ่านเฉลี่ยรายวิชา", `${stats.subjectPassRate}%`]);
   summary.forEach(([label, value]) => {
