@@ -693,7 +693,8 @@ try {
     check("เห็นไฟล์ที่เลือกทั้ง 2 ไฟล์", [await T.page.getByText(keep.name, { exact: true }).count() > 0, await T.page.getByText(drop.name, { exact: true }).count() > 0], [true, true]);
 
     // ปุ่มนำออกอยู่ในแถวของไฟล์นั้น
-    let removeButton = T.page.locator(".evidence-row", { hasText: drop.name }).getByRole("button");
+    // แถวไฟล์ใหม่มีปุ่มตัวเลือกประเภทเอกสารอยู่ด้วย จึงต้องระบุชื่อปุ่ม "นำออก" ไม่ใช่หา button ตัวไหนก็ได้ในแถว
+    let removeButton = T.page.locator(".evidence-row", { hasText: drop.name }).getByRole("button", { name: /นำออก|ลบ|เอาออก/ });
     if (await removeButton.count() === 0) {
       removeButton = T.page.locator("div", { hasText: drop.name }).filter({ has: T.page.getByRole("button", { name: /นำออก|ลบ|เอาออก/ }) }).last().getByRole("button", { name: /นำออก|ลบ|เอาออก/ });
     }

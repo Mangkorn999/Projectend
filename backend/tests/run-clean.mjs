@@ -48,6 +48,8 @@ const ALL_TEST_FILES = [
   "tests/smoke-phase26-edge-cases.mjs",
   "tests/smoke-phase27-security.mjs",
   "tests/smoke-phase28-actor.mjs",
+  "tests/smoke-phase29-round-stats.mjs",
+  "tests/smoke-phase30-role-matrix.mjs",
 ];
 
 // รันเฉพาะไฟล์ที่ชื่อมีคำนี้: ONLY=phase24 npm run test:clean (ไม่ใส่ = รันทุกไฟล์)
