@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>โปสเตอร์ ระบบบันทึกใบอนุญาตประกอบวิชาชีพ</title>
+<meta name="viewport" content="width=2100">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lazywasabi/thai-web-fonts@7/fonts/LINESeedSansTH/LINESeedSansTH.css">
+<style>
+/* ===== ขนาดงาน: ออกแบบที่ 2100 x 2970 px (สัดส่วน A0) แล้วขยายตอนพิมพ์เป็น 841 x 1189 มม. =====
+   1 px ที่พิมพ์ ≈ 0.4 มม. ≈ 1.135 pt  →  เนื้อ 26px ≈ 29 pt · หัวข้อ 52px ≈ 59 pt */
+:root{
+  --orange:#e8791c; --orange-d:#b85410; --brown:#4a2508; --cream:#fbf3ea; --paper:#ffffff;
+  --green:#1e8e5a; --red:#d8412f; --ink:#2b1a0e; --muted:#6f5a48; --navy:#1d3557;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#fff}
+body{width:2100px;height:2970px;font-family:'LINE Seed Sans TH',sans-serif;color:var(--ink);font-size:26px;line-height:1.5;overflow:hidden;position:relative}
+.poster{position:absolute;inset:0;background:linear-gradient(180deg,#fff7ee 0,#fff 420px,#fff 100%)}
+
+/* ---------- หัว ---------- */
+.head{position:absolute;left:0;top:0;width:2100px;height:480px;background:linear-gradient(120deg,var(--orange-d),var(--orange) 55%,#f3a043);color:#fff;overflow:hidden}
+.head:before{content:"";position:absolute;right:-120px;top:-160px;width:760px;height:760px;border-radius:50%;background:rgba(255,255,255,.10)}
+.head:after{content:"";position:absolute;right:300px;bottom:-300px;width:560px;height:560px;border-radius:50%;background:rgba(255,255,255,.08)}
+.logo-ict{position:absolute;left:60px;top:60px;width:330px;height:150px;border:4px dashed rgba(255,255,255,.85);border-radius:22px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;font-size:44px;letter-spacing:2px;background:rgba(255,255,255,.12)}
+.logo-ict small{font-size:20px;font-weight:500;letter-spacing:0}
+.emblem{position:absolute;left:430px;top:52px;width:150px;height:165px;background:#fff;border-radius:26px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.title{position:absolute;left:620px;top:26px;right:60px}
+.title h1{font-size:100px;line-height:1.1;font-weight:800;text-shadow:0 4px 14px rgba(0,0,0,.18)}
+.title h2{font-size:48px;font-weight:500;margin-top:6px;opacity:.96}
+.by{position:absolute;left:60px;right:60px;bottom:26px;font-size:30px;line-height:1.55}
+.by b{font-weight:700}
+.by .sep{opacity:.6;margin:0 14px}
+
+/* ---------- คอลัมน์ ---------- */
+.col{position:absolute;top:516px;height:1970px;width:660px;display:flex;flex-direction:column;gap:30px}
+.c1{left:50px}.c2{left:720px}.c3{left:1390px}
+.card{flex-shrink:0;background:#fff;border-radius:28px;box-shadow:0 6px 26px rgba(74,37,8,.14);overflow:hidden;border:2px solid #f1e2d1}
+.card .hd{display:flex;align-items:center;gap:20px;padding:16px 28px;color:#fff;font-size:44px;font-weight:800}
+.card .hd .no{flex:none;width:64px;height:64px;border-radius:50%;background:#fff;color:inherit;display:flex;align-items:center;justify-content:center;font-size:40px;font-weight:800}
+.card .bd{padding:22px 30px 26px}
+.h-brown{background:var(--brown)}.card .hd.h-brown .no{color:var(--brown)}
+.h-orange{background:var(--orange-d)}.card .hd.h-orange .no{color:var(--orange-d)}
+.h-green{background:#176b47}.card .hd.h-green .no{color:#176b47}
+.h-navy{background:var(--navy)}.card .hd.h-navy .no{color:var(--navy)}
+.sub{font-size:30px;font-weight:800;color:var(--orange-d);margin:6px 0 8px}
+.sub.g{color:#176b47}
+p{margin-bottom:10px}
+ul.dot{list-style:none}
+ul.dot li{position:relative;padding-left:34px;margin-bottom:6px}
+ul.dot li:before{content:"";position:absolute;left:6px;top:15px;width:14px;height:14px;border-radius:50%;background:var(--orange)}
+ul.x li:before{content:"✕";background:none;color:var(--red);font-weight:800;font-size:24px;top:0;left:4px;width:auto;height:auto}
+ul.ok li:before{content:"✓";background:none;color:var(--green);font-weight:800;font-size:26px;top:0;left:4px;width:auto;height:auto}
+.problem{background:#fdecea;border-radius:18px;padding:16px 22px;margin-top:10px}
+.problem .sub{color:var(--red)}
+.role{display:flex;gap:16px;align-items:flex-start;margin-bottom:12px}
+.role .ic{flex:none;width:58px;height:58px;border-radius:16px;background:var(--cream);display:flex;align-items:center;justify-content:center}
+.role b{font-weight:800}
+.chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
+.chip{background:var(--cream);border:2px solid #f1d9bf;border-radius:30px;padding:2px 18px;font-weight:700;font-size:24px}
+svg text{font-family:'LINE Seed Sans TH',sans-serif}
+.fig{display:block;width:100%;height:auto}
+.cap{font-size:22px;color:var(--muted);margin-top:4px}
+
+/* ---------- ภาพหน้าจอ ---------- */
+.shot{margin-bottom:18px}
+.shot .t{font-size:30px;font-weight:800;color:var(--orange-d);margin-bottom:6px}
+.shot .t span{font-weight:500;color:var(--muted);font-size:24px;margin-left:8px}
+.shot .im{height:268px;border-radius:16px;overflow:hidden;border:3px solid #ead6c0;box-shadow:0 4px 14px rgba(74,37,8,.16);background:#f6f1ec}
+.shot .im img{width:100%;height:100%;object-fit:cover;object-position:top left;display:block}
+.demo-note{font-size:21px;color:var(--muted);margin-top:-6px}
+
+/* ---------- สรุป ---------- */
+.foot{position:absolute;left:50px;top:2520px;width:2000px;height:420px;display:flex;gap:36px}
+.sum{flex:1;border-radius:28px;overflow:hidden;background:#fff;box-shadow:0 6px 26px rgba(74,37,8,.14);border:2px solid #f1e2d1}
+.sum .bd{padding:20px 34px}
+.hl{display:flex;gap:24px;margin-top:10px}
+.hl>div{flex:1;background:var(--cream);border-radius:18px;padding:14px 20px;font-size:25px;line-height:1.4}
+.hl b{display:block;font-size:30px;color:var(--orange-d);margin-bottom:2px}
+.contact{width:520px;border-radius:28px;background:var(--brown);color:#fff;padding:26px 32px;display:flex;flex-direction:column}
+.contact h3{font-size:40px;font-weight:800;margin-bottom:6px}
+.contact .tx{font-size:25px;line-height:1.55}
+.qr{margin-top:auto;align-self:flex-end;display:flex;align-items:center;gap:18px}
+.qr .box{width:190px;height:190px;border:4px dashed rgba(255,255,255,.85);border-radius:16px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:21px;line-height:1.25;padding:10px}
+.qr .lb{font-size:24px;font-weight:700;max-width:180px}
+</style>
+</head>
+<body>
+<div class="poster">
+
+<!-- ================= หัว ================= -->
+<div class="head">
+  <div class="logo-ict">LOGO ICT<small>(วางโลโก้ ICT Club ที่นี่)</small></div>
+  <div class="emblem">
+    <!-- เครื่องหมายของระบบ (คัดจาก frontend/src/design/logos.jsx) -->
+    <svg width="118" height="130" viewBox="0 0 100 110">
+      <path d="M97 24 C90 12 77 12 66 29 C51 11 27 13 15 29 C3 45 9 63 27 71 C41 77 47 83 43 91 C39 98 31 100 26 95" fill="none" stroke="#e8791c" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M90 13 L106 28 L90 43 L74 28 Z" fill="#c9600f" transform="translate(3,3)"/>
+      <path d="M90 13 L106 28 L90 43 L74 28 Z" fill="#e8791c"/>
+      <rect x="86.5" y="19" width="7" height="18" rx="1.2" fill="#fff"/><rect x="81" y="24.5" width="18" height="7" rx="1.2" fill="#fff"/>
+      <text x="28" y="53" font-weight="800" font-size="18" fill="#e8791c">PSU</text>
+      <text x="28" y="65" font-weight="700" font-size="8.5" fill="#e8791c">Nursing License</text>
+    </svg>
+  </div>
+  <div class="title">
+    <h1>ระบบบันทึกใบอนุญาต<br>ประกอบวิชาชีพ</h1>
+    <h2>Nursing License Record System · สำหรับคณะพยาบาลศาสตร์</h2>
+  </div>
+  <div class="by">
+    <b>จัดทำโดย :</b> นายธัญเทพ [นามสกุล] &nbsp;รหัสนักศึกษา [รหัส]<span class="sep">|</span>นางสาวฉันท์ชนก [นามสกุล] &nbsp;รหัสนักศึกษา [รหัส]<br>
+    <b>อาจารย์ที่ปรึกษา :</b> ผศ.ดร.กิตย์ศิริ ช่อเจี้ยง<span class="sep">|</span>สาขาวิชาเทคโนโลยีสารสนเทศ มหาวิทยาลัยสงขลานครินทร์
+  </div>
+</div>
+
+<!-- ================= คอลัมน์ซ้าย ================= -->
+<div class="col c1">
+
+  <div class="card">
+    <div class="hd h-brown"><span class="no">1</span>ปัญหาและความเป็นมา</div>
+    <div class="bd">
+      <p>นักศึกษาพยาบาลชั้นปีสุดท้ายต้องสอบใบอนุญาตประกอบวิชาชีพ 8 วิชา หลายครั้งต่อปี แต่คณะเก็บผลสอบกระจัดกระจาย ทำให้ติดตามผลและรายงานสถิติได้ช้า</p>
+      <div class="problem">
+        <div class="sub">ปัญหาที่พบ</div>
+        <ul class="dot x">
+          <li>ผลสอบและหลักฐานกระจายหลายที่</li>
+          <li>ตรวจสอบความถูกต้องของเอกสารยาก</li>
+          <li>ไม่รู้สถานะว่าใครกรอกแล้วหรือยัง</li>
+          <li>ตัวเลขสถิติไม่ตรงกันในแต่ละรายงาน</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="hd h-orange"><span class="no">2</span>ขอบเขตโครงงาน</div>
+    <div class="bd">
+      <div class="sub">ขอบเขตด้านเนื้อหา</div>
+      <ul class="dot">
+        <li>กรอกผลสอบ 8 วิชา + แนบหลักฐาน (PDF/รูป)</li>
+        <li>ตรวจสอบ ยืนยัน หรือตีกลับพร้อมเหตุผล</li>
+        <li>จัดการรอบสอบ รายวิชา ผู้ใช้ และประกาศ</li>
+        <li>แดชบอร์ดสถิติและรายงาน PDF / Excel</li>
+      </ul>
+      <div class="sub" style="margin-top:14px">ขอบเขตด้านผู้ใช้งาน</div>
+      <div class="role"><div class="ic"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#b85410" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 15-5 16 0"/></svg></div><div><b>นักศึกษา</b> กรอกผล แนบไฟล์ ดูสถานะและประวัติของตนเอง</div></div>
+      <div class="role"><div class="ic"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#b85410" stroke-width="2.2" stroke-linecap="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M8.5 12l2.5 2.5L16 9.5"/></svg></div><div><b>เจ้าหน้าที่คณะ</b> ตรวจยืนยันและบริหารระบบทั้งหมด (รวมผู้ช่วยตรวจสอบ)</div></div>
+      <div class="role"><div class="ic"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#b85410" stroke-width="2.2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div><div><b>ผู้บริหารคณะ</b> ดูสถิติภาพรวมอย่างเดียว แก้ไขข้อมูลไม่ได้</div></div>
+      <div class="sub" style="margin-top:14px">ขอบเขตด้านเทคโนโลยี</div>
+      <div class="chips"><span class="chip">React + Vite</span><span class="chip">Node.js + Express</span><span class="chip">PostgreSQL</span><span class="chip">Prisma ORM</span><span class="chip">JWT + bcrypt</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="hd h-navy"><span class="no">6</span>ข้อจำกัด</div>
+    <div class="bd">
+      <ul class="dot">
+        <li>ใช้ภายในคณะพยาบาล ไม่เชื่อมระบบคณะหรือหน่วยงานอื่น</li>
+        <li>เข้าสู่ระบบด้วยรหัสผู้ใช้ที่เจ้าหน้าที่ออกให้ (ยังไม่เชื่อม PSU One Passport)</li>
+        <li>ไฟล์หลักฐานรับ PDF / JPG / PNG สูงสุด 5 ไฟล์ ไฟล์ละไม่เกิน 10 MB</li>
+        <li>เป็นเว็บแอปพลิเคชัน ไม่มีแอปมือถือแยก (หน้าเว็บปรับตามขนาดจอ)</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ================= คอลัมน์กลาง ================= -->
+<div class="col c2">
+  <div class="card" style="flex:1">
+    <div class="hd h-green"><span class="no">3</span>การวิเคราะห์และออกแบบ</div>
+    <div class="bd">
+
+      <div class="sub g">3.1 การวิเคราะห์ระบบ</div>
+      <p>วิเคราะห์ความต้องการจากขั้นตอนทำงานจริงของคณะ แล้วกำหนดกฎธุรกิจให้ <b>ฝั่งเซิร์ฟเวอร์เป็นผู้ตัดสิน</b> ทั้งหมด</p>
+      <ul class="dot ok">
+        <li>วิชาที่ผ่านแล้ว ยกผลมาให้ในรอบแก้ตัว</li>
+        <li>ล็อกใบผลสอบหลังยืนยัน</li>
+        <li>นับสถิติเฉพาะใบที่ยืนยันแล้ว</li>
+      </ul>
+
+      <div class="sub g" style="margin-top:14px">3.2 แผนภาพบริบท (Context Diagram)</div>
+      <svg class="fig" viewBox="0 78 600 328">
+        <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#6f5a48"/></marker></defs>
+        <rect x="6" y="130" width="130" height="64" rx="10" fill="#fdf1e3" stroke="#b85410" stroke-width="3"/>
+        <text x="71" y="170" text-anchor="middle" font-size="26" font-weight="800" fill="#4a2508">นักศึกษา</text>
+        <rect x="464" y="130" width="130" height="64" rx="10" fill="#fdf1e3" stroke="#b85410" stroke-width="3"/>
+        <text x="529" y="156" text-anchor="middle" font-size="24" font-weight="800" fill="#4a2508">เจ้าหน้าที่</text>
+        <text x="529" y="182" text-anchor="middle" font-size="24" font-weight="800" fill="#4a2508">คณะ</text>
+        <rect x="235" y="330" width="130" height="64" rx="10" fill="#fdf1e3" stroke="#b85410" stroke-width="3"/>
+        <text x="300" y="356" text-anchor="middle" font-size="24" font-weight="800" fill="#4a2508">ผู้บริหาร</text>
+        <text x="300" y="382" text-anchor="middle" font-size="24" font-weight="800" fill="#4a2508">คณะ</text>
+        <circle cx="300" cy="160" r="86" fill="#e8f6ef" stroke="#176b47" stroke-width="4"/>
+        <text x="300" y="150" text-anchor="middle" font-size="25" font-weight="800" fill="#176b47">ระบบบันทึก</text>
+        <text x="300" y="178" text-anchor="middle" font-size="25" font-weight="800" fill="#176b47">ใบอนุญาตฯ</text>
+        <!-- นักศึกษา -->
+        <path d="M136 148 L214 148" stroke="#6f5a48" stroke-width="3" marker-end="url(#ah)"/>
+        <path d="M214 176 L136 176" stroke="#6f5a48" stroke-width="3" marker-end="url(#ah)"/>
+        <text x="71" y="100" text-anchor="middle" font-size="20" fill="#6f5a48">ผลสอบ + ไฟล์</text>
+        <path d="M71 106 L71 126" stroke="#6f5a48" stroke-width="0"/>
+        <text x="71" y="224" text-anchor="middle" font-size="20" fill="#6f5a48">สถานะ / ประกาศ</text>
+        <!-- เจ้าหน้าที่ -->
+        <path d="M464 148 L386 148" stroke="#6f5a48" stroke-width="3" marker-end="url(#ah)"/>
+        <path d="M386 176 L464 176" stroke="#6f5a48" stroke-width="3" marker-end="url(#ah)"/>
+        <text x="529" y="100" text-anchor="middle" font-size="20" fill="#6f5a48">ตรวจ / ยืนยัน</text>
+        <text x="529" y="224" text-anchor="middle" font-size="20" fill="#6f5a48">คิวตรวจ / รายงาน</text>
+        <!-- ผู้บริหาร -->
+        <path d="M300 246 L300 326" stroke="#6f5a48" stroke-width="3" marker-end="url(#ah)"/>
+        <text x="312" y="292" font-size="20" fill="#6f5a48">สถิติผ่าน / ไม่ผ่าน</text>
+      </svg>
+
+      <div class="sub g" style="margin-top:6px">3.3 วงจรสถานะใบผลสอบ และสถาปัตยกรรม</div>
+      <svg class="fig" viewBox="0 0 600 330">
+        <defs><marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#4a2508"/></marker></defs>
+        <rect x="4" y="8" width="130" height="58" rx="29" fill="#f3ece5" stroke="#8a7766" stroke-width="3"/>
+        <text x="69" y="45" text-anchor="middle" font-size="23" font-weight="800" fill="#4a2508">ยังไม่กรอก</text>
+        <rect x="236" y="8" width="130" height="58" rx="29" fill="#fff4d6" stroke="#d99a00" stroke-width="3"/>
+        <text x="301" y="45" text-anchor="middle" font-size="23" font-weight="800" fill="#7a5600">รอตรวจสอบ</text>
+        <rect x="466" y="8" width="130" height="58" rx="29" fill="#dff3e7" stroke="#176b47" stroke-width="3"/>
+        <text x="531" y="45" text-anchor="middle" font-size="23" font-weight="800" fill="#176b47">ยืนยันแล้ว</text>
+        <rect x="236" y="104" width="130" height="58" rx="29" fill="#fde5e1" stroke="#d8412f" stroke-width="3"/>
+        <text x="301" y="141" text-anchor="middle" font-size="23" font-weight="800" fill="#b52e1e">ตีกลับ</text>
+        <path d="M134 37 L232 37" stroke="#4a2508" stroke-width="3" marker-end="url(#a2)"/>
+        <path d="M366 37 L462 37" stroke="#4a2508" stroke-width="3" marker-end="url(#a2)"/>
+        <path d="M285 68 L285 100" stroke="#4a2508" stroke-width="3" marker-end="url(#a2)"/>
+        <path d="M318 100 L318 70" stroke="#4a2508" stroke-width="3" marker-end="url(#a2)"/>
+        <text x="182" y="28" text-anchor="middle" font-size="19" fill="#6f5a48">ส่งผล</text>
+        <text x="414" y="28" text-anchor="middle" font-size="19" fill="#6f5a48">เจ้าหน้าที่</text>
+        <text x="270" y="92" text-anchor="end" font-size="19" fill="#6f5a48">ตีกลับ</text>
+        <text x="332" y="92" font-size="19" fill="#6f5a48">แก้แล้วส่งใหม่</text>
+        <!-- 3 ชั้น -->
+        <rect x="4" y="190" width="190" height="70" rx="12" fill="#fdf1e3" stroke="#b85410" stroke-width="3"/>
+        <text x="99" y="219" text-anchor="middle" font-size="23" font-weight="800" fill="#4a2508">React + Vite</text>
+        <text x="99" y="246" text-anchor="middle" font-size="19" fill="#6f5a48">หน้าจอ 3 บทบาท</text>
+        <rect x="205" y="190" width="190" height="70" rx="12" fill="#fdf1e3" stroke="#b85410" stroke-width="3"/>
+        <text x="300" y="219" text-anchor="middle" font-size="23" font-weight="800" fill="#4a2508">Express API</text>
+        <text x="300" y="246" text-anchor="middle" font-size="19" fill="#6f5a48">JWT · สิทธิ์ · กฎธุรกิจ</text>
+        <rect x="406" y="190" width="190" height="70" rx="12" fill="#fdf1e3" stroke="#b85410" stroke-width="3"/>
+        <text x="501" y="219" text-anchor="middle" font-size="23" font-weight="800" fill="#4a2508">PostgreSQL</text>
+        <text x="501" y="246" text-anchor="middle" font-size="19" fill="#6f5a48">13 ตาราง (Prisma)</text>
+        <path d="M194 225 L201 225" stroke="#4a2508" stroke-width="3" marker-end="url(#a2)"/>
+        <path d="M395 225 L402 225" stroke="#4a2508" stroke-width="3" marker-end="url(#a2)"/>
+        <text x="300" y="181" text-anchor="middle" font-size="19" fill="#b85410" font-weight="700">ใบที่ตัดสินแล้ว กด “แก้ไขผลการตรวจ” → กลับเป็นรอตรวจ</text>
+        <text x="300" y="300" text-anchor="middle" font-size="21" fill="#6f5a48">routes → controller → service → repository</text>
+        <text x="300" y="324" text-anchor="middle" font-size="21" fill="#6f5a48">ไฟล์หลักฐานเก็บบนดิสก์ ฐานข้อมูลเก็บแค่ path</text>
+      </svg>
+
+      <div class="sub g" style="margin-top:6px">3.4 ER Diagram (ความสัมพันธ์ข้อมูล)</div>
+      <svg class="fig" viewBox="0 0 600 486">
+        <style>.er{fill:#fff;stroke:#176b47;stroke-width:3}.erh{fill:#176b47}.et{font-size:19px;fill:#2b1a0e}.eh{font-size:19px;font-weight:800;fill:#fff}.ln{stroke:#6f5a48;stroke-width:3;fill:none}.k{font-size:16px;font-weight:800;fill:#b85410}</style>
+        <!-- แถว 1 -->
+        <rect class="er" x="4" y="4" width="170" height="134" rx="8"/><path class="erh" d="M4 12a8 8 0 0 1 8-8h154a8 8 0 0 1 8 8v22H4z"/>
+        <text class="eh" x="89" y="26" text-anchor="middle">users</text>
+        <text class="et" x="14" y="60"><tspan class="k">PK </tspan>user_id</text>
+        <text class="et" x="14" y="84"><tspan class="k">FK </tspan>role_id</text>
+        <text class="et" x="14" y="108">psu_passport_id</text>
+        <text class="et" x="14" y="130">password_hash</text>
+        <rect class="er" x="190" y="4" width="200" height="134" rx="8"/><path class="erh" d="M190 12a8 8 0 0 1 8-8h184a8 8 0 0 1 8 8v22H190z"/>
+        <text class="eh" x="290" y="26" text-anchor="middle">students</text>
+        <text class="et" x="200" y="60"><tspan class="k">PK </tspan>student_id</text>
+        <text class="et" x="200" y="84"><tspan class="k">FK </tspan>user_id</text>
+        <text class="et" x="200" y="108">academic_year</text>
+        <text class="et" x="200" y="130">exam_eligible</text>
+        <rect class="er" x="406" y="4" width="190" height="134" rx="8"/><path class="erh" d="M406 12a8 8 0 0 1 8-8h174a8 8 0 0 1 8 8v22H406z"/>
+        <text class="eh" x="501" y="26" text-anchor="middle" style="font-size:17px">submission_rounds</text>
+        <text class="et" x="416" y="60"><tspan class="k">PK </tspan>round_id</text>
+        <text class="et" x="416" y="84">academic_year</text>
+        <text class="et" x="416" y="108">attempt_number</text>
+        <text class="et" x="416" y="130">open / close_date</text>
+        <!-- แถว 2 -->
+        <rect class="er" x="4" y="196" width="170" height="134" rx="8"/><path class="erh" d="M4 204a8 8 0 0 1 8-8h154a8 8 0 0 1 8 8v22H4z"/>
+        <text class="eh" x="89" y="218" text-anchor="middle" style="font-size:17px">subject_results</text>
+        <text class="et" x="14" y="252"><tspan class="k">FK </tspan>result_id</text>
+        <text class="et" x="14" y="276"><tspan class="k">FK </tspan>subject_id</text>
+        <text class="et" x="14" y="300">is_passed</text>
+        <text class="et" x="14" y="322">carried_forward</text>
+        <rect class="er" x="190" y="196" width="200" height="158" rx="8"/><path class="erh" d="M190 204a8 8 0 0 1 8-8h184a8 8 0 0 1 8 8v22H190z"/>
+        <text class="eh" x="290" y="218" text-anchor="middle">exam_results</text>
+        <text class="et" x="200" y="252"><tspan class="k">PK </tspan>result_id</text>
+        <text class="et" x="200" y="276"><tspan class="k">FK </tspan>student_id</text>
+        <text class="et" x="200" y="300"><tspan class="k">FK </tspan>round_id</text>
+        <text class="et" x="200" y="324">student_status</text>
+        <text class="et" x="200" y="346">staff_status</text>
+        <rect class="er" x="406" y="196" width="190" height="110" rx="8"/><path class="erh" d="M406 204a8 8 0 0 1 8-8h174a8 8 0 0 1 8 8v22H406z"/>
+        <text class="eh" x="501" y="218" text-anchor="middle">certificates</text>
+        <text class="et" x="416" y="252"><tspan class="k">FK </tspan>result_id</text>
+        <text class="et" x="416" y="276">file_path</text>
+        <text class="et" x="416" y="298">file_type</text>
+        <!-- แถว 3 -->
+        <rect class="er" x="4" y="392" width="170" height="86" rx="8"/><path class="erh" d="M4 400a8 8 0 0 1 8-8h154a8 8 0 0 1 8 8v22H4z"/>
+        <text class="eh" x="89" y="414" text-anchor="middle">subjects</text>
+        <text class="et" x="14" y="448"><tspan class="k">PK </tspan>subject_id</text>
+        <text class="et" x="14" y="470">subject_name</text>
+        <rect class="er" x="190" y="392" width="200" height="86" rx="8"/><path class="erh" d="M190 400a8 8 0 0 1 8-8h184a8 8 0 0 1 8 8v22H190z"/>
+        <text class="eh" x="290" y="414" text-anchor="middle">review_logs</text>
+        <text class="et" x="200" y="448"><tspan class="k">FK </tspan>reviewer_id</text>
+        <text class="et" x="200" y="470">action · remark</text>
+        <!-- เส้นความสัมพันธ์ -->
+        <path class="ln" d="M174 70 L190 70"/>
+        <path class="ln" d="M290 138 L290 196"/>
+        <path class="ln" d="M501 138 L501 166 L350 166 L350 196"/>
+        <path class="ln" d="M174 262 L190 262"/>
+        <path class="ln" d="M390 262 L406 262"/>
+        <path class="ln" d="M89 330 L89 392"/>
+        <path class="ln" d="M290 354 L290 392"/>
+        <text x="296" y="172" class="k" style="font-size:15px">1 : M</text>
+      </svg>
+      <div class="cap">11 ตารางหลักในแผนภาพ (รวมทั้งหมด 13 ตาราง) · เก็บเฉพาะ path ของไฟล์ ไม่เก็บไฟล์ในฐานข้อมูล</div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= คอลัมน์ขวา ================= -->
+<div class="col c3">
+  <div class="card" style="flex:1">
+    <div class="hd" style="background:linear-gradient(90deg,#d9640f,#f08a24)"><span class="no" style="color:#d9640f">4</span>ระบบและผลลัพธ์</div>
+    <div class="bd">
+      <div class="shot"><div class="t">4.1 หน้าเข้าสู่ระบบ <span>ทุกบทบาท</span></div><div class="im"><img src="shots/login.png" alt=""></div></div>
+      <div class="shot"><div class="t">4.2 แดชบอร์ดเจ้าหน้าที่ <span>สรุปผลสอบรายรอบ</span></div><div class="im"><img src="shots/off-dashboard.png" alt=""></div></div>
+      <div class="shot"><div class="t">4.3 นักศึกษากรอกผลสอบ <span>ผ่าน/ไม่ผ่าน + แนบไฟล์</span></div><div class="im"><img src="shots/stu-form.png" alt=""></div></div>
+      <div class="shot"><div class="t">4.4 ตรวจสอบและยืนยันผล <span>ยืนยัน / ตีกลับ</span></div><div class="im"><img src="shots/off-review-detail.png" alt=""></div></div>
+      <div class="shot"><div class="t">4.5 แดชบอร์ดผู้บริหาร <span>อ่านอย่างเดียว</span></div><div class="im"><img src="shots/exec-dashboard.png" alt=""></div></div>
+      <div class="demo-note">ภาพหน้าจอจากระบบจริง ใช้ข้อมูลจำลอง ไม่มีข้อมูลส่วนบุคคลจริง</div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= สรุป ================= -->
+<div class="foot">
+  <div class="sum">
+    <div class="hd h-brown" style="display:flex;align-items:center;gap:20px;padding:20px 28px;color:#fff;font-size:44px;font-weight:800"><span class="no" style="flex:none;width:64px;height:64px;border-radius:50%;background:#fff;color:#4a2508;display:flex;align-items:center;justify-content:center;font-size:40px">7</span>สรุป</div>
+    <div class="bd">
+      <p>ระบบรวมการกรอก ตรวจสอบ และสรุปผลสอบใบอนุญาตประกอบวิชาชีพไว้ที่เดียว ลดงานเอกสาร ตรวจสอบสถานะได้ทันที และให้ผู้บริหารเห็นสถิติอัตราผ่าน/ไม่ผ่านที่ตัวเลขตรงกันทุกหน้า</p>
+      <div class="hl">
+        <div><b>กฎธุรกิจอยู่ฝั่งเซิร์ฟเวอร์</b>ยกผลวิชาที่ผ่านแล้ว · ล็อกหลังยืนยัน · กันตรวจชนกัน</div>
+        <div><b>ปลอดภัยเป็นชั้น</b>bcrypt → JWT (httpOnly cookie) → ตรวจสิทธิ์ทุก request</div>
+        <div><b>ผ่านการทดสอบ</b>API 26 ชุด 1,187 ข้อตรวจ · หน้าเว็บ 19 สถานการณ์ · สิทธิ์ 58 endpoint × 4 บทบาท</div>
+      </div>
+    </div>
+  </div>
+  <div class="contact">
+    <h3>ติดต่อเรา</h3>
+    <div class="tx">คณะพยาบาลศาสตร์<br>มหาวิทยาลัยสงขลานครินทร์<br>อีเมล : [อีเมลทีมงาน]</div>
+    <div class="qr">
+      <div class="lb">สแกนเพื่อดูวิดีโอเดโมโครงงาน</div>
+      <div class="box">วาง QR-code<br>วิดีโอเดโม</div>
+    </div>
+  </div>
+</div>
+
+</div>
+</body>
+</html>
