@@ -48,6 +48,10 @@ export function ExamFormReal({ go, toast, lang }) {
   const [loadError, setLoadError] = useState('');   // โหลดหน้าไม่สำเร็จ — แสดงแทนทั้งหน้า
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(''); // ส่งไม่สำเร็จ — แสดงในการ์ดด้านขวา ฟอร์มยังอยู่ครบ
+  // ผลสอบชุดที่ "ส่งสำเร็จแล้ว แต่แนบไฟล์ไม่ครบ" (เก็บเป็นข้อความ JSON ไว้เทียบ) — '' = ไม่มีค้าง
+  // ใช้ตอนกดส่งซ้ำ: ถ้าคำตอบยังเหมือนเดิม แค่แนบไฟล์ที่ค้างก็พอ ไม่ต้องส่งผลสอบซ้ำ
+  // (ถ้ารอบปิดไประหว่างนั้น การส่งผลสอบซ้ำจะถูกปฏิเสธ ทั้งที่ผลสอบส่งไปแล้วและไฟล์ก็แนบได้แล้ว)
+  const [answersAlreadySent, setAnswersAlreadySent] = useState('');
 
   // ข้อความ error ที่โชว์ผู้ใช้ได้ — ApiError มีข้อความภาษาไทยจาก backend อยู่แล้ว
   const messageOf = (error) => {
@@ -328,7 +332,9 @@ export function ExamFormReal({ go, toast, lang }) {
 
   // อัปโหลดไฟล์ใหม่ทีละไฟล์เข้าใบ resultId — คืนค่า true ถ้าครบทุกไฟล์
   // ล้มกลางทาง = เก็บเฉพาะไฟล์ที่ยังไม่ได้อัปโหลดไว้ในรายการ ให้กดส่งซ้ำได้โดยไม่อัปโหลดซ้ำ
-  const uploadNewFiles = async (resultId) => {
+  // resultsSent = true เมื่อผลสอบถูกส่งสำเร็จไปแล้ว → ข้อความต้องบอกว่า "ส่งผลสอบแล้ว แต่แนบไฟล์ไม่สำเร็จ"
+  // ไม่งั้นผู้ใช้จะเข้าใจว่าผลสอบยังไม่ถูกส่งเลย
+  const uploadNewFiles = async (resultId, resultsSent) => {
     const waiting = [...newFiles];
     while (waiting.length > 0) {
       const item = waiting[0];
@@ -340,7 +346,11 @@ export function ExamFormReal({ go, toast, lang }) {
         await apiFetch(`/exam-results/${resultId}/certificates`, { method: 'POST', body: form });
       } catch (e) {
         setNewFiles(waiting);
-        setSubmitError(tt('examform.uploadFailMsg', { name: file.name, msg: messageOf(e) }));
+        if (resultsSent) {
+          setSubmitError(tt('examform.uploadFailAfterSubmitMsg', { name: file.name, msg: messageOf(e) }));
+        } else {
+          setSubmitError(tt('examform.uploadFailMsg', { name: file.name, msg: messageOf(e) }));
+        }
         return false;
       }
       waiting.shift(); // อัปโหลดสำเร็จแล้ว เอาออกจากคิว
@@ -361,6 +371,14 @@ export function ExamFormReal({ go, toast, lang }) {
       subjectResults.push({ subject_id: subject.subject_id, is_passed: results[subject.subject_id] });
     }
 
+    // คำตอบชุดนี้ "ส่งสำเร็จไปแล้วตอนกดครั้งก่อน" หรือยัง (ครั้งก่อนล้มแค่ตอนแนบไฟล์)
+    // ถ้าใช่ กดซ้ำรอบนี้แค่แนบไฟล์ที่ค้างก็พอ ไม่ต้องส่งผลสอบซ้ำ
+    const answersText = JSON.stringify(subjectResults);
+    let sameAnswersAlreadySent = false;
+    if (answersAlreadySent !== '' && answersAlreadySent === answersText) {
+      sameAnswersAlreadySent = true;
+    }
+
     try {
       if (existing) {
         // ใบเดิม: จัดการไฟล์ให้เสร็จก่อน แล้วค่อยส่งผลสอบ
@@ -369,18 +387,24 @@ export function ExamFormReal({ go, toast, lang }) {
           await reloadPaperFiles(deleted.stillToRemove);
           return;
         }
-        const uploaded = await uploadNewFiles(existing.result_id);
+        const uploaded = await uploadNewFiles(existing.result_id, sameAnswersAlreadySent);
         if (!uploaded) {
           await reloadPaperFiles([]);
           return;
         }
-        await apiFetch('/exam-results', { method: 'POST', body: { subject_results: subjectResults } });
+        // ผลสอบชุดเดิมส่งไปแล้ว (เหลือแค่ไฟล์ค้าง ซึ่งแนบครบแล้วตอนนี้) — ข้ามการส่งผลสอบซ้ำ
+        if (!sameAnswersAlreadySent) {
+          await apiFetch('/exam-results', { method: 'POST', body: { subject_results: subjectResults } });
+        }
       } else {
         // ใบใหม่: ส่งผลสอบก่อนเพื่อให้ได้เลขใบ แล้วค่อยอัปโหลดไฟล์เข้าใบนั้น
         const created = await apiFetch('/exam-results', { method: 'POST', body: { subject_results: subjectResults } });
-        const uploaded = await uploadNewFiles(created.result_id);
+        // ถึงตรงนี้ผลสอบส่งสำเร็จแล้ว — ถ้าแนบไฟล์ล้ม ข้อความต้องบอกว่า "ส่งผลสอบแล้ว แต่แนบไฟล์ไม่สำเร็จ"
+        const uploaded = await uploadNewFiles(created.result_id, true);
         if (!uploaded) {
           // ใบถูกสร้างแล้ว — ดึงใบนั้นมา กดส่งครั้งถัดไปจะเป็นการแก้ใบเดิม (ไม่สร้างใบซ้ำ)
+          // จำคำตอบที่ส่งสำเร็จไว้ กดส่งครั้งถัดไปจะได้แนบแค่ไฟล์ที่ค้าง (ไฟล์ที่ค้างยังอยู่ในรายการ)
+          setAnswersAlreadySent(answersText);
           await reloadPaperFiles([]);
           return;
         }

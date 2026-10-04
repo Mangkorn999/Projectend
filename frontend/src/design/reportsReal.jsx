@@ -101,13 +101,14 @@ export function ReportsReal({ toast, readonly, lang }) {
   }
   if (!stats) return <Loading label={tt('common.loading')} />;
 
-  const { round, total, canSubmit, by, submitted,
+  const { round, total, by, submitted,
           fullyPassed, fullyPassedRate, passRateOfSitters, confirmed, perSubject,
           roundTotal, roundNotStarted, roundFillRate, alreadyPassed } = stats;
   // การ์ด "นักศึกษาทั้งหมด" = ทั้งรุ่น · การ์ด "ส่งผลแล้ว" หารด้วยผู้ต้องกรอกรอบนี้ (roundTotal) ให้ตรงกับตารางสถานะด้านล่าง
+  // บรรทัดเล็ก "ผู้ต้องกรอกรอบนี้ N คน" ก็ใช้ roundTotal (ไม่ใช่ canSubmit) ให้เลขเดียวกับหน้าแดชบอร์ดและตารางสถานะ
   // การ์ด "ผ่านครบ" หารด้วยทั้งรุ่น (สูตรผ่านของรุ่น) และใบสุดท้ายติดป้ายบอกตัวหารไว้ในชื่อแล้ว
   const summaryCards = [
-    [tt('reports.totalStudents'), total, tt('reportsReal.cardTotalSub', { canSubmit }), 'navy'],
+    [tt('reports.totalStudents'), total, tt('reportsReal.cardTotalSub', { n: roundTotal }), 'navy'],
     [tt('reports.submitted'), submitted, tt('reportsReal.cardOfRound', { rate: roundFillRate }), 'blue'],
     // จำนวนวิชาเอาจากรอบจริง (perSubject = วิชาของรอบนั้น) ไม่ใช่ 8 ตายตัว — รอบที่สอบ 3 วิชาจะได้ไม่ขึ้น "ผ่านครบ 8 วิชา"
     [tt('reports.fullyPassed', { n: perSubject.length }), fullyPassed, tt('reportsReal.cardOfCohort', { rate: fullyPassedRate }), 'ok'],

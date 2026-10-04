@@ -423,7 +423,7 @@ function RoundTabs({ rounds, value, onChange, tt }) {
 // statusOnly = แค่การ์ด Donut สัดส่วนสถานะ (ใช้ตอนอยู่แท็บ "สัดส่วนสถานะการตรวจสอบ")
 // ไม่ส่ง flag ไหนมาเลย = คืน null (เรียกแบบไม่ระบุจะไม่ได้อะไร กันเรียกผิดเงียบๆ)
 function RoundView({ stats, roundInfo, go, lang, tt, statCardsOnly, statusOnly }) {
-  const { round, total, canSubmit, by, submitted,
+  const { round, total, by, submitted,
           fullyPassed, fullyPassedRate, roundTotal, roundNotStarted, roundFillRate,
           alreadyPassed } = stats;
 
@@ -436,8 +436,10 @@ function RoundView({ stats, roundInfo, go, lang, tt, statCardsOnly, statusOnly }
 
         <div className="grid g-5" style={{ marginBottom: 20 }}>
           {/* ยอดของ "รอบนี้" ล้วน — คนที่ผ่านครบทุกวิชาไปแล้วเปิดฟอร์มรอบนี้ไม่ได้ ตัวเลขเลยลดลงทุกรอบ
-              ต่างจากการ์ดใบแรกของมุมมองทั้งปีที่เป็นยอดทั้งรุ่น ตำแหน่ง/หน้าตาการ์ดเหมือนกันทั้ง 2 มุมมอง */}
-          <StatCard icon="users" label={tt('dashReal.canSubmitStatLabel')} value={canSubmit} sub={tt('dashReal.canSubmitStatSub', { total })} tone="navy" accent onClick={() => go('students')} />
+              ต่างจากการ์ดใบแรกของมุมมองทั้งปีที่เป็นยอดทั้งรุ่น ตำแหน่ง/หน้าตาการ์ดเหมือนกันทั้ง 2 มุมมอง
+              ใช้ roundTotal (ไม่ใช่ canSubmit) ให้เลข "ผู้ต้องกรอกรอบนี้" ตรงกับกลางโดนัทและตัวหารของแถบความคืบหน้า
+              — canSubmit ไม่นับคนที่ถูกถอนสิทธิ์หลังส่งผลไปแล้ว แต่ใบของเขายังอยู่ในรอบ ตัวเลขเลยเคยไม่ตรงกัน */}
+          <StatCard icon="users" label={tt('dashReal.canSubmitStatLabel')} value={roundTotal} sub={tt('dashReal.canSubmitStatSub', { total })} tone="navy" accent onClick={() => go('students')} />
           <StatCard icon="edit" label={tt('dashReal.submittedStatLabel')} value={submitted} sub={tt('dashReal.submittedStatSub', { rate: roundFillRate })} tone="blue" accent onClick={() => go('students')} />
           <StatCard icon="clock" label={tt('status.SUBMITTED')} value={by.submitted} sub={tt('dashReal.pendingSub')} tone="wait" accent onClick={() => go('review')} />
           <StatCard icon="checkCircle" label={tt('status.CONFIRMED')} value={by.approved} sub={tt('dashReal.confirmedSub', { n: fullyPassed, rate: fullyPassedRate })} tone="ok" accent />

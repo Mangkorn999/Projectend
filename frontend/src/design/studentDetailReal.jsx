@@ -60,7 +60,9 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
     setPreviewRejecting(false);
   };
 
-  const load = () => {
+  // keepResultId = ใบที่ผู้ตรวจเลือกดูอยู่ก่อนโหลดใหม่ (ส่งมาตอนโหลดซ้ำหลังกดยืนยัน/ตีกลับ/ถอน หรือเจอ 409)
+  // ถ้าใบนั้นยังอยู่ ให้เปิดใบเดิมต่อ ไม่เด้งไปใบล่าสุด — ตอนเปิดหน้าครั้งแรก useEffect เรียกแบบไม่ส่งค่า (undefined)
+  const load = (keepResultId) => {
     setLoading(true);
     Promise.all([
       apiFetch('/subjects'),
@@ -75,7 +77,13 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
       // มาจากหน้าคิวตรวจสอบจะระบุใบที่กดมาด้วย (resultId) — ต้องเปิดใบนั้น ไม่ใช่ใบล่าสุด
       // ไม่งั้นกดจากแท็บ "รอตรวจสอบ" แล้วเปิดมาเจอใบรอบอื่นที่ถูกตีกลับไปแล้ว
       // มาจากหน้ารายชื่อนักศึกษาไม่มี resultId — ใช้ใบล่าสุด (เรียง submitted_at desc มาแล้ว)
-      const picked = student.resultId ? resultList.find(r => r.result_id === student.resultId) : null;
+      let picked = null;
+      if (keepResultId) {
+        picked = resultList.find(r => r.result_id === keepResultId) || null;
+      }
+      if (!picked && student.resultId) {
+        picked = resultList.find(r => r.result_id === student.resultId) || null;
+      }
       setSelectedId((picked || resultList[0])?.result_id ?? null);
     }).catch(e => setError(e.message)).finally(() => setLoading(false));
   };
@@ -94,19 +102,49 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
   const allPass = examResult && roundSubjectIds.length > 0 && passedCount === roundSubjectIds.length;
 
   const review = async (action, reasonText) => {
+    // จำใบที่กำลังตรวจไว้ก่อน — หลังโหลดใหม่จะได้กลับมาเปิดใบเดิม (ไม่เด้งไปใบล่าสุด)
+    const reviewingId = examResult.result_id;
+
+    // แนบ "สิ่งที่ผู้ตรวจเห็นบนจอตอนนี้" ไปให้ backend เทียบ:
+    // ถ้านักศึกษาแก้ผลสอบหรือเพิ่ม/ลบไฟล์ระหว่างที่เปิดหน้านี้ค้างไว้ ค่าจะไม่ตรง → backend ตอบ 409
+    // กันยืนยันใบที่ไม่ใช่ใบที่ผู้ตรวจดูจริง (ใช้ใบที่เลือกอยู่ examResult ไม่ใช่ใบล่าสุด)
+    const certificateIds = [];
+    const shownCertificates = examResult.certificates || [];
+    for (const c of shownCertificates) {
+      certificateIds.push(c.certificate_id);
+    }
+    const body = {
+      expected_submitted_at: examResult.submitted_at,
+      expected_certificate_ids: certificateIds,
+    };
+    if (action === 'reject') {
+      body.remark = reasonText;
+    }
+
     setBusy(true);
     try {
-      await apiFetch(`/exam-results/${examResult.result_id}/${action}`, {
+      await apiFetch(`/exam-results/${reviewingId}/${action}`, {
         method: 'PATCH',
-        body: action === 'reject' ? { remark: reasonText } : undefined,
+        body: body,
       });
       // บอก app.jsx ให้นับ badge "รอตรวจ" ใหม่ทันที — ไม่งั้นเลขค้างจนกว่าจะเปลี่ยนหน้า (เจ้าหน้าที่ยังอยู่หน้านี้หลังกดตรวจ)
       window.dispatchEvent(new Event('review-changed'));
       toast(action === 'approve' ? tt('officer.detail.confirmToast') : tt('officer.detail.rejectToast'), action === 'approve' ? 'success' : 'info');
       setReject(false);
-      load(); // ดึงสถานะล่าสุดจาก backend ใหม่ ไม่เชื่อ state เดิมที่เดาเอง
+      load(reviewingId); // ดึงสถานะล่าสุดจาก backend ใหม่ ไม่เชื่อ state เดิมที่เดาเอง (อยู่ใบเดิมต่อ)
       return true;
     } catch (e) {
+      if (e instanceof ApiError && e.status === 409) {
+        // 409 = ข้อมูลบนจอเก่าแล้ว (นักศึกษาแก้ผลสอบ/เอกสารระหว่างตรวจ) — โชว์ข้อความจาก backend
+        // แล้วปิดหน้าต่างที่เปิดค้าง + โหลดใบเดิมใหม่ให้เลย ผู้ตรวจจะได้เห็นของล่าสุดก่อนตัดสินอีกครั้ง
+        // เหตุผลตีกลับที่พิมพ์ไว้ (remark) ไม่ล้าง — ใช้ซ้ำได้ถ้ายังจะตีกลับ
+        toast(e.message, 'error');
+        closePreview();
+        setReject(false);
+        window.dispatchEvent(new Event('review-changed')); // เผื่อสถานะใบเปลี่ยนไปแล้ว ให้ badge "รอตรวจ" นับใหม่
+        load(reviewingId);
+        return false;
+      }
       toast(e instanceof ApiError ? e.message : tt('detailReal.actionFailMsg'), 'error');
       return false;
     } finally {
@@ -137,7 +175,7 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
       toast(tt('officer.detail.revokeToast'), 'info');
       setRevokeOpen(false);
       setRevokeRemark('');
-      load();
+      load(examResult.result_id); // อยู่ใบเดิมที่เพิ่งถอนการยืนยัน ไม่เด้งไปใบล่าสุด
     } catch (e) {
       toast(e instanceof ApiError ? e.message : tt('detailReal.actionFailMsg'), 'error');
     } finally {
@@ -228,8 +266,9 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
   return (
     <div className="fade-up">
       <PageHead title={displayName}
-        // ลิงก์ "รายชื่อ" กลับไปหน้าที่เข้ามา (backTo) — ผู้ช่วยตรวจสอบไม่มีหน้า students ต้องกลับคิวตรวจสอบ
-        crumb={<><a onClick={() => go(backTo)} style={{ cursor: 'pointer' }}>{tt('officer.detail.crumbList')}</a> <Icon name="chevR" size={13} /> {tt('officer.detail.crumbDetail')}</>}
+        // ลิงก์ breadcrumb กลับไปหน้าที่เข้ามา (backTo) — ผู้ช่วยตรวจสอบไม่มีหน้า students ต้องกลับคิวตรวจสอบ
+        // ป้ายต้องตรงกับปลายทาง: มาจากคิวตรวจ = ชื่อเมนูคิวตรวจ (คีย์เดียวกับเมนูซ้าย) · นอกนั้น = "ข้อมูลนักศึกษา" เหมือนเดิม
+        crumb={<><a onClick={() => go(backTo)} style={{ cursor: 'pointer' }}>{backTo === 'review' ? tt('nav.officer.review') : tt('officer.detail.crumbList')}</a> <Icon name="chevR" size={13} /> {tt('officer.detail.crumbDetail')}</>}
         sub={<span className="mono">{student.sid} · {tt('officer.detail.subInfo', { room: roomName(lang, displayRoom), year: displayYear })}
           {/* ชื่อ-สกุลภาษาอังกฤษ (students.first_name_en/last_name_en) ที่นักศึกษากรอกตอนตั้งโปรไฟล์ */}
           {studentFull?.first_name_en && <> · {studentFull.first_name_en} {studentFull.last_name_en}</>}

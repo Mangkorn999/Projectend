@@ -154,7 +154,9 @@ export function OfficerReviewReal({ go, setSel, setDetailFrom, lang, role, resto
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
         {visibleTabs.map(k => (
-          // แท็บ "ยังไม่กรอก" นับไม่เท่ากับการ์ดชื่อเดียวกันบน Dashboard (ตรงนั้นนับทั้งรุ่น) ติด tooltip อธิบายไว้
+          // แท็บ "ยังไม่กรอก" ใช้กฎเดียวกับ roundNotStarted ที่ Dashboard มุมมองรายรอบใช้ (ฐานคนของรอบ:
+          // เปิดสิทธิ์ + ยังผ่านไม่ครบทุกวิชา + ยังไม่มีใบในรอบนี้) ไม่ได้นับทั้งรุ่นแล้ว
+          // tooltip มีไว้บอกผู้ใช้ว่าคนที่ผ่านครบทุกวิชาไปแล้วไม่ถูกนับในแท็บนี้
           <button key={k} onClick={() => selectTab(k)} className="btn"
             title={k === 'NOT_STARTED' ? tt('officer.review.tabNotStartedHint') : undefined} style={{
             background: tab === k ? 'var(--navy-700)' : '#fff', color: tab === k ? '#fff' : 'var(--ink-900)',
