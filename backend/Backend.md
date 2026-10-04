@@ -256,29 +256,36 @@ body ของ `POST`: `{ "title": "...", "content": "...", "round_id": 5 }` —
 
 ```json
 { "success": true, "data": {
-  "round": { "round_id": 5, "academic_year": 2568, "attempt_number": 2, "status": "open" },
-  "total": 120, "eligible": 104,
-  "by": { "draft": 0, "submitted": 40, "approved": 58, "rejected": 6 },
-  "not_started": 0, "submitted": 104, "fillRate": 100,
-  "fullyPassed": 83, "fullyPassedRate": 80, "subjectPassRate": 91,
-  "overallPassRate": 80,
+  "round": { "round_id": 5, "academic_year": 2569, "attempt_number": 2, "status": "open",
+             "open_date": "...", "close_date": "...", "phase": "active" },
+  "total": 155, "eligible": 155, "canSubmit": 42,
+  "roundTotal": 42, "roundNotStarted": 13, "roundFillRate": 69, "alreadyPassed": 113,
+  "alreadyPassedStudentIds": ["6610210001"],
+  "by": { "draft": 0, "submitted": 14, "approved": 13, "rejected": 2 },
+  "not_started": 126, "submitted": 29, "fillRate": 19,
+  "confirmed": 13, "fullyPassed": 5, "fullyPassedRate": 3, "passRateOfSitters": 38,
+  "subjectPassRate": 91,
   "perSubject": [{ "subject_id": 1, "subject_code": "NUR01", "subject_name": "...",
                    "pass": 90, "fail": 14, "rate": 87 }]
 }}
 ```
 
+(ตัวอย่างนี้คือรอบ 2 ของรุ่นที่มี 113 คนผ่านครบจากรอบ 1 แล้ว)
+
 กติกาการนับ:
 - ไม่ส่ง `round_id` → เอารอบที่ `status: "open"` ก่อน ถ้าไม่มีค่อยเป็นรอบล่าสุด
-- `total` = นักศึกษาทั้งรุ่นที่ `academic_year` ตรงกับรอบ
-- `eligible` = เฉพาะคนที่ `exam_eligible: true` — คนที่กรอกได้จริง **ใช้เป็นตัวหารของ `fillRate`**
-- **สถิติทุกตัวนับเฉพาะนักศึกษาที่ `exam_eligible: true`** → `by.* + not_started` รวมได้เท่า `eligible` เสมอ
-- `not_started` = `eligible` − จำนวน exam_result ในรอบ (ของคนที่มีสิทธิ์)
+- **ฐานของสถิติ "ผ่าน" ทุกตัว = นักศึกษาทั้งรุ่น** (`total`) และนับเฉพาะใบที่เจ้าหน้าที่ยืนยันแล้ว (`confirmed`) — สูตรที่คณะส่งสภาการพยาบาล
+- **ฐานของ "ความคืบหน้าการกรอก" รายรอบ = คนของรอบนี้** (`roundTotal`) = คนที่กรอกได้ในรอบนี้ (เปิดสิทธิ์ + ยังผ่านวิชาของรอบไม่ครบ) รวมคนที่มีใบในรอบนี้อยู่แล้ว (แม้ถูกถอนสิทธิ์ทีหลัง) · `by.approved + by.submitted + by.rejected + by.draft + roundNotStarted = roundTotal` เสมอ
+- `roundFillRate` = `submitted / roundTotal` (%) · `fillRate` = `submitted / total` (ฐานทั้งรุ่น เก็บไว้ให้ที่ที่อ้างฐานเดิม)
+- `alreadyPassed` = จำนวนคนที่ผ่านครบทุกวิชาของรอบนี้ไปแล้วตั้งแต่รอบก่อน (ไม่ต้องกรอก ไม่อยู่ใน `roundTotal`) · `alreadyPassedStudentIds` = รหัสรายคนของกลุ่มนี้ — **ผู้บริหาร (executive) จะไม่ได้ field นี้** (ได้เฉพาะ officer) เพราะผู้บริหารไม่เห็นข้อมูลรายบุคคล
+- `canSubmit` = เปิดสิทธิ์ + ยังผ่านวิชาของรอบไม่ครบ (ไม่นับคนที่ถูกถอนสิทธิ์หลังส่งผล จึงอาจน้อยกว่า `roundTotal`)
+- `not_started` = `total − จำนวนใบในรอบ` (ฐานทั้งรุ่น) · `roundNotStarted` = ฐานคนของรอบ
 - `by.submitted` = ส่งแล้วแต่ยังไม่ตรวจ (`staff_status: pending`)
-- `perSubject` / `fullyPassed` นับเฉพาะคนที่ `student_status !== "draft"` และ**เฉพาะวิชาของรอบนั้น**
+- `perSubject` / `fullyPassed` นับเฉพาะใบที่ยืนยันแล้ว และ**เฉพาะวิชาของรอบนั้น**
 - `perSubject[].rate` นับเฉพาะคนที่**สอบวิชานั้นจริง** (`carried_forward: false`) — ถ้าไม่มีใครสอบเลยจะเป็น `null` ไม่ใช่ `0` (หน้าเว็บแสดง `—`)
-- `fullyPassed` **ไม่**ตัด carry-forward ออก — ผ่านวิชานั้นตั้งแต่รอบก่อนก็นับว่าผ่านครบ
-- `fullyPassedRate` = % คนที่ผ่านครบทุกวิชา (รายคน) — `subjectPassRate` = % ผลรายวิชาที่ผ่าน (รายวิชา) คนละตัวกัน
-- `overallPassRate` = ค่าเดียวกับ `fullyPassedRate` เก็บชื่อเดิมไว้ไม่ให้หน้าเก่าพัง
+- `fullyPassedRate` = % ผ่านครบเทียบทั้งรุ่น · `passRateOfSitters` = % ผ่านครบเทียบเฉพาะคนที่ยืนยันแล้ว (`confirmed`) · `subjectPassRate` = % ผลรายวิชาที่ผ่าน
+- รอบที่ไม่มีวิชาเลย: ไม่นับใครเป็น "ผ่านครบ"
+- `overallPassRate` ถูกลบแล้ว (ใช้ `passRateOfSitters`)
 
 **shape ของ `/history`** — รวมทุกรอบในปีเข้าด้วยกัน นับเป็น**รายคน** (กรอกหลายรอบในปีเดียวนับครั้งเดียว):
 
