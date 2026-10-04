@@ -228,7 +228,8 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
   return (
     <div className="fade-up">
       <PageHead title={displayName}
-        crumb={<><a onClick={() => go('students')} style={{ cursor: 'pointer' }}>{tt('officer.detail.crumbList')}</a> <Icon name="chevR" size={13} /> {tt('officer.detail.crumbDetail')}</>}
+        // ลิงก์ "รายชื่อ" กลับไปหน้าที่เข้ามา (backTo) — ผู้ช่วยตรวจสอบไม่มีหน้า students ต้องกลับคิวตรวจสอบ
+        crumb={<><a onClick={() => go(backTo)} style={{ cursor: 'pointer' }}>{tt('officer.detail.crumbList')}</a> <Icon name="chevR" size={13} /> {tt('officer.detail.crumbDetail')}</>}
         sub={<span className="mono">{student.sid} · {tt('officer.detail.subInfo', { room: roomName(lang, displayRoom), year: displayYear })}
           {/* ชื่อ-สกุลภาษาอังกฤษ (students.first_name_en/last_name_en) ที่นักศึกษากรอกตอนตั้งโปรไฟล์ */}
           {studentFull?.first_name_en && <> · {studentFull.first_name_en} {studentFull.last_name_en}</>}
@@ -305,8 +306,6 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
               <button className="btn btn-danger btn-block" disabled={busy} onClick={() => setReject(true)}>
                 <Icon name="xCircle" size={17} /> {tt('officer.detail.rejectBtn')}</button>
             </div>}
-            {canReview && status === 'CONFIRMED' && <div style={{ marginTop: 14, padding: '11px 13px', background: 'var(--status-ok-bg)', borderRadius: 10, fontSize: 15, color: 'var(--status-ok-fg)', display: 'flex', gap: 8, alignItems: 'center' }}>
-              <Icon name="checkCircle" size={17} /> {tt('status.CONFIRMED')}</div>}
             {canEdit && status === 'CONFIRMED' && <button className="btn btn-ghost btn-block" style={{ marginTop: 10 }} disabled={busy} onClick={() => setRevokeOpen(true)}>
               <Icon name="xCircle" size={16} /> {tt('officer.detail.revokeBtn')}</button>}
             {status === 'DRAFT' && <div style={{ marginTop: 12, fontSize: 15, color: 'var(--ink-500)' }}>{tt('detailReal.notFilledYet')}</div>}
@@ -522,12 +521,11 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
             </div>
             {examResult && (
               <aside className="preview-split-side">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 14 }}>
                   <h4 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>{tt('officer.detail.previewSelfTitle')}</h4>
                   <span className="tnum chip" style={{ background: allPass ? 'var(--status-ok-bg)' : 'var(--ink-100)', color: allPass ? 'var(--status-ok-fg)' : 'var(--ink-900)', fontWeight: 700 }}>
                     {tt('officer.detail.passChip', { passed: passedCount, total: roundSubjectIds.length })}</span>
                 </div>
-                <p style={{ margin: '0 0 14px', fontSize: 14, color: 'var(--ink-500)' }}>{tt('officer.detail.previewSelfHint')}</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {subjects.filter(s => roundSubjectIds.includes(s.subject_id)).map(sub => {
                     const r = examResult.subject_results.find(x => x.subject_id === sub.subject_id);

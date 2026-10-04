@@ -117,7 +117,6 @@ export function CompleteProfile({ onDone }) {
                 </div>
                 <div>
                   <h2 style={{ margin: 0, fontSize: 21, fontWeight: 800, color: 'var(--ink-900)' }}>กรอกโปรไฟล์ครั้งแรก</h2>
-                  <p style={{ margin: '2px 0 0', color: 'var(--ink-500)', fontSize: 15 }}>เข้าใช้งานครั้งแรก — กรอกข้อมูลให้ครบก่อนเริ่มใช้ระบบ</p>
                 </div>
               </div>
 

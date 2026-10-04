@@ -323,7 +323,7 @@ const extendRoundDemo = {
     <MockFrame title="จัดการรอบการกรอก และรายวิชา">
       <div className="card" style={{ padding: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
         {done >= 4 ? <MockBadge tone="ok">เปิดรับอยู่</MockBadge> : <MockBadge tone="draft">ปิดรับ</MockBadge>}
-        <div style={{ flex: 1 }}><b>รอบที่ 1 / 2569</b><div style={{ fontSize: 12.5, color: 'var(--ink-500)' }}>กลุ่มเป้าหมาย: นักศึกษารุ่น 2569 · เปิดรับ 1 ก.ย. 2569 ปิดรับ {done >= 4 ? '30 ต.ค. 2569 23:59' : '20 ก.ย. 2569 23:59'}</div></div>
+        <div style={{ flex: 1 }}><b>รอบที่ 1 / 2569</b><div style={{ fontSize: 12.5, color: 'var(--ink-500)' }}>เปิดรับ 1 ก.ย. 2569 ปิดรับ {done >= 4 ? '30 ต.ค. 2569 23:59' : '20 ก.ย. 2569 23:59'}</div></div>
         <span data-demo="edit-round" style={{ padding: 7, color: 'var(--ink-600)' }}><Icon name="edit" size={17} /></span>
         <span style={{ padding: 7, color: 'var(--fail)' }}><Icon name="trash" size={17} /></span>
       </div>
@@ -587,7 +587,7 @@ const dashSubjectDemo = {
 /* ============ 14) ส่งออกรายชื่อระดับปี (ผ่าน/ไม่ผ่านครั้งแรก, ผ่าน/ไม่ผ่านภายในปีแรก) จากแผง "ส่งออกข้อมูล" ============ */
 const exportPanelDemo = {
   title: 'การส่งออกรายชื่อนักศึกษาที่สอบผ่าน / ไม่ผ่าน (ครั้งแรก และภายในปีแรก) ของปีการศึกษา',
-  height: 470,
+  height: 430,
   steps: [
     { target: 'pick-round', text: 'ที่เมนู "รายงานสรุป" เลือกปีการศึกษาที่ต้องการ (รายชื่อระดับปีเป็นของทั้งปี ไม่ผูกกับรอบที่เลือก)' },
     { target: 'exp-fail', text: 'ในแผง "ส่งออกข้อมูล" คลิก "ส่งออก" ที่แถว "รายชื่อนักศึกษาที่สอบไม่ผ่านภายในปีแรก" (แถวผ่าน/ไม่ผ่านครั้งแรก และผ่านภายในปีแรก ใช้วิธีเดียวกัน)' },
@@ -603,15 +603,14 @@ const exportPanelDemo = {
       <div className="card" style={{ padding: '10px 14px' }}>
         <div style={{ fontWeight: 800, fontSize: 15 }}>ส่งออกข้อมูล</div>
         {[
-          ['รายงานสรุปผลการสอบ รอบที่ 2/2569', 'ตัวเลขสรุปทั้งหมดของรอบนี้ + รายชื่อรายคน', false],
           ['รายชื่อนักศึกษาที่สอบผ่านครั้งแรก ปี 2569', 'ผ่านครบทุกวิชาตั้งแต่รอบที่ 1', false],
           ['รายชื่อนักศึกษาที่สอบไม่ผ่านครั้งแรก ปี 2569', 'รวมคนที่ยังไม่ส่งผลหรือถูกตีกลับ มีคอลัมน์บอกสาเหตุ', false],
           ['รายชื่อนักศึกษาที่สอบผ่านภายในปีแรก ปี 2569', 'ผ่านครบทุกวิชาในรอบใดรอบหนึ่งของปี (รวมรอบที่ 2 และ 3)', false],
           ['รายชื่อนักศึกษาที่สอบไม่ผ่านภายในปีแรก ปี 2569', 'ยังไม่ผ่านครบทุกวิชาภายในปีนั้น', true],
-          ['ข้อมูลนักศึกษาทั้งรุ่น 2569', 'ชื่อ ห้อง ติดต่อ สิทธิ์กรอก สถานะใบล่าสุด', false],
+          ['ข้อมูลนักศึกษาทั้งรุ่น 2569', '', false],
         ].map(([title, sub, target]) => (
           <div key={title} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderTop: '1px solid var(--ink-100)', position: 'relative' }}>
-            <div style={{ flex: 1 }}><b style={{ fontSize: 13.5 }}>{title}</b><div style={{ fontSize: 12, color: 'var(--ink-500)' }}>{sub}</div></div>
+            <div style={{ flex: 1 }}><b style={{ fontSize: 13.5 }}>{title}</b>{sub && <div style={{ fontSize: 12, color: 'var(--ink-500)' }}>{sub}</div>}</div>
             <span style={{ position: 'relative' }}>
               <Btn dm={target ? 'exp-fail' : undefined}><Icon name="download" size={13} /> ส่งออก ▾</Btn>
               {target && done === 2 && (

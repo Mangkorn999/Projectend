@@ -2,6 +2,8 @@
    นักศึกษา — กรอกผลสอบรายวิชา + แนบใบรายงานผลสอบ (ข้อมูลจริงจาก backend)
    แนบได้หลายไฟล์: PDF หรือรูปถ่าย (JPG, PNG) สูงสุด 5 ไฟล์ ไฟล์ละไม่เกิน 10 MB
    (ค่าตัวเลขอยู่ใน evidenceFiles.js ที่เดียว)
+   แต่ละไฟล์ที่แนบเลือกประเภทเอกสารได้ 2 แบบ: ใบรายงานผลสอบ (exam_result — ค่าเริ่มต้น) / ใบประกอบวิชาชีพ (license)
+   ตรงกับที่ backend รับใน certificate_type (certificates.controller.js)
 
    เงื่อนไขที่กรอกได้: มีรอบของรุ่นตัวเองเปิดรับอยู่ (GET /rounds/active) + เจ้าหน้าที่เปิดสิทธิ์ให้แล้ว
    ข้อยกเว้น: ใบที่ถูกตีกลับ แก้และส่งใหม่ได้แม้รอบปิดไปแล้ว — backend บอกมาทาง can_fix_rejected: true
@@ -13,13 +15,17 @@
    ============================================================ */
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, Donut, Loading } from './components.jsx';
+import { PageHead, Donut, Loading, Select } from './components.jsx';
 import { apiFetch, ApiError } from './api.js';
 import { t, subjectName } from './i18n.js';
 import {
   MAX_EVIDENCE_FILES, MAX_FILE_SIZE_MB, EVIDENCE_ACCEPT,
   certificateTypeLabel, fileKindOf, fileKindLabel, fileKindIcon, fileSizeText,
 } from './evidenceFiles.js';
+
+// ประเภทเอกสารที่เลือกได้ตอนแนบไฟล์ — ค่า (value) ต้องตรงกับที่ backend รับเป๊ะ
+const TYPE_EXAM_RESULT = 'exam_result'; // ใบรายงานผลสอบ (ค่าเริ่มต้น)
+const TYPE_LICENSE = 'license';         // ใบประกอบวิชาชีพ
 
 export function ExamFormReal({ go, toast, lang }) {
   const tt = (key, vars) => t(lang, key, vars);
@@ -34,7 +40,8 @@ export function ExamFormReal({ go, toast, lang }) {
   // ไฟล์หลักฐานแบ่งเป็น 3 กลุ่ม
   const [keptFiles, setKeptFiles] = useState([]);       // ไฟล์เดิมของใบนี้ที่ยังเก็บไว้ (ข้อมูลจาก backend)
   const [removedFiles, setRemovedFiles] = useState([]); // ไฟล์เดิมที่กด "นำออก" — ลบจริงตอนกดส่ง
-  const [newFiles, setNewFiles] = useState([]);         // ไฟล์ที่เพิ่งเลือกจากเครื่อง — อัปโหลดตอนกดส่ง
+  // ไฟล์ที่เพิ่งเลือกจากเครื่อง — อัปโหลดตอนกดส่ง · แต่ละรายการ = { file: ไฟล์, type: ประเภทเอกสาร }
+  const [newFiles, setNewFiles] = useState([]);
   const [fileErrors, setFileErrors] = useState([]);     // ไฟล์ที่แนบไม่ได้ พร้อมเหตุผล (ทีละไฟล์)
 
   const [loading, setLoading] = useState(true);
@@ -204,7 +211,6 @@ export function ExamFormReal({ go, toast, lang }) {
     }
   }
   const allAnswered = filledCount === toAnswer.length;
-  const allPass = toAnswer.length > 0 && passCount === toAnswer.length;
 
   const totalFiles = keptFiles.length + newFiles.length;
   const hasAttachment = totalFiles > 0;
@@ -241,14 +247,28 @@ export function ExamFormReal({ go, toast, lang }) {
       }
     }
     const nextNewFiles = [];
-    for (const file of newFiles) {
-      nextNewFiles.push(file);
+    for (const item of newFiles) {
+      nextNewFiles.push(item);
     }
     for (const file of accepted) {
-      nextNewFiles.push(file);
+      // ไฟล์ใหม่ทุกไฟล์เริ่มที่ "ใบรายงานผลสอบ" ผู้ใช้เปลี่ยนเองได้ที่แถวของไฟล์
+      nextNewFiles.push({ file: file, type: TYPE_EXAM_RESULT });
     }
     setNewFiles(nextNewFiles);
     setFileErrors(problems);
+  };
+
+  // เปลี่ยนประเภทเอกสารของไฟล์ใหม่ไฟล์ที่ indexToChange
+  const changeNewFileType = (indexToChange, nextType) => {
+    const updated = [];
+    for (let i = 0; i < newFiles.length; i++) {
+      if (i === indexToChange) {
+        updated.push({ file: newFiles[i].file, type: nextType });
+      } else {
+        updated.push(newFiles[i]);
+      }
+    }
+    setNewFiles(updated);
   };
 
   // นำไฟล์ใหม่ (ยังไม่ได้อัปโหลด) ออก — แค่เอาออกจากรายการ ไม่ต้องบอก backend
@@ -311,10 +331,11 @@ export function ExamFormReal({ go, toast, lang }) {
   const uploadNewFiles = async (resultId) => {
     const waiting = [...newFiles];
     while (waiting.length > 0) {
-      const file = waiting[0];
+      const item = waiting[0];
+      const file = item.file;
       const form = new FormData();
       form.append('file', file);
-      form.append('certificate_type', 'exam_result');
+      form.append('certificate_type', item.type); // ประเภทที่ผู้ใช้เลือกไว้ของไฟล์นี้
       try {
         await apiFetch(`/exam-results/${resultId}/certificates`, { method: 'POST', body: form });
       } catch (e) {
@@ -489,7 +510,6 @@ export function ExamFormReal({ go, toast, lang }) {
           {/* ── แนบเอกสารหลักฐาน ── */}
           <div className="card card-pad">
             <h3 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 800 }}>{tt('examform.attachTitle')}</h3>
-            <p style={{ margin: '0 0 4px', color: 'var(--ink-600)', fontSize: 15 }}>{allPass ? tt('upload.allPassNote') : tt('upload.partialNote')}</p>
             <p style={{ margin: '0 0 14px', color: 'var(--ink-500)', fontSize: 14.5 }}>
               {tt('examform.attachHint', { max: MAX_EVIDENCE_FILES, size: MAX_FILE_SIZE_MB })}
             </p>
@@ -504,12 +524,23 @@ export function ExamFormReal({ go, toast, lang }) {
                     onRemove={() => removeKeptFile(certificate)} />
                 );
               })}
-              {newFiles.map((file, index) => {
+              {newFiles.map((item, index) => {
+                const file = item.file;
                 const kind = fileKindOf(file.type, file.name);
                 const detail = fileKindLabel(tt, kind) + ' · ' + fileSizeText(file.size) + ' · ' + tt('examform.newFileTag');
+                // เลือกประเภทเอกสารของไฟล์นี้ — อยู่ใต้ชื่อไฟล์ ไม่ดันปุ่ม "นำออก" บนจอมือถือ
+                const typeControl = (
+                  <Select className="input" value={item.type} onChange={(v) => changeNewFileType(index, v)} lang={lang}
+                    disabled={submitting} ariaLabel={tt('examform.docTypeLabel')}
+                    style={{ width: 'auto', maxWidth: '100%', padding: '4px 28px 4px 10px', fontSize: 14, marginTop: 6 }}
+                    options={[
+                      { value: TYPE_EXAM_RESULT, label: tt('evidence.typeExamResult') },
+                      { value: TYPE_LICENSE, label: tt('evidence.typeLicense') },
+                    ]} />
+                );
                 return (
                   <EvidenceRow key={'new-' + index + '-' + file.name} name={file.name} kind={kind} isNew
-                    detail={detail} removeLabel={tt('examform.removeFileBtn')} disabled={submitting}
+                    detail={detail} typeControl={typeControl} removeLabel={tt('examform.removeFileBtn')} disabled={submitting}
                     onRemove={() => removeNewFile(index)} />
                 );
               })}
@@ -564,14 +595,9 @@ export function ExamFormReal({ go, toast, lang }) {
                 { value: toAnswer.length - filledCount, color: 'var(--ink-200)' },
               ]} center={<><div className="tnum" style={{ fontSize: 28, fontWeight: 800 }}>{filledCount}/{toAnswer.length}</div><div style={{ fontSize: 13.5, color: 'var(--ink-500)' }}>{tt('progress.filled')}</div></>} />
             </div>
-            <div style={{ textAlign: 'center', fontSize: 14, color: 'var(--ink-500)' }}>
-              {tt('examform.filesCount', { n: totalFiles, max: MAX_EVIDENCE_FILES })}
-            </div>
             {submitError && <div role="alert" style={{ color: 'var(--reject,#dc2626)', fontSize: 15, marginTop: 10, lineHeight: 1.55 }}>{submitError}</div>}
-            {/* ต้องแนบใบรายงานผลสอบอย่างน้อย 1 ไฟล์ทุกครั้ง (ทั้งผ่านครบและยังไม่ผ่าน) */}
-            {allAnswered && !hasAttachment && !submitting && (
-              <div style={{ color: 'var(--reject,#dc2626)', fontSize: 14, marginTop: 10 }}>{tt('examform.needAttachMsg')}</div>
-            )}
+            {/* ต้องแนบไฟล์อย่างน้อย 1 ไฟล์ทุกครั้ง (ทั้งผ่านครบและยังไม่ผ่าน) — ปุ่มส่งกดไม่ได้จนกว่าจะแนบ
+                และกล่องในการ์ดแนบเอกสารบอกอยู่แล้วว่ายังไม่ได้แนบ (examform.noFilesYet) */}
             <button type="button" className="btn btn-primary btn-block btn-lg" style={{ marginTop: 14 }}
               disabled={!allAnswered || !hasAttachment || totalFiles > MAX_EVIDENCE_FILES || submitting} onClick={submit}>
               {submitLabel} <Icon name="send" size={16} />
@@ -583,9 +609,9 @@ export function ExamFormReal({ go, toast, lang }) {
   );
 }
 
-/* แถวไฟล์ 1 ไฟล์: ไอคอนตามชนิด + ชื่อไฟล์ + รายละเอียด + ปุ่มนำออก
+/* แถวไฟล์ 1 ไฟล์: ไอคอนตามชนิด + ชื่อไฟล์ + รายละเอียด + (ตัวเลือกประเภทเอกสาร ถ้ามี) + ปุ่มนำออก
    ชื่อไฟล์ยาวตัดด้วย … (minWidth: 0) ไม่ดันปุ่มนำออกให้ล้นจอบนมือถือ */
-function EvidenceRow({ name, kind, detail, isNew, removeLabel, disabled, onRemove }) {
+function EvidenceRow({ name, kind, detail, typeControl, isNew, removeLabel, disabled, onRemove }) {
   const isImage = kind === 'jpg' || kind === 'png';
   return (
     <div className={'evidence-row' + (isNew ? ' is-new' : '')}>
@@ -596,6 +622,7 @@ function EvidenceRow({ name, kind, detail, isNew, removeLabel, disabled, onRemov
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 15.5, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
         <div style={{ fontSize: 13.5, color: 'var(--ink-500)' }}>{detail}</div>
+        {typeControl}
       </div>
       <button type="button" className="btn btn-ghost btn-sm" style={{ flex: 'none' }} disabled={disabled} onClick={onRemove}>
         <Icon name="x" size={14} /> {removeLabel}

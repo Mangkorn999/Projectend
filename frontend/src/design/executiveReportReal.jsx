@@ -101,8 +101,9 @@ export function ExecutiveReport({ toast, lang }) {
 
         {/* ตัวเลข "ผ่าน" ทุกตัวนับเฉพาะใบที่ยืนยันแล้ว — ถ้ายังมีใบรอตรวจ บอกจำนวนไว้ในรายงานเลย */}
         <div style={{ margin: '14px 0 0', fontSize: 14, color: 'var(--ink-500)' }}>
-          {tt('dashReal.confirmedOnlyNote')}
-          {pending > 0 && <b style={{ color: 'var(--status-wait-fg)' }}> · {tt('dashReal.pendingNotice', { n: pending })}</b>}
+          {pending > 0
+            ? <b style={{ color: 'var(--status-wait-fg)' }}>{tt('dashReal.pendingNotice', { n: pending })}</b>
+            : tt('dashReal.confirmedOnlyNote')}
         </div>
 
         {/* 1. ตัวเลขหลัก — 2 ตัวที่คณะส่งสภาการพยาบาล ตัวหารคือนักศึกษาทั้งรุ่น */}

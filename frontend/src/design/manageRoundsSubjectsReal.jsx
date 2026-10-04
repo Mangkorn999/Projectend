@@ -49,6 +49,8 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
   // รายวิชาที่กำลังจะลบ — เดิมกดปุ่มถังขยะแล้วลบทันทีไม่ถามอะไรเลย พลาดคลิกทีเดียวหายทั้งวิชา
   // (ลบรอบถามอยู่แล้ว ตรงนี้ขาดไป) วิชาถูกใช้ในรอบ/ผลสอบเก่า ลบผิดกระทบย้อนหลังทั้งระบบ
   const [deleteSubjectTarget, setDeleteSubjectTarget] = useState(null);
+  // กำลังรอ API (บันทึก/ลบ) — ปุ่มบันทึกและปุ่มลบกดซ้ำไม่ได้ ไม่งั้นกดรัวแล้วสร้างรอบ/วิชาซ้ำหรือลบซ้ำ
+  const [saving, setSaving] = useState(false);
   const [cohorts, setCohorts] = useState([]); // [{ year, count }] รุ่นนักศึกษาที่มีจริงในระบบ
   // กรองรายการรอบ — 'open' = เฉพาะรอบที่ยังเปิดรับ, 'all' = ทุกรอบ, หรือเลือกปีเจาะจง
   const [yearFilter, setYearFilter] = useState('open');
@@ -67,6 +69,8 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
   }, []);
 
   const saveRound = async (form) => {
+    if (saving) return; // กันกดซ้ำระหว่างรอ API
+    setSaving(true);
     try {
       if (roundModal === 'new') {
         await apiFetch('/rounds', { method: 'POST', body: form });
@@ -87,21 +91,29 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
       loadRounds();
     } catch (e) {
       toast(e instanceof ApiError ? e.message : tt('roundsMgmt.saveFailMsg'), 'error');
+    } finally {
+      setSaving(false);
     }
   };
 
   const confirmDeleteRound = async () => {
+    if (saving) return;
+    setSaving(true);
     try {
       await apiFetch(`/rounds/${deleteRound.round_id}`, { method: 'DELETE' });
-      toast('ลบรอบแล้ว', 'info');
+      toast(tt('roundsMgmt.deleteRoundDoneToast'), 'info');
       setDeleteRound(null);
       loadRounds();
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'ลบไม่สำเร็จ', 'error');
+      toast(e instanceof ApiError ? e.message : tt('roundsMgmt.deleteFailMsg'), 'error');
+    } finally {
+      setSaving(false);
     }
   };
 
   const saveSubject = async (form) => {
+    if (saving) return;
+    setSaving(true);
     try {
       if (subjectModal?.subject_id) {
         await apiFetch(`/subjects/${subjectModal.subject_id}`, { method: 'PUT', body: form });
@@ -113,10 +125,14 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
       loadSubs();
     } catch (e) {
       toast(e instanceof ApiError ? e.message : tt('roundsMgmt.saveFailMsg'), 'error');
+    } finally {
+      setSaving(false);
     }
   };
 
   const deleteSubject = async (s) => {
+    if (saving) return;
+    setSaving(true);
     try {
       await apiFetch(`/subjects/${s.subject_id}`, { method: 'DELETE' });
       toast(tt('roundsMgmt.subjectDeletedToast'), 'info');
@@ -124,6 +140,8 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
       loadSubs();
     } catch (e) {
       toast(e instanceof ApiError ? e.message : tt('roundsMgmt.deleteFailMsg'), 'error');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -151,7 +169,6 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
   return (
     <div className="fade-up">
       <PageHead title={tt('roundsMgmt.title')}
-        sub={tab === 'rounds' ? tt('roundsMgmt.roundsSub') : tt('roundsMgmt.subjectsSub')}
         actions={tab === 'rounds'
           ? <button className="btn btn-primary" onClick={() => setRoundModal('new')}><Icon name="plus" size={17} /> {tt('roundsMgmt.newRoundBtn')}</button>
           : <button className="btn btn-primary" onClick={() => setSubjectModal({})}><Icon name="plus" size={17} /> {tt('roundsMgmt.addSubjectBtn')}</button>} />
@@ -189,7 +206,6 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
                 </div>
               </div>
               <div style={{ fontSize: 20, fontWeight: 800 }}>{tt('roundsMgmt.roundLine', { attempt: r.attempt_number, year: r.academic_year })}</div>
-              <div style={{ fontSize: 14.5, color: 'var(--ink-500)', marginTop: 4 }}>{tt('roundsMgmt.targetLine', { year: r.academic_year })}</div>
               {r.creator && <div style={{ fontSize: 14, color: 'var(--ink-500)', marginTop: 2 }}>{tt('roundsMgmt.createdBy', { name: actorLabel(r.creator, tt) })}</div>}
               {/* แก้ล่าสุดโดยใคร เมื่อไหร่ (submission_rounds.updated_by / updated_at) — ยังไม่เคยแก้ก็ไม่โชว์ */}
               {r.updater && <div style={{ fontSize: 14, color: 'var(--ink-500)', marginTop: 2 }}>{tt('roundsMgmt.updatedBy', { name: actorLabel(r.updater, tt), date: new Date(r.updated_at).toLocaleDateString('th-TH') })}</div>}
@@ -249,17 +265,17 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
       <Modal open={!!deleteSubjectTarget} onClose={() => setDeleteSubjectTarget(null)} title={tt('roundsMgmt.deleteSubjectTitle')} width={440} tone="danger"
         footer={<><button className="btn btn-ghost" onClick={() => setDeleteSubjectTarget(null)}>{tt('roundsMgmt.cancelBtn')}</button>
           <button className="btn btn-primary" style={{ background: 'var(--fail)', borderColor: 'var(--fail)' }}
-            onClick={() => deleteSubject(deleteSubjectTarget)}>{tt('roundsMgmt.deleteSubjectBtn')}</button></>}>
+            disabled={saving} onClick={() => deleteSubject(deleteSubjectTarget)}>{tt('roundsMgmt.deleteSubjectBtn')}</button></>}>
         <p style={{ margin: 0, fontSize: 16, lineHeight: 1.7 }}>
           {tt('roundsMgmt.deleteSubjectBody', { code: deleteSubjectTarget?.subject_code, name: deleteSubjectTarget?.subject_name })}
         </p>
         <p style={{ margin: '10px 0 0', fontSize: 14.5, color: 'var(--ink-500)' }}>{tt('roundsMgmt.deleteSubjectNote')}</p>
       </Modal>
 
-      <RoundModal round={roundModal} allSubjects={subs} cohorts={cohorts} onClose={() => setRoundModal(null)} onSave={saveRound} tt={tt} lang={lang} />
+      <RoundModal round={roundModal} allSubjects={subs} cohorts={cohorts} onClose={() => setRoundModal(null)} onSave={saveRound} saving={saving} tt={tt} lang={lang} />
       <Modal open={!!deleteRound} onClose={() => setDeleteRound(null)} title={tt('roundsMgmt.deleteRoundTitle')} width={440} tone="danger"
         footer={<><button className="btn btn-ghost" onClick={() => setDeleteRound(null)}>{tt('roundsMgmt.cancelBtn')}</button>
-          <button className="btn btn-danger" onClick={confirmDeleteRound}><Icon name="trash" size={16} /> {tt('roundsMgmt.deleteRoundBtn')}</button></>}>
+          <button className="btn btn-danger" disabled={saving} onClick={confirmDeleteRound}><Icon name="trash" size={16} /> {tt('roundsMgmt.deleteRoundBtn')}</button></>}>
         <div style={{ fontSize: 16, lineHeight: 1.7 }}>
           {tt('roundsMgmt.deleteRoundBodyPre')} <b>{tt('roundsMgmt.roundLine', { attempt: deleteRound?.attempt_number, year: deleteRound?.academic_year })}</b> {tt('roundsMgmt.deleteRoundBodyPost')}<br />
           <span style={{ color: 'var(--ink-500)', fontSize: 15 }}>
@@ -267,12 +283,12 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
           </span>
         </div>
       </Modal>
-      <SubjectModal subject={subjectModal} onClose={() => setSubjectModal(null)} onSave={saveSubject} tt={tt} />
+      <SubjectModal subject={subjectModal} onClose={() => setSubjectModal(null)} onSave={saveSubject} saving={saving} tt={tt} />
     </div>
   );
 }
 
-function RoundModal({ round, allSubjects, cohorts, onClose, onSave, tt, lang }) {
+function RoundModal({ round, allSubjects, cohorts, onClose, onSave, saving, tt, lang }) {
   const isNew = round === 'new';
   const r = isNew ? {} : (round || {});
   const [academicYear, setAcademicYear] = useState('');
@@ -309,7 +325,7 @@ function RoundModal({ round, allSubjects, cohorts, onClose, onSave, tt, lang }) 
   return (
     <Modal open={!!round} onClose={onClose} width={580} title={isNew ? tt('roundsMgmt.newRoundModalTitle') : tt('roundsMgmt.editRoundModalTitle', { attempt: r.attempt_number, year: r.academic_year })}
       footer={<><button className="btn btn-ghost" onClick={onClose}>{tt('roundsMgmt.cancelBtn')}</button>
-        <button className="btn btn-primary" disabled={!isValid}
+        <button className="btn btn-primary" disabled={!isValid || saving}
           onClick={() => onSave({
             academic_year: academicYear, attempt_number: attemptNumber,
             // ส่งเป็น "YYYY-MM-DDTHH:mm" ตรงๆ — backend ตีความเป็นเวลาไทยให้เอง
@@ -336,13 +352,13 @@ function RoundModal({ round, allSubjects, cohorts, onClose, onSave, tt, lang }) 
                   { value: '__custom', label: tt('roundsMgmt.cohortCustomOpt') },
                 ]} />
             )}
-            <span className="hint">
-              {customYear && cohorts.length > 0
-                ? <>{tt('roundsMgmt.cohortManualHint')} <button type="button" onClick={() => { setCustomYear(false); setAcademicYear(''); }}
-                    style={{ border: 'none', background: 'none', padding: 0, color: 'var(--navy-600)', cursor: 'pointer', font: 'inherit', textDecoration: 'underline' }}>
-                    {tt('roundsMgmt.cohortBackToList')}</button></>
-                : tt('roundsMgmt.cohortHint')}
-            </span>
+            {customYear && cohorts.length > 0 && (
+              <span className="hint">
+                {tt('roundsMgmt.cohortManualHint')} <button type="button" onClick={() => { setCustomYear(false); setAcademicYear(''); }}
+                  style={{ border: 'none', background: 'none', padding: 0, color: 'var(--navy-600)', cursor: 'pointer', font: 'inherit', textDecoration: 'underline' }}>
+                  {tt('roundsMgmt.cohortBackToList')}</button>
+              </span>
+            )}
           </div>
           <div className="field"><label>{tt('roundsMgmt.fieldAttempt')}</label><input className="input tnum" type="number" value={attemptNumber} onChange={e => setAttemptNumber(e.target.value)} placeholder="1" /></div>
         </div>
@@ -384,7 +400,6 @@ function RoundModal({ round, allSubjects, cohorts, onClose, onSave, tt, lang }) 
         {String(academicYear).length === 4 &&
           <CohortPreview year={Number(academicYear)} cohorts={cohorts} tt={tt} />}
 
-        {!isValid && <div style={{ fontSize: 14.5, color: 'var(--ink-500)' }}>{tt('roundsMgmt.fillAllNote')}</div>}
       </div>
     </Modal>
   );
@@ -407,22 +422,24 @@ function CohortPreview({ year, cohorts, tt }) {
         <div style={{ fontWeight: 700 }}>
           {ok ? tt('roundsMgmt.previewOk', { year, count }) : tt('roundsMgmt.previewEmpty', { year })}
         </div>
-        <div style={{ fontSize: 14, marginTop: 2, opacity: .85 }}>
-          {ok ? tt('roundsMgmt.previewOkHint') : tt('roundsMgmt.previewEmptyHint')}
-        </div>
+        {!ok && (
+          <div style={{ fontSize: 14, marginTop: 2, opacity: .85 }}>
+            {tt('roundsMgmt.previewEmptyHint')}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function SubjectModal({ subject, onClose, onSave, tt }) {
+function SubjectModal({ subject, onClose, onSave, saving, tt }) {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   useEffect(() => { setCode(subject?.subject_code || ''); setName(subject?.subject_name || ''); }, [subject]);
   return (
     <Modal open={!!subject} onClose={onClose} title={subject?.subject_id ? tt('roundsMgmt.editSubjectTitle') : tt('roundsMgmt.addSubjectTitle')} width={440}
       footer={<><button className="btn btn-ghost" onClick={onClose}>{tt('roundsMgmt.cancelBtn')}</button>
-        <button className="btn btn-primary" onClick={() => onSave({ subject_code: code, subject_name: name })}>{tt('roundsMgmt.saveBtn')}</button></>}>
+        <button className="btn btn-primary" disabled={saving} onClick={() => onSave({ subject_code: code, subject_name: name })}>{tt('roundsMgmt.saveBtn')}</button></>}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div className="field"><label>{tt('roundsMgmt.fieldSubjectCode')}</label><input className="input" value={code} onChange={e => setCode(e.target.value)} placeholder={tt('roundsMgmt.subjectCodePh')} /></div>
         <div className="field"><label>{tt('roundsMgmt.fieldSubjectName')}</label><input className="input" value={name} onChange={e => setName(e.target.value)} placeholder={tt('roundsMgmt.subjectNamePh')} /></div>

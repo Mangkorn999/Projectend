@@ -23,7 +23,6 @@ const footerNote_EN = '© 2026 Faculty of Nursing, Prince of Songkla University'
 const CONTACT_EMAIL = import.meta.env.VITE_CONTACT_EMAIL || '';
 const CONTACT_URL = import.meta.env.VITE_CONTACT_URL || '';
 const signinTitle_EN = 'Sign In';
-const signinSub_EN = 'Enter your username and password to sign in';
 const usernameLabel_EN = 'Username / Student ID';
 const passwordLabel_EN = 'Password';
 const loggingIn_EN = 'Signing in…';
@@ -160,10 +159,7 @@ export function Login({ onLogin }) {
         <div className="lg-form-in" style={{ width:'100%', maxWidth:404, position:'relative', zIndex:1 }}>
           <div className="only-mobile" style={{ marginBottom:24, justifyContent:'center' }}><Logo size={44} /></div>
 
-          <h2 style={{ margin:'0 0 6px', fontSize:26, fontWeight:800, color:'var(--ink-900)' }}>{isEN?signinTitle_EN:'เข้าสู่ระบบ'}</h2>
-          <p style={{ margin:'0 0 20px', color:'var(--ink-500)', fontSize:16.5 }}>
-            {isEN?signinSub_EN:'กรอกรหัสผู้ใช้และรหัสผ่านเพื่อเข้าสู่ระบบ'}
-          </p>
+          <h2 style={{ margin:'0 0 20px', fontSize:26, fontWeight:800, color:'var(--ink-900)' }}>{isEN?signinTitle_EN:'เข้าสู่ระบบ'}</h2>
 
           <div className="field" style={{ marginBottom:12 }}>
             <label>{isEN?usernameLabel_EN:'รหัสผู้ใช้ (รหัสนักศึกษา / Username)'}</label>

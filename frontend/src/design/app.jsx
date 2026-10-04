@@ -462,7 +462,7 @@ export function App() {
     if(role==='officer'){
       if(page==='dashboard') return <DashboardReal go={go} lang={lang} setStudentsFilter={setStudentsFilter} toast={showToast}
         restoreView={dashboardRestore} onRestoreConsumed={() => setDashboardRestore(null)} />;
-      if(page==='review') return <OfficerReviewReal go={go} setSel={setSel} setDetailFrom={setDetailFrom} lang={lang}
+      if(page==='review') return <OfficerReviewReal go={go} setSel={setSel} setDetailFrom={setDetailFrom} lang={lang} role={role}
         restoreView={reviewRestore} onLeave={setReviewRestore} onRestoreConsumed={() => setReviewRestore(null)} />;
       if(page==='students') return <OfficerStudentsReal go={go} setSel={setSel} setDetailFrom={setDetailFrom} toast={showToast} lang={lang}
         initialFilter={studentsFilter} onInitialFilterConsumed={() => setStudentsFilter(null)}
@@ -482,7 +482,7 @@ export function App() {
     }
     // เจ้าหน้าที่ตรวจสอบ — reuse component เดิมของ officer ทั้งคู่ ไม่มีของใหม่ แค่ไม่มี canEdit
     if(role==='reviewer'){
-      if(page==='review') return <OfficerReviewReal go={go} setSel={setSel} setDetailFrom={setDetailFrom} lang={lang}
+      if(page==='review') return <OfficerReviewReal go={go} setSel={setSel} setDetailFrom={setDetailFrom} lang={lang} role={role}
         restoreView={reviewRestore} onLeave={setReviewRestore} onRestoreConsumed={() => setReviewRestore(null)} />;
       if(page==='detail') return <StudentDetailReal student={sel} go={go} backTo={detailFrom} toast={showToast} canEdit={false} canReview lang={lang} />;
     }

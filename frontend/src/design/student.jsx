@@ -185,15 +185,6 @@ export function FormIntro({ go, lang='TH' }) {
             <h3 style={{ margin:'0 0 8px', fontSize:20, fontWeight:800 }}>{fixingRejected ? tt('formintro.fixTitle') : tt('formintro.cardTitle')}</h3>
             <p style={{ margin:'0 0 24px', color:'var(--ink-500)', fontSize:16, lineHeight:1.6 }}>
               {fixingRejected ? tt('formintro.fixSub') : tt('formintro.cardSub', { n: round.subjects?.length ?? 8 })}</p>
-            <div style={{ display:'flex', flexDirection:'column', gap:10, textAlign:'left', marginBottom:26 }}>
-              {[1,2,3].map(i=>(
-                <div key={i} style={{ display:'flex', alignItems:'center', gap:11, fontSize:15.5, color:'var(--ink-900)' }}>
-                  <span style={{ width:24, height:24, borderRadius:'50%', background:'var(--ink-100)', color:'var(--ink-600)',
-                    display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:700, flex:'none' }}>{i}</span>
-                  {tt('examform.steps.'+i)}
-                </div>
-              ))}
-            </div>
             <button className="btn btn-primary btn-lg" style={{ width:'100%', justifyContent:'center' }} onClick={()=>go('form')}>
               {fixingRejected ? tt('news.editBtn') : tt('news.startBtn')} <Icon name="arrowR" size={17}/></button>
           </>

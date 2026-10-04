@@ -2,11 +2,12 @@
    รายงานสรุปผลสอบ (officer + executive) — ข้อมูลจริงจาก backend
    แทนที่ Reports เดิมใน executive.jsx ที่ใช้ mock STUDENTS + ปุ่ม export ปลอม
    ใช้ GET /api/dashboard/stats ตัวเดียวกับหน้า Dashboard (เนื้อหารายงานตรงกับที่เห็นบนจอเสมอ)
-   ปุ่ม PDF ยิง GET /api/dashboard/export จริง (officer เท่านั้น — backend บังคับ) ได้ไฟล์ PDF จริงกลับมาโหลด
+   ปุ่ม "ดาวน์โหลด PDF" แคปกล่องรายงานบนจอเป็นไฟล์ PDF ฝั่งเบราว์เซอร์ (exportReportPdf.js) ไม่เรียก backend — ผู้บริหารก็โหลดได้
+   ส่วนไฟล์รายชื่อ/ข้อมูลนักศึกษาในแผง "ส่งออกข้อมูล" (officer เท่านั้น) เรียก endpoint ของ backend แล้วได้ไฟล์ Excel/PDF กลับมา
    ============================================================ */
 import { useState, useEffect, useRef } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, StatusBadge, FirstAttemptSubjectTable, Select, ExportMenu, Loading } from './components.jsx';
+import { PageHead, StatusBadge, FirstAttemptSubjectTable, Select, ExportMenu, Loading, Empty } from './components.jsx';
 import { Logo } from './logos.jsx';
 import { apiFetch, downloadFile } from './api.js';
 import { saveElementAsPdf } from './exportReportPdf.js';
@@ -28,6 +29,7 @@ export function ReportsReal({ toast, readonly, lang }) {
   const [rounds, setRounds] = useState([]);
   const [year, setYear] = useState(null);
   const [roundId, setRoundId] = useState(null); // รอบที่รายงานนี้แสดง = รอบที่จะ export
+  const [roundsLoaded, setRoundsLoaded] = useState(false); // โหลดรายการรอบเสร็จแล้ว (ใช้แยก "ยังโหลดอยู่" กับ "ยังไม่มีรอบเลย")
 
   // โหลดรายการรอบ + สรุปย้อนหลัง แล้วตั้งค่าเริ่มต้นเป็นรอบที่เปิดรับอยู่ (ไม่มีก็รอบล่าสุด)
   useEffect(() => {
@@ -35,6 +37,7 @@ export function ReportsReal({ toast, readonly, lang }) {
       .then(([roundList, hist]) => {
         setRounds(roundList);
         setHistory(hist);
+        setRoundsLoaded(true);
         if (roundList.length === 0) return;
         const openRound = roundList.find(r => r.status === 'open');
         const newest = [...roundList].sort(
@@ -71,42 +74,54 @@ export function ReportsReal({ toast, readonly, lang }) {
     if (first) setRoundId(first.round_id);
   };
 
-  // รายงานสรุปของรอบที่เลือก (PDF) — ปุ่มบนหัวหน้าและแถวแรกของแผง "ส่งออกข้อมูล" ใช้ตัวนี้ร่วมกัน
+  // รายงานสรุปของรอบที่เลือก (PDF) — ปุ่มบนหัวหน้าที่เดียว
   // ได้ไฟล์ที่หน้าตาเหมือนรายงานบนจอเป๊ะ (ถ่ายจากกล่องรายงานที่เห็นอยู่) ไม่ใช่ PDF จาก backend อีกแบบหนึ่ง
-  const reportPdfItem = () => ({
-    key: 'pdf', label: tt('export.pdf'), icon: 'pdf',
-    run: () => saveElementAsPdf(reportRef.current,
-      `exam-report-${stats.round.attempt_number}-${stats.round.academic_year}.pdf`),
-  });
   const [pdfBusy, setPdfBusy] = useState(false);
   const downloadReportPdf = async () => {
     setPdfBusy(true);
-    try { await reportPdfItem().run(); }
+    try {
+      await saveElementAsPdf(reportRef.current,
+        `exam-report-${stats.round.attempt_number}-${stats.round.academic_year}.pdf`);
+    }
     catch (e) { toast(e.message || tt('reportsReal.downloadPdfBtn'), 'error'); }
     finally { setPdfBusy(false); }
   };
 
   if (error) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--reject,#dc2626)' }}>{tt('statuspage.loadFailPrefix', { msg: error })}</div>;
+  // โหลดรายการรอบเสร็จแล้วแต่ไม่มีรอบเลย → บอกตรงๆ ไม่ใช่หมุนโหลดค้าง (ไม่มีรอบ = ไม่มี stats ให้รอ)
+  if (roundsLoaded && rounds.length === 0) {
+    return (
+      <div className="fade-up">
+        <PageHead title={tt('reports.title')} />
+        <div className="card card-pad">
+          <Empty icon="report" title={tt('dashReal.noRoundTitle')} sub={tt('reportsReal.noRoundSub')} />
+        </div>
+      </div>
+    );
+  }
   if (!stats) return <Loading label={tt('common.loading')} />;
 
-  const { round, total, canSubmit, by, not_started, submitted, fillRate,
-          fullyPassed, fullyPassedRate, passRateOfSitters, confirmed, perSubject } = stats;
-  // ทุกใบหารด้วย total เหมือนกันหมด ยกเว้นใบสุดท้ายที่ติดป้ายบอกตัวหารไว้ในชื่อแล้ว
+  const { round, total, canSubmit, by, submitted,
+          fullyPassed, fullyPassedRate, passRateOfSitters, confirmed, perSubject,
+          roundTotal, roundNotStarted, roundFillRate, alreadyPassed } = stats;
+  // การ์ด "นักศึกษาทั้งหมด" = ทั้งรุ่น · การ์ด "ส่งผลแล้ว" หารด้วยผู้ต้องกรอกรอบนี้ (roundTotal) ให้ตรงกับตารางสถานะด้านล่าง
+  // การ์ด "ผ่านครบ" หารด้วยทั้งรุ่น (สูตรผ่านของรุ่น) และใบสุดท้ายติดป้ายบอกตัวหารไว้ในชื่อแล้ว
   const summaryCards = [
     [tt('reports.totalStudents'), total, tt('reportsReal.cardTotalSub', { canSubmit }), 'navy'],
-    [tt('reports.submitted'), submitted, tt('reportsReal.cardOfCohort', { rate: fillRate }), 'blue'],
+    [tt('reports.submitted'), submitted, tt('reportsReal.cardOfRound', { rate: roundFillRate }), 'blue'],
     // จำนวนวิชาเอาจากรอบจริง (perSubject = วิชาของรอบนั้น) ไม่ใช่ 8 ตายตัว — รอบที่สอบ 3 วิชาจะได้ไม่ขึ้น "ผ่านครบ 8 วิชา"
     [tt('reports.fullyPassed', { n: perSubject.length }), fullyPassed, tt('reportsReal.cardOfCohort', { rate: fullyPassedRate }), 'ok'],
-    [tt('reportsReal.cardSitterRate'), passRateOfSitters + '%', tt('reportsReal.cardSitterRateSub', { n: confirmed }), 'gold'],
+    // confirmed = 0 → ยังไม่มีผลสอบที่ยืนยัน ไม่มีฐานให้หาร ขึ้น "—" ไม่ใช่ 0% (0% แปลว่าสอบแล้วตกหมด)
+    [tt('reportsReal.cardSitterRate'), confirmed > 0 ? passRateOfSitters + '%' : '—', tt('reportsReal.cardSitterRateSub', { n: confirmed }), 'gold'],
   ];
-  // 5 แถวนี้บวกกันได้เท่า total พอดี — เดิมมี 4 แถวและแถวสุดท้ายติดป้าย "ร่าง"
-  // แต่ใส่ค่า not_started (ยังไม่เริ่มกรอก) ซึ่งคนละเรื่องกัน ส่วน by.draft หายไปทั้งตัว
+  // 5 แถวนี้บวกกันได้เท่า roundTotal (ผู้ต้องกรอกรอบนี้) พอดี — คนที่ผ่านครบจากรอบก่อนไม่ต้องกรอกรอบนี้ จึงไม่อยู่ในฐาน
+  // (บอกจำนวนไว้ใต้ตารางด้วย alreadyPassed)
   const byStatus = [
     ['CONFIRMED', tt('status.CONFIRMED'), by.approved],
     ['SUBMITTED', tt('status.SUBMITTED'), by.submitted],
     ['REJECTED', tt('status.REJECTED'), by.rejected],
     ['DRAFT', tt('dashReal.draftLabel'), by.draft],
-    ['NONE', tt('dashReal.notStartedLabel'), not_started],
+    ['NONE', tt('dashReal.notStartedLabel'), roundNotStarted],
   ];
 
   // แผง "ส่งออกข้อมูล" — รวมทุกไฟล์ที่ส่งออกได้ของปี/รอบที่เลือกไว้ที่เดียว (เดิมกระจายอยู่หลายหน้า)
@@ -132,12 +147,11 @@ export function ReportsReal({ toast, readonly, lang }) {
     return items;
   };
   const exportRows = [
-    { key: 'report', title: tt('export.rowReport', { attempt: round.attempt_number, year: exportYear }), sub: tt('export.rowReportSub'), items: [reportPdfItem()] },
     { key: 'pass', title: tt('export.rowFirstPass', { year: exportYear }), sub: tt('export.rowFirstPassSub'), items: firstAttemptItems(true) },
     { key: 'fail', title: tt('export.rowFirstFail', { year: exportYear }), sub: tt('export.rowFirstFailSub'), items: firstAttemptItems(false) },
     { key: 'yearPass', title: tt('export.rowFirstYearPass', { year: exportYear }), sub: tt('export.rowFirstYearPassSub'), items: firstYearItems(true) },
     { key: 'yearFail', title: tt('export.rowFirstYearFail', { year: exportYear }), sub: tt('export.rowFirstYearFailSub'), items: firstYearItems(false) },
-    { key: 'students', title: tt('export.rowStudents', { year: exportYear }), sub: tt('export.rowStudentsSub'), items: [
+    { key: 'students', title: tt('export.rowStudents', { year: exportYear }), items: [
       {
         key: 'xlsx', label: tt('export.studentsExcel'), icon: 'report',
         run: () => downloadFile('/students/export', { method: 'POST', body: { year: exportYear }, filename: `ข้อมูลนักศึกษา-รุ่น ${exportYear}.xlsx` }),
@@ -178,12 +192,11 @@ export function ReportsReal({ toast, readonly, lang }) {
             <div key={row.key} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 0', borderTop: '1px solid var(--ink-100)' }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: 15.5 }}>{row.title}</div>
-                <div style={{ color: 'var(--ink-500)', fontSize: 14 }}>{row.sub}</div>
+                {row.sub && <div style={{ color: 'var(--ink-500)', fontSize: 14 }}>{row.sub}</div>}
               </div>
               <ExportMenu items={row.items} tt={tt} align="right" onError={msg => toast(msg, 'error')} style={{ width: 128 }} />
             </div>
           ))}
-          <div style={{ color: 'var(--ink-500)', fontSize: 14, paddingTop: 10, borderTop: '1px solid var(--ink-100)' }}>{tt('export.subjectHint')}</div>
         </div>
       )}
 
@@ -199,8 +212,9 @@ export function ReportsReal({ toast, readonly, lang }) {
 
         {/* ตัวเลข "ผ่าน" ทุกตัวในรายงานนับเฉพาะใบที่ยืนยันแล้ว — ถ้ายังมีใบรอตรวจ บอกจำนวนไว้ในรายงานเลย (พิมพ์ออกไปก็เห็น) */}
         <div style={{ margin: '14px 0 0', fontSize: 14, color: 'var(--ink-500)' }}>
-          {tt('dashReal.confirmedOnlyNote')}
-          {by.submitted > 0 && <b style={{ color: 'var(--status-wait-fg)' }}> · {tt('dashReal.pendingNotice', { n: by.submitted })}</b>}
+          {by.submitted > 0
+            ? <b style={{ color: 'var(--status-wait-fg)' }}>{tt('dashReal.pendingNotice', { n: by.submitted })}</b>
+            : tt('dashReal.confirmedOnlyNote')}
         </div>
 
         <div className="sec-title" style={{ margin: '24px 0 12px', color: 'var(--ink-900)' }}>{tt('reports.section1')}</div>
@@ -255,9 +269,12 @@ export function ReportsReal({ toast, readonly, lang }) {
               {/* "ยังไม่เริ่มกรอก" ไม่ใช่สถานะของใบผลสอบ (ยังไม่มีใบ) เลยไม่มี badge ให้ใช้ */}
               <td>{k === 'NONE' ? <span style={{ color: 'var(--ink-500)' }}>{label}</span> : <StatusBadge status={k} lang={lang} />}</td>
               <td className="tnum" style={{ textAlign: 'right', fontWeight: 700 }}>{n}</td>
-              <td className="tnum" style={{ textAlign: 'right', color: 'var(--ink-600)' }}>{total ? (Math.round(n / total * 10000) / 100).toFixed(2) : '0.00'}%</td></tr>
+              <td className="tnum" style={{ textAlign: 'right', color: 'var(--ink-600)' }}>{roundTotal ? (Math.round(n / roundTotal * 10000) / 100).toFixed(2) : '0.00'}%</td></tr>
           ))}</tbody>
         </table>
+        {alreadyPassed > 0 && (
+          <div style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--ink-500)' }}>{tt('dashReal.alreadyPassedNote', { n: alreadyPassed })}</div>
+        )}
 
         <div className="sec-title" style={{ margin: '26px 0 12px', color: 'var(--ink-900)' }}>{tt('reports.section3')}</div>
         <table className="tbl" style={{ border: '1px solid var(--ink-200)', borderRadius: 10, overflow: 'hidden' }}>

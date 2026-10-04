@@ -157,8 +157,10 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
     if (q && !(`${s.firstName}${s.lastName}${s.sid}`.includes(q))) return false;
     return true;
   });
-  const pageRows = filtered.slice(page * per, (page + 1) * per);
   const pages = Math.ceil(filtered.length / per);
+  // บีบหน้าให้อยู่ในช่วงเสมอ — ลบคนสุดท้ายของหน้าสุดท้ายแล้ว page ยังชี้หน้าที่ไม่มีแถว จะได้ถอยมาหน้าสุดท้ายที่ยังมีแถวแทนตารางว่างเงียบๆ
+  const safePage = Math.min(page, Math.max(pages - 1, 0));
+  const pageRows = filtered.slice(safePage * per, (safePage + 1) * per);
 
   useEffect(() => setPage(0), [q, status, room, year, eligible, subjectFilter, firstAttemptFilter]);
 
@@ -249,7 +251,7 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
     if (!resetting) return;
     setResetError('');
     if (!/^\d{13}$/.test(resetNationalId)) {
-      setResetError('เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก');
+      setResetError(tt('officer.students.nationalIdFormatMsg'));
       return;
     }
     setSaving(true);
@@ -311,8 +313,11 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
 
   return (
     <div className="fade-up">
-      <PageHead title={tt('officer.students.title')} sub={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        <Icon name="users" size={15} /> {students.length} <span style={{ color: 'var(--ink-200)' }}>|</span> <Icon name="eye" size={15} /> {Math.min((page + 1) * per, filtered.length)}
+      {/* ตัวนับเป็นข้อความ "แสดง N จาก M คน" (M = จำนวนที่ผ่านตัวกรอง) — มีการกรองอยู่ค่อยต่อท้าย "ทั้งหมด X คน"
+          รูปแบบนี้ตรงกับที่เทส e2e หัวข้อ 14 และคู่มือ (ข้อ 5.1) อ่านหา */}
+      <PageHead title={tt('officer.students.title')} sub={<span>
+        {tt('officer.students.countShown', { shown: Math.min((safePage + 1) * per, filtered.length), filtered: filtered.length })}
+        {filtered.length !== students.length && <> · {tt('officer.students.countAll', { total: students.length })}</>}
       </span>}
         actions={<div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           {returnView && (
@@ -431,7 +436,7 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
               <th>{tt('officer.students.colStudent')}</th><th>{tt('officer.students.colRoom')}</th><th>{tt('officer.students.colYear')}</th>
               <th>{tt('officer.students.colEligible')}</th>
               <th>{tt('officer.students.colResult')}</th><th>{tt('officer.students.colStatus')}</th><th>{tt('officer.students.colSubmitted')}</th>
-              {!readonly && <th>{tt('officer.students.revokeBtn')}</th>}
+              {!readonly && <th>{tt('officer.students.colActions')}</th>}
               <th></th>
             </tr></thead>
             <tbody>
@@ -454,7 +459,7 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
                   <td><StatusBadge status={s.status} lang={lang} /></td>
                   <td style={{ color: 'var(--ink-500)', fontSize: 15 }}>{s.submittedAt || '—'}</td>
                   {!readonly && <td onClick={e => e.stopPropagation()} style={{ whiteSpace: 'nowrap' }}>
-                    <button disabled={saving} onClick={() => { setResetting(s); setResetNationalId(''); setResetError(''); }} title={tt('usersMgmt.resetHint')}
+                    <button disabled={saving} onClick={() => { setResetting(s); setResetNationalId(''); setResetError(''); }} title={tt('officer.students.resetBtnHint')}
                       className="btn btn-ghost btn-sm" style={{ marginRight: 6 }}>
                       <Icon name="key" size={15} /> {tt('usersMgmt.resetBtn')}</button>
                     {s.eligible && <button disabled={saving} onClick={() => toggleOneEligibility(s)}
@@ -477,7 +482,7 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
             {tt('officer.students.emptyState')}
           </div>
         )}
-        <Pagination page={page} pages={pages} onPage={setPage} lang={lang} />
+        <Pagination page={safePage} pages={pages} onPage={setPage} lang={lang} />
       </div>
 
       <Modal open={!!deleting} onClose={() => setDeleting(null)} width={430} title={tt('officer.students.deleteTitle')}

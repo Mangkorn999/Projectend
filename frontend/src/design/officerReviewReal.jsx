@@ -9,6 +9,7 @@
 
    4 แท็บ: รอตรวจสอบ / ตีกลับ / ยืนยันแล้ว / ยังไม่กรอก
    (ยังไม่กรอก = นักศึกษารุ่นเดียวกับรอบ ที่เปิดสิทธิ์แล้วแต่ยังไม่มีผลสอบในรอบนี้)
+   ผู้ช่วยตรวจสอบ (reviewer) ไม่มีแท็บ "ยังไม่กรอก" — ต้องใช้ /dashboard/stats ตัดคนที่ผ่านครบแล้วออก ซึ่ง reviewer เรียกไม่ได้ (403)
    ============================================================ */
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
@@ -24,10 +25,18 @@ const PER_PAGE = 10; // ลดจาก 15 — เห็นเลขหน้า
 // รอบที่ควรเลือกให้ตอนเปิดหน้ามา — รอบที่เปิดรับอยู่ ถ้าไม่มีก็รอบล่าสุด (rounds เรียงใหม่→เก่ามาแล้ว)
 const defaultRound = (rounds) => rounds.find(r => r.status === 'open') || rounds[0];
 
-export function OfficerReviewReal({ go, setSel, setDetailFrom, lang, restoreView, onLeave, onRestoreConsumed }) {
+export function OfficerReviewReal({ go, setSel, setDetailFrom, lang, role, restoreView, onLeave, onRestoreConsumed }) {
   const tt = (key, vars) => t(lang, key, vars);
+  // ผู้ช่วยตรวจสอบไม่เห็นแท็บ "ยังไม่กรอก" และไม่เรียก /dashboard/stats (เรียกแล้วได้ 403 ขึ้นในคอนโซล)
+  const canSeeNotStarted = role !== 'reviewer';
+  const visibleTabs = canSeeNotStarted ? TABS : TABS.filter(k => k !== 'NOT_STARTED');
   // ค่าเริ่มต้นอ่านจาก restoreView ถ้ามี (กลับมาจากปุ่ม "กลับ" ที่หน้ารายละเอียด — จะได้อยู่แท็บ/หน้าเดิม)
-  const [tab, setTab] = useState(() => restoreView?.tab || 'SUBMITTED');
+  const [tab, setTab] = useState(() => {
+    const startTab = restoreView?.tab || 'SUBMITTED';
+    // แท็บที่เก็บไว้เป็น "ยังไม่กรอก" แต่ role นี้ไม่มีแท็บนั้น → ตกกลับ "รอตรวจสอบ"
+    if (!canSeeNotStarted && startTab === 'NOT_STARTED') return 'SUBMITTED';
+    return startTab;
+  });
   const [page, setPage] = useState(() => restoreView?.page || 0);
   const [rounds, setRounds] = useState(null);
   const [roundId, setRoundId] = useState('');
@@ -53,22 +62,27 @@ export function OfficerReviewReal({ go, setSel, setDetailFrom, lang, restoreView
 
   // ผลสอบดึงเฉพาะรอบที่เลือก — ให้ backend กรองให้ ไม่ดึงทุกรอบมากรองเองฝั่ง client
   // ดึง /dashboard/stats คู่กันเพื่อเอา alreadyPassedStudentIds (backend คำนวณย้อนรอบก่อนหน้าให้แล้ว)
+  // ผู้ช่วยตรวจสอบไม่เรียก stats เลย (ไม่มีสิทธิ์ และไม่ได้ใช้แท็บ "ยังไม่กรอก")
   useEffect(() => {
     if (!roundId) return;
+    // dropped = ผู้ใช้สลับรอบไปแล้วก่อนที่ response นี้จะกลับมา — ทิ้งผลเก่า ไม่ให้ทับของรอบใหม่
+    let dropped = false;
     setLoading(true);
     Promise.all([
       apiFetch(`/exam-results?round_id=${roundId}`),
       // stats เป็นของเสริม (ใช้ตัดชื่อคนที่ผ่านครบแล้วออกเท่านั้น) ล้มก็ต้องไม่ทำให้คิวตรวจทั้งหน้าดับ
       // ถ้าปล่อยให้ throw จะไปโดน .catch ข้างล่างแล้ว setError ทับทั้งหน้า เจ้าหน้าที่ตรวจงานไม่ได้เลย
-      apiFetch(`/dashboard/stats?round_id=${roundId}`).catch(() => ({})),
+      canSeeNotStarted ? apiFetch(`/dashboard/stats?round_id=${roundId}`).catch(() => ({})) : Promise.resolve({}),
     ])
       .then(([resultList, stats]) => {
+        if (dropped) return;
         setResults(resultList);
         setAlreadyPassedIds(stats.alreadyPassedStudentIds || []);
       })
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [roundId]);
+      .catch(e => { if (!dropped) setError(e.message); })
+      .finally(() => { if (!dropped) setLoading(false); });
+    return () => { dropped = true; };
+  }, [roundId, canSeeNotStarted]);
 
   // เปลี่ยนแท็บ/เปลี่ยนรอบ ต้องเด้งกลับหน้า 1 ไม่งั้นค้างอยู่หน้า 5 ของลิสต์ที่มี 2 หน้า
   const selectTab = (k) => { setTab(k); setPage(0); };
@@ -76,7 +90,8 @@ export function OfficerReviewReal({ go, setSel, setDetailFrom, lang, restoreView
 
   if (error) return <div className="fade-up" style={{ padding: 40, textAlign: 'center', color: 'var(--reject,#dc2626)' }}>{tt('statuspage.loadFailPrefix', { msg: error })}</div>;
   if (!rounds) return <div className="fade-up"><SkeletonTable rows={8} cols={5} /></div>;
-  if (!rounds.length) return <div className="fade-up" style={{ padding: 40 }}><Empty icon="calendar" title={tt('officer.review.noRoundTitle')} sub={tt('officer.review.noRoundSub')} /></div>;
+  if (!rounds.length) return <div className="fade-up" style={{ padding: 40 }}><Empty icon="calendar" title={tt('officer.review.noRoundTitle')}
+    sub={tt(canSeeNotStarted ? 'officer.review.noRoundSub' : 'officer.review.noRoundSubReviewer')} /></div>;
   if (!results) return <div className="fade-up"><SkeletonTable rows={8} cols={5} /></div>;
 
   const round = rounds.find(r => String(r.round_id) === String(roundId));
@@ -90,7 +105,8 @@ export function OfficerReviewReal({ go, setSel, setDetailFrom, lang, restoreView
   // (ผ่านครบตั้งแต่รอบไหนก็ตาม ไม่มีอะไรต้องทำในรอบถัดไปอีกแล้ว ไม่ควรค้างโชว์เป็น "ยังไม่กรอก")
   const submittedIds = new Set(results.map(r => r.student_id));
   const alreadyPassedSet = new Set(alreadyPassedIds);
-  const notStarted = students.filter(s =>
+  // ผู้ช่วยตรวจสอบไม่มีแท็บนี้ (ไม่มี alreadyPassedIds มาตัดคนที่ผ่านครบแล้ว รายชื่อจะผิด) เลยไม่คำนวณ
+  const notStarted = !canSeeNotStarted ? [] : students.filter(s =>
     s.academic_year === round?.academic_year && s.exam_eligible
     && !submittedIds.has(s.student_id) && !alreadyPassedSet.has(s.student_id));
 
@@ -122,20 +138,22 @@ export function OfficerReviewReal({ go, setSel, setDetailFrom, lang, restoreView
   const showReviewer = tab === 'CONFIRMED' || tab === 'REJECTED'; // แท็บรอตรวจยังไม่มีผู้ตรวจ ไม่ต้องมีคอลัมน์
   const list = tab === 'NOT_STARTED' ? notStarted : rows;
   const pages = Math.ceil(list.length / PER_PAGE);
-  const pageRows = list.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
+  // บีบหน้าให้อยู่ในช่วงเสมอ — ถ้าหน้าสุดท้ายหมดแถว (เช่น ตรวจเสร็จแล้วรายการหด) จะถอยมาหน้าสุดท้ายที่ยังมีแถว ไม่ใช่ตารางว่างเงียบๆ
+  const safePage = Math.min(page, Math.max(pages - 1, 0));
+  const pageRows = list.slice(safePage * PER_PAGE, (safePage + 1) * PER_PAGE);
 
-  const openDetail = (row) => { setSel(row); setDetailFrom('review'); onLeave?.({ tab, roundId, page }); go('detail'); };
+  const openDetail = (row) => { setSel(row); setDetailFrom('review'); onLeave?.({ tab, roundId, page: safePage }); go('detail'); };
 
   return (
     <div className="fade-up">
-      <PageHead title={tt('officer.review.title')} sub={tt('officer.review.sub')}
+      <PageHead title={tt('officer.review.title')}
         actions={
           <Select className="input" value={roundId} onChange={v => selectRound(v)} lang={lang}
             style={{ minWidth: 200 }} ariaLabel={tt('dashReal.roundSelectLabel')}
             options={rounds.map(r => ({ value: String(r.round_id), label: roundLabel(r) }))} />} />
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
-        {TABS.map(k => (
+        {visibleTabs.map(k => (
           // แท็บ "ยังไม่กรอก" นับไม่เท่ากับการ์ดชื่อเดียวกันบน Dashboard (ตรงนั้นนับทั้งรุ่น) ติด tooltip อธิบายไว้
           <button key={k} onClick={() => selectTab(k)} className="btn"
             title={k === 'NOT_STARTED' ? tt('officer.review.tabNotStartedHint') : undefined} style={{
@@ -188,7 +206,7 @@ export function OfficerReviewReal({ go, setSel, setDetailFrom, lang, restoreView
                     ))}</tbody>
                   </table>}
             </div>
-            <Pagination page={page} pages={pages} onPage={setPage} lang={lang} />
+            <Pagination page={safePage} pages={pages} onPage={setPage} lang={lang} />
           </>}
       </div>
     </div>

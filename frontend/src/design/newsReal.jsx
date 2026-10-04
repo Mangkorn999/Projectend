@@ -153,7 +153,7 @@ export function StudentNewsReal({ go, lang }) {
 
   return (
     <div className="fade-up">
-      <PageHead title={tt('news.pageTitle')} sub={tt('news.pageSub')} />
+      <PageHead title={tt('news.pageTitle')} />
       <div className="card" style={{ padding: 0, marginBottom: 22, overflow: 'hidden', border: '1px solid var(--gold-100)' }}>
         <div style={{ display: 'flex', gap: 0, alignItems: 'stretch', flexWrap: 'wrap' }}>
           <div style={{ background: 'linear-gradient(135deg,var(--navy-700),var(--navy-800))', color: '#fff', padding: '22px 26px', flex: '1 1 320px', display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -336,7 +336,7 @@ export function ManageNewsReal({ toast, lang, currentUserName }) {
     <div className="fade-up">
       {/* ทั้งหน้ากว้างสูงสุด 1120 อยู่กลางจอ — ไม่ให้ชื่อหน้าอยู่ซ้ายสุด ปุ่มอยู่ขวาสุด */}
       <div style={{ maxWidth: 1120, margin: '0 auto' }}>
-        <PageHead title={tt('nav.officer.newsmgmt')} sub={tt('newsMgmt.sub')}
+        <PageHead title={tt('nav.officer.newsmgmt')}
           actions={<button className="btn btn-primary" onClick={() => openModal(null)}><Icon name="plus" size={17} /> {tt('newsMgmt.writeBtn')}</button>} />
 
         {items.length === 0 && <div className="card" style={{ color: 'var(--ink-500)', textAlign: 'center', padding: 40 }}>{tt('newsMgmt.noNews')}</div>}

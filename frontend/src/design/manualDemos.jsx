@@ -266,7 +266,7 @@ const roundDemo = {
       {done >= 3 ? (
         <div className="card mn-pop" style={{ padding: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
           <MockBadge tone="ok">เปิดรับอยู่</MockBadge>
-          <div style={{ flex: 1 }}><b>รอบที่ 1 / 2570</b><div style={{ fontSize: 13, color: 'var(--ink-500)' }}>กลุ่มเป้าหมาย: นักศึกษารุ่น 2570 · เปิดรับ 1 ต.ค. 2569 ปิดรับ 31 ต.ค. 2569 23:59</div></div>
+          <div style={{ flex: 1 }}><b>รอบที่ 1 / 2570</b><div style={{ fontSize: 13, color: 'var(--ink-500)' }}>เปิดรับ 1 ต.ค. 2569 ปิดรับ 31 ต.ค. 2569 23:59</div></div>
         </div>
       ) : <div className="card" style={{ padding: 14, color: 'var(--ink-500)', fontSize: 14 }}>ยังไม่มีรอบที่เปิดอยู่</div>}
       {done >= 1 && done < 3 && (

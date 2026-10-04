@@ -156,7 +156,6 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
               <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                 <button className="btn btn-ghost btn-sm" style={{ marginRight: 6 }}
                   disabled={u.user_id === currentUserId || (u.must_change_password && !u.is_revoked)}
-                  title={tt('usersMgmt.resetHint')}
                   onClick={() => { setConfirm({ user: u, action: 'reset' }); setResetPassword(''); setConfirmError(''); }}>
                   <Icon name="key" size={15} /> {tt('usersMgmt.resetBtn')}</button>
                 <button className="btn btn-ghost btn-sm" style={{ marginRight: 6 }} disabled={u.user_id === currentUserId || u.is_revoked}
@@ -200,8 +199,7 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
               ))}
             </div>
           </div>
-          <div className="field"><label>{tt('usersMgmt.fieldUsername')}</label><input className="input" value={form.psu_passport_id} onChange={e => setForm(f => ({ ...f, psu_passport_id: e.target.value }))} />
-            <span className="hint">{tt('usersMgmt.usernameHint')}</span></div>
+          <div className="field"><label>{tt('usersMgmt.fieldUsername')}</label><input className="input" value={form.psu_passport_id} onChange={e => setForm(f => ({ ...f, psu_passport_id: e.target.value }))} /></div>
           <div className="field"><label>{tt('usersMgmt.fieldPassword')}</label>
             <input className="input" type="text" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="อย่างน้อย 8 ตัวอักษร" />
             <span className="hint">{tt('usersMgmt.passwordHint')}</span></div>

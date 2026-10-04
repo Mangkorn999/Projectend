@@ -127,7 +127,8 @@ export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreVi
       <div className="fade-up">
         <PageHead title={tt('dashReal.title')} />
         <div className="card card-pad">
-          <Empty icon="calendar" title={tt('dashReal.noRoundTitle')} sub={tt('dashReal.noRoundSub')} />
+          <Empty icon="calendar" title={tt('dashReal.noRoundTitle')}
+            sub={readonly ? tt('dashReal.noRoundSubReadonly') : tt('dashReal.noRoundSub')} />
         </div>
       </div>
     );
@@ -189,7 +190,7 @@ export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreVi
           RoundTabs ยังคุมว่าดูรอบไหน/รวมทั้งปี — StatCard+RoundBar ผูกกับรอบที่เลือกเหมือนเดิม
           ส่วน Donut/อัตราผ่านรายวิชา/สถิติเชิงรายงาน ย้ายไปอยู่ใต้แท็บบนสุด 3 อันแทนเรียงเป็นแถวยาว */}
       {!readonly && (
-        <Section title={tt('dashReal.zoneRound')} sub={tt('dashReal.zoneRoundSub')}>
+        <Section title={tt('dashReal.zoneRound')}>
           <RoundTabs rounds={roundsInYear} value={tab} onChange={changeRoundTab} tt={tt} />
 
           <div key={tab} className="blur-in">
@@ -265,7 +266,7 @@ export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreVi
           lang={lang} tt={tt} />
       )}
       {readonly && (
-        <Section title={tt('dashReal.reportSectionTitle')} sub={tt('dashReal.reportSectionMultiYearSub')}>
+        <Section title={tt('dashReal.reportSectionTitle')}>
           <MainTabs value={reportTab} onChange={setReportTab} tt={tt} items={[
             { key: 'firstRate', label: tt('dashReal.firstAttemptTitle') },
             { key: 'firstBySubject', label: tt('firstBySubject.title') },
@@ -422,20 +423,22 @@ function RoundTabs({ rounds, value, onChange, tt }) {
 // statusOnly = แค่การ์ด Donut สัดส่วนสถานะ (ใช้ตอนอยู่แท็บ "สัดส่วนสถานะการตรวจสอบ")
 // ไม่ส่ง flag ไหนมาเลย = คืน null (เรียกแบบไม่ระบุจะไม่ได้อะไร กันเรียกผิดเงียบๆ)
 function RoundView({ stats, roundInfo, go, lang, tt, statCardsOnly, statusOnly }) {
-  const { round, total, eligible, canSubmit, by, not_started, submitted, fillRate,
-          fullyPassed, fullyPassedRate } = stats;
+  const { round, total, canSubmit, by, submitted,
+          fullyPassed, fullyPassedRate, roundTotal, roundNotStarted, roundFillRate,
+          alreadyPassed } = stats;
 
   if (statCardsOnly) {
     return (
       <>
+        {/* แถบความคืบหน้าหารด้วย "คนของรอบนี้" (roundTotal) — ข้อมูลรุ่น (ทั้งรุ่น/เปิดสิทธิ์) อยู่ที่หัวหน้าแล้ว ไม่ซ้ำในแถบนี้ */}
         <RoundBar round={round} roundInfo={roundInfo} submitted={submitted}
-          eligible={eligible} fillRate={fillRate} total={total} tt={tt} />
+          fillRate={roundFillRate} roundTotal={roundTotal} tt={tt} />
 
         <div className="grid g-5" style={{ marginBottom: 20 }}>
           {/* ยอดของ "รอบนี้" ล้วน — คนที่ผ่านครบทุกวิชาไปแล้วเปิดฟอร์มรอบนี้ไม่ได้ ตัวเลขเลยลดลงทุกรอบ
               ต่างจากการ์ดใบแรกของมุมมองทั้งปีที่เป็นยอดทั้งรุ่น ตำแหน่ง/หน้าตาการ์ดเหมือนกันทั้ง 2 มุมมอง */}
           <StatCard icon="users" label={tt('dashReal.canSubmitStatLabel')} value={canSubmit} sub={tt('dashReal.canSubmitStatSub', { total })} tone="navy" accent onClick={() => go('students')} />
-          <StatCard icon="edit" label={tt('dashReal.submittedStatLabel')} value={submitted} sub={tt('dashReal.submittedStatSub', { rate: fillRate })} tone="blue" accent onClick={() => go('students')} />
+          <StatCard icon="edit" label={tt('dashReal.submittedStatLabel')} value={submitted} sub={tt('dashReal.submittedStatSub', { rate: roundFillRate })} tone="blue" accent onClick={() => go('students')} />
           <StatCard icon="clock" label={tt('status.SUBMITTED')} value={by.submitted} sub={tt('dashReal.pendingSub')} tone="wait" accent onClick={() => go('review')} />
           <StatCard icon="checkCircle" label={tt('status.CONFIRMED')} value={by.approved} sub={tt('dashReal.confirmedSub', { n: fullyPassed, rate: fullyPassedRate })} tone="ok" accent />
           <StatCard icon="xCircle" label={tt('status.REJECTED')} value={by.rejected} sub={tt('dashReal.rejectedSub')} tone="reject" accent onClick={() => go('review')} />
@@ -444,7 +447,11 @@ function RoundView({ stats, roundInfo, go, lang, tt, statCardsOnly, statusOnly }
     );
   }
 
-  if (statusOnly) return <StatusDonut total={total} by={by} not_started={not_started} tt={tt} />;
+  // โดนัทรายรอบนับเฉพาะคนของรอบนี้ — คนที่ผ่านครบแล้วไม่ต้องกรอก แจ้งเป็นบรรทัดข้อมูลแยก ไม่เอาเข้าวง
+  if (statusOnly) {
+    return <StatusDonut total={roundTotal} by={by} not_started={roundNotStarted}
+      centerLabel={tt('dashReal.roundPeopleLabel')} alreadyPassed={alreadyPassed} tt={tt} />;
+  }
 
   return null;
 }
@@ -452,7 +459,7 @@ function RoundView({ stats, roundInfo, go, lang, tt, statCardsOnly, statusOnly }
 /* การ์ด Donut สัดส่วนสถานะ — ใช้ทั้งมุมมองรอบเดียว (RoundView) และรวมทั้งปี
    perStudent = ตัวเลขที่ส่งมาเป็น "คน" (ใบล่าสุดของแต่ละคน) ไม่ใช่ "ใบ" — ต่างกันแค่ป้ายกำกับ
    ทั้งสองแบบ 5 ช่องบวกกันได้เท่า total พอดี % จึงไม่มีทางเกิน 100 */
-function StatusDonut({ total, by, not_started, perStudent, tt }) {
+function StatusDonut({ total, by, not_started, perStudent, centerLabel, alreadyPassed, tt }) {
   const segs = [
     { key: 'CONFIRMED', label: tt('status.CONFIRMED'), value: by.approved, color: 'var(--status-ok-dot)' },
     { key: 'SUBMITTED', label: tt('status.SUBMITTED'), value: by.submitted, color: 'var(--status-wait-dot)' },
@@ -470,15 +477,14 @@ function StatusDonut({ total, by, not_started, perStudent, tt }) {
     <div className="card card-pad">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
         <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{tt('dashReal.statusBreakdownTitle')}</h3>
-        <span style={{ fontSize: 14, color: 'var(--ink-400)' }}>
-          {perStudent ? tt('dashReal.statusOfStudents') : tt('dashReal.statusOfPapers')}
-        </span>
+        {/* มุมมองรวมปีนับเป็น "คน" ต้องบอก — มุมมองรายรอบไม่ต้องมีข้อความกำกับ */}
+        {perStudent && <span style={{ fontSize: 14, color: 'var(--ink-400)' }}>{tt('dashReal.statusOfStudents')}</span>}
       </div>
 
       {/* donut ซ้าย + รายการสถานะขวาแบบเต็มความกว้าง — เดิมรายการชิดซ้ายจนเหลือที่ว่างครึ่งการ์ด
           ตอนนี้แต่ละสถานะมีแถบสัดส่วนของตัวเอง ที่ว่างเลยกลายเป็นข้อมูลแทน */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 28, flexWrap: 'wrap', marginTop: 16 }}>
-        <Donut segments={segs} center={<><div className="tnum" style={{ fontSize: 28, fontWeight: 800 }}>{total}</div><div style={{ fontSize: 13.5, color: 'var(--ink-500)' }}>{tt('dashReal.eligibleLabel')}</div></>} />
+        <Donut segments={segs} center={<><div className="tnum" style={{ fontSize: 28, fontWeight: 800 }}>{total}</div><div style={{ fontSize: 13.5, color: 'var(--ink-500)' }}>{centerLabel || tt('dashReal.eligibleLabel')}</div></>} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: '1 1 300px', minWidth: 260 }}>
           {segs.map(s => (
             <div key={s.key}>
@@ -493,6 +499,12 @@ function StatusDonut({ total, by, not_started, perStudent, tt }) {
           ))}
         </div>
       </div>
+
+      {alreadyPassed > 0 && (
+        <div style={{ marginTop: 14, fontSize: 14.5, color: 'var(--ink-500)' }}>
+          {tt('dashReal.alreadyPassedNote', { n: alreadyPassed })}
+        </div>
+      )}
 
       {/* ความคืบหน้าการตรวจ — คนละเรื่องกับสัดส่วนข้างบน (ตัวหารคือ "ใบที่ส่งเข้ามา" ไม่ใช่ทั้งรุ่น) */}
       <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px dashed var(--ink-100)' }}>
@@ -537,8 +549,7 @@ function YearRoundsView({ year, rounds, tt, statCardsOnly }) {
       </div>
 
       <div className="card card-pad">
-        <h3 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 800 }}>{tt('dashReal.roundBreakdownTitle')}</h3>
-        <p style={{ margin: '0 0 14px', color: 'var(--ink-500)', fontSize: 15 }}>{tt('dashReal.roundBreakdownSub')}</p>
+        <h3 style={{ margin: '0 0 14px', fontSize: 18, fontWeight: 800 }}>{tt('dashReal.roundBreakdownTitle')}</h3>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15 }}>
             <thead>
@@ -806,7 +817,7 @@ function ExecutiveOverview({ year, history, lang, tt }) {
 
 /* แถบสรุปรอบที่กำลังดูอยู่ — วันปิดรับ + ความคืบหน้าการกรอก
    roundInfo มาจาก GET /rounds (มี close_date) ส่วน round จาก /dashboard/stats ไม่มีวันที่ */
-function RoundBar({ round, roundInfo, submitted, eligible, fillRate, total, tt }) {
+function RoundBar({ round, roundInfo, submitted, fillRate, roundTotal, tt }) {
   // นับวันที่เหลือแบบตัดเวลาออก — เทียบ "วัน" ต่อ "วัน" ไม่งั้นปิด 23:59 วันนี้จะกลายเป็นเหลือ 0 วันตั้งแต่เช้า
   let daysLeft = null;
   let closeText = '';
@@ -864,15 +875,10 @@ function RoundBar({ round, roundInfo, submitted, eligible, fillRate, total, tt }
         </div>
       )}
 
-      {/* ข้อมูลรุ่น — ย้ายมาจากใต้หัวข้อหน้า จะได้อยู่รวมกับเรื่องรอบทั้งหมดในแถบเดียว */}
-      <div style={{ fontSize: 15, color: 'var(--ink-500)', flex: '0 1 auto', minWidth: 0 }}>
-        {tt('dashReal.subInfo', { year: round.academic_year, total, eligible })}
-      </div>
-
       {/* ความคืบหน้าการกรอก — ตัวเลขเดียวกับการ์ด "ส่งผลสอบแล้ว" ข้างล่าง แต่ตรงนี้ให้เห็นเป็นแถบเทียบกับเวลาที่เหลือ */}
       <div style={{ flex: '1 1 160px', minWidth: 140, marginLeft: 'auto' }}>
         <div style={{ fontSize: 14.5, color: 'var(--ink-600)', marginBottom: 5, textAlign: 'right' }}>
-          {tt('dashReal.roundBarProgress', { submitted, total, rate: fillRate })}
+          {tt('dashReal.roundBarProgress', { submitted, total: roundTotal, rate: fillRate })}
         </div>
         <div className="pbar" style={{ height: 8 }}>
           <i style={{ width: `${fillRate}%`, background: 'var(--navy-600)' }} />
@@ -1214,7 +1220,9 @@ function RoundBreakdownTable({ year, tt }) {
     <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 16, overflowX: 'auto' }}>
       {rounds.map(r => {
         // ผ่านครั้งแรกของ "รอบนี้" เอง — ผ่านครบ ÷ คนที่สอบรอบนี้ ไม่ใช่ตัวเลขสะสมของทั้งปี
-        const rate = r.confirmed ? Math.round((r.fullyPassed / r.confirmed) * 10000) / 100 : 0;
+        // confirmed = 0 → ยังไม่มีฐานให้หาร ขึ้น "—" ไม่ใช่ 0.00% (0% แปลว่าสอบแล้วตกหมด คนละเรื่องกัน)
+        const hasBase = r.confirmed > 0;
+        const rate = hasBase ? Math.round((r.fullyPassed / r.confirmed) * 10000) / 100 : 0;
         const tone = rate >= 80 ? 'var(--status-ok-dot)' : 'var(--status-wait-dot)';
         return (
           <div key={r.round_id} style={{ width: 360, flex: 'none', padding: 30,
@@ -1223,7 +1231,7 @@ function RoundBreakdownTable({ year, tt }) {
               {tt('dashReal.roundOnlyLabel', { attempt: r.attempt_number })}
               <span className={`badge ${phaseBadgeClass(r)}`}><span className="dot" />{phaseLabel(r, tt)}</span>
             </div>
-            <div className="tnum" style={{ fontSize: 42, fontWeight: 800, marginBottom: 16 }}>{rate.toFixed(2)}%</div>
+            <div className="tnum" style={{ fontSize: 42, fontWeight: 800, marginBottom: 16 }}>{hasBase ? rate.toFixed(2) + '%' : '—'}</div>
             <div className="pbar" style={{ height: 13, marginBottom: 18 }}><i style={{ width: `${rate}%`, background: tone }} /></div>
             <div style={{ fontSize: 18, color: 'var(--ink-600)' }}>{tt('dashReal.roundFullyPassedCount', { pass: r.fullyPassed })}</div>
             <div style={{ fontSize: 18, color: 'var(--ink-500)' }}>{tt('dashReal.roundSatTotal', { total: r.confirmed })}</div>
