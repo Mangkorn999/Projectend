@@ -96,6 +96,20 @@ export const bulkSetEligible = (studentIds, value, setBy) =>
     data: { exam_eligible: value, eligible_set_by: setBy, eligible_set_at: new Date() },
   });
 
+// กรองรหัสนักศึกษาให้เหลือเฉพาะที่มีอยู่จริงในระบบ — ใช้ก่อนสร้างแจ้งเตือนเป็นชุด
+// (createMany ที่มีรหัสปลอมปนแม้ตัวเดียวจะล้มทั้งชุด)
+export const findExistingStudentIds = async (studentIds) => {
+  const rows = await prisma.student.findMany({
+    where: { student_id: { in: studentIds } },
+    select: { student_id: true },
+  });
+  const ids = [];
+  for (const row of rows) {
+    ids.push(row.student_id);
+  }
+  return ids;
+};
+
 export const findRoleByName = (role_name) =>
   prisma.role.findFirst({ where: { role_name } });
 

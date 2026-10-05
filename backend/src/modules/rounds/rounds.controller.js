@@ -135,6 +135,16 @@ const parseThaiDateTime = (value, fieldLabel, defaultTime, missingSeconds = { s:
   if (!matched) throw httpError(`${fieldLabel} ไม่ถูกต้อง`, 400);
 
   const [, year, month, day, hour, minute, second] = matched;
+  // วันที่ต้องมีอยู่จริงในปฏิทิน — ไม่งั้น 2026-02-31 จะถูก JavaScript เลื่อนเป็น 3 มี.ค. เงียบๆ
+  const calendarCheck = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  const dateExists =
+    calendarCheck.getUTCFullYear() === Number(year) &&
+    calendarCheck.getUTCMonth() === Number(month) - 1 &&
+    calendarCheck.getUTCDate() === Number(day);
+  if (!dateExists) throw httpError(`${fieldLabel} ไม่ถูกต้อง (ไม่มีวันที่นี้ในปฏิทิน)`, 400);
+  if (hour !== undefined && (Number(hour) > 23 || Number(minute) > 59 || (second !== undefined && Number(second) > 59))) {
+    throw httpError(`${fieldLabel} ไม่ถูกต้อง (เวลาไม่ถูกต้อง)`, 400);
+  }
   // มีเวลาส่งมา → ใช้เวลานั้น. ไม่มี → ใช้ค่า default ของ field นั้น
   const time =
     hour !== undefined
@@ -445,6 +455,25 @@ export const update = async (req, res, next) => {
     }
 
     // แก้ปี/ครั้งที่ ต้องไม่ไปชนรอบอื่นที่มีอยู่ — ค่าที่ไม่ได้ส่งมาให้ใช้ของเดิม
+    // ปี/ครั้งที่สอบเป็น "ตัวตน" ของรอบ — ถ้ามีผลสอบผูกอยู่แล้ว ห้ามเปลี่ยน
+    // ไม่งั้นใบผลสอบของรุ่นหนึ่งจะย้ายไปอยู่อีกรุ่นทั้งก้อน หรือ "ผ่านครั้งแรก" สลับกับรอบอื่น
+    let identityChanged = false;
+    if (data.academic_year !== undefined && data.academic_year !== current.academic_year) {
+      identityChanged = true;
+    }
+    if (data.attempt_number !== undefined && data.attempt_number !== current.attempt_number) {
+      identityChanged = true;
+    }
+    if (identityChanged) {
+      const resultCountForIdentity = await roundsRepo.countExamResults(current.round_id);
+      if (resultCountForIdentity > 0) {
+        throw httpError(
+          "รอบนี้มีผลสอบแล้ว เปลี่ยนปีการศึกษาหรือครั้งที่สอบไม่ได้ (แก้ได้เฉพาะวันเปิด-ปิดรับ)",
+          409,
+        );
+      }
+    }
+
     if (academic_year !== undefined || attempt_number !== undefined) {
       await ensureNotDuplicate(
         data.academic_year ?? current.academic_year,

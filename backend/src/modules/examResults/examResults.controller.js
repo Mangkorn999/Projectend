@@ -333,6 +333,13 @@ const reviewExamResult = async (req, res, next, { staff_status, requireRemark })
       if (!isSameVersion(current, expected)) {
         throw httpError(PAPER_CHANGED_MESSAGE, 409);
       }
+      // ยืนยันผลต้องมีหลักฐานให้เทียบ — ใบที่ไม่มีไฟล์ยืนยันไม่ได้ (ตีกลับให้แนบไฟล์ได้)
+      if (staff_status === STAFF_STATUS.APPROVED && current.certificates.length === 0) {
+        throw httpError(
+          "ใบนี้ยังไม่มีไฟล์หลักฐานแนบ ยืนยันไม่ได้ กรุณาตีกลับเพื่อให้นักศึกษาแนบไฟล์ก่อน",
+          409,
+        );
+      }
     };
 
     // updateMany + where กันชนสถานะ = ด่านสุดท้ายใน repository (count = 0 แปลว่ามีคนตรวจแทรกไปก่อน)

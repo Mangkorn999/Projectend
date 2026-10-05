@@ -102,7 +102,7 @@ export const create = async (req, res, next) => {
   }
 };
 
-const ASSIGNABLE_ROLES = ["student", "officer", "executive", "reviewer"];
+const ASSIGNABLE_ROLES = ["officer", "executive", "reviewer"];
 
 export const updateRole = async (req, res, next) => {
   try {
@@ -137,6 +137,13 @@ export const updateRole = async (req, res, next) => {
     if (!target) {
       const err = new Error("ไม่พบผู้ใช้");
       err.statusCode = 404;
+      throw err;
+    }
+
+    // บัญชีนักศึกษาเปลี่ยนบทบาทไม่ได้ — แถวใน students ยังอยู่และยังถูกนับในสถิติของรุ่น
+    if (target.role?.role_name === "student") {
+      const err = new Error("บัญชีนักศึกษาเปลี่ยนประเภทผู้ใช้งานไม่ได้ หากต้องการให้เป็นเจ้าหน้าที่ กรุณาสร้างบัญชีใหม่");
+      err.statusCode = 400;
       throw err;
     }
 

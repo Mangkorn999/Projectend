@@ -1,4 +1,5 @@
 import prisma from "../../config/db.js";
+import { calcGraduationYear } from "../../utils/academicYear.js";
 
 const NEWEST_FIRST = [{ academic_year: "desc" }, { attempt_number: "desc" }];
 
@@ -35,9 +36,37 @@ export const findAcademicYears = async () => {
 export const findRoundById = (id) =>
   prisma.submissionRound.findUnique({ where: { round_id: Number(id) } });
 
-// นับนักศึกษาของรุ่นนั้น (กรองด้วย academic_year ของรอบ)
-export const countStudentsByYear = (academicYear) =>
-  prisma.student.count({ where: { academic_year: academicYear } });
+// รหัสนักศึกษาที่ "นำเข้าแล้วแต่ยังไม่เคยเข้าระบบกรอกโปรไฟล์" (ยังไม่มีแถวใน students) ของรุ่นนั้น
+// คนกลุ่มนี้เป็นสมาชิกของรุ่นแล้ว (เจ้าหน้าที่นำเข้ารายชื่อ) ต้องนับเป็น "ยังไม่กรอก" ไม่ใช่หายไปจากสถิติ
+// ไม่งั้นตัวหารต่ำเกินจริง → % ผ่านสูงเกินจริงในตัวเลขที่ส่งสภาการพยาบาล
+// ปีของรุ่น = ปีที่เจ้าหน้าที่ระบุตอนนำเข้า (import_academic_year) ถ้าไม่ระบุใช้รหัส + 4 (กฎเดียวกับตอนกรอกโปรไฟล์)
+export const findPendingStudentIdsByYear = async (academicYear) => {
+  const accounts = await prisma.user.findMany({
+    where: { role: { role_name: "student" }, student: null },
+    select: { psu_passport_id: true, import_academic_year: true },
+    orderBy: { psu_passport_id: "asc" },
+  });
+  const ids = [];
+  for (const account of accounts) {
+    let year = account.import_academic_year;
+    if (year === null) {
+      try {
+        year = calcGraduationYear(account.psu_passport_id);
+      } catch {
+        continue; // รหัสผิดรูปแบบ คำนวณปีไม่ได้ — ข้าม ไม่ให้ dashboard ทั้งหน้าพัง
+      }
+    }
+    if (year === academicYear) ids.push(account.psu_passport_id);
+  }
+  return ids;
+};
+
+// นับนักศึกษาของรุ่นนั้น (กรองด้วย academic_year ของรอบ) = คนที่กรอกโปรไฟล์แล้ว + บัญชีที่นำเข้าแต่ยังไม่เข้าระบบ
+export const countStudentsByYear = async (academicYear) => {
+  const registered = await prisma.student.count({ where: { academic_year: academicYear } });
+  const pendingIds = await findPendingStudentIdsByYear(academicYear);
+  return registered + pendingIds.length;
+};
 
 // นับเฉพาะคนที่เจ้าหน้าที่เปิดสิทธิ์ให้กรอกแล้ว — คนที่ยังไม่เปิดสิทธิ์กรอกไม่ได้
 // เอาไปเป็นตัวหารของ fillRate ไม่งั้น % จะต่ำเพราะคนที่ระบบยังไม่ให้กรอก
@@ -153,8 +182,8 @@ export const findResultsByRound = (roundId) =>
 // ใช้ทำรายชื่อ export ผ่าน/ไม่ผ่านครั้งแรก และผ่าน/ไม่ผ่านภายในปีแรก
 // ต้องดึงทั้งรุ่น ไม่ใช่เฉพาะคนที่มีใบผลสอบ: "ไม่ผ่าน" รวมคนที่ยังไม่ส่งผลด้วย (ตัวหารของ % คือทั้งรุ่น)
 // เลือกเฉพาะ field ที่ต้องใช้ (select) — ห้ามเพิ่ม password_hash หรือข้อมูลรหัสผ่านใดๆ เพราะไฟล์ส่งออกถูกส่งต่อกันในคณะ
-export const findStudentsByYear = (academicYear) =>
-  prisma.student.findMany({
+export const findStudentsByYear = async (academicYear) => {
+  const registered = await prisma.student.findMany({
     where: { academic_year: academicYear },
     select: {
       student_id: true,
@@ -167,3 +196,20 @@ export const findStudentsByYear = (academicYear) =>
     },
     orderBy: { student_id: "asc" },
   });
+
+  // บัญชีที่นำเข้าแล้วแต่ยังไม่เข้าระบบ — มีแค่รหัสนักศึกษา ช่องอื่นว่าง (ยังไม่มีข้อมูลโปรไฟล์)
+  // ต้องอยู่ในรายชื่อ "ไม่ผ่าน" เพราะนับเป็นสมาชิกของรุ่น (ตัวหารเดียวกับสถิติ)
+  const pendingIds = await findPendingStudentIdsByYear(academicYear);
+  const rows = [...registered];
+  for (const id of pendingIds) {
+    rows.push({
+      student_id: id,
+      first_name_en: "",
+      last_name_en: "",
+      room: null,
+      user: { first_name: "", last_name: "", email: "", phone: "" },
+    });
+  }
+  rows.sort((a, b) => (a.student_id < b.student_id ? -1 : a.student_id > b.student_id ? 1 : 0));
+  return rows;
+};

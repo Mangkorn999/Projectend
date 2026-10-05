@@ -15,10 +15,12 @@ import {
   listPendingAccounts,
   bulkRemove,
   removePendingAccounts,
+} from "./student.controller.js";
+import {
   exportSubjectList,
   exportStudents,
   getSubjectResultList,
-} from "./student.controller.js";
+} from "./student.export.controller.js";
 
 // เก็บไฟล์ใน memory ไม่เขียนลง disk — ใช้ครั้งเดียวตอน parse แล้วทิ้ง
 const upload = multer({
