@@ -121,6 +121,11 @@ async function main() {
     if ((await run("npx", ["prisma", "migrate", "deploy"], testEnv)) !== 0) throw new Error("migrate ล้มเหลว");
     if ((await run("node", ["prisma/seed.js"], testEnv)) !== 0) throw new Error("seed ล้มเหลว");
 
+    // --demo = ใส่ข้อมูลขนาดจริง 5 รุ่น (~900 คน) ด้วย seedDemoYears.js เพื่อวัดประสิทธิภาพ (ลงใน schema ชั่วคราวเท่านั้น)
+    if (process.argv.includes("--demo")) {
+      console.log("      ใส่ข้อมูลจำลอง 5 รุ่น (seedDemoYears)");
+      if ((await run("node", ["prisma/seedDemoYears.js"], testEnv)) !== 0) throw new Error("seedDemoYears ล้มเหลว");
+    }
     console.log(`[3/5] เปิด backend :${API_PORT} + frontend :${WEB_PORT}`);
     backend = start("node", ["src/server.js"], { ...testEnv, PORT: String(API_PORT), CORS_ORIGIN: FE });
     frontend = start("npx", ["vite", "--port", String(WEB_PORT), "--strictPort"], { VITE_API_BASE: API }, FRONTEND_DIR);
