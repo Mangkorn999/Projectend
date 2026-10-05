@@ -155,7 +155,7 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
               </td>
               <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                 <button className="btn btn-ghost btn-sm" style={{ marginRight: 6 }}
-                  disabled={u.user_id === currentUserId || (u.must_change_password && !u.is_revoked)}
+                  disabled={u.user_id === currentUserId}
                   onClick={() => { setConfirm({ user: u, action: 'reset' }); setResetPassword(''); setConfirmError(''); }}>
                   <Icon name="key" size={15} /> {tt('usersMgmt.resetBtn')}</button>
                 <button className="btn btn-ghost btn-sm" style={{ marginRight: 6 }} disabled={u.user_id === currentUserId || u.is_revoked}

@@ -15,9 +15,15 @@ export const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:3000/
 const USER_KEY = 'nursing_user';
 
 export function getStoredUser() {
-  const raw = localStorage.getItem(USER_KEY);
-  if (!raw) return null;
-  return JSON.parse(raw);
+  try {
+    const raw = localStorage.getItem(USER_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    // ค่าใน localStorage เสีย (ถูกแก้มือ / เขียนไม่จบ) หรืออ่านไม่ได้ — ถือว่ายังไม่ได้เข้าสู่ระบบ ดีกว่าหน้าขาวทั้งเว็บ
+    try { localStorage.removeItem(USER_KEY); } catch { /* ไม่เป็นไร */ }
+    return null;
+  }
 }
 // mustChangePassword/profileIncomplete เก็บติดไปกับ user object — ต้องรู้ตอน refresh หน้าด้วย
 // ไม่ใช่แค่ตอน login ครั้งแรก เพราะ backend ยัง block ทุก endpoint จนกว่าจะเปลี่ยนรหัส/กรอกโปรไฟล์ครบ
@@ -173,5 +179,6 @@ export async function downloadFile(path, { method = 'GET', body, filename = 'dow
   a.href = url;
   a.download = filename;
   a.click();
-  URL.revokeObjectURL(url);
+  // รอสักครู่ก่อนคืนหน่วยความจำ — บางเบราว์เซอร์ (Firefox/Safari) ยังไม่เริ่มดาวน์โหลดถ้าคืนทันที
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

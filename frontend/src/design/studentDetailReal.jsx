@@ -100,6 +100,8 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
     ? examResult.subject_results.filter(r => r.is_passed && roundSubjectIds.includes(r.subject_id)).length
     : 0;
   const allPass = examResult && roundSubjectIds.length > 0 && passedCount === roundSubjectIds.length;
+  // ใบที่ไม่มีไฟล์หลักฐานเลย ยืนยันไม่ได้ (backend ตอบ 409) — ปิดปุ่มยืนยัน ให้ตีกลับเพื่อให้นักศึกษาแนบไฟล์
+  const hasEvidenceFile = (examResult?.certificates?.length || 0) > 0;
 
   const review = async (action, reasonText) => {
     // จำใบที่กำลังตรวจไว้ก่อน — หลังโหลดใหม่จะได้กลับมาเปิดใบเดิม (ไม่เด้งไปใบล่าสุด)
@@ -340,8 +342,10 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
             {examResult?.remark && status === 'REJECTED' && <div style={{ marginTop: 12, padding: '11px 13px', background: 'var(--status-reject-bg)', borderRadius: 10, fontSize: 15, color: 'var(--status-reject-fg)' }}>
               <b>{tt('officer.detail.rejectReasonLabel')}</b><br />{examResult.remark}</div>}
             {canReview && status === 'SUBMITTED' && <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginTop: 16 }}>
-              <button className="btn btn-success btn-block btn-lg" disabled={busy} onClick={() => review('approve')}>
+              <button className="btn btn-success btn-block btn-lg" disabled={busy || !hasEvidenceFile} onClick={() => review('approve')}
+                title={hasEvidenceFile ? undefined : tt('officer.detail.confirmNeedsFile')}>
                 <Icon name="checkCircle" size={18} /> {tt('officer.detail.confirmBtn')}</button>
+              {!hasEvidenceFile && <div style={{ fontSize: 14, color: 'var(--ink-500)' }}>{tt('officer.detail.confirmNeedsFile')}</div>}
               <button className="btn btn-danger btn-block" disabled={busy} onClick={() => setReject(true)}>
                 <Icon name="xCircle" size={17} /> {tt('officer.detail.rejectBtn')}</button>
             </div>}
