@@ -135,7 +135,8 @@ export function ExecutiveReport({ toast, lang }) {
         {/* 2. อัตราสอบผ่านแยกตามครั้งที่สอบ — ตัวหารคือผู้ที่ยืนยันแล้วของครั้งนั้น (คนละตัวหารกับข้อ 1) */}
         <div className="sec-title" style={{ margin: '26px 0 6px', color: 'var(--ink-900)' }}>{tt('execReport.sectionAttempts')}</div>
         <div style={{ fontSize: 14, color: 'var(--ink-500)', marginBottom: 10 }}>{tt('execReport.attemptsNote')}</div>
-        <table className="tbl" style={{ border: '1px solid var(--ink-200)', borderRadius: 10, overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto', maxWidth: '100%' }}>
+          <table className="tbl" style={{ border: '1px solid var(--ink-200)', borderRadius: 10, overflow: 'hidden' }}>
           <thead><tr>
             <th>{tt('execReport.colAttempt')}</th>
             <th style={{ textAlign: 'right' }}>{tt('execReport.colConfirmed')}</th>
@@ -151,10 +152,12 @@ export function ExecutiveReport({ toast, lang }) {
             </tr>
           ))}</tbody>
         </table>
+        </div>
 
         {/* 3. เทียบย้อนหลัง — เห็นแนวโน้มว่าดีขึ้นหรือแย่ลง */}
         <div className="sec-title" style={{ margin: '26px 0 12px', color: 'var(--ink-900)' }}>{tt('execReport.sectionTrend')}</div>
-        <table className="tbl" style={{ border: '1px solid var(--ink-200)', borderRadius: 10, overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto', maxWidth: '100%' }}>
+          <table className="tbl" style={{ border: '1px solid var(--ink-200)', borderRadius: 10, overflow: 'hidden' }}>
           <thead><tr>
             <th>{tt('execReport.colYear')}</th>
             <th style={{ textAlign: 'right' }}>{tt('execReport.colCohort')}</th>
@@ -170,6 +173,7 @@ export function ExecutiveReport({ toast, lang }) {
             </tr>
           ))}</tbody>
         </table>
+        </div>
 
         {/* 4. ผลสอบผ่านครั้งแรก จำแนกรายวิชา — ตารางเดียวกับหน้าแดชบอร์ด */}
         {yearStats.firstAttemptBySubject && (

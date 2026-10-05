@@ -860,7 +860,7 @@ function RoundBar({ round, roundInfo, submitted, fillRate, roundTotal, tt }) {
   return (
     <div className="card" style={{ padding: '16px 20px', marginBottom: 20, display: 'flex',
       alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 'none' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', minWidth: 0, maxWidth: '100%' }}>
         <Icon name="calendar" size={18} style={{ color: 'var(--navy-600)' }} />
         <span style={{ fontWeight: 800, fontSize: 17 }}>
           {tt('dashReal.roundBarTitle', { attempt: round.attempt_number, year: round.academic_year })}

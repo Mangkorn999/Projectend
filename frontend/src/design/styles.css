@@ -290,6 +290,12 @@ select.input, select.select {
   .app-content { padding:18px 16px 56px; }
 }
 
+/* จอแคบมาก (iPhone SE / มือถือรุ่นเล็ก ≤ 380px): แถบบนสุดมีเมนู + TH/EN + กระดิ่ง + ชื่อผู้ใช้ รวมกันกว้างเกินจอ
+   ลดช่องว่างให้พอดี ไม่งั้นปุ่มชื่อผู้ใช้ล้นขอบขวาและทั้งหน้าเลื่อนแนวนอนได้ */
+@media (max-width: 380px) {
+  .app-header { gap:8px !important; padding:0 8px !important; }
+}
+
 /* responsive grid helpers */
 .grid { display:grid; gap:18px; }
 .g-2 { grid-template-columns:repeat(2,1fr); }

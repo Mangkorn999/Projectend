@@ -263,7 +263,8 @@ export function ReportsReal({ toast, readonly, lang }) {
         )}
 
         <div className="sec-title" style={{ margin: '26px 0 12px', color: 'var(--ink-900)' }}>{tt('reports.section2')}</div>
-        <table className="tbl" style={{ border: '1px solid var(--ink-200)', borderRadius: 10, overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto', maxWidth: '100%' }}>
+          <table className="tbl" style={{ border: '1px solid var(--ink-200)', borderRadius: 10, overflow: 'hidden' }}>
           <thead><tr><th>{tt('reports.colStatus')}</th><th style={{ textAlign: 'right' }}>{tt('reports.colCount')}</th><th style={{ textAlign: 'right' }}>{tt('reports.colPercent')}</th></tr></thead>
           <tbody>{byStatus.map(([k, label, n]) => (
             <tr key={k}>
@@ -273,12 +274,14 @@ export function ReportsReal({ toast, readonly, lang }) {
               <td className="tnum" style={{ textAlign: 'right', color: 'var(--ink-600)' }}>{roundTotal ? (Math.round(n / roundTotal * 10000) / 100).toFixed(2) : '0.00'}%</td></tr>
           ))}</tbody>
         </table>
+        </div>
         {alreadyPassed > 0 && (
           <div style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--ink-500)' }}>{tt('dashReal.alreadyPassedNote', { n: alreadyPassed })}</div>
         )}
 
         <div className="sec-title" style={{ margin: '26px 0 12px', color: 'var(--ink-900)' }}>{tt('reports.section3')}</div>
-        <table className="tbl" style={{ border: '1px solid var(--ink-200)', borderRadius: 10, overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto', maxWidth: '100%' }}>
+          <table className="tbl" style={{ border: '1px solid var(--ink-200)', borderRadius: 10, overflow: 'hidden' }}>
           <thead><tr><th>{tt('reports.colCode')}</th><th>{tt('reports.colSubject')}</th><th style={{ textAlign: 'right' }}>{tt('reports.colPass')}</th><th style={{ textAlign: 'right' }}>{tt('reports.colFail')}</th><th style={{ textAlign: 'right' }}>{tt('reports.colPassRate')}</th></tr></thead>
           <tbody>{perSubject.map(s => {
             const openList = (passed) => setSubjectModal({
@@ -305,6 +308,7 @@ export function ReportsReal({ toast, readonly, lang }) {
             );
           })}</tbody>
         </table>
+        </div>
         {/* คำแนะนำสำหรับคนดูบนจอเท่านั้น — no-print ซ่อนตอนพิมพ์และตอนบันทึก PDF */}
         {!readonly && <div className="no-print" style={{ fontSize: 13.5, color: 'var(--ink-500)', marginTop: 6 }}>{tt('reportsReal.subjectClickHint')}</div>}
 
@@ -321,7 +325,7 @@ export function ReportsReal({ toast, readonly, lang }) {
           <>
             <div className="sec-title" style={{ margin: '26px 0 12px', color: 'var(--ink-900)' }}>{tt('reportsReal.distSection')}</div>
             <div style={{ overflowX: 'auto' }}>
-              <table className="tbl" style={{ border: '1px solid var(--ink-200)', borderRadius: 10, overflow: 'hidden' }}>
+                <table className="tbl" style={{ border: '1px solid var(--ink-200)', borderRadius: 10, overflow: 'hidden' }}>
                 <thead><tr>
                   <th>{tt('dashReal.distColResult')}</th>
                   {yearStats.passDistribution.rooms.map(r => (
@@ -341,6 +345,7 @@ export function ReportsReal({ toast, readonly, lang }) {
                   </tr>
                 ))}</tbody>
               </table>
+              
             </div>
             <p style={{ margin: '10px 0 0', fontSize: 14, color: 'var(--ink-500)' }}>{tt('dashReal.distFootnote', { total: yearStats.passDistribution.total })}</p>
           </>
