@@ -168,6 +168,7 @@ const main = async () => {
     check("B-01 สรุปรายปี: total = 4 และ 5 สถานะรวมกัน = total", [sumB?.total, Object.values(sumB?.statusByStudent || {}).reduce((a, b) => a + b, 0)], [4, 4]);
     const execStats = await call("GET", `/api/dashboard/stats?round_id=${roundB}`, { token: oToken });
     check("  total จาก stats ตรงกับสรุปรายปี", execStats.json.data.total, sumB?.total);
+    check("B-01 บอกจำนวนบัญชีที่ยังไม่เข้าระบบ (pending_accounts = 2) ทั้งใน stats และสรุปรายปี", [statsB.pending_accounts, sumB?.pending_accounts, execStats.json.data.pending_accounts], [2, 2, 2]);
 
     // ════════ B-07 : รายรอบนับวิชาที่ยกมา (INFO) ════════
     console.log("\n── B-07: ใบต้นทางถูกตีกลับภายหลัง (INFO) ──");

@@ -332,9 +332,10 @@ export const buildStats = async (roundId) => {
 
   if (!round) throw notFound("ไม่พบรอบการกรอกผลสอบ");
 
-  const [total, eligible, allSubjects, results, eligibleStudents] =
+  const [total, pendingAccounts, eligible, allSubjects, results, eligibleStudents] =
     await Promise.all([
       dashRepo.countStudentsByYear(round.academic_year),
+      dashRepo.countPendingByYear(round.academic_year),
       dashRepo.countEligibleByYear(round.academic_year),
       dashRepo.findAllSubjects(),
       dashRepo.findResultsByRound(round.round_id),
@@ -407,6 +408,7 @@ export const buildStats = async (roundId) => {
       phase: getRoundPhase(round),
     },
     total, // นักศึกษาทั้งรุ่นที่ import เข้าระบบ = ตัวหารของทุก % ในหน้านี้
+    pending_accounts: pendingAccounts, // ในจำนวน total มีกี่คนที่นำเข้าแล้วแต่ยังไม่เคยเข้าระบบ (นับเป็น "ยังไม่กรอก")
     eligible, // เปิดสิทธิ์กรอกอยู่กี่คน — ข้อมูลประกอบ ไม่ใช่ตัวหาร
     canSubmit, // รอบนี้เปิดฟอร์มให้กรอกได้กี่คน (ยังผ่านไม่ครบ) — ข้อมูลประกอบ ไม่ใช่ตัวหาร
     alreadyPassedStudentIds, // เปิดสิทธิ์ + ผ่านครบทุกวิชาไปแล้วตั้งแต่ก่อนรอบนี้ — ไม่มีอะไรต้องทำในรอบนี้แล้ว
@@ -443,8 +445,9 @@ const buildYearSummary = async (year, allSubjects) => {
     (r) => r.academic_year === year,
   );
 
-  const [total, eligible, roomTotals] = await Promise.all([
+  const [total, pendingAccounts, eligible, roomTotals] = await Promise.all([
     dashRepo.countStudentsByYear(year),
+    dashRepo.countPendingByYear(year),
     dashRepo.countEligibleByYear(year),
     dashRepo.countStudentsByRoom(year),
   ]);
@@ -611,6 +614,7 @@ const buildYearSummary = async (year, allSubjects) => {
   return {
     academic_year: year,
     total,
+    pending_accounts: pendingAccounts, // ในจำนวน total มีกี่คนที่ยังไม่เคยเข้าระบบ
     eligible,
     submitted: everSubmitted.size,
     started: everStarted.size, // มีใบในปีนี้กี่คน (รวม draft) — total − started = ยังไม่เริ่มกรอก

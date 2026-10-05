@@ -177,7 +177,9 @@ export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreVi
         sub={yearSummary ? (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             {tt('dashReal.subYear', { year })} <span style={{ color: 'var(--ink-200)' }}>|</span>
-            <Icon name="users" size={15} /> {yearSummary.total} <span style={{ color: 'var(--ink-400)', fontSize: 20, fontWeight: 700, lineHeight: 0 }}>·</span>
+            <Icon name="users" size={15} /> {yearSummary.total}
+            {yearSummary.pending_accounts > 0 && <span title={tt('dashReal.subPendingHint')}>{tt('dashReal.subPending', { n: yearSummary.pending_accounts })}</span>}
+            <span style={{ color: 'var(--ink-400)', fontSize: 20, fontWeight: 700, lineHeight: 0 }}>·</span>
             {tt('dashReal.subEligible', { eligible: yearSummary.eligible })}
           </span>
         ) : null}

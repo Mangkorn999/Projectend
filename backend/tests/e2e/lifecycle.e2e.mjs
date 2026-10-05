@@ -432,7 +432,7 @@ const main = async () => {
   };
   await section("L-09 สรุปปี 2596 + ไฟล์ส่งออกต้องตรงกับแดชบอร์ด", async () => {
     const sum = await yearSummary();
-    check("ปี 2596: นักศึกษาทั้งรุ่น = 10", sum.total, 10);
+    check("ปี 2596: นักศึกษาทั้งรุ่น = 10 (ในนั้นยังไม่เข้าระบบ 1 คน = S13)", [sum.total, sum.pending_accounts], [10, 1]);
     check("ปี 2596: ส่งผลอย่างน้อย 1 รอบ = 7 (70%)", [sum.submitted, sum.fillRate], [7, 70]);
     check("ปี 2596: ผ่านครั้งแรก = 3 (30%)", [sum.firstAttempt.passed, sum.firstAttempt.rate], [3, 30]);
     check("ปี 2596: ผ่านภายในปีแรก = 6 (60%)", [sum.firstYear.passed, sum.firstYear.rate], [6, 60]);
@@ -488,6 +488,9 @@ const main = async () => {
       await page.waitForTimeout(2500);
       await shot(page, shotName);
       check(`${label}: ไม่มี error ไม่มีค่าหลุด`, [page.errors.length, forbiddenIn(await bodyText(page))], [0, []]);
+      if (urlPath === "/dashboard") {
+        check("แดชบอร์ดเจ้าหน้าที่: หัวหน้าบอก '(รวมยังไม่เข้าระบบ 1 คน)'", (await bodyText(page)).includes("(รวมยังไม่เข้าระบบ 1 คน)"), true);
+      }
     }
     const exec = await openSession();
     await uiLogin(exec.page, "789", "789");
@@ -497,6 +500,9 @@ const main = async () => {
       await exec.page.waitForTimeout(2500);
       await shot(exec.page, shotName);
       check(`${label}: ไม่มี error ไม่มีค่าหลุด`, [exec.page.errors.length, forbiddenIn(await bodyText(exec.page))], [0, []]);
+      if (urlPath === "/dashboard") {
+        check("แดชบอร์ดผู้บริหาร: เห็น '(รวมยังไม่เข้าระบบ 1 คน)' (ตัวเลข ไม่ใช่รายชื่อ)", (await bodyText(exec.page)).includes("(รวมยังไม่เข้าระบบ 1 คน)"), true);
+      }
     }
     await exec.context.close();
   });

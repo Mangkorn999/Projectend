@@ -61,6 +61,10 @@ export const findPendingStudentIdsByYear = async (academicYear) => {
   return ids;
 };
 
+// จำนวนบัญชีที่นำเข้าแล้วแต่ยังไม่เข้าระบบของรุ่นนั้น — ให้แดชบอร์ดบอกว่า "ทั้งรุ่น" รวมกี่คนที่ยังไม่เข้าระบบ
+// (ส่งแค่จำนวน ไม่ส่งรหัสออกไป — ผู้บริหารก็เห็นตัวเลขนี้ได้โดยไม่เห็นรายบุคคล)
+export const countPendingByYear = async (academicYear) => (await findPendingStudentIdsByYear(academicYear)).length;
+
 // นับนักศึกษาของรุ่นนั้น (กรองด้วย academic_year ของรอบ) = คนที่กรอกโปรไฟล์แล้ว + บัญชีที่นำเข้าแต่ยังไม่เข้าระบบ
 export const countStudentsByYear = async (academicYear) => {
   const registered = await prisma.student.count({ where: { academic_year: academicYear } });
