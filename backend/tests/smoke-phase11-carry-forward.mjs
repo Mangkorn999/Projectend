@@ -4,6 +4,7 @@
 // closes them again at the end -- run it after the other smoke tests.
 import { cleanupYears } from "./cleanupYears.mjs";
 
+import { autoAttachEvidence } from "./autoEvidence.mjs";
 const BASE = process.env.BASE || "http://localhost:3000"; // ตั้ง BASE ได้ตอนรันผ่าน test:clean (server ชั่วคราวอยู่คนละพอร์ต)
 let failures = 0;
 
@@ -26,6 +27,7 @@ const call = async (method, url, { token, body } = {}) => {
   if (setCookie) {
     cookie = setCookie.split(";")[0];
   }
+  await autoAttachEvidence(BASE, method, url, token, { status: res.status, json });
   return { status: res.status, json, cookie };
 };
 

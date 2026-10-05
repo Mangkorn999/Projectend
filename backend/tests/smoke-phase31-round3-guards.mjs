@@ -139,6 +139,8 @@ const main = async () => {
     check("ยืนยันทั้งที่ไฟล์ที่ผู้ตรวจเห็นถูกลบไปแล้ว -> 409", approveNoFile.status, 409);
     check("  ใบยังรอตรวจ", (await officerView("V2")).staff_status, "pending");
     check("ตีกลับด้วยเวอร์ชันเก่าก็ 409 เหมือนกัน", (await reject(a2Result, { remark: "ทดสอบ", expected_certificate_ids: ids(seenA2) })).status, 409);
+    check("ยืนยันใบที่ไม่มีไฟล์เลย -> 409 (B-03) ใบยังรอตรวจ", [(await approve(a2Result, {})).status, (await officerView("V2")).staff_status], [409, "pending"]);
+    check("V2 แนบไฟล์ใหม่ -> 200", (await upload("V2", a2Result)).status, 200);
     check("ไม่ส่ง expected_* ยังยืนยันได้แบบเดิม (เข้ากันได้ย้อนหลัง) -> 200", (await approve(a2Result, {})).status, 200);
 
     console.log("\n── B. ยืนยันพร้อมกับลบไฟล์ (ขนาน) ──");

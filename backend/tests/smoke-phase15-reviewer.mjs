@@ -4,6 +4,7 @@
 // (adds psu_passport_id "321"/"321" as a reviewer account).
 import { cleanupYears } from "./cleanupYears.mjs";
 
+import { autoAttachEvidence } from "./autoEvidence.mjs";
 const BASE = process.env.BASE || "http://localhost:3000"; // ตั้ง BASE ได้ตอนรันผ่าน test:clean (server ชั่วคราวอยู่คนละพอร์ต)
 let failures = 0;
 
@@ -20,6 +21,7 @@ const call = async (method, url, { token, body } = {}) => {
   let cookie = null;
   const setCookie = res.headers.get("set-cookie");
   if (setCookie) cookie = setCookie.split(";")[0];
+  await autoAttachEvidence(BASE, method, url, token, { status: res.status, json });
   return { status: res.status, json, cookie };
 };
 

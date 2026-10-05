@@ -117,8 +117,15 @@ const main = async () => {
 
   check(
     "user id ไม่มีจริง → 404",
-    (await call("POST", "/api/users/999999/role", { token: officer, body: { role_name: "student" } })).status,
+    (await call("POST", "/api/users/999999/role", { token: officer, body: { role_name: "officer" } })).status,
     404,
+  );
+
+  // B-18 (5 ต.ค. 2569): ห้ามเปลี่ยนบทบาทเป็นนักศึกษาผ่าน API (role นี้เกิดจากการนำเข้ารายชื่อเท่านั้น)
+  check(
+    "เปลี่ยน role เป็น student → 400",
+    (await call("POST", `/api/users/${execUserId}/role`, { token: officer, body: { role_name: "student" } })).status,
+    400,
   );
 
   // เปลี่ยนกลับเป็น executive

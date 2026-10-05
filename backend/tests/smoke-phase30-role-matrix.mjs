@@ -9,6 +9,7 @@
 // รุ่นทดสอบ 2593 (รหัสขึ้นต้น 89) — ล้างทิ้งด้วย cleanupYears
 import { cleanupYears } from "./cleanupYears.mjs";
 
+import { autoAttachEvidence } from "./autoEvidence.mjs";
 const BASE = process.env.BASE || "http://localhost:3000";
 let failures = 0;
 
@@ -22,6 +23,7 @@ const call = async (method, url, { token, body } = {}) => {
   if (/json/.test(type)) json = await res.json().catch(() => ({}));
   else await res.arrayBuffer().catch(() => {});
   const setCookie = res.headers.get("set-cookie");
+  await autoAttachEvidence(BASE, method, url, token, { status: res.status, json });
   return { status: res.status, json, type, cookie: setCookie ? setCookie.split(";")[0] : null };
 };
 

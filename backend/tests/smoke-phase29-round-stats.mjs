@@ -16,6 +16,7 @@
 // และปี 2592 ที่มีรอบแต่ไม่มีนักศึกษา → ทุกตัวเลขต้องเป็น 0 ไม่ใช่ NaN/null
 import { cleanupYears } from "./cleanupYears.mjs";
 
+import { autoAttachEvidence } from "./autoEvidence.mjs";
 const BASE = process.env.BASE || "http://localhost:3000";
 let failures = 0;
 
@@ -26,6 +27,7 @@ const call = async (method, url, { token, body } = {}) => {
   const res = await fetch(`${BASE}${url}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   const json = await res.json().catch(() => ({}));
   const setCookie = res.headers.get("set-cookie");
+  await autoAttachEvidence(BASE, method, url, token, { status: res.status, json });
   return { status: res.status, json, cookie: setCookie ? setCookie.split(";")[0] : null };
 };
 

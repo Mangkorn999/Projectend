@@ -128,7 +128,9 @@ async function main() {
     if (!(await waitFor(FE))) throw new Error(`frontend ไม่ขึ้น\n${frontend.log()}`);
 
     console.log("[4/5] รันเทสผ่านหน้าเว็บ\n");
-    exitCode = await run("node", ["tests/e2e/real-flow.e2e.mjs"], { ...testEnv, FE, API });
+    // E2E_FILE เลือกไฟล์เทสได้ (ค่าเริ่มต้น = real-flow) เช่น tests/e2e/lifecycle.e2e.mjs
+    const testFile = process.argv[2] || process.env.E2E_FILE || "tests/e2e/real-flow.e2e.mjs";
+    exitCode = await run("node", [testFile], { ...testEnv, FE, API });
   } catch (err) {
     console.error(err.message);
   } finally {

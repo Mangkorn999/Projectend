@@ -14,6 +14,7 @@
 import readXlsxFile from "read-excel-file/node";
 import { cleanupYears } from "./cleanupYears.mjs";
 
+import { autoAttachEvidence } from "./autoEvidence.mjs";
 const BASE = process.env.BASE || "http://localhost:3000";
 let failures = 0;
 
@@ -27,6 +28,7 @@ const call = async (method, url, { token, body } = {}) => {
   const buffer = isFile ? Buffer.from(await res.arrayBuffer()) : null;
   const json = isFile ? {} : await res.json().catch(() => ({}));
   const setCookie = res.headers.get("set-cookie");
+  await autoAttachEvidence(BASE, method, url, token, { status: res.status, json });
   return { status: res.status, json, buffer, type, cookie: setCookie ? setCookie.split(";")[0] : null };
 };
 
