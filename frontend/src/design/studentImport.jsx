@@ -221,6 +221,36 @@ const RESULT_PER_PAGE = 20;
      2. "ยืนยันนำเข้า"  → ส่งไฟล์เดิมอีกรอบแบบบันทึกจริง
    ใช้ backend ตรวจทั้งสองรอบ ไม่ได้อ่าน CSV เองในหน้าเว็บ — กฎตรวจ (เลขบัตร/รหัส/ปีจบ/encoding ไทย)
    อยู่ที่ backend ที่เดียว ถ้าเขียนซ้ำฝั่งนี้ สักวันสองที่จะตรวจไม่ตรงกัน */
+/* แถบ "กำลังนำเข้า" — นำเข้าหลายร้อยคนใช้เวลาเป็นนาที (ระบบ hash รหัสผ่านทีละคน) ต้องบอกชัดว่ากำลังทำงาน ห้ามปิดหน้า ห้ามกดซ้ำ
+   นับเวลาที่ผ่านไปให้ดูด้วย เพื่อให้รู้ว่าระบบไม่ได้ค้าง · ประมาณการ ~0.065 วินาทีต่อคน (วัดจากเทส 1,000 แถว = 62 วินาที) */
+function ImportingNotice({ count, tt }) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const started = Date.now();
+    const timer = setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  // กันปิดแท็บ/รีเฟรชระหว่างนำเข้า — เบราว์เซอร์จะถามยืนยันก่อน
+  useEffect(() => {
+    const warn = (e) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, []);
+  const estimate = Math.max(5, Math.round(count * 0.065));
+  return (
+    <div role="status" aria-live="polite" style={{ marginTop: 14, padding: 16, borderRadius: 12, display: 'flex', gap: 14, alignItems: 'flex-start',
+      background: 'var(--status-wait-bg)', border: '1px solid var(--gold-100)' }}>
+      <span aria-hidden="true" style={{ flex: 'none', width: 22, height: 22, marginTop: 2, borderRadius: '50%', border: '3px solid var(--gold-100)',
+        borderTopColor: 'var(--status-wait-fg)', animation: 'langSpin .9s linear infinite' }} />
+      <div>
+        <div style={{ fontSize: 16.5, fontWeight: 800, color: 'var(--status-wait-fg)' }}>{tt('importReal.importingNoticeTitle', { n: count })}</div>
+        <div style={{ fontSize: 15, color: 'var(--ink-700)', marginTop: 4 }}>{tt('importReal.importingNoticeBody', { s: estimate })}</div>
+        <div style={{ fontSize: 14, color: 'var(--ink-500)', marginTop: 6 }}>{tt('importReal.importingElapsed', { s: elapsed })}</div>
+      </div>
+    </div>
+  );
+}
+
 function CsvImport({ toast, tt, lang }) {
   const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -357,6 +387,7 @@ function CsvImport({ toast, tt, lang }) {
             </button>
           )}
         </div>
+        {busy && preview && <ImportingNotice count={preview.imported_count} tt={tt} />}
         {columnPick && (
           <div style={{ marginTop:14, padding:16, borderRadius:12, background:'var(--status-wait-bg)', border:'1px solid var(--gold-100)' }}>
             <div style={{ fontSize:16.5, fontWeight:800, color:'var(--status-wait-fg)', marginBottom:4 }}>{tt('importReal.mapTitle')}</div>
@@ -391,7 +422,7 @@ function CsvImport({ toast, tt, lang }) {
 
       {shown && (
         <div aria-live="polite" className="fade-up">
-          <ResultBanner result={shown} isPreview={!!preview} tt={tt} />
+          {!(busy && preview) && <ResultBanner result={shown} isPreview={!!preview} tt={tt} />}
 
           {/* บอกว่าระบบอ่านคอลัมน์ไหนของไฟล์ไปใช้ — ให้เจ้าหน้าที่เห็นก่อนยืนยัน กันจับคู่ผิดเงียบๆ */}
           {shown.columns_used && (

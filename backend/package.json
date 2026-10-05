@@ -13,6 +13,7 @@
     "test:e2e": "node --env-file=.env tests/e2e/run-e2e.mjs",
     "test:e2e:lifecycle": "node --env-file=.env tests/e2e/run-e2e.mjs tests/e2e/lifecycle.e2e.mjs",
     "test:e2e:browsers": "node --env-file=.env tests/e2e/run-e2e.mjs tests/e2e/browsers.e2e.mjs",
+    "test:e2e:import": "node --env-file=.env tests/e2e/run-e2e.mjs tests/e2e/import-progress.e2e.mjs",
     "test:perf": "node --env-file=.env tests/e2e/run-e2e.mjs tests/e2e/perf.e2e.mjs --demo"
   },
   "author": "",
