@@ -119,7 +119,12 @@ async function main() {
 
     console.log("[2/5] migrate + seed");
     if ((await run("npx", ["prisma", "migrate", "deploy"], testEnv)) !== 0) throw new Error("migrate ล้มเหลว");
-    if ((await run("node", ["prisma/seed.js"], testEnv)) !== 0) throw new Error("seed ล้มเหลว");
+    if (process.argv.includes("--copy-real")) {
+      // ข้อมูลจริงทั้งก้อน (รวม roles/users) ถูกคัดลอกจาก public แบบอ่านอย่างเดียว — ไม่ต้อง seed
+      console.log("      คัดลอกข้อมูลจริงจาก public (อ่านอย่างเดียว)");
+      const { copyRealData } = await import("./copyRealData.mjs");
+      await copyRealData(SCHEMA);
+    } else if ((await run("node", ["prisma/seed.js"], testEnv)) !== 0) throw new Error("seed ล้มเหลว");
 
     // --demo = ใส่ข้อมูลขนาดจริง 5 รุ่น (~900 คน) ด้วย seedDemoYears.js เพื่อวัดประสิทธิภาพ (ลงใน schema ชั่วคราวเท่านั้น)
     if (process.argv.includes("--demo")) {
