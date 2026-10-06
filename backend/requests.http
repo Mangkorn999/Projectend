@@ -1,175 +1,370 @@
-### ใช้กับ VS Code extension "REST Client" (humao.rest-client)
-### กด "Send Request" เหนือแต่ละ block ได้เลย ไม่ต้องพึ่ง Postman
-### รันก่อน: cd backend && npm start   (server ที่ http://localhost:3000)
+### ═══════════════════════════════════════════════════════════════════
+### สคริปต์ยิง API สำหรับนำเสนอ — ใช้กับ VS Code extension "REST Client" (humao.rest-client)
+### กด "Send Request" เหนือแต่ละ block ทีละอันตามลำดับเลข  (ไม่ต้องใช้ Postman)
+###
+### เตรียมก่อนโชว์:
+###   1. cd backend && npm start                 (server ที่ http://localhost:3000)
+###   2. npx prisma studio                       (เปิดตารางไว้อีกจอ ดูแถวเปลี่ยนหลังกด)
+###   3. ข้อมูล demo: npm run demo:seed หรือ seed:demo-years  — และรอบสอบต้อง "เปิดอยู่และยังไม่หมดเวลา"
+###      (ไม่งั้นข้อ 3 ส่งผลสอบไม่ได้ ตอบ 400 "ไม่มีรอบกรอกผลสอบที่เปิดอยู่" → ใช้ข้อ 0 เลื่อนวันปิดรอบ)
+###   4. ไฟล์แนบข้อ 4: วาง PDF อะไรก็ได้ไว้ที่ backend/assets/demo-evidence.pdf
+###      (ไฟล์ *.pdf ถูก .gitignore ไว้ จึงไม่อยู่ใน git — ต้องมีเองในเครื่อง)
+###
+### เรื่องที่ควรเล่า:
+###   - Login ไม่ส่ง token ใน body — ระบบ set cookie แบบ HttpOnly (JavaScript ในหน้าเว็บอ่านไม่ได้ กัน XSS ขโมย token)
+###     REST Client เก็บ cookie ให้เองและแนบทุก request ถัดไป → ไม่ต้อง copy/paste token
+###   - cookie เก็บได้ทีละคนต่อ host: login คนใหม่ = สลับตัวตนทันที (นักศึกษา → เจ้าหน้าที่ → ผู้บริหาร)
+###   - ทุก block มีบรรทัด "→ DB:" บอกว่าควรเห็นตารางไหนเปลี่ยน (เทียบกับ Prisma Studio)
+### ═══════════════════════════════════════════════════════════════════
 
 @baseUrl = http://localhost:3000/api
-@token = PASTE_TOKEN_FROM_LOGIN_HERE
-# แปะ token จาก block 1 (student) และ block 1b (officer) ที่นี่ที่เดียว
-@studentToken = PASTE_STUDENT_TOKEN_HERE
-@officerToken = PASTE_OFFICER_TOKEN_HERE
 
-### 1. Login (student ตัวอย่างจาก seed) — copy "token" จาก response ไปแปะที่ @token ด้านบน
+# บัญชีที่ใช้ — แก้ได้ตามข้อมูลในเครื่อง
+# นักศึกษา demo: รหัสนักศึกษา / demo1234 (จาก seed:demo-years) — ต้องเป็นคนที่ยังไม่ส่งผลในรอบที่เปิดอยู่
+@studentUser = 6610210001
+@studentPass = demo1234
+# เจ้าหน้าที่ / ผู้บริหาร / ผู้ตรวจสอบ จาก prisma/seed.js
+@officerUser = 456
+@officerPass = 456
+@executiveUser = 789
+@executivePass = 789
+@reviewerUser = 321
+@reviewerPass = 321
+
+
+### ───────────────────────────────────────────────────────────────────
+### ส่วน A — เจ้าหน้าที่เตรียมรอบ
+### ───────────────────────────────────────────────────────────────────
+
+### A1. เจ้าหน้าที่ login
+# → DB: ไม่มีอะไรเปลี่ยน (อ่าน users เทียบ bcrypt hash) · Response ไม่มี token, ดู header "Set-Cookie: token=...; HttpOnly"
+# @name officerLogin
 POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
 {
-  "psu_passport_id": "6610210631",
-  "first_name": "Thanyatep",
-  "last_name": "Jiwtan",
-  "email": "6610210631@email.psu.ac.th",
-  "faculty_id": "6"
+  "psu_passport_id": "{{officerUser}}",
+  "password": "{{officerPass}}"
 }
 
-### 1a. Login — ไม่ส่ง faculty_id (ต้องได้ 403)
+### A2. ดูรอบทั้งหมด — จดเลข round_id ของรอบที่เปิดอยู่
+# → DB: ไม่เปลี่ยน (อ่าน submission_rounds)
+# @name roundsList
+GET {{baseUrl}}/rounds
+
+### A3. (ถ้ารอบหมดเวลาแล้ว) เลื่อนวันปิดรอบ — แก้ 3 จุด: เลข round ใน URL, วันที่ปิด
+# → DB: submission_rounds แถวนั้นเปลี่ยน close_date (จำนวนแถวเท่าเดิม)
+# หมายเหตุ: ถ้าไม่มีรอบเปิดเลย ใช้ POST {{baseUrl}}/rounds แทน (ดูตัวอย่างข้อ A4)
+PUT {{baseUrl}}/rounds/4
+Content-Type: application/json
+
+{
+  "close_date": "2026-12-31",
+  "status": "open"
+}
+
+### A4. (ตัวอย่าง) สร้างรอบใหม่ — ไม่ต้องกดถ้ามีรอบเปิดอยู่แล้ว (ระบบห้ามเปิดซ้อนกัน 2 รอบ)
+# → DB: submission_rounds +1
+# ปีการศึกษา+ครั้งที่ซ้ำกับของเดิม → 400 "ปีการศึกษา ... มีรอบครั้งที่ ... อยู่แล้ว"
+# POST {{baseUrl}}/rounds
+# Content-Type: application/json
+#
+# {
+#   "academic_year": 2570,
+#   "attempt_number": 1,
+#   "open_date": "2026-11-01",
+#   "close_date": "2026-11-30",
+#   "status": "open"
+# }
+
+
+### ───────────────────────────────────────────────────────────────────
+### ส่วน B — นักศึกษากรอกผล
+### ───────────────────────────────────────────────────────────────────
+
+### B1. นักศึกษา login (สลับตัวตนจากเจ้าหน้าที่)
+# → DB: ไม่เปลี่ยน · เปิด Application ใน DevTools ไม่เกี่ยว — ที่นี่ดู response header Set-Cookie
+# @name studentLogin
 POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
 {
-  "psu_passport_id": "6610210631",
-  "first_name": "Thanyatep",
-  "last_name": "Jiwtan",
-  "email": "6610210631@email.psu.ac.th"
+  "psu_passport_id": "{{studentUser}}",
+  "password": "{{studentPass}}"
 }
 
-### 1b. Login (officer ตัวอย่างจาก seed)
-POST {{baseUrl}}/auth/login
-Content-Type: application/json
-
-{
-  "psu_passport_id": "456",
-  "faculty_id": "6"
-}
-
-### 1c. Login (user ใหม่ที่ยังไม่มีใน DB) — auto-create ให้ role "student"
-### หมายเหตุ: สร้างแค่แถวใน users ไม่มีแถวใน students → studentId ใน JWT = null
-POST {{baseUrl}}/auth/login
-Content-Type: application/json
-
-{
-  "psu_passport_id": "6610210999",
-  "first_name": "Test",
-  "last_name": "NewUser",
-  "email": "6610210999@email.psu.ac.th",
-  "faculty_id": "6"
-}
-
-### 2. Me — ดูข้อมูล user ปัจจุบันจาก token
+### B2. ฉันคือใคร (อ่านจาก cookie → JWT → users)
+# → DB: ไม่เปลี่ยน · role มาจาก token ที่ server เซ็น ไม่ใช่ที่ client ส่งมา
 GET {{baseUrl}}/auth/me
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInJvbGUiOiJzdHVkZW50Iiwic3R1ZGVudElkIjoiNjYxMDIxMDYzMSIsImlhdCI6MTc4NDYwNzg2NSwiZXhwIjoxNzg0Njk0MjY1fQ.v7YHGZ9-b0B4STqpNmWVNkTRIlDM7VBqAJmHiWQkb64
 
-### 3. Subjects — GET ทุก role
-GET {{baseUrl}}/subjects
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInJvbGUiOiJvZmZpY2VyIiwic3R1ZGVudElkIjpudWxsLCJpYXQiOjE3ODQ2MDgxMjAsImV4cCI6MTc4NDY5NDUyMH0.EiPRN0r3Skv0iQzCvxoLCO3b7KaNR7m99PnSDBEcEiM
+### B3. รอบที่ฉันส่งได้ + วิชาที่ต้องกรอก
+# → DB: ไม่เปลี่ยน · data.subjects[] ที่ already_passed=true คือวิชาที่ผ่านแล้วจากรอบก่อน (ระบบยกมาให้เอง ไม่ต้องกรอก)
+# @name activeRound
+GET {{baseUrl}}/rounds/active
 
-### 3b. Subjects — POST (officer เท่านั้น)
-POST {{baseUrl}}/subjects
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInJvbGUiOiJvZmZpY2VyIiwic3R1ZGVudElkIjpudWxsLCJpYXQiOjE3ODQ2MDgxMjAsImV4cCI6MTc4NDY5NDUyMH0.EiPRN0r3Skv0iQzCvxoLCO3b7KaNR7m99PnSDBEcEiM
+### B4. ส่งผลสอบ
+# → DB: exam_results +1 (staff_status = pending), subject_results +N (N = จำนวนวิชาของรอบ)
+# รอบแรกมี 8 วิชา (subject_id 1–8) · รอบแก้ตัวส่งเฉพาะวิชาใน data.subjects ที่ already_passed=false
+# is_passed ต้องเป็น true/false จริง (ไม่ใช่ข้อความ "true")
+# @name createResult
+POST {{baseUrl}}/exam-results
 Content-Type: application/json
 
 {
-  "subject_name": "การพยาบาลพื้นฐาน",
-  "subject_code": "NUR101"
+  "subject_results": [
+    { "subject_id": 1, "is_passed": false },
+    { "subject_id": 2, "is_passed": true },
+    { "subject_id": 3, "is_passed": true },
+    { "subject_id": 4, "is_passed": true },
+    { "subject_id": 5, "is_passed": true },
+    { "subject_id": 6, "is_passed": true },
+    { "subject_id": 7, "is_passed": true },
+    { "subject_id": 8, "is_passed": true }
+  ]
 }
 
-### 3c. Subjects — PUT (officer เท่านั้น)
-PUT {{baseUrl}}/subjects/1
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInJvbGUiOiJvZmZpY2VyIiwic3R1ZGVudElkIjpudWxsLCJpYXQiOjE3ODQ2MDgxMjAsImV4cCI6MTc4NDY5NDUyMH0.EiPRN0r3Skv0iQzCvxoLCO3b7KaNR7m99PnSDBEcEiM
+### B5. ส่งซ้ำรอบเดียวกัน = ทับใบเดิม ไม่สร้างใบที่ 2 (ทดลองดูแถวใน exam_results ไม่เพิ่ม)
+# → DB: exam_results จำนวนเท่าเดิม · subject_results ถูกลบแล้วสร้างใหม่ (ใน transaction เดียว)
+# (ข้ามได้ — กดเพื่อโชว์กฎ "1 คน 1 ใบต่อรอบ" ซึ่งกันที่ระดับ DB ด้วย unique index)
+# POST {{baseUrl}}/exam-results  ← ใช้ body เดียวกับ B4
+
+### B6. อัปโหลดไฟล์หลักฐาน (PDF / JPG / PNG)
+# → DB: certificates +1 · เก็บแค่ file_path (ไฟล์จริงอยู่ที่ backend/uploads/) ไม่มี binary ใน DB
+# ระบบดูเนื้อไฟล์จริง ไม่เชื่อนามสกุล · certificate_type = exam_result (ใบผลสอบ) หรือ license (ใบประกอบวิชาชีพ)
+# @name uploadFile
+POST {{baseUrl}}/exam-results/{{createResult.response.body.$.data.result_id}}/certificates
+Content-Type: multipart/form-data; boundary=----demoboundary
+
+------demoboundary
+Content-Disposition: form-data; name="certificate_type"
+
+exam_result
+------demoboundary
+Content-Disposition: form-data; name="file"; filename="demo-evidence.pdf"
+Content-Type: application/pdf
+
+< ./assets/demo-evidence.pdf
+------demoboundary--
+
+### B7. ดูสถานะของฉัน
+# → DB: ไม่เปลี่ยน (อ่าน exam_results + subject_results + certificates)
+GET {{baseUrl}}/exam-results/me
+
+
+### ───────────────────────────────────────────────────────────────────
+### ส่วน C — เจ้าหน้าที่ตรวจ: ตีกลับ → นักศึกษาแก้ → ยืนยัน
+### ───────────────────────────────────────────────────────────────────
+
+### C1. เจ้าหน้าที่ login กลับมา
+POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
 {
-  "subject_name": "การพยาบาลพื้นฐาน (แก้ไข)"
+  "psu_passport_id": "{{officerUser}}",
+  "password": "{{officerPass}}"
 }
 
-### 3d. Subjects — DELETE (officer เท่านั้น)
-DELETE {{baseUrl}}/subjects/1
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInJvbGUiOiJvZmZpY2VyIiwic3R1ZGVudElkIjpudWxsLCJpYXQiOjE3ODQ2MDgxMjAsImV4cCI6MTc4NDY5NDUyMH0.EiPRN0r3Skv0iQzCvxoLCO3b7KaNR7m99PnSDBEcEiM
+### C2. คิวรอตรวจ (ใบของนักศึกษาที่เพิ่งส่งต้องอยู่ในนี้)
+# → DB: ไม่เปลี่ยน
+GET {{baseUrl}}/exam-results?staff_status=pending
 
-### 4. Users — GET ทั้งหมด (officer เท่านั้น)
-GET {{baseUrl}}/users
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInJvbGUiOiJvZmZpY2VyIiwic3R1ZGVudElkIjpudWxsLCJpYXQiOjE3ODQ2MDgxMjAsImV4cCI6MTc4NDY5NDUyMH0.EiPRN0r3Skv0iQzCvxoLCO3b7KaNR7m99PnSDBEcEiM
-
-### 4b. Users — เปลี่ยน role เป็น executive (สำเร็จ → 200)
-POST {{baseUrl}}/users/1/role
-Authorization: Bearer {{officerToken}}
+### C3. ตีกลับ + เหตุผล
+# → DB: exam_results.staff_status = rejected + remark · review_logs +1 · notifications +1 (นักศึกษาเห็นที่กระดิ่ง)
+# ไม่ใส่ remark → 400 (ตีกลับต้องบอกเหตุผล)
+PATCH {{baseUrl}}/exam-results/{{createResult.response.body.$.data.result_id}}/reject
 Content-Type: application/json
 
 {
-  "role_name": "executive"
+  "remark": "ไฟล์หลักฐานไม่ชัด กรุณาส่งใหม่"
 }
 
-### 4c. Users — เปลี่ยนกลับเป็น student (สำเร็จ → 200)
-POST {{baseUrl}}/users/1/role
-Authorization: Bearer {{officerToken}}
+### C4. นักศึกษากลับมา: login → เห็นแจ้งเตือน → แก้แล้วส่งใหม่ (กด 3 อันต่อกัน)
+POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
 {
-  "role_name": "student"
+  "psu_passport_id": "{{studentUser}}",
+  "password": "{{studentPass}}"
 }
 
-### 4d. Users — role_name ไม่มีในระบบ (→ 400 "role_name ต้องเป็นหนึ่งใน: ...")
-POST {{baseUrl}}/users/1/role
-Authorization: Bearer {{officerToken}}
+### C4b. ดูแจ้งเตือน
+# → DB: ไม่เปลี่ยน · มี type = rejected
+GET {{baseUrl}}/notifications/me
+
+### C4c. ส่งผลใหม่ (ทับใบเดิม)
+# → DB: exam_results แถวเดิมกลับเป็น pending · ไม่เพิ่มแถว
+POST {{baseUrl}}/exam-results
 Content-Type: application/json
 
 {
-  "role_name": "admin"
+  "subject_results": [
+    { "subject_id": 1, "is_passed": true },
+    { "subject_id": 2, "is_passed": true },
+    { "subject_id": 3, "is_passed": true },
+    { "subject_id": 4, "is_passed": true },
+    { "subject_id": 5, "is_passed": true },
+    { "subject_id": 6, "is_passed": true },
+    { "subject_id": 7, "is_passed": true },
+    { "subject_id": 8, "is_passed": true }
+  ]
 }
 
-### 4e. Users — ไม่ส่ง role_name (→ 400 "ต้องระบุ role_name")
-POST {{baseUrl}}/users/1/role
-Authorization: Bearer {{officerToken}}
+### C5. เจ้าหน้าที่ login → ยืนยัน
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "psu_passport_id": "{{officerUser}}",
+  "password": "{{officerPass}}"
+}
+
+### C5b. ยืนยัน
+# → DB: exam_results.staff_status = approved + confirmed_by · review_logs +1 · notifications +1
+# ใบที่ไม่มีไฟล์หลักฐาน → 409 "ใบนี้ยังไม่มีไฟล์หลักฐานแนบ ยืนยันไม่ได้"
+# ใบที่ยืนยันแล้วยืนยันซ้ำไม่ได้ (ต้องให้นักศึกษาส่งใหม่ก่อน)
+PATCH {{baseUrl}}/exam-results/{{createResult.response.body.$.data.result_id}}/approve
 Content-Type: application/json
 
 {}
 
-### 4f. Users — เปลี่ยน role ตัวเอง (→ 400 "ไม่สามารถเปลี่ยน role ของตัวเองได้")
-POST {{baseUrl}}/users/2/role
-Authorization: Bearer {{officerToken}}
+### C6. Dashboard — ตัวเลขเปลี่ยนหลังยืนยัน (นับเฉพาะใบที่ approved)
+# → DB: ไม่เปลี่ยน · แก้ round_id เป็นรอบที่เปิดอยู่ (ดูจากข้อ A2)
+GET {{baseUrl}}/dashboard/stats?round_id=4
+
+### C7. แก้ไขผลตรวจ (ยืนยัน/ตีกลับผิด → กลับเป็นรอตรวจ)
+# → DB: exam_results กลับเป็น pending · review_logs +1 · notifications +1 (type = revoked)
+# ต้องระบุเหตุผล ไม่งั้น 400 "ต้องระบุเหตุผลที่แก้ไขผลการตรวจ" · เฉพาะ officer (reviewer ได้ 403)
+PATCH {{baseUrl}}/exam-results/{{createResult.response.body.$.data.result_id}}/reopen
 Content-Type: application/json
 
 {
-  "role_name": "student"
+  "remark": "ยืนยันผิดใบ ขอตรวจใหม่"
 }
 
-### 4g. Users — user ไม่มีอยู่จริง (→ 404 "ไม่พบผู้ใช้")
-POST {{baseUrl}}/users/99999/role
-Authorization: Bearer {{officerToken}}
+
+### ───────────────────────────────────────────────────────────────────
+### ส่วน D — ข่าวและผู้ใช้ (เจ้าหน้าที่ล็อกอินอยู่)
+### ───────────────────────────────────────────────────────────────────
+
+### D1. โพสต์ข่าว (ต้องผูกกับรอบสอบ)
+# → DB: news +1
+# @name createNews
+POST {{baseUrl}}/news
 Content-Type: application/json
 
 {
-  "role_name": "student"
+  "title": "ทดสอบประกาศ",
+  "content": "ข้อความประกาศสำหรับสาธิต",
+  "round_id": 4
 }
 
-### 4h. Users — student ยิงเอง (→ 403 จาก requireRole)
-POST {{baseUrl}}/users/1/role
-Authorization: Bearer  {{studentToken}}
+### D2. ลบข่าว
+# → DB: news -1
+DELETE {{baseUrl}}/news/{{createNews.response.body.$.data.news_id}}
+
+### D3. เพิ่มผู้ตรวจสอบ
+# → DB: users +1 (รหัสผ่านเก็บเป็น bcrypt hash, must_change_password = true → ต้องเปลี่ยนตอน login ครั้งแรก)
+# role_name: reviewer | executive | officer (ผู้บริหารไม่ต้องใส่ email/phone)
+# @name createUser
+POST {{baseUrl}}/users
 Content-Type: application/json
 
 {
-  "role_name": "officer"
+  "psu_passport_id": "reviewer-demo",
+  "password": "demo1234",
+  "role_name": "reviewer",
+  "first_name": "ทดสอบ",
+  "last_name": "ผู้ตรวจ",
+  "email": "reviewer-demo@example.com",
+  "phone": "0800000000"
 }
 
-### 5. Students — GET ทั้งหมด (officer เท่านั้น)
-GET {{baseUrl}}/students
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInJvbGUiOiJvZmZpY2VyIiwic3R1ZGVudElkIjpudWxsLCJpYXQiOjE3ODQ2MDgxMjAsImV4cCI6MTc4NDY5NDUyMH0.EiPRN0r3Skv0iQzCvxoLCO3b7KaNR7m99PnSDBEcEiM
+### D4. ลบผู้ใช้ที่เพิ่งสร้าง
+# → DB: users -1 · (ถ้าผู้ใช้เคยตรวจผลสอบ/โพสต์ข่าวแล้ว ลบไม่ได้ → 409 ให้ปิดบัญชีแทน)
+DELETE {{baseUrl}}/users/{{createUser.response.body.$.data.user_id}}
 
-### 5b. Students — GET by id
-GET {{baseUrl}}/students/6610210631
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInJvbGUiOiJvZmZpY2VyIiwic3R1ZGVudElkIjpudWxsLCJpYXQiOjE3ODQ2MDgxMjAsImV4cCI6MTc4NDY5NDUyMH0.EiPRN0r3Skv0iQzCvxoLCO3b7KaNR7m99PnSDBEcEiM
 
-### 5c. Students — บันทึกรหัสสภา (student เท่านั้น, ใช้ token ของนักศึกษาเจ้าของบัญชี)
-PATCH {{baseUrl}}/students/me/credentials
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInJvbGUiOiJzdHVkZW50Iiwic3R1ZGVudElkIjoiNjYxMDIxMDYzMSIsImlhdCI6MTc4NDYwNzg2NSwiZXhwIjoxNzg0Njk0MjY1fQ.v7YHGZ9-b0B4STqpNmWVNkTRIlDM7VBqAJmHiWQkb64
+### ───────────────────────────────────────────────────────────────────
+### ส่วน E — พิสูจน์ว่าสิทธิ์ถูกกันที่ server (ไม่ใช่แค่ซ่อนปุ่มในหน้าเว็บ)
+### ทุกข้อด้านล่าง "ต้องถูกปฏิเสธ" และ DB ไม่เปลี่ยน
+### ───────────────────────────────────────────────────────────────────
+
+### E1. ผู้บริหาร login
+POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
 {
-  "nursing_council_email": "student@nurse.or.th",
-  "nursing_council_password": "SomePassword123"
+  "psu_passport_id": "{{executiveUser}}",
+  "password": "{{executivePass}}"
 }
 
-### 6. ทดสอบ 401 — ไม่ใส่ token
-GET {{baseUrl}}/subjects
+### E1b. ผู้บริหารดูสถิติ → 200 (ได้)
+GET {{baseUrl}}/dashboard/stats?round_id=4
 
-### 7. ทดสอบ 403 — ใส่ token role ผิด (เช่น student ยิง /users)
+### E1c. ผู้บริหารดูผลสอบรายบุคคล → 403 (ไม่ได้ — read-only เฉพาะสถิติรวม)
+GET {{baseUrl}}/exam-results
+
+### E1d. ผู้บริหารสั่งยืนยันผลสอบ → 403
+PATCH {{baseUrl}}/exam-results/{{createResult.response.body.$.data.result_id}}/approve
+Content-Type: application/json
+
+{}
+
+### E2. ผู้ตรวจสอบ login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "psu_passport_id": "{{reviewerUser}}",
+  "password": "{{reviewerPass}}"
+}
+
+### E2b. ผู้ตรวจสอบเข้า Dashboard → 403 (เปิดเฉพาะเจ้าหน้าที่/ผู้บริหาร)
+GET {{baseUrl}}/dashboard/stats?round_id=4
+
+### E2c. ผู้ตรวจสอบแก้ไขผลตรวจ (reopen) → 403 (เฉพาะเจ้าหน้าที่)
+PATCH {{baseUrl}}/exam-results/{{createResult.response.body.$.data.result_id}}/reopen
+Content-Type: application/json
+
+{ "remark": "ลองสิทธิ์" }
+
+### E3. นักศึกษา login แล้วพยายามเรียก API ของเจ้าหน้าที่
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "psu_passport_id": "{{studentUser}}",
+  "password": "{{studentPass}}"
+}
+
+### E3b. นักศึกษาดูรายชื่อผู้ใช้ → 403
 GET {{baseUrl}}/users
-Authorization: Bearer PASTE_STUDENT_TOKEN_HERE
+
+### E3c. ลอง "เสกสิทธิ์" โดยส่ง role ใน body → ถูกเมินเฉย (role อ่านจาก JWT เท่านั้น) · ผลลัพธ์ยัง 403
+POST {{baseUrl}}/users
+Content-Type: application/json
+
+{
+  "psu_passport_id": "hacker",
+  "password": "x",
+  "role_name": "officer",
+  "first_name": "x",
+  "last_name": "x",
+  "email": "x@x.x",
+  "phone": "0"
+}
+
+### E4. ออกจากระบบ (ลบ cookie) แล้วเรียกอีกครั้ง → 401
+POST {{baseUrl}}/auth/logout
+
+### E4b. ไม่มี cookie → 401
+GET {{baseUrl}}/exam-results/me
+
+### E5. รหัสผ่านผิด → 401 (ข้อความเดียวกันทั้ง "ไม่มีบัญชี" และ "รหัสผิด" กันคนไล่เดาบัญชี)
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "psu_passport_id": "{{studentUser}}",
+  "password": "wrong-password"
+}
