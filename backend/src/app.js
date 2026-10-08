@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { validateEnv } from "./config/env.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
+import { requestLogger } from "./middlewares/requestLogger.js";
 
 // Routes
 import authRouter from "./modules/auth/auth.routes.js";
@@ -24,6 +25,10 @@ import helmet from "helmet";
 validateEnv();
 
 const app = express();
+
+// บันทึกทุก HTTP request ลง terminal (method, url, status, เวลา, ผู้ใช้) — ไว้ให้ดูตอนสาธิต/ตรวจการทำงาน
+// อยู่บนสุดเพื่อจับได้ทุก request รวมที่ถูก cors/helmet/404 ตอบกลับ
+app.use(requestLogger);
 
 // helmet = ชุด HTTP security header มาตรฐาน ใส่ให้ทุก response อัตโนมัติ
 // เช่น X-Content-Type-Options (ห้าม browser เดาชนิดไฟล์เอง), X-Frame-Options (ห้ามเว็บอื่นเอาไป iframe)

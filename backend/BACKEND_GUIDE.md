@@ -157,6 +157,7 @@ backend/
    │  ├─ auth.js             ตรวจ JWT
    │  ├─ requireRole.js      ตรวจสิทธิ์ตาม role
    │  ├─ errorHandler.js     แปลง error เป็น JSON
+   │  ├─ requestLogger.js    บันทึกทุก HTTP request ลง terminal
    │  ├─ rateLimit.js        กันยิงรัวเดารหัส
    │  └─ upload.js           รับไฟล์ PDF / รูปภาพ
    ├─ utils/
@@ -232,6 +233,7 @@ app.listen(PORT, () => { ... });
 ประกอบ Express ทั้งตัว **ลำดับสำคัญมาก** — Express ทำงานจากบนลงล่าง:
 
 1. `validateEnv()` — เช็ค `.env` ครบก่อน ขาดแล้วพังทันทีตรงนี้ ดีกว่าไปพังกลางทางตอนมีคนใช้
+   → `app.use(requestLogger)` อยู่บนสุดหลังสร้าง `app` — พิมพ์ทุก request ลง terminal ตอน response ส่งเสร็จ (รอ event `finish` จึงรู้ status และ `req.user`)
 2. `cors({ origin: "http://localhost:5174", credentials: true })` — อนุญาตให้เว็บ frontend เรียก API ข้าม port ได้
    → **ถ้าเปลี่ยน port ของ frontend ต้องมาแก้บรรทัดนี้ด้วย** ไม่งั้นเบราว์เซอร์บล็อกทุก request
    → `credentials: true` จำเป็นสำหรับ cookie: ถ้าไม่มี เบราว์เซอร์จะไม่ส่ง cookie ข้าม origin ให้เลย และต้องระบุ origin เป็น URL จริง **ห้ามใช้ `*`**
@@ -1157,6 +1159,7 @@ curl -H "Authorization: Bearer <token>" http://localhost:3000/api/subjects/1
 
 | วันที่ | เปลี่ยนอะไร |
 |---|---|
+| 2026-10-08 | **บันทึกทุก HTTP request ลง terminal ของ backend** — เพิ่ม `src/middlewares/requestLogger.js` (พิมพ์ `[เวลา] METHOD url -> status (ms) user=… role=…`, ไม่เก็บ body/password/token) ผูกเป็น middleware ตัวแรกใน `app.js` · ไม่เปลี่ยน endpoint/response · ฝั่งเบราว์เซอร์ดูได้ที่ F12 → Network อยู่แล้ว |
 | 2026-10-06 | เพิ่มเทสอีก 2 ชุด (ไม่แตะ backend): `npm run test:real` (คัดลอก DB จริงไป schema ชั่วคราวแบบอ่านอย่างเดียว — `tests/e2e/copyRealData.mjs`, ตรวจความสอดคล้องของสถิติ/ส่งออก/ทุกหน้า) และ `npm run test:e2e:devices` (12 อุปกรณ์มือถือ/แท็บเล็ต แตะกรอกผล/ยืนยัน) · ตัวช่วย `tests/e2e/forgeSession.mjs` เซ็ต token เองเฉพาะฐานเทส · แก้ CSS จอ 320px + ตารางรายงานบนจอแนวนอน (frontend) |
 | 2026-10-06 | **แดชบอร์ดบอกว่า "ทั้งรุ่น" รวมคนที่ยังไม่เข้าระบบกี่คน** — `GET /dashboard/stats` และแต่ละปีใน `/dashboard/history` เพิ่มฟิลด์ `pending_accounts` (`dashboard.repository.js → countPendingByYear`) หน้าจอแสดง "(รวมยังไม่เข้าระบบ N คน)" ต่อท้ายจำนวนนักศึกษาในหัวหน้า (เจ้าหน้าที่และผู้บริหาร) · เพิ่มฟิลด์อย่างเดียว ไม่เปลี่ยนฟิลด์เดิม |
 | 2026-10-06 | **หน้านำเข้ารายชื่อ: แถบ "กำลังนำเข้ารายชื่อ N คน"** (ประมาณเวลา ~0.065 วินาทีต่อคน + เวลาที่ผ่านไป + เตือนก่อนปิดหน้า) ระหว่างบันทึกจริง — ไม่แตะ backend (นำเข้า 1,000 แถวใช้ ~62 วินาทีเพราะ bcrypt ทีละแถว) · เทสใหม่ `npm run test:e2e:import` |

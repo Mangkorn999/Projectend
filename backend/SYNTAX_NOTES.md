@@ -76,6 +76,18 @@ return `${iv.toString("hex")}:${authTag}:${encrypted}`;
 // backtick ` ` + ${expr} แทรกค่าตัวแปรใน string
 ```
 
+### res.on("finish") + Date.now() (จับเวลาของ request)
+```js
+// backend/src/middlewares/requestLogger.js
+const startTime = Date.now();          // เวลาตอนนี้เป็นมิลลิวินาที (ตัวเลข)
+res.on("finish", () => {               // "finish" = response ส่งกลับ client เสร็จแล้ว
+  const durationMs = Date.now() - startTime;   // เวลาที่ใช้ = เวลาจบ - เวลาเริ่ม
+  console.log(`${req.method} ${req.originalUrl} -> ${res.statusCode} (${durationMs} ms)`);
+});
+next();                                // ปล่อยให้ request วิ่งต่อ — callback ข้างบนจะทำงานทีหลังตอนตอบเสร็จ
+```
+`res.on("ชื่อเหตุการณ์", ฟังก์ชัน)` = "เมื่อเกิดเหตุการณ์นี้ ให้เรียกฟังก์ชันนี้" ใช้ตอนที่ต้องรอให้บางอย่างเสร็จก่อนค่อยทำ.
+
 ---
 
 ## 2. SQL พื้นฐาน (เทียบกับ Prisma ด้านล่าง)
