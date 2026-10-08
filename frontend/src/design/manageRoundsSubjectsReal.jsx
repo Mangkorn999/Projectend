@@ -46,6 +46,9 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
   const [roundModal, setRoundModal] = useState(null); // 'new' | round | null
   const [subjectModal, setSubjectModal] = useState(null); // {} (new) | subject | null
   const [deleteRound, setDeleteRound] = useState(null); // รอบที่กำลังจะลบ (ยืนยันก่อน)
+  // null = ยังไม่รู้ว่ามีข้อมูลผูกอยู่ · { results, news } = backend แจ้งว่ามีผลสอบ/ประกาศกี่รายการ (โชว์คำเตือนขั้นที่ 2)
+  const [deleteLinked, setDeleteLinked] = useState(null);
+  const closeDeleteRound = () => { setDeleteRound(null); setDeleteLinked(null); };
   // รายวิชาที่กำลังจะลบ — เดิมกดปุ่มถังขยะแล้วลบทันทีไม่ถามอะไรเลย พลาดคลิกทีเดียวหายทั้งวิชา
   // (ลบรอบถามอยู่แล้ว ตรงนี้ขาดไป) วิชาถูกใช้ในรอบ/ผลสอบเก่า ลบผิดกระทบย้อนหลังทั้งระบบ
   const [deleteSubjectTarget, setDeleteSubjectTarget] = useState(null);
@@ -96,16 +99,23 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
     }
   };
 
+  // กดลบครั้งแรก → ถ้ารอบมีผลสอบ/ประกาศผูกอยู่ backend ตอบ 409 พร้อมจำนวน → โมดัลเปลี่ยนเป็นคำเตือนแรงๆ (deleteLinked)
+  // แล้วกดยืนยันอีกครั้ง = ส่ง ?delete_linked=true ลบรอบพร้อมผลสอบและประกาศทั้งหมด
   const confirmDeleteRound = async () => {
     if (saving) return;
     setSaving(true);
     try {
-      await apiFetch(`/rounds/${deleteRound.round_id}`, { method: 'DELETE' });
+      const confirmed = deleteLinked !== null;
+      await apiFetch(`/rounds/${deleteRound.round_id}${confirmed ? '?delete_linked=true' : ''}`, { method: 'DELETE' });
       toast(tt('roundsMgmt.deleteRoundDoneToast'), 'info');
-      setDeleteRound(null);
+      closeDeleteRound();
       loadRounds();
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : tt('roundsMgmt.deleteFailMsg'), 'error');
+      if (e instanceof ApiError && e.status === 409 && e.payload?.code === 'has_linked_data') {
+        setDeleteLinked({ results: e.payload.result_count, news: e.payload.news_count });
+      } else {
+        toast(e instanceof ApiError ? e.message : tt('roundsMgmt.deleteFailMsg'), 'error');
+      }
     } finally {
       setSaving(false);
     }
@@ -273,14 +283,28 @@ export function ManageRoundsSubjectsReal({ toast, lang }) {
       </Modal>
 
       <RoundModal round={roundModal} allSubjects={subs} cohorts={cohorts} onClose={() => setRoundModal(null)} onSave={saveRound} saving={saving} tt={tt} lang={lang} />
-      <Modal open={!!deleteRound} onClose={() => setDeleteRound(null)} title={tt('roundsMgmt.deleteRoundTitle')} width={440} tone="danger"
-        footer={<><button className="btn btn-ghost" onClick={() => setDeleteRound(null)}>{tt('roundsMgmt.cancelBtn')}</button>
-          <button className="btn btn-danger" disabled={saving} onClick={confirmDeleteRound}><Icon name="trash" size={16} /> {tt('roundsMgmt.deleteRoundBtn')}</button></>}>
+      <Modal open={!!deleteRound} onClose={closeDeleteRound} title={tt('roundsMgmt.deleteRoundTitle')} width={440} tone="danger"
+        footer={<><button className="btn btn-ghost" onClick={closeDeleteRound}>{tt('roundsMgmt.cancelBtn')}</button>
+          <button className="btn btn-danger" disabled={saving} onClick={confirmDeleteRound}><Icon name="trash" size={16} />
+            {' '}{deleteLinked !== null ? tt('roundsMgmt.deleteRoundAndLinkedBtn') : tt('roundsMgmt.deleteRoundBtn')}</button></>}>
         <div style={{ fontSize: 16, lineHeight: 1.7 }}>
           {tt('roundsMgmt.deleteRoundBodyPre')} <b>{tt('roundsMgmt.roundLine', { attempt: deleteRound?.attempt_number, year: deleteRound?.academic_year })}</b> {tt('roundsMgmt.deleteRoundBodyPost')}<br />
-          <span style={{ color: 'var(--ink-500)', fontSize: 15 }}>
-            {tt('roundsMgmt.deleteRoundNote')}
-          </span>
+          {deleteLinked === null ? (
+            <span style={{ color: 'var(--ink-500)', fontSize: 15 }}>
+              {tt('roundsMgmt.deleteRoundNote')}
+            </span>
+          ) : (
+            // ขั้นที่ 2: รอบนี้มีผลสอบ — เตือนแรงๆ ก่อนลบจริง
+            <div role="alert" style={{ marginTop: 10, padding: '12px 14px', borderRadius: 10, background: 'var(--status-reject-bg)', color: 'var(--status-reject-fg)', fontSize: 15.5, lineHeight: 1.6 }}>
+              <b>{tt('roundsMgmt.deleteRoundLinkedWarn')}</b>
+              <ul style={{ margin: '6px 0 0', paddingLeft: 20 }}>
+                {deleteLinked.results > 0 && <li>{tt('roundsMgmt.deleteRoundLinkedResults', { n: deleteLinked.results })}</li>}
+                {deleteLinked.news > 0 && <li>{tt('roundsMgmt.deleteRoundLinkedNews', { n: deleteLinked.news })}</li>}
+              </ul>
+              <div style={{ marginTop: 6 }}>{tt('roundsMgmt.deleteRoundLinkedDetail')}</div>
+              <div style={{ marginTop: 8, fontWeight: 700 }}>{tt('roundsMgmt.deleteRoundLinkedAsk')}</div>
+            </div>
+          )}
         </div>
       </Modal>
       <SubjectModal subject={subjectModal} onClose={() => setSubjectModal(null)} onSave={saveSubject} saving={saving} tt={tt} />
