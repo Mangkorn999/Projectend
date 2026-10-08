@@ -560,6 +560,9 @@ html { scroll-behavior: smooth; scrollbar-gutter: stable; }
 .tbl tbody tr:nth-child(n+10) { animation-delay: .27s; }
 
 /* ตัวโหลด (components.jsx → Loading) แทนข้อความ "กำลังโหลด…" เฉย ๆ */
+/* คลุมทั้งหน้าตอนสลับรอบในหน้ารายละเอียดนักศึกษา — เหนือเนื้อหา/เมนู แต่ต่ำกว่า modal */
+.page-switching { position:fixed; inset:0; z-index:90; display:flex; align-items:center; justify-content:center;
+  background:rgba(255, 250, 244, .72); backdrop-filter:blur(3px); animation: backdropIn .15s ease both; }
 .loading-block { display:flex; flex-direction:column; align-items:center; gap:14px; padding:64px 0; color:var(--ink-500); font-size:15.5px; }
 .loading-spinner { width:34px; height:34px; border-radius:50%; border:3px solid var(--ink-200); border-top-color:var(--navy-600);
   animation: langSpin .8s linear infinite; }

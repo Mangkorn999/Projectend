@@ -7,7 +7,7 @@
    โชว์ผลสอบ "ทุกรอบ" ที่นักศึกษาคนนี้เคยส่ง เป็น block คลิกสลับได้ฝั่งขวา (ไม่ใช่แค่รอบล่าสุดแบบเดิม)
    ข้อมูลมีอยู่แล้วจาก /exam-results?student_id=... (ไม่ต้องยิง API เพิ่ม) แค่ไม่ทิ้งรอบอื่นทิ้งเหมือนก่อน
    ============================================================ */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Icon } from './data.jsx';
 import { PageHead, Modal, StatusBadge, PassBadge, Empty, Select, Loading, actorLabel } from './components.jsx';
 import { apiFetch, ApiError, fetchAuthedObjectUrl } from './api.js';
@@ -19,12 +19,18 @@ const REVIEW_LOG_LABEL = { approved: 'officer.detail.logApproved', rejected: 'of
 
 const STAFF_STATUS_TO_BADGE = { pending: 'SUBMITTED', approved: 'CONFIRMED', rejected: 'REJECTED' };
 
+// เวลาที่โชว์ "กำลังโหลด" ตอนสลับรอบ (มิลลิวินาที) — ข้อมูลทุกรอบโหลดมาแล้ว สลับได้ทันที
+// ถ้าไม่หน่วงเลย ตาตามไม่ทัน ดูไม่ออกว่าสลับแล้วหรือยัง (โดยเฉพาะ 2 รอบที่หน้าตาคล้ายกัน)
+const ROUND_SWITCH_MS = 450;
+
 export function StudentDetailReal({ student, go, backTo = 'students', toast, canEdit, canReview, lang }) {
   const tt = (key, vars) => t(lang, key, vars);
   const quickReasons = [tt('officer.detail.quickReason1'), tt('officer.detail.quickReason2'), tt('officer.detail.quickReason3')];
   const [subjects, setSubjects] = useState([]); // [{subject_id, subject_code, subject_name}]
   const [results, setResults] = useState([]); // exam_result ทุกรอบของนักศึกษาคนนี้ เรียงใหม่→เก่า
   const [selectedId, setSelectedId] = useState(null); // result_id ของรอบที่กำลังดูอยู่
+  const [switching, setSwitching] = useState(false); // true = เพิ่งกดสลับรอบ กำลังโชว์วงหมุนสั้นๆ
+  const switchTimer = useRef(null);
   const [studentFull, setStudentFull] = useState(null); // GET /students/:id เต็มๆ ไว้ prefill ฟอร์มแก้ไข
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -88,6 +94,17 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
     }).catch(e => setError(e.message)).finally(() => setLoading(false));
   };
   useEffect(load, [student.sid, student.resultId]);
+
+  // กดเลือกรอบ → สลับทันที แต่โชว์วงหมุนสั้นๆ ให้เห็นว่าข้อมูลเปลี่ยนแล้ว (กดรอบเดิมซ้ำ = ไม่ทำอะไร)
+  const selectRound = (resultId) => {
+    if (resultId === selectedId) return;
+    setSelectedId(resultId);
+    setSwitching(true);
+    clearTimeout(switchTimer.current);
+    switchTimer.current = setTimeout(() => setSwitching(false), ROUND_SWITCH_MS);
+  };
+  // ออกจากหน้าก่อนครบเวลา → เลิกนับ ไม่ให้ setState หลังหน้าหายไปแล้ว
+  useEffect(() => () => clearTimeout(switchTimer.current), []);
 
   const examResult = results.find(r => r.result_id === selectedId) || null;
   const status = examResult ? STAFF_STATUS_TO_BADGE[examResult.staff_status] : 'DRAFT';
@@ -267,6 +284,8 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
 
   return (
     <div className="fade-up">
+      {/* สลับรอบ → คลุมทั้งหน้าด้วยวงหมุน (ทั้งหน้าเปลี่ยนตามรอบ ไม่ใช่แค่กล่องใดกล่องหนึ่ง) */}
+      {switching && <div className="page-switching" role="status" aria-live="polite"><div className="loading-spinner" /></div>}
       <PageHead title={displayName}
         // ลิงก์ breadcrumb กลับไปหน้าที่เข้ามา (backTo) — ผู้ช่วยตรวจสอบไม่มีหน้า students ต้องกลับคิวตรวจสอบ
         // ป้ายต้องตรงกับปลายทาง: มาจากคิวตรวจ = ชื่อเมนูคิวตรวจ (คีย์เดียวกับเมนูซ้าย) · นอกนั้น = "ข้อมูลนักศึกษา" เหมือนเดิม
@@ -368,7 +387,7 @@ export function StudentDetailReal({ student, go, backTo = 'students', toast, can
                   const rTotal = r.subject_results.length;
                   const isSelected = r.result_id === selectedId;
                   return (
-                    <button key={r.result_id} onClick={() => setSelectedId(r.result_id)}
+                    <button key={r.result_id} onClick={() => selectRound(r.result_id)}
                       style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
                         textAlign: 'left', width: '100%', cursor: 'pointer', fontFamily: 'inherit',
