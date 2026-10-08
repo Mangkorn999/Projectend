@@ -1,3 +1,5 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import * as roundsRepo from "./rounds.repository.js";
 import * as studentRepo from "../students/student.repository.js";
 import * as subjectsRepo from "../subjects/subjects.repository.js";
@@ -530,8 +532,10 @@ export const update = async (req, res, next) => {
   }
 };
 
-// ลบรอบได้เฉพาะรอบที่ยังไม่มีใครใช้จริง — ผลสอบ/ประกาศที่ผูกอยู่จะกลายเป็นข้อมูลกำพร้า
-// (foreign key จะกันให้อยู่แล้ว แต่ error ที่ได้จะอ่านไม่รู้เรื่อง ต้องเช็คเองเพื่อบอกสาเหตุให้ชัด)
+// ลบรอบ — ต้องปิดแล้ว · ลบได้แม้มีผลสอบ/ประกาศผูกอยู่ (ลบตามไปด้วยทั้งหมด) แต่ต้อง "ยืนยันชัดเจน" (?delete_linked=true)
+// ไม่งั้นตอบ 409 code has_linked_data พร้อมจำนวนผลสอบ/ประกาศ ให้หน้าจอขึ้นคำเตือนแล้วส่งมาใหม่พร้อมค่ายืนยัน
+// — แบบเดียวกับลบนักศึกษา กันยิง API พลาด/คลิกผิดแล้วข้อมูลทั้งรอบหายเงียบๆ
+// ลบเสร็จค่อยลบไฟล์บน disk (หลักฐาน + รูปประกาศ) (ลบไฟล์ก่อนแล้ว DB พัง = ไฟล์หายทั้งที่ข้อมูลยังอยู่)
 export const remove = async (req, res, next) => {
   try {
     const round = await roundsRepo.findById(req.params.id);
@@ -546,20 +550,32 @@ export const remove = async (req, res, next) => {
       roundsRepo.countExamResults(round.round_id),
       roundsRepo.countNews(round.round_id),
     ]);
-    if (resultCount > 0) {
-      throw httpError(
-        `ลบไม่ได้ — มีผลสอบของนักศึกษา ${resultCount} รายการอยู่ในรอบนี้แล้ว`,
-        400,
-      );
-    }
-    if (newsCount > 0) {
-      throw httpError(
-        `ลบไม่ได้ — มีประกาศ ${newsCount} รายการผูกกับรอบนี้อยู่ ลบประกาศก่อน`,
-        400,
-      );
+    if (resultCount === 0 && newsCount === 0) {
+      await roundsRepo.remove(round.round_id);
+      return res.json({ success: true, data: null });
     }
 
-    await roundsRepo.remove(round.round_id);
+    if (req.query.delete_linked !== "true") {
+      const parts = [];
+      if (resultCount > 0) parts.push(`ผลสอบของนักศึกษา ${resultCount} รายการ`);
+      if (newsCount > 0) parts.push(`ประกาศ ${newsCount} รายการ`);
+      return res.status(409).json({
+        success: false,
+        code: "has_linked_data",
+        message: `รอบนี้มี${parts.join(" และ ")} — การลบจะลบทั้งหมดนี้ รวมผลรายวิชา เอกสารหลักฐาน ประวัติการตรวจ และรูปประกาศของรอบนี้ด้วย สถิติของรุ่นจะเปลี่ยนย้อนหลัง กรุณายืนยันอีกครั้ง`,
+        result_count: resultCount,
+        news_count: newsCount,
+      });
+    }
+
+    const removed = await roundsRepo.removeCascade(round.round_id);
+    await Promise.all(
+      removed.filePaths.map((f) =>
+        fs.rm(path.resolve(f), { force: true }).catch((e) => console.error("ลบไฟล์ไม่สำเร็จ:", f, e.message)),
+      ),
+    );
+    // ลบผลสอบทั้งรอบ = กระทบสถิติย้อนหลัง ต้องมีร่องรอยใน log ของ server ว่าใครลบ
+    console.warn(`[AUDIT] user ${req.user.userId} ลบรอบ ${round.round_id} (รอบที่ ${round.attempt_number}/${round.academic_year}) พร้อมผลสอบ ${removed.resultCount} รายการ ประกาศ ${removed.newsCount} รายการ`);
     res.json({ success: true, data: null });
   } catch (err) {
     next(err);

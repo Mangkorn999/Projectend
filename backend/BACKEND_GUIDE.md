@@ -498,7 +498,7 @@ if (req.user.role === "student" && req.user.studentId !== req.params.id) → 403
 | GET | `/api/rounds` | 🔑 | รอบทั้งหมด (ใหม่→เก่า) + `creator` (ผู้สร้างรอบ: `user_id, first_name, last_name, is_closed`) — **นักศึกษาไม่ได้ `creator`** (ตัดใน controller ตาม role ใน JWT) |
 | POST | `/api/rounds` | 🧑‍💼 | สร้างรอบ — `status` (ถ้าส่งมา) ต้องเป็น `"open"` หรือ `"closed"` เท่านั้น ค่าอื่น → 400 |
 | PUT | `/api/rounds/:id` | 🧑‍💼 | แก้ไขรอบ — `status` ต้องเป็น `"open"` หรือ `"closed"` เท่านั้น ค่าอื่น → 400 (ตรวจด้วย `ensureValidStatus`) · **รอบที่มีผลสอบแล้วเปลี่ยน `academic_year`/`attempt_number` ไม่ได้ → 409** (แก้วันเปิด-ปิดได้) · วันที่ที่ไม่มีจริงในปฏิทิน (เช่น `2026-02-31`) → 400 |
-| DELETE | `/api/rounds/:id` | 🧑‍💼 | ลบรอบ |
+| DELETE | `/api/rounds/:id?delete_linked=true` | 🧑‍💼 | ลบรอบ — ต้องปิดแล้ว (400 ถ้ายังเปิดรับ) · **ลบได้แม้มีผลสอบ/ประกาศผูกอยู่ แต่ต้องยืนยัน:** ไม่ใส่ `?delete_linked=true` → **409** `code: "has_linked_data"` + `result_count` + `news_count` (หน้าจอขึ้นคำเตือนแล้วส่งมาใหม่พร้อมค่ายืนยัน) · ใส่แล้ว → ลบผลสอบ/ผลรายวิชา/เอกสารหลักฐาน/ประวัติการตรวจ + ประกาศของรอบ + แจ้งเตือนของรอบ + ตัวรอบ ใน transaction เดียว แล้วลบไฟล์บน disk (หลักฐาน + รูปประกาศ) และพิมพ์ `[AUDIT]` ลง log ของ server (`removeCascade`) · รอบที่ไม่มีอะไรผูกลบได้เลยไม่ต้องยืนยัน (ลบแจ้งเตือน "เปิดรอบ" ด้วย เดิม FK `notifications.round_id` กันไว้) |
 
 > **ลำดับใน routes สำคัญ:** `/active` ต้องประกาศ**ก่อน** `/:id` ไม่งั้น Express จะอ่านคำว่า "active" เป็นค่า id.
 
@@ -1159,6 +1159,7 @@ curl -H "Authorization: Bearer <token>" http://localhost:3000/api/subjects/1
 
 | วันที่ | เปลี่ยนอะไร |
 |---|---|
+| 2026-10-08 | **ลบรอบแล้วลบทุกอย่างที่ผูกอยู่ (ต้องยืนยัน)** — `DELETE /rounds/:id` ถ้ามีผลสอบหรือประกาศผูกอยู่และไม่ส่ง `?delete_linked=true` ตอบ 409 `has_linked_data` + `result_count`/`news_count` (เดิมตอบ 400 ลบไม่ได้) · ส่งค่ายืนยันแล้วลบผลสอบ/เอกสาร/ประวัติตรวจ/ประกาศ(+รูป)/แจ้งเตือนของรอบพร้อมตัวรอบ (`removeCascade`) + log `[AUDIT]` · `remove` เดิมลบแจ้งเตือน `round_open` ของรอบด้วย กัน FK ค้าง (`rounds.controller.js`, `rounds.repository.js`) · หน้าจัดการรอบมีคำเตือนขั้นที่ 2 (`manageRoundsSubjectsReal.jsx`, `i18n.js`) |
 | 2026-10-08 | เพิ่ม script `npm run dev` (`node --watch src/server.js`) — แก้โค้ด backend แล้ว restart เองอัตโนมัติ (`package.json`) |
 | 2026-10-08 | **บันทึกทุก HTTP request ลง terminal ของ backend** — เพิ่ม `src/middlewares/requestLogger.js` (พิมพ์ `[เวลา] METHOD url -> status (ms) user=… role=…`, ไม่เก็บ body/password/token) ผูกเป็น middleware ตัวแรกใน `app.js` · ไม่เปลี่ยน endpoint/response · ฝั่งเบราว์เซอร์ดูได้ที่ F12 → Network อยู่แล้ว |
 | 2026-10-06 | เพิ่มเทสอีก 2 ชุด (ไม่แตะ backend): `npm run test:real` (คัดลอก DB จริงไป schema ชั่วคราวแบบอ่านอย่างเดียว — `tests/e2e/copyRealData.mjs`, ตรวจความสอดคล้องของสถิติ/ส่งออก/ทุกหน้า) และ `npm run test:e2e:devices` (12 อุปกรณ์มือถือ/แท็บเล็ต แตะกรอกผล/ยืนยัน) · ตัวช่วย `tests/e2e/forgeSession.mjs` เซ็ต token เองเฉพาะฐานเทส · แก้ CSS จอ 320px + ตารางรายงานบนจอแนวนอน (frontend) |

@@ -106,9 +106,51 @@ export const countExamResults = (id) =>
 export const countNews = (id) =>
   prisma.news.count({ where: { round_id: Number(id) } });
 
-// ลบรอบ
+// ลบรอบ (รอบที่ไม่มีผลสอบ)
+// แจ้งเตือน "เปิดรอบ" (notifications.round_id) ชี้มาที่รอบนี้ — ต้องลบก่อน ไม่งั้น foreign key กันไว้จนลบรอบไม่ได้
+// ทำใน transaction เดียว พังกลางทางแล้วย้อนกลับทั้งก้อน
 export const remove = (id) =>
-  prisma.submissionRound.delete({ where: { round_id: Number(id) } });
+  prisma.$transaction([
+    prisma.notification.deleteMany({ where: { round_id: Number(id) } }),
+    prisma.submissionRound.delete({ where: { round_id: Number(id) } }),
+  ]);
+
+// ลบรอบ "พร้อมทุกอย่างที่ผูกอยู่" — ผลสอบทุกใบในรอบ (ผลรายวิชา เอกสารหลักฐาน ประวัติการตรวจ) + ประกาศของรอบ + แจ้งเตือน แล้วค่อยลบรอบ
+// (เจ้าของระบบตัดสินใจให้ลบได้หมด controller บังคับให้ยืนยันก่อนเสมอ)
+// ลบจากตารางลูกขึ้นมาหาแม่ (FK) ใน transaction เดียว
+// คืน filePaths = ไฟล์บน disk (หลักฐาน + รูปประกาศ) ที่ต้องลบตามหลังสำเร็จ — ลบไฟล์ก่อนแล้ว DB พัง = ไฟล์หายทั้งที่ข้อมูลยังอยู่
+export const removeCascade = async (id) => {
+  const roundId = Number(id);
+  const results = await prisma.examResult.findMany({
+    where: { round_id: roundId },
+    select: { result_id: true },
+  });
+  const resultIds = results.map((r) => r.result_id);
+  const certificates = await prisma.certificate.findMany({
+    where: { result_id: { in: resultIds } },
+    select: { file_path: true },
+  });
+  const newsList = await prisma.news.findMany({
+    where: { round_id: roundId },
+    select: { image_path: true },
+  });
+
+  await prisma.$transaction([
+    prisma.reviewLog.deleteMany({ where: { result_id: { in: resultIds } } }),
+    prisma.certificate.deleteMany({ where: { result_id: { in: resultIds } } }),
+    prisma.subjectResult.deleteMany({ where: { result_id: { in: resultIds } } }),
+    prisma.examResult.deleteMany({ where: { round_id: roundId } }),
+    prisma.news.deleteMany({ where: { round_id: roundId } }),
+    prisma.notification.deleteMany({ where: { round_id: roundId } }),
+    prisma.submissionRound.delete({ where: { round_id: roundId } }),
+  ]);
+
+  const filePaths = certificates.map((c) => c.file_path);
+  for (const n of newsList) {
+    if (n.image_path) filePaths.push(n.image_path);
+  }
+  return { resultCount: resultIds.length, newsCount: newsList.length, filePaths };
+};
 
 // แก้รอบ
 export const update = (id, data) =>
