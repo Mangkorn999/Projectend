@@ -584,3 +584,193 @@ a, button, input, select, textarea { transition-property: background-color, bord
   .page-enter, .modal-backdrop, .modal-card, .tbl tbody tr, .fade-up { animation: none !important; }
   .loading-spinner, .loading-dots i { animation-duration: 2s; }
 }
+
+
+/* ============================================================
+   Polish รอบ 7 ต.ค. — ความนุ่มนวล/หรูหราทั้งระบบ
+   ใช้ easing + ความเร็วชุดเดียวกันทุกที่ (ตัวแปรด้านล่าง) ให้ทุกปุ่ม ฟิลเตอร์ กราฟ "ขยับจังหวะเดียวกัน"
+   กฎเหล็ก: ขยับเฉพาะ transform/opacity/สี (ไม่แตะ width/height ของเลย์เอาต์) และตัวที่ผู้ใช้กดต้องตอบสนองใน ~100ms
+   ============================================================ */
+:root {
+  --ease-out: cubic-bezier(.22, 1, .36, 1);      /* ขาเข้า: พุ่งเร็วแล้วค่อยหน่วง */
+  --ease-io:  cubic-bezier(.4, 0, .2, 1);        /* เปลี่ยนสีทั่วไป */
+  --dur-fast: .14s;                               /* กด/hover */
+  --dur-base: .24s;                               /* เปลี่ยนสถานะ */
+  --sh-glow: 0 8px 22px -6px rgba(189, 87, 0, .42);  /* เงาส้มใต้ปุ่มหลัก */
+}
+
+/* มือถือ: ตัดแถบสีแว้บตอนแตะ + ตัดดีเลย์ดับเบิลแตะ ให้ปุ่มรู้สึกตอบสนองทันที */
+a, button, [role="button"], input, select, textarea, label { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+
+/* ---- ปุ่ม ---- */
+/* เดิม transition-property: all ทำให้ปุ่มกระตุกตอนเลย์เอาต์เปลี่ยน — ระบุเฉพาะที่ขยับจริง */
+.btn { transition: background-color var(--dur-base) var(--ease-io), border-color var(--dur-base) var(--ease-io),
+    color var(--dur-base) var(--ease-io), box-shadow var(--dur-base) var(--ease-io),
+    transform var(--dur-fast) var(--ease-out), opacity var(--dur-base) var(--ease-io), filter var(--dur-base) var(--ease-io);
+  position: relative; overflow: hidden; }
+/* แสงวาบพาดผ่านปุ่มหลักตอน hover — ให้ปุ่มดูมีมิติแบบแก้ว/ไหม ไม่ใช่สีแบน (ซ่อนไว้ทางซ้ายนอกปุ่มตอนปกติ) */
+.btn-primary::before, .btn-gold::before, .btn-success::before {
+  content:''; position:absolute; inset:0; pointer-events:none; opacity:0;
+  background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,.28) 50%, transparent 70%);
+  transform: translateX(-120%); transition: transform .6s var(--ease-out), opacity var(--dur-base); }
+@media (hover: hover) {
+  .btn-primary:hover::before, .btn-gold:hover::before, .btn-success:hover::before { opacity:1; transform: translateX(120%); }
+  .btn-primary:hover, .btn-gold:hover { box-shadow: var(--sh-glow); transform: translateY(-1px); }
+  .btn-ghost:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--sh-sm); }
+  .btn-danger:hover:not(:disabled) { box-shadow: 0 6px 16px -6px rgba(178, 51, 41, .35); transform: translateY(-1px); }
+}
+/* กดลง: ยุบนิดเดียว + เงาหด เหมือนปุ่มกดจริง · ปล่อยแล้วเด้งกลับด้วย ease-out */
+.btn:active:not(:disabled) { transform: translateY(0) scale(.97); box-shadow: var(--sh-xs); transition-duration: .06s; }
+.btn:focus-visible { box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--navy-600); }
+/* ไอคอนในปุ่มไม่ต้องรับคลิกเอง กันเมาส์จับ event ผิดตัว */
+.btn svg { pointer-events: none; }
+
+/* ---- ฟิลเตอร์ / ช่องกรอก / เลือก ---- */
+.input, .select, .select-trigger { transition: border-color var(--dur-base) var(--ease-io), box-shadow var(--dur-base) var(--ease-io), background-color var(--dur-base) var(--ease-io); }
+@media (hover: hover) {
+  .input:hover:not(:focus):not(:disabled), .select:hover:not(:focus):not(:disabled), .select-trigger:hover:not(:focus):not(:disabled) { border-color: var(--ink-300); background-color: var(--ink-50); }
+}
+.input:focus, .select:focus, textarea.input:focus, .select-trigger:focus-visible { border-color: var(--navy-600); box-shadow: 0 0 0 4px rgba(209, 110, 16, .16); background-color: #fff; }
+.select-trigger[aria-expanded="true"] { border-color: var(--navy-600); box-shadow: 0 0 0 4px rgba(209, 110, 16, .16); }
+.select-panel { animation: selectIn .18s var(--ease-out) both; transform-origin: top center; box-shadow: var(--sh-lg); border: 1px solid var(--ink-200); }
+@keyframes selectIn { from { opacity:0; transform: translateY(-6px) scale(.98); } to { opacity:1; transform:none; } }
+.select-option { transition: background-color .12s var(--ease-io), color .12s var(--ease-io), padding-left .18s var(--ease-out); }
+@media (hover: hover) { .select-option:hover { padding-left: 15px; } }
+
+/* ป้าย/ชิปที่กดได้ (ตัวกรองสถานะ ฯลฯ) */
+.badge-link { transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-base) var(--ease-io), filter var(--dur-base) var(--ease-io); }
+.badge-link:active { transform: scale(.95); }
+
+/* ---- เมนูข้าง ---- */
+.nav-item { transition: background-color var(--dur-base) var(--ease-io), color var(--dur-base) var(--ease-io),
+    box-shadow var(--dur-base) var(--ease-io), transform var(--dur-fast) var(--ease-out); }
+@media (hover: hover) { .nav-item:not(.active):hover { transform: translateX(3px); } }
+.nav-item:active { transform: scale(.98); }
+.nav-item.active { box-shadow: 0 8px 20px -8px rgba(122, 57, 0, .55); }
+.nav-item:focus-visible { outline: none; box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--navy-600); }
+.nav-item.active::before { animation: navMark .35s var(--ease-out) both; }
+@keyframes navMark { from { height: 0; opacity: 0; } to { height: 20px; opacity: 1; } }
+
+/* ---- การ์ด / ตาราง ---- */
+.card { transition: box-shadow var(--dur-base) var(--ease-io), transform var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-io); }
+@media (hover: hover) { .card.clickable:hover { border-color: var(--ink-300); } }
+.card.clickable:active { transform: scale(.992); transition-duration: .08s; }
+/* hover แถวตารางเดิมเป็นฟ้า ไม่เข้ากับโทนส้ม-ครีมของระบบ → ครีมอุ่นอ่อน ๆ + แถบส้มบาง ๆ ด้านซ้าย */
+.tbl tbody tr { transition: background-color var(--dur-base) var(--ease-io), box-shadow var(--dur-base) var(--ease-io); }
+.tbl tbody tr:hover { background: #fdf6ec; }
+.tbl tbody tr.clickable:hover { box-shadow: inset 3px 0 0 var(--navy-600); }
+.tbl tbody tr.clickable:active { background: #fbeedb; }
+
+/* ---- กราฟ ---- */
+/* แท่งงอกขึ้นจากเส้นฐาน ไล่ทีละแท่ง (animation-delay ตั้งจาก JSX) — แทนโผล่มาเต็มพร้อมกัน */
+@keyframes barGrow { from { transform: scaleY(0); opacity: .2; } to { transform: scaleY(1); opacity: 1; } }
+.chart-col { transform-origin: bottom center; animation: barGrow .7s var(--ease-out) both; }
+.chart-bar { transform-box: fill-box; transform-origin: bottom center; animation: barGrow .7s var(--ease-out) both; }
+.chart-tip { animation: tipIn .16s var(--ease-out) both; }
+@keyframes tipIn { from { opacity: 0; } to { opacity: 1; } }
+/* โดนัท: ชิ้นอื่นจางลงตอนชี้ ให้รู้ว่ากำลังดูตัวไหน */
+svg.donut-spin-in circle { transition: stroke-dasharray .6s var(--ease-io), opacity var(--dur-base) var(--ease-io); }
+svg.donut-spin-in:hover circle:not(:hover) { opacity: .62; }
+/* แถบ % ลื่นขึ้น + มีประกายสีอ่อนบนแท่ง */
+.pbar > i { transition: width 1.1s var(--ease-out); background-image: linear-gradient(180deg, rgba(255,255,255,.22), transparent 60%); }
+/* ตัวเลขในการ์ดสถิติเลื่อนขึ้นนิดเดียวตอนเปิดหน้า */
+.card .tnum { animation: numIn .5s var(--ease-out) both; }
+@keyframes numIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+
+/* ---- Modal: ปิดแล้วจางออกนุ่ม ๆ (components.jsx คงไว้ 170ms ก่อนถอดจริง) ---- */
+@keyframes backdropOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes modalOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(8px) scale(.98); } }
+.modal-backdrop.is-closing { animation: backdropOut .17s var(--ease-io) both; pointer-events: none; }
+.modal-card.is-closing { animation: modalOut .17s var(--ease-io) both; }
+.modal-backdrop { background: rgba(40, 20, 5, .46) !important; backdrop-filter: blur(5px) saturate(1.1) !important; }
+.modal-card { border: 1px solid rgba(255,255,255,.6); box-shadow: 0 30px 70px -20px rgba(60, 30, 5, .38), 0 2px 8px rgba(60,30,5,.06) !important; }
+
+a:focus-visible { outline: 2px solid var(--navy-600); outline-offset: 2px; border-radius: 4px; }
+
+/* ผู้ใช้ตั้ง "ลดการเคลื่อนไหว" → ปิดทุกอย่างที่เพิ่มใน block นี้ */
+@media (prefers-reduced-motion: reduce) {
+  .chart-col, .chart-bar, .chart-tip, .card .tnum, .nav-item.active::before,
+  .modal-backdrop.is-closing, .modal-card.is-closing, .select-panel { animation: none !important; }
+  .btn, .nav-item, .card, .badge-link { transition-duration: .01s !important; }
+  .btn-primary::before, .btn-gold::before, .btn-success::before { display: none; }
+  .btn:hover, .nav-item:hover, .card.clickable:hover { transform: none !important; }
+}
+
+
+/* ============================================================
+   โทนละมุนตา (ส้ม + ขาว ตามสีประจำคณะ) — 7 ต.ค.
+   หลักการ: พื้นที่ใหญ่ใช้ขาว/พีชอ่อนมาก ๆ · ส้มเข้มเก็บไว้เป็น "จุดเน้น" เท่านั้น (ปุ่มหลัก ตัวเลือกที่เลือกอยู่ เส้นบอกหน้า)
+   เดิมหัวตารางเป็นส้มทึบเต็มแถบ + เมนูข้างที่เลือกเป็นน้ำตาลเข้ม → หนักตา
+   ============================================================ */
+:root {
+  --peach-50:  #fef8f0;   /* พื้น hover / แถวที่ไฮไลต์ */
+  --peach-100: #fdeedd;   /* พื้นหัวตาราง / เมนูที่เลือก */
+  --peach-200: #f9dcbd;   /* เส้นขอบโทนส้มอ่อน */
+  --canvas: #fcf9f6;      /* พื้นหลังแอป: ขาวอมครีมบาง ๆ (เดิม #f7f3ef เทาอุ่นกว่า) */
+  /* เงาอ่อนลง กระจายกว้างขึ้น สีเงาอมส้มแทนน้ำตาลเข้ม */
+  --sh-xs: 0 1px 2px rgba(120, 60, 10, .05);
+  --sh-sm: 0 2px 12px rgba(120, 60, 10, .055), 0 1px 2px rgba(120, 60, 10, .03);
+  --sh-md: 0 12px 32px -6px rgba(120, 60, 10, .11), 0 2px 8px rgba(120, 60, 10, .035);
+  --sh-lg: 0 28px 60px -18px rgba(110, 50, 5, .22);
+}
+
+/* หัวตาราง: พีชอ่อน + ตัวหนังสือน้ำตาลส้มเข้ม (contrast ~8:1) แทนส้มทึบ + ตัวขาว */
+.tbl th { background: linear-gradient(180deg, #fff4e8, var(--peach-100)); color: var(--navy-800);
+  border-bottom: 1px solid var(--peach-200); }
+.tbl tbody tr:hover { background: var(--peach-50); }
+.tbl tbody tr.clickable:active { background: var(--peach-100); }
+
+/* เมนูข้างที่เลือกอยู่: พื้นพีช + ไอคอน/ตัวอักษรส้ม + เส้นส้มด้านซ้าย (เดิมน้ำตาลเข้มทั้งแถบ) */
+.nav-item.active { background: linear-gradient(135deg, #fff1e1, var(--peach-100)); color: var(--navy-800);
+  box-shadow: inset 0 0 0 1px rgba(209, 110, 16, .16), 0 6px 16px -10px rgba(189, 87, 0, .45); }
+.nav-item.active svg { color: var(--navy-700); }
+.nav-item.active::before { background: var(--navy-700); }
+.nav-item.active .nav-badge { background: var(--navy-700); color: #fff; }
+.nav-item:not(.active):hover { background: var(--peach-50); }
+.sidebar-toggle:hover { background: var(--peach-50); }
+
+/* ปุ่มและพื้นที่ที่แตะแล้วเปลี่ยนสี → พีชอ่อน (เดิมเทาอมน้ำตาล/ฟ้า) */
+.btn-ghost:hover:not(:disabled) { background: var(--peach-50); border-color: var(--peach-200); }
+.btn-subtle { background: var(--peach-100); color: var(--navy-800); }
+.btn-subtle:hover { background: var(--peach-200); }
+.chip { background: var(--peach-100); color: var(--navy-800); }
+.select-option:hover { background: var(--peach-50); }
+.export-item:hover, .export-item:focus-visible { background: var(--peach-50); }
+.input:hover:not(:focus):not(:disabled), .select:hover:not(:focus):not(:disabled), .select-trigger:hover:not(:focus):not(:disabled) { border-color: var(--peach-200); background-color: var(--peach-50); }
+.avatar { background: linear-gradient(135deg, var(--navy-500), var(--navy-700)); }
+
+/* ลูกศร dropdown: วาดด้วย ::after เพื่อให้หมุนกลับได้ตอนเปิด (background-image หมุนไม่ได้) */
+.select-trigger { position: relative; background-image: none; }
+.select-trigger::after { content: ''; position: absolute; right: 13px; top: 50%; width: 14px; height: 14px; margin-top: -7px; pointer-events: none;
+  background: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23c25f0c' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+  transition: transform .26s var(--ease-out); }
+.select-trigger[aria-expanded="true"]::after { transform: rotate(180deg); }
+.select-panel.is-closing { animation: selectOut .12s var(--ease-io) both; }
+@keyframes selectOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-4px) scale(.98); } }
+
+/* แถวตารางไล่โผล่: นุ่มและช้าลงนิดเดียว ให้เห็นเป็นระลอกต่อเนื่องตอนเปลี่ยนตัวกรอง */
+@keyframes rowIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.tbl tbody tr { animation-duration: .42s; }
+.tbl tbody tr:nth-child(2) { animation-delay: .035s; } .tbl tbody tr:nth-child(3) { animation-delay: .07s; }
+.tbl tbody tr:nth-child(4) { animation-delay: .105s; } .tbl tbody tr:nth-child(5) { animation-delay: .14s; }
+.tbl tbody tr:nth-child(6) { animation-delay: .175s; } .tbl tbody tr:nth-child(7) { animation-delay: .21s; }
+.tbl tbody tr:nth-child(8) { animation-delay: .245s; } .tbl tbody tr:nth-child(9) { animation-delay: .28s; }
+.tbl tbody tr:nth-child(n+10) { animation-delay: .315s; }
+
+/* เนื้อหาเปลี่ยนหน้า/เปลี่ยนแท็บ: ช้าและนุ่มขึ้นเล็กน้อย */
+.page-enter, .fade-up { animation-duration: .5s; animation-timing-function: var(--ease-out); }
+
+@media (prefers-reduced-motion: reduce) {
+  .select-panel.is-closing, .select-trigger::after { animation: none !important; transition: none !important; }
+}
+
+
+/* ตารางที่มีคอลัมน์ปุ่มจัดการกว้าง (ข้อมูลนักศึกษา / จัดการผู้ใช้) — บีบช่องไฟข้างเซลล์ให้ลงการ์ดพอดี
+   และให้ปุ่มขึ้นบรรทัดใหม่เองเมื่อที่ไม่พอ แทนที่จะดันตารางให้ล้นขอบแล้วปุ่มท้ายถูกตัด */
+.tbl-fit th, .tbl-fit td { padding-left: 12px; padding-right: 12px; }
+.tbl-fit th:first-child, .tbl-fit td:first-child { padding-left: 18px; }
+.tbl-fit th:last-child, .tbl-fit td:last-child { padding-right: 18px; }
+.tbl-fit .cell-wrap { overflow-wrap: anywhere; word-break: break-word; }
+.tbl-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-start; align-items: center; min-width: 150px; }
+/* ปุ่มในตารางไม่ล้นตัวหนังสือ + ตัวเลขผลสอบ/วันที่ไม่ตัดบรรทัด */
+.tbl-fit .btn, .tbl-fit .badge { white-space: nowrap; }

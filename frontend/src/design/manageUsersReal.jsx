@@ -126,9 +126,9 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
       </div>
 
       <div className="card" style={{ overflow: 'hidden' }}>
-        <table className="tbl">
+        <table className="tbl tbl-fit">
           <thead><tr><th>{tt('usersMgmt.colName')}</th><th>{tt('usersMgmt.colUsername')}</th><th>{tt('usersMgmt.colEmail')}</th><th>{tt('usersMgmt.colRole')}</th><th>{tt('usersMgmt.colStatus')}</th><th></th></tr></thead>
-          <tbody>{usersPage.rows.map(u => (
+          <tbody key={roleFilter}>{usersPage.rows.map(u => (
             <tr key={u.user_id}>
               <td><div style={{ display: 'flex', alignItems: 'center', gap: 11 }}><Avatar name={u.first_name} size={34} bg="var(--navy-600)" />
                 <div>
@@ -136,8 +136,8 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
                   {/* ใครสร้างบัญชีนี้ — บัญชีเก่าที่ไม่มีข้อมูลก็ไม่โชว์ */}
                   {u.creator && <div style={{ fontSize: 13.5, color: 'var(--ink-500)' }}>{tt('usersMgmt.createdBy', { name: actorLabel(u.creator, tt) })}</div>}
                 </div></div></td>
-              <td className="mono" style={{ fontSize: 15, color: 'var(--ink-500)' }}>{u.psu_passport_id}</td>
-              <td className="mono" style={{ fontSize: 15, color: 'var(--ink-500)' }}>{u.email || '—'}</td>
+              <td className="mono cell-wrap" style={{ fontSize: 15, color: 'var(--ink-500)' }}>{u.psu_passport_id}</td>
+              <td className="mono cell-wrap" style={{ fontSize: 15, color: 'var(--ink-500)' }}>{u.email || '—'}</td>
               <td><span className="chip" style={{ background: 'var(--blue-50)', color: 'var(--blue-600)', fontWeight: 600 }}><Icon name="chart" size={13} /> {ROLE_LABEL[u.role.role_name]}</span></td>
               {/* is_revoked = ถอนสิทธิ์ไปแล้ว (password_hash เป็น null) — แยกจาก must_change_password
                   เพราะบัญชีใหม่ก็ must_change_password=true เหมือนกัน แยกกันไม่ออกถ้าไม่มี flag นี้ */}
@@ -153,19 +153,22 @@ export function ManageUsersReal({ toast, currentUserId, lang }) {
                   ? <span className="badge wait"><span className="dot" />{tt('usersMgmt.statusPending')}</span>
                   : <span className="badge ok"><span className="dot" />{tt('usersMgmt.statusActive')}</span>}
               </td>
-              <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                <button className="btn btn-ghost btn-sm" style={{ marginRight: 6 }}
+              <td>
+                {/* ปุ่มขึ้นบรรทัดใหม่เองเมื่อที่ไม่พอ (เดิม nowrap แล้วล้นขอบการ์ด ปุ่มท้ายถูกตัด) */}
+                <div className="tbl-actions">
+                <button className="btn btn-ghost btn-sm"
                   disabled={u.user_id === currentUserId}
                   onClick={() => { setConfirm({ user: u, action: 'reset' }); setResetPassword(''); setConfirmError(''); }}>
                   <Icon name="key" size={15} /> {tt('usersMgmt.resetBtn')}</button>
-                <button className="btn btn-ghost btn-sm" style={{ marginRight: 6 }} disabled={u.user_id === currentUserId || u.is_revoked}
+                <button className="btn btn-ghost btn-sm" disabled={u.user_id === currentUserId || u.is_revoked}
                   title={u.is_revoked ? tt('usersMgmt.revokedHint') : undefined}
                   onClick={() => { setRoleEdit({ user: u, role_name: u.role.role_name }); setRoleError(''); }}>
                   <Icon name="edit" size={15} /> {tt('usersMgmt.changeRoleBtn')}</button>
-                <button className="btn btn-ghost btn-sm" style={{ marginRight: 6 }} disabled={u.user_id === currentUserId || u.is_revoked}
+                <button className="btn btn-ghost btn-sm" disabled={u.user_id === currentUserId || u.is_revoked}
                   title={u.is_revoked ? tt('usersMgmt.revokedHint') : undefined}
                   onClick={() => { setConfirm({ user: u, action: 'revoke' }); setConfirmError(''); }}>
                   <Icon name="xCircle" size={15} /> {tt('usersMgmt.revokeBtn')}</button>
+                </div>
               </td>
             </tr>
           ))}</tbody>

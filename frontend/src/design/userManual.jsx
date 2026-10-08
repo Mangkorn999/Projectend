@@ -1,6 +1,7 @@
 /* ============================================================
    คู่มือการใช้งาน — เจ้าหน้าที่คณะ (เอกสารประกอบการใช้งานภายในคณะ)
-   เนื้อหา static ล้วน ไม่ผ่าน backend/i18n — ภาษาไทยอย่างเดียว (ใช้เฉพาะภายในคณะ)
+   เนื้อหา static ล้วน ไม่ผ่าน backend/i18n — มี 2 ฉบับ: ไทย (ไฟล์นี้) และอังกฤษ (userManualEn.jsx) เลือกตามปุ่ม TH/EN ของแอป
+   แก้เนื้อหาฉบับไหน ต้องแก้อีกฉบับให้ตรงกัน · ภาพสาธิต (manualDemos*.jsx) ใช้ชุดเดียว แปลข้อความด้วย manualDemoEn.js
 
    โครงสร้าง: ปกเอกสาร → สารบัญ (ติดข้างจอ เลื่อนตามตำแหน่งที่อ่านอยู่) → หมวด 1–12 → ภาคผนวก
    ภาพเคลื่อนไหวสาธิต "คลิกตรงนี้ ทำแบบนี้" อยู่ใน manualDemos.jsx (แก้ขั้นตอนที่ไฟล์นั้น)
@@ -9,19 +10,9 @@
 import { useState, useEffect } from 'react';
 import { Icon } from './data.jsx';
 import { Demo } from './manualDemos.jsx';
-
-/* ---------- ชิ้นส่วนเอกสาร ---------- */
-const CALLOUT_ICON = { note: 'info', warn: 'alert', danger: 'alert' };
-const CALLOUT_TITLE = { note: 'หมายเหตุ', warn: 'ข้อควรระวัง', danger: 'ข้อห้าม / ผลกระทบสำคัญ' };
-function Callout({ type = 'note', title, children }) {
-  return (
-    <div className={`mn-callout ${type}`} role="note">
-      <Icon name={CALLOUT_ICON[type]} size={19} className="ic" />
-      <div><span className="t">{title || CALLOUT_TITLE[type]}</span>{children}</div>
-    </div>
-  );
-}
-const Proc = ({ children }) => <ol className="mn-proc">{children}</ol>;
+import { Callout, Proc } from './manualParts.jsx';
+import { ManualLangContext } from './manualDemoEn.js';
+import { SECTIONS_EN, COVER_EN } from './userManualEn.jsx';
 
 /* ---------- เนื้อหา ---------- */
 const SECTIONS = [
@@ -474,8 +465,31 @@ const SECTIONS = [
   },
 ];
 
+/* ---------- ข้อความรอบนอก (ปก/สารบัญ) ของฉบับไทย — ฉบับอังกฤษอยู่ที่ COVER_EN ---------- */
+const COVER_TH = {
+  org: 'คณะพยาบาลศาสตร์ มหาวิทยาลัยสงขลานครินทร์',
+  title: 'คู่มือการใช้งานระบบบันทึกใบอนุญาตประกอบวิชาชีพ',
+  sub: 'สำหรับเจ้าหน้าที่คณะ',
+  metaUpdated: 'ฉบับปรับปรุง',
+  metaUpdatedValue: '6 ตุลาคม 2569',
+  metaAudience: 'กลุ่มผู้ใช้',
+  metaAudienceValue: 'เจ้าหน้าที่คณะ (Officer)',
+  metaType: 'ลักษณะเอกสาร',
+  metaTypeValue: 'ใช้ภายในคณะ',
+  print: 'พิมพ์คู่มือ',
+  toc: 'สารบัญ',
+  tocAria: 'สารบัญคู่มือ',
+  appendixShort: 'ภาคผนวก',
+  appendixLetter: 'ก',
+};
+
 /* ---------- หน้าคู่มือ ---------- */
-export function OfficerManual() {
+export function OfficerManual({ lang = 'TH' }) {
+  const isEn = lang === 'EN';
+  const sections = isEn ? SECTIONS_EN : SECTIONS;
+  const cover = isEn ? COVER_EN : COVER_TH;
+  // ชื่อหมวดภาคผนวกขึ้นต้นด้วย "ภาคผนวก: " / "Appendix: " — ตัดคำนำหน้าออกเพราะสารบัญใส่ป้ายเองอยู่แล้ว
+  const bare = (title) => title.replace(/^(ภาคผนวก|Appendix): /, '');
   const [active, setActive] = useState(SECTIONS[0].id);
 
   // สารบัญเลื่อนตามหมวดที่กำลังอ่านอยู่: หมวดสุดท้ายที่ขอบบนเลื่อนผ่านเส้นใต้แถบหัวเว็บมาแล้ว
@@ -484,8 +498,8 @@ export function OfficerManual() {
     let frame = 0;
     const update = () => {
       frame = 0;
-      let current = SECTIONS[0].id;
-      SECTIONS.forEach((s) => {
+      let current = sections[0].id;
+      sections.forEach((s) => {
         const el = document.getElementById(`mn-${s.id}`);
         if (el && el.getBoundingClientRect().top <= 140) current = s.id;
       });
@@ -495,7 +509,7 @@ export function OfficerManual() {
     document.addEventListener('scroll', onScroll, true);
     update();
     return () => { document.removeEventListener('scroll', onScroll, true); if (frame) cancelAnimationFrame(frame); };
-  }, []);
+  }, [sections]);
 
   const go = (e, id) => {
     e.preventDefault(); // ไม่ใส่ #hash ลง URL (แอปใช้ path เป็นตัวสลับหน้า)
@@ -504,40 +518,43 @@ export function OfficerManual() {
   };
 
   return (
-    <div className="fade-up">
-      <div className="mn-page">
-        <nav className="card mn-toc mn-noprint" aria-label="สารบัญคู่มือ">
-          <h4>สารบัญ</h4>
-          {SECTIONS.map((s, k) => (
-            <a key={s.id} href={`#mn-${s.id}`} className={active === s.id ? 'on' : ''} onClick={(e) => go(e, s.id)}>
-              {s.id === 'appendix' ? 'ภาคผนวก' : `${k + 1}.`} {s.title.replace(/^ภาคผนวก: /, '')}
-            </a>
-          ))}
-        </nav>
+    // ManualLangContext: ภาพสาธิตและกล่องหมายเหตุด้านในอ่านภาษาจากตรงนี้
+    <ManualLangContext.Provider value={isEn ? 'EN' : 'TH'}>
+      <div className="fade-up">
+        <div className="mn-page">
+          <nav className="card mn-toc mn-noprint" aria-label={cover.tocAria}>
+            <h4>{cover.toc}</h4>
+            {sections.map((s, k) => (
+              <a key={s.id} href={`#mn-${s.id}`} className={active === s.id ? 'on' : ''} onClick={(e) => go(e, s.id)}>
+                {s.id === 'appendix' ? cover.appendixShort : `${k + 1}.`} {bare(s.title)}
+              </a>
+            ))}
+          </nav>
 
-        <article className="mn-doc">
-          <header className="mn-cover">
-            <div className="mn-org">คณะพยาบาลศาสตร์ มหาวิทยาลัยสงขลานครินทร์</div>
-            <h1>คู่มือการใช้งานระบบบันทึกใบอนุญาตประกอบวิชาชีพ</h1>
-            <div className="mn-sub">สำหรับเจ้าหน้าที่คณะ</div>
-            <div className="mn-meta">
-              <span><b>ฉบับปรับปรุง</b>6 ตุลาคม 2569</span>
-              <span><b>กลุ่มผู้ใช้</b>เจ้าหน้าที่คณะ (Officer)</span>
-              <span><b>ลักษณะเอกสาร</b>ใช้ภายในคณะ</span>
-            </div>
-            <button type="button" className="btn btn-sm mn-noprint" onClick={() => window.print()}>
-              <Icon name="printer" size={15} /> พิมพ์คู่มือ
-            </button>
-          </header>
+          <article className="mn-doc">
+            <header className="mn-cover">
+              <div className="mn-org">{cover.org}</div>
+              <h1>{cover.title}</h1>
+              <div className="mn-sub">{cover.sub}</div>
+              <div className="mn-meta">
+                <span><b>{cover.metaUpdated}</b>{cover.metaUpdatedValue}</span>
+                <span><b>{cover.metaAudience}</b>{cover.metaAudienceValue}</span>
+                <span><b>{cover.metaType}</b>{cover.metaTypeValue}</span>
+              </div>
+              <button type="button" className="btn btn-sm mn-noprint" onClick={() => window.print()}>
+                <Icon name="printer" size={15} /> {cover.print}
+              </button>
+            </header>
 
-          {SECTIONS.map((s, k) => (
-            <section key={s.id} id={`mn-${s.id}`} className="mn-sec">
-              <h2><span className="n">{s.id === 'appendix' ? 'ก' : k + 1}</span>{s.title.replace(/^ภาคผนวก: /, '')}</h2>
-              {s.body}
-            </section>
-          ))}
-        </article>
+            {sections.map((s, k) => (
+              <section key={s.id} id={`mn-${s.id}`} className="mn-sec">
+                <h2><span className="n">{s.id === 'appendix' ? cover.appendixLetter : k + 1}</span>{bare(s.title)}</h2>
+                {s.body}
+              </section>
+            ))}
+          </article>
+        </div>
       </div>
-    </div>
+    </ManualLangContext.Provider>
   );
 }

@@ -469,7 +469,7 @@ export function App() {
       if(page==='usermgmt') return <ManageUsersReal toast={showToast} currentUserId={currentUser?.id} lang={lang} />;
       if(page==='newsmgmt') return <ManageNewsReal toast={showToast} lang={lang} currentUserName={currentUser?.name} />;
       if(page==='reports') return <ReportsReal toast={showToast} lang={lang} />;
-      if(page==='manual') return <OfficerManual />;
+      if(page==='manual') return <OfficerManual lang={lang} />;
     }
     // ไม่มีหน้า students/detail ให้ผู้บริหารแล้ว — endpoint รายบุคคลเป็นของ officer/reviewer เท่านั้น
     if(role==='executive'){

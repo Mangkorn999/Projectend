@@ -177,7 +177,7 @@ export function OfficerReviewReal({ go, setSel, setDetailFrom, lang, role, resto
               {tab === 'NOT_STARTED'
                 ? <table className="tbl">
                     <thead><tr><th>{tt('officer.review.colStudent')}</th><th>{tt('officer.review.colRoom')}</th><th>{tt('officer.students.colYear')}</th></tr></thead>
-                    <tbody>{pageRows.map(s => (
+                    <tbody key={`${roundId}|${tab}|${safePage}`}>{pageRows.map(s => (
                       <tr key={s.student_id}>
                         <td><div style={{ display: 'flex', alignItems: 'center', gap: 11 }}><Avatar name={s.user.first_name} size={34} />
                           <div><div style={{ fontWeight: 600, fontSize: 16 }}>{s.user.first_name} {s.user.last_name}</div>
@@ -189,7 +189,7 @@ export function OfficerReviewReal({ go, setSel, setDetailFrom, lang, role, resto
                   </table>
                 : <table className="tbl">
                     <thead><tr><th>{tt('officer.review.colStudent')}</th><th>{tt('officer.review.colRoom')}</th><th>{tt('officer.review.colResult')}</th><th>{tt('officer.review.colEvidence')}</th><th>{tt('officer.review.colSubmitted')}</th>{showReviewer && <><th>{tt('officer.review.colReviewer')}</th><th>{tt('officer.review.colReviewedAt')}</th></>}<th></th></tr></thead>
-                    <tbody>{pageRows.map(s => (
+                    <tbody key={`${roundId}|${tab}|${safePage}`}>{pageRows.map(s => (
                       <tr key={s.resultId} className="clickable" onClick={() => openDetail(s)}>
                         <td><div style={{ display: 'flex', alignItems: 'center', gap: 11 }}><Avatar name={s.firstName} size={34} />
                           <div><div style={{ fontWeight: 600, fontSize: 16 }}>{s.firstName} {s.lastName}</div>

@@ -14,6 +14,7 @@
    ============================================================ */
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Icon } from './data.jsx';
+import { useManualLang, translateNode, tr, PLAYER_TEXT } from './manualDemoEn.js';
 
 const STAGE_W = 640;   // ความกว้างหน้าจอจำลอง (px) — จอเล็กกว่านี้ย่อทั้งก้อนด้วย transform: scale
 const MOVE_MS = 1000;  // เวลาเมาส์เลื่อนไปถึงปุ่ม (ต้องตรงกับ transition ใน styles.css .mn-cursor)
@@ -22,6 +23,8 @@ const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 export function StepDemo({ title, steps, stage, height = 340 }) {
+  const lang = useManualLang();
+  const ui = PLAYER_TEXT[lang] || PLAYER_TEXT.TH;
   const n = steps.length;
   const [reduced] = useState(prefersReducedMotion);
   const wrapRef = useRef(null);
@@ -108,18 +111,18 @@ export function StepDemo({ title, steps, stage, height = 340 }) {
     else replay();
   };
 
-  const caption = steps[i];
+  const caption = { ...steps[i], text: tr(steps[i].text, lang) };
   return (
     <figure className="mn-demo" ref={wrapRef}>
       <figcaption className="mn-demo-head">
-        <span className="mn-demo-tag"><Icon name="play" size={13} /> ตัวอย่างการใช้งาน</span>
-        <b>{title}</b>
+        <span className="mn-demo-tag"><Icon name="play" size={13} /> {ui.tag}</span>
+        <b>{tr(title, lang)}</b>
       </figcaption>
 
       {/* หน้าจอจำลอง — ซ่อนจากโปรแกรมอ่านหน้าจอ (ขั้นตอนเดียวกันเขียนเป็นรายการตัวอักษรด้านล่างอยู่แล้ว) */}
       <div className="mn-stage-outer" style={{ height: height * scale }} aria-hidden="true">
         <div className="mn-stage" ref={stageRef} key={loop} style={{ width: STAGE_W, height, marginLeft: offset, transform: `scale(${scale})` }}>
-          {stage(done)}
+          {translateNode(stage(done), lang)}
           <div className={`mn-ring${phase === 'move' ? ' on' : ''}`} ref={ringRef} />
           <div className="mn-cursor" ref={cursorRef}>
             <svg width="22" height="24" viewBox="0 0 22 24" fill="none">
@@ -132,21 +135,21 @@ export function StepDemo({ title, steps, stage, height = 340 }) {
 
       <div className="mn-demo-ctl mn-noprint">
         {!reduced && (
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setUserPaused(p => !p)} aria-label={playing ? 'หยุดชั่วคราว' : 'เล่นต่อ'}>
-            <Icon name={playing ? 'pause' : 'play'} size={14} /> {playing ? 'หยุด' : 'เล่น'}
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setUserPaused(p => !p)} aria-label={playing ? ui.pauseAria : ui.playAria}>
+            <Icon name={playing ? 'pause' : 'play'} size={14} /> {playing ? ui.pause : ui.play}
           </button>
         )}
-        <button type="button" className="btn btn-ghost btn-sm" onClick={replay}><Icon name="refresh" size={14} /> เริ่มใหม่</button>
-        {reduced && <button type="button" className="btn btn-primary btn-sm" onClick={next}>ขั้นถัดไป</button>}
-        <span className="mn-demo-now" role="status">ขั้นที่ {i + 1} จาก {n}: {caption.text}</span>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={replay}><Icon name="refresh" size={14} /> {ui.replay}</button>
+        {reduced && <button type="button" className="btn btn-primary btn-sm" onClick={next}>{ui.next}</button>}
+        <span className="mn-demo-now" role="status">{ui.now(i + 1, n, caption.text)}</span>
       </div>
 
       <ol className="mn-steps">
         {steps.map((s, k) => (
           <li key={k} className={k === i ? 'cur' : k < i ? 'past' : ''} aria-current={k === i ? 'step' : undefined}>
-            <button type="button" className="mn-step-btn mn-noprint" onClick={() => goto(k)} aria-label={`ไปที่ขั้นที่ ${k + 1}`}>{k + 1}</button>
+            <button type="button" className="mn-step-btn mn-noprint" onClick={() => goto(k)} aria-label={ui.goto(k + 1)}>{k + 1}</button>
             <span className="mn-step-num">{k + 1}</span>
-            <span>{s.text}</span>
+            <span>{tr(s.text, lang)}</span>
           </li>
         ))}
       </ol>

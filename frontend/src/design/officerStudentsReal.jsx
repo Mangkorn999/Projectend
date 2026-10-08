@@ -126,6 +126,7 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
       .finally(() => setLoading(false));
   }, []);
 
+  const searchText = q.replace(/\s+/g, '').toLowerCase();
   const filtered = students.filter(s => {
     if (status !== 'ALL' && s.status !== status) return false;
     if (room !== 'ALL' && s.room !== room) return false;
@@ -154,7 +155,9 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
     // มาจากปุ่ม "ดูรายชื่อ" การ์ดร้อยละผ่านครั้งแรก — ต้องเป็นใบรอบ 1 ของปีนั้น + ยืนยันแล้ว + ผ่าน/ไม่ผ่านตรงที่เลือก
     if (firstAttemptFilter && !(s.firstAttempt && s.firstAttempt.confirmed
       && s.firstAttempt.year === firstAttemptFilter.year && s.firstAttempt.passed === firstAttemptFilter.passed)) return false;
-    if (q && !(`${s.firstName}${s.lastName}${s.sid}`.includes(q))) return false;
+    // ตัดช่องว่างทิ้งทั้งสองฝั่งก่อนเทียบ — เดิมพิมพ์เว้นวรรค (เช่น "ธัญเทพ จิ๊วตั้น" หรือเผลอเคาะ space) แล้วไม่เจอใครเลย
+    // เพราะชื่อกับนามสกุลถูกต่อกันโดยไม่มีช่องว่าง · ไม่สนตัวพิมพ์เล็กใหญ่ (ชื่ออังกฤษ)
+    if (searchText && !`${s.firstName}${s.lastName}${s.sid}`.toLowerCase().includes(searchText)) return false;
     return true;
   });
   const pages = Math.ceil(filtered.length / per);
@@ -427,7 +430,7 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
 
       <div className="card" style={{ overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
-          <table className="tbl">
+          <table className="tbl tbl-fit">
             <thead><tr>
               {!readonly && <th style={{ width: 40 }}>
                 <input type="checkbox" checked={allFilteredSelected} onChange={toggleAllFiltered}
@@ -439,7 +442,9 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
               {!readonly && <th>{tt('officer.students.colActions')}</th>}
               <th></th>
             </tr></thead>
-            <tbody>
+            {/* key เปลี่ยนตามตัวกรอง/หน้า → แถวทั้งชุดเล่นไล่โผล่ใหม่ (rowIn) แทนแถวเก่าหายพรึ่บ-แถวใหม่โผล่ทีละส่วน
+                ไม่ใส่ q (ช่องค้นหา) ไว้ใน key เพราะจะกะพริบทุกตัวอักษรที่พิมพ์ */}
+            <tbody key={[status, room, year, eligible, safePage, subjectFilter?.subjectCode, subjectFilter?.passed, firstAttemptFilter?.year, firstAttemptFilter?.passed].join('|')}>
               {pageRows.map(s => (
                 <tr key={s.sid} className="clickable" onClick={() => { setSel(s); setDetailFrom('students'); go('detail'); }}>
                   {!readonly && <td onClick={e => e.stopPropagation()}>
@@ -458,18 +463,21 @@ export function OfficerStudentsReal({ go, setSel, setDetailFrom, toast, readonly
                     <span className="tnum" style={{ fontWeight: 700, color: s.allPass ? 'var(--pass)' : 'var(--ink-800)' }}>{s.passedCount}/{s.subjectCount}</span>}</td>
                   <td><StatusBadge status={s.status} lang={lang} /></td>
                   <td style={{ color: 'var(--ink-500)', fontSize: 15 }}>{s.submittedAt || '—'}</td>
-                  {!readonly && <td onClick={e => e.stopPropagation()} style={{ whiteSpace: 'nowrap' }}>
+                  {!readonly && <td onClick={e => e.stopPropagation()}>
+                    {/* ปุ่มขึ้นบรรทัดใหม่เองเมื่อที่ไม่พอ ไม่ดันตารางให้ล้นขอบการ์ด */}
+                    <div className="tbl-actions">
                     <button disabled={saving} onClick={() => { setResetting(s); setResetNationalId(''); setResetError(''); }} title={tt('officer.students.resetBtnHint')}
-                      className="btn btn-ghost btn-sm" style={{ marginRight: 6 }}>
+                      className="btn btn-ghost btn-sm">
                       <Icon name="key" size={15} /> {tt('usersMgmt.resetBtn')}</button>
                     {s.eligible && <button disabled={saving} onClick={() => toggleOneEligibility(s)}
                       className="badge reject" style={{ border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
                       <Icon name="xCircle" size={13} /> {tt('officer.students.revokeBtn')}</button>}
                     {/* ลบได้ทุกคน รวมคนที่มีผลสอบแล้ว (ลบผลสอบ/เอกสารทั้งหมดของเขาด้วย สถิติของรุ่นเปลี่ยนย้อนหลัง) — โมดัลยืนยันเตือนแรง + backend บังคับค่ายืนยัน */}
                     <button disabled={saving} onClick={() => setDeleting(s)} title={tt('officer.students.deleteHint')}
-                      className="badge" style={{ border: 'none', cursor: 'pointer', fontFamily: 'inherit', marginLeft: 6,
+                      className="badge" style={{ border: 'none', cursor: 'pointer', fontFamily: 'inherit',
                         background: 'var(--ink-100)', color: 'var(--ink-600)' }}>
                       <Icon name="trash" size={13} /> {tt('officer.students.deleteBtn')}</button>
+                    </div>
                   </td>}
                   <td style={{ textAlign: 'right' }}><Icon name="chevR" size={18} style={{ color: 'var(--ink-300)' }} /></td>
                 </tr>

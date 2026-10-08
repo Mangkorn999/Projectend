@@ -10,13 +10,15 @@
 import { Icon } from './data.jsx';
 import { StepDemo, MockFrame, MockToast, MockTyped, MockModal, MockBadge, Field, Box, Btn } from './manualDemo.jsx';
 import { MORE_DEMOS } from './manualDemosMore.jsx';
+import { useManualLang, translateNode } from './manualDemoEn.js';
 
 /* ---------- หน้ารายละเอียดนักศึกษา (ใช้ในเดโม ตรวจ/ตีกลับ/แก้ไขผลการตรวจ) ---------- */
 const SUBJECTS = [['1101', 'การผดุงครรภ์', true], ['1102', 'การพยาบาลมารดาและทารก', true], ['1103', 'การพยาบาลเด็กและวัยรุ่น', false]];
 
 function DetailScreen({ status, actions, remark, doc }) {
+  const lang = useManualLang();
   const badge = { pending: ['wait', 'รอตรวจสอบ'], approved: ['ok', 'ยืนยันแล้ว'], rejected: ['reject', 'ถูกตีกลับ'] }[status];
-  return (
+  return translateNode((
     <div style={{ display: 'flex', gap: 12, height: '100%' }}>
       <div className="card" style={{ flex: 1, padding: 12, overflow: 'hidden', position: 'relative' }}>
         <div style={{ fontWeight: 800, fontSize: 15 }}>นางสาวทดสอบ ตัวอย่าง <span className="mono" style={{ fontWeight: 400, color: 'var(--ink-500)', fontSize: 13 }}>6610210007</span></div>
@@ -53,20 +55,26 @@ function DetailScreen({ status, actions, remark, doc }) {
         {actions}
       </div>
     </div>
-  );
+  ), lang);
 }
-const PendingActions = () => (
-  <>
-    <Btn dm="approve" kind="success" style={{ width: '100%' }}><Icon name="checkCircle" size={15} /> ยืนยันผลสอบ</Btn>
-    <Btn dm="reject" kind="danger" style={{ width: '100%' }}><Icon name="xCircle" size={15} /> ตีกลับเพื่อแก้ไข</Btn>
-  </>
-);
-const ConfirmedActions = () => (
-  <>
-    <div style={{ padding: '7px 9px', borderRadius: 9, background: 'var(--status-ok-bg)', color: 'var(--status-ok-fg)', fontSize: 13, fontWeight: 700 }}>✓ ยืนยันแล้ว</div>
-    <Btn dm="revoke" style={{ width: '100%' }}><Icon name="edit" size={15} /> แก้ไขผลการตรวจ</Btn>
-  </>
-);
+function PendingActions() {
+  const lang = useManualLang();
+  return translateNode((
+    <>
+      <Btn dm="approve" kind="success" style={{ width: '100%' }}><Icon name="checkCircle" size={15} /> ยืนยันผลสอบ</Btn>
+      <Btn dm="reject" kind="danger" style={{ width: '100%' }}><Icon name="xCircle" size={15} /> ตีกลับเพื่อแก้ไข</Btn>
+    </>
+  ), lang);
+}
+function ConfirmedActions() {
+  const lang = useManualLang();
+  return translateNode((
+    <>
+      <div style={{ padding: '7px 9px', borderRadius: 9, background: 'var(--status-ok-bg)', color: 'var(--status-ok-fg)', fontSize: 13, fontWeight: 700 }}>✓ ยืนยันแล้ว</div>
+      <Btn dm="revoke" style={{ width: '100%' }}><Icon name="edit" size={15} /> แก้ไขผลการตรวจ</Btn>
+    </>
+  ), lang);
+}
 
 /* ============ 1) ตรวจและยืนยันผลสอบ ============ */
 const approveDemo = {

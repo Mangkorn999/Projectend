@@ -8,6 +8,7 @@
    ============================================================ */
 import { Icon } from './data.jsx';
 import { MockFrame, MockToast, MockTyped, MockModal, MockBadge, Field, Box, Btn } from './manualDemo.jsx';
+import { useManualLang, translateNode } from './manualDemoEn.js';
 
 /* ---------- ชิ้นส่วนย่อย ---------- */
 // ช่องเลือก (dropdown) จำลอง
@@ -19,12 +20,13 @@ const Empty = ({ children }) => <span style={{ color: 'var(--ink-400)' }}>{child
 
 // แถบแท็บของหน้า "นำเข้ารายชื่อนักศึกษา"
 function ImportTabs({ active, pending }) {
+  const lang = useManualLang();
   const tab = (key, dm, icon, label, extra) => (
     <span data-demo={dm} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 13px', borderRadius: 9, fontSize: 13.5, fontWeight: 700, background: active === key ? '#fff' : 'transparent', color: active === key ? 'var(--navy-800)' : 'var(--ink-600)', boxShadow: active === key ? 'var(--sh-sm)' : 'none' }}>
       <Icon name={icon} size={14} /> {label}{extra}
     </span>
   );
-  return (
+  return translateNode((
     <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
       <div style={{ display: 'inline-flex', gap: 3, padding: 4, background: 'var(--ink-100)', borderRadius: 12 }}>
         {tab('csv', 'tab-csv', 'upload', 'นำเข้าไฟล์ (Excel / CSV)')}
@@ -32,7 +34,7 @@ function ImportTabs({ active, pending }) {
         {tab('pending', 'tab-pending', 'users', 'บัญชีที่ยังไม่เข้าระบบ', pending ? <span className="chip" style={{ fontSize: 12, padding: '0 7px', background: 'var(--gold-100)', color: 'var(--status-wait-fg)' }}>{pending}</span> : null)}
       </div>
     </div>
-  );
+  ), lang);
 }
 
 // ตารางรายชื่อนักศึกษา (หน้า "ข้อมูลนักศึกษา") — pick(id) → { dm, on } ; eligible(id) → boolean ; extra(id) → ปุ่มท้ายแถว
@@ -42,7 +44,8 @@ const STUDENTS = [
   ['6610210203', 'นางสาวมาลี ทดสอบ', 'B', '—'],
 ];
 function StudentTable({ pick, eligible, extra, rows = STUDENTS }) {
-  return (
+  const lang = useManualLang();
+  return translateNode((
     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
       <div className="mn-th">
         {pick && <span style={{ width: 22 }} />}
@@ -62,7 +65,7 @@ function StudentTable({ pick, eligible, extra, rows = STUDENTS }) {
         );
       })}
     </div>
-  );
+  ), lang);
 }
 
 const DELETE_WARN = 'นักศึกษาคนนี้มีผลสอบในระบบแล้ว — การลบจะลบผลสอบ เอกสารหลักฐาน และประวัติการตรวจทั้งหมดของเขาด้วย และสถิติของรุ่นจะเปลี่ยนย้อนหลัง (ตัวเลขในรายงานที่ออกไปแล้วจะไม่ตรงกับในระบบ) กู้คืนไม่ได้';
@@ -390,7 +393,8 @@ const userRows = (extra) => [
   ...(extra ? [extra] : []),
 ];
 function UsersTable({ extra, action }) {
-  return (
+  const lang = useManualLang();
+  return translateNode((
     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
       <div className="mn-th"><span style={{ flex: 1.5 }}>ชื่อ-นามสกุล</span><span style={{ flex: 1 }}>รหัสผู้ใช้</span><span style={{ flex: 1.2 }}>บทบาท</span><span style={{ flex: 1.2 }}>สถานะบัญชี</span><span style={{ flex: 1.7 }} /></div>
       {userRows(extra).map(([name, uid, role, st, tone]) => (
@@ -401,7 +405,7 @@ function UsersTable({ extra, action }) {
         </div>
       ))}
     </div>
-  );
+  ), lang);
 }
 const userAddDemo = {
   title: 'การเพิ่มผู้ใช้งาน (เจ้าหน้าที่คณะ / ผู้ช่วยตรวจสอบ / ผู้บริหารคณะ)',
@@ -447,7 +451,7 @@ const userAccessDemo = {
   stage: (done) => (
     <MockFrame title="จัดการผู้ใช้งาน">
       <UsersTable action={(uid) => uid === 'staff01' ? (
-        <><Btn dm="u-reset"><Icon name="key" size={13} /> รีเซ็ตรหัส</Btn><Btn dm="u-revoke" kind="danger"><Icon name="trash" size={13} /> ถอนสิทธิ์</Btn></>
+        <><Btn dm="u-reset"><Icon name="key" size={13} /> รีเซ็ตรหัส</Btn><Btn dm="u-revoke" kind="danger"><Icon name="trash" size={13} /> <span data-en="Close account">ถอนสิทธิ์</span></Btn></>
       ) : null} />
       {(done === 1 || done === 2) && (
         <MockModal title="รีเซ็ตรหัสผ่าน?" footer={<><Btn>ยกเลิก</Btn><Btn dm="u-reset-confirm" kind="primary">รีเซ็ตรหัส</Btn></>}>
@@ -456,7 +460,7 @@ const userAccessDemo = {
         </MockModal>
       )}
       {done === 4 && (
-        <MockModal title="ถอนสิทธิ์ผู้ใช้?" tone="var(--status-reject-fg)" footer={<><Btn>ยกเลิก</Btn><Btn dm="u-revoke-confirm" kind="danger">ถอนสิทธิ์</Btn></>}>
+        <MockModal title="ถอนสิทธิ์ผู้ใช้?" tone="var(--status-reject-fg)" footer={<><Btn>ยกเลิก</Btn><Btn dm="u-revoke-confirm" kind="danger"><span data-en="Close account">ถอนสิทธิ์</span></Btn></>}>
           <div style={{ fontSize: 13.5, lineHeight: 1.6 }}>สมหญิง ใจดี จะเข้าสู่ระบบไม่ได้อีกจนกว่าเจ้าหน้าที่จะเปิดให้ใหม่ บัญชีและประวัติที่เคยทำไว้ยังอยู่ครบ ไม่ได้ถูกลบ</div>
         </MockModal>
       )}

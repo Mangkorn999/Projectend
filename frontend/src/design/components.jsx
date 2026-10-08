@@ -38,7 +38,17 @@ export function Avatar({ name, size = 38, bg }) {
 export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notifications=[], unread=0, onNotifOpen, onNotifGo, onNotifClearAll, onNotifDismiss, lang='TH', setLang, langLoading=false }) {
   const [open, setOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const openNotif = () => { setNotifOpen(true); onNotifOpen?.(); };
+  // กด "ล้างทั้งหมด" → แถวหลุดออกทีละบรรทัด (เหลื่อมกัน CLEAR_STAGGER_MS) แล้วค่อยลบจริงตอนแถวสุดท้ายหายไป
+  const [clearing, setClearing] = useState(false);
+  const clearTimer = useRef(null);
+  useEffect(() => () => clearTimeout(clearTimer.current), []);
+  const openNotif = () => { setClearing(false); setNotifOpen(true); onNotifOpen?.(); };
+  const clearAllSmooth = () => {
+    if (clearing) return; // กดซ้ำระหว่างกำลังเล่นไม่ต้องเริ่มใหม่
+    setClearing(true);
+    const total = (notifications.length - 1) * CLEAR_STAGGER_MS + ROW_LEAVE_MS;
+    clearTimer.current = setTimeout(() => { onNotifClearAll(); setClearing(false); }, total);
+  };
   // แสดง 2 กลุ่มแยกกัน: เรื่องที่ต้องลงมือทำ (alert สดของเจ้าหน้าที่) กับเรื่องที่แค่บอกให้รู้
   // ถ้าปนกันเรื่องด่วนจะจมอยู่กลางกองประกาศ
   const liveItems = notifications.filter(n => n.live);
@@ -75,7 +85,7 @@ export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notificati
       </button>
       <Modal open={notifOpen} onClose={()=>setNotifOpen(false)} title={t(lang,'topbar.notifTitle')} width={680}
         footer={notifications.length && onNotifClearAll ? (
-          <button className="btn btn-ghost" onClick={()=>{ onNotifClearAll(); setNotifOpen(false); }}>
+          <button className="btn btn-ghost" disabled={clearing} onClick={clearAllSmooth}>
             <Icon name="trash" size={16} /> {t(lang,'topbar.notifClearAll')}
           </button>
         ) : null}>
@@ -84,16 +94,18 @@ export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notificati
             {/* หัวข้อคั่นโผล่เฉพาะตอนมีทั้ง 2 กลุ่ม — มีกลุ่มเดียวก็ไม่ต้องมีหัวข้อให้รก */}
             {liveItems.length > 0 && eventItems.length > 0 &&
               <div className="sec-title" style={{ fontSize:13 }}>{t(lang,'topbar.notifActionNeeded')}</div>}
-            {liveItems.map(n => <NotifRow key={n.key} n={n} lang={lang} onDismiss={onNotifDismiss}
+            {liveItems.map((n, i) => <NotifRow key={n.key} n={n} lang={lang} onDismiss={onNotifDismiss}
+              clearDelay={clearing ? i * CLEAR_STAGGER_MS : null}
               onClick={()=>{ setNotifOpen(false); onNotifGo?.(n.page, n.key); }} />)}
 
             {liveItems.length > 0 && eventItems.length > 0 &&
               <div className="sec-title" style={{ fontSize:13, marginTop:6 }}>{t(lang,'topbar.notifUpdates')}</div>}
-            {eventItems.map(n => <NotifRow key={n.key} n={n} lang={lang} onDismiss={onNotifDismiss}
+            {eventItems.map((n, i) => <NotifRow key={n.key} n={n} lang={lang} onDismiss={onNotifDismiss}
+              clearDelay={clearing ? (liveItems.length + i) * CLEAR_STAGGER_MS : null}
               onClick={()=>{ setNotifOpen(false); onNotifGo?.(n.page, n.key); }} />)}
           </div>
         ) : (
-          <div style={{ minHeight:440, display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <div className="fade-up" style={{ minHeight:440, display:'flex', alignItems:'center', justifyContent:'center' }}>
             <Empty icon="bell" title={t(lang,'topbar.notifEmptyTitle')} sub={t(lang,'topbar.notifEmptySub')} />
           </div>
         )}
@@ -130,8 +142,11 @@ export function TopBar({ role, roleLabel, user, onMenu, onSwitchRole, notificati
    ลากไม่ถึงระยะ → เด้งกลับที่เดิม · ลากเมาส์ก็ได้ ไม่ใช่แค่นิ้ว
    กดปุ่ม Delete บนแถวที่โฟกัสอยู่ก็ลบได้ (คนไม่ใช้เมาส์/ทัชสกรีน) */
 const SWIPE_DISTANCE = 90;
+// ล้างทั้งหมด: แต่ละแถวใช้เวลาหายไป ROW_LEAVE_MS (เลื่อนออก + หดความสูง) และเริ่มช้ากว่าแถวบนอีก CLEAR_STAGGER_MS
+const ROW_LEAVE_MS = 460;
+const CLEAR_STAGGER_MS = 90;
 
-function NotifRow({ n, lang, onClick, onDismiss }) {
+function NotifRow({ n, lang, onClick, onDismiss, clearDelay = null }) {
   const unreadLook = n.is_read === false || n.live;
   const [dragX, setDragX] = useState(0);       // ระยะที่แถวถูกลากไปตอนนี้
   const [dragging, setDragging] = useState(false);
@@ -164,6 +179,17 @@ function NotifRow({ n, lang, onClick, onDismiss }) {
       setDragX(0);
     }
   };
+  // ถูกสั่งล้างทั้งหมด: รอตามคิว (clearDelay) แล้วเลื่อนออกขวา → หดความสูง ให้แถวล่างไหลขึ้นมาแทนนุ่ม ๆ
+  // ไม่เรียก onDismiss ที่นี่ — ผู้ปกครองลบทั้งชุดทีเดียวหลังแถวสุดท้ายหาย (ไม่งั้นแต่ละแถวสั่ง setState ซ้ำ ๆ)
+  useEffect(() => {
+    if (clearDelay === null) return undefined;
+    const ids = [
+      setTimeout(() => { setLeaving(true); setDragX(700); }, clearDelay),
+      setTimeout(() => setCollapsed(true), clearDelay + 200),
+    ];
+    return () => ids.forEach(clearTimeout);
+  }, [clearDelay]);
+
   const handleClick = () => {
     if (moved.current) return; // เพิ่งลากมา ไม่ใช่คลิก
     onClick();
@@ -460,8 +486,9 @@ export function ColumnChart({ data, height=160, color='var(--navy-600)', fmt=(v)
       {data.map((d,i)=>(
         <div key={i} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:8, height:'100%', justifyContent:'flex-end' }}>
           <div className="tnum" style={{ fontSize:15, fontWeight:700, color:'var(--ink-800)' }}>{fmt(d.value)}</div>
-          <div style={{ width:'100%', maxWidth:54, borderRadius:'8px 8px 0 0', background:d.color||color,
-            height:(d.value/max*100)+'%', minHeight:6, transition:'height .6s cubic-bezier(.4,0,.2,1)' }}></div>
+          <div className="chart-col" style={{ width:'100%', maxWidth:54, borderRadius:'8px 8px 0 0', background:d.color||color,
+            height:(d.value/max*100)+'%', minHeight:6, transition:'height .6s cubic-bezier(.4,0,.2,1)',
+            animationDelay:(i*60)+'ms' }}></div>
           <div style={{ fontSize:14, color:'var(--ink-500)', fontWeight:500, textAlign:'center' }}>{d.label}</div>
         </div>
       ))}
@@ -563,7 +590,7 @@ export function MultiLineChart({ series, categories, height=180, suffix='%', yMi
         {categories.map((c,i)=>(<text key={i} x={xs(i)} y={height-7} textAnchor="middle" fontSize="9" fill="var(--ink-500)" fontFamily="'LINE Seed Sans TH', sans-serif">{c}</text>))}
       </svg>
       {hover && (
-        <div style={{ position:'absolute', left:`${hover.x}%`, top:`${hover.y}%`, transform:'translate(-50%,-130%)',
+        <div className="chart-tip" style={{ position:'absolute', left:`${hover.x}%`, top:`${hover.y}%`, transform:'translate(-50%,-130%)',
           background: series[hover.si].color, color:'#fff', padding:'6px 10px', borderRadius:8, fontSize:14, fontWeight:600,
           whiteSpace:'nowrap', pointerEvents:'none', zIndex:5,
           boxShadow:`0 0 6px 0 ${series[hover.si].color}` }}>
@@ -618,8 +645,10 @@ export function MultiBarChart({ series, categories, height=180, suffix='%', yMin
                 const y = ys(v);
                 return (
                   <g key={si}>
-                    <rect x={x} y={y} width={barW} height={Math.max(baseline-y,0)} fill={s.color}
-                      style={{ transition:'height .6s cubic-bezier(.4,0,.2,1), y .6s cubic-bezier(.4,0,.2,1)' }} />
+                    <rect className="chart-bar" x={x} y={y} width={barW} height={Math.max(baseline-y,0)} fill={s.color}
+                      style={{ transition:'height .6s cubic-bezier(.4,0,.2,1), y .6s cubic-bezier(.4,0,.2,1), opacity .2s',
+                        animationDelay:(i*45+si*25)+'ms',
+                        opacity: hover && hover.si!==si ? .45 : 1 }} />
                     <rect x={x-1} y={padT} width={barW+2} height={baseline-padT} fill="transparent"
                       style={{ cursor: s.tooltips ? 'pointer' : 'default' }}
                       onMouseEnter={() => s.tooltips && setHover({ si, i, x: (x+barW/2)/w*100, y: y/height*100 })}
@@ -633,7 +662,7 @@ export function MultiBarChart({ series, categories, height=180, suffix='%', yMin
         {categories.map((c,i)=>(<text key={i} x={xs(i)} y={height-7} textAnchor="middle" fontSize="9" fill="var(--ink-500)" fontFamily="'LINE Seed Sans TH', sans-serif">{c}</text>))}
       </svg>
       {hover && (
-        <div style={{ position:'absolute', left:`${hover.x}%`, top:`${hover.y}%`, transform:'translate(-50%,-130%)',
+        <div className="chart-tip" style={{ position:'absolute', left:`${hover.x}%`, top:`${hover.y}%`, transform:'translate(-50%,-130%)',
           background: series[hover.si].color, color:'#fff', padding:'6px 10px', borderRadius:8, fontSize:14, fontWeight:600,
           whiteSpace:'nowrap', pointerEvents:'none', zIndex:5,
           boxShadow:`0 0 6px 0 ${series[hover.si].color}` }}>
@@ -792,12 +821,22 @@ export function ExportMenu({ items, lang='TH', tt, onError, size='md', label, al
 }
 
 /* ---- Modal ---- */
+// ปิดแล้วไม่หายทันที — คงไว้อีก MODAL_EXIT_MS เล่นจางออก/ย่อลง (class .is-closing) แล้วค่อยถอดออกจากจอ
+const MODAL_EXIT_MS = 170;
 export function Modal({ open, onClose, title, children, footer, width=480, tone }) {
-  if(!open) return null;
+  const [mounted, setMounted] = useState(open);
+  if (open && !mounted) setMounted(true); // เปิดใหม่ → ติดป้ายว่าอยู่บนจอ (ตั้ง state ระหว่าง render ได้ ตามที่ React แนะนำ)
+  useEffect(() => {
+    if (open) return undefined;
+    const id = setTimeout(() => setMounted(false), MODAL_EXIT_MS);
+    return () => clearTimeout(id);
+  }, [open]);
+  if (!open && !mounted) return null;
+  const closing = !open;
   return createPortal(
-    <div className="modal-backdrop" onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(12,31,61,.45)', zIndex:150,
+    <div className={'modal-backdrop'+(closing?' is-closing':'')} onClick={closing ? undefined : onClose} style={{ position:'fixed', inset:0, background:'rgba(12,31,61,.45)', zIndex:150,
       display:'flex', alignItems:'center', justifyContent:'center', padding:16, backdropFilter:'blur(2px)' }}>
-      <div className="card modal-card" onClick={e=>e.stopPropagation()} style={{ width, maxWidth:'100%', maxHeight:'90vh',
+      <div className={'card modal-card'+(closing?' is-closing':'')} onClick={e=>e.stopPropagation()} style={{ width, maxWidth:'100%', maxHeight:'90vh',
         overflow:'auto', boxShadow:'var(--sh-lg)', borderRadius:16 }}>
         {title && <div style={{ padding:'18px 22px', borderBottom:'1px solid var(--ink-100)', display:'flex',
           alignItems:'center', justifyContent:'center', gap:12, position:'relative' }}>
@@ -845,6 +884,7 @@ export function Empty({ icon='doc', title, sub, action }) {
 
    กล่องรายการวาดด้วย createPortal ไปที่ document.body ไม่ได้วาดไว้ในการ์ด
    เพราะการ์ดหลายใบตั้ง overflow:hidden ไว้ ถ้าวาดข้างในกล่องจะโดนตัดครึ่ง */
+const SELECT_EXIT_MS = 120;
 export function Select({
   value,
   onChange,
@@ -861,6 +901,9 @@ export function Select({
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0); // แถวที่ไฮไลต์อยู่ (ลูกศรขึ้น/ลง)
   const [box, setBox] = useState(null);              // ตำแหน่ง+ขนาดของกล่องรายการ
+  const [leaving, setLeaving] = useState(false);     // กำลังเล่นจางออก (กล่องยังอยู่บนจออีก SELECT_EXIT_MS)
+  const leaveTimer = useRef(null);
+  useEffect(() => () => clearTimeout(leaveTimer.current), []);
   const triggerRef = useRef(null);
   const searchRef = useRef(null);
   const listRef = useRef(null);
@@ -899,6 +942,8 @@ export function Select({
   // เปิดกล่อง: วัดตำแหน่ง, ล้างคำค้นเก่า, ไฮไลต์ตัวที่เลือกอยู่
   const openList = () => {
     if (disabled) return;
+    clearTimeout(leaveTimer.current); // เปิดซ้ำตอนกำลังปิด = ยกเลิกการปิด
+    setLeaving(false);
     measure();
     setQuery('');
     const i = options.findIndex((o) => o.value === value);
@@ -906,9 +951,11 @@ export function Select({
     setOpen(true);
   };
 
+  // ปิดแล้วไม่หายทันที — จางออกก่อน (class .is-closing) แล้วค่อยถอดกล่องจริง
   const closeList = () => {
-    setOpen(false);
-    setQuery('');
+    setLeaving(true);
+    clearTimeout(leaveTimer.current);
+    leaveTimer.current = setTimeout(() => { setOpen(false); setQuery(''); setLeaving(false); }, SELECT_EXIT_MS);
   };
 
   const pick = (opt) => {
@@ -989,9 +1036,9 @@ export function Select({
   return (
     <>
       <button type="button" ref={triggerRef} className={className + ' select-trigger'}
-        disabled={disabled} onClick={() => (open ? closeList() : openList())}
+        disabled={disabled} onClick={() => (open && !leaving ? closeList() : openList())}
         onKeyDown={onKeyDown}
-        aria-haspopup="listbox" aria-expanded={open} aria-label={ariaLabel}
+        aria-haspopup="listbox" aria-expanded={open && !leaving} aria-label={ariaLabel}
         style={{ textAlign: 'left', cursor: disabled ? 'not-allowed' : 'pointer', ...style }}>
         <span className="select-trigger-text" style={{ color: selected ? undefined : 'var(--ink-400)' }}>{label}</span>
       </button>
@@ -999,8 +1046,8 @@ export function Select({
       {open && box && createPortal(
         <>
           {/* ฉากหลังใส ๆ คลุมทั้งจอ — คลิกที่ไหนก็ได้นอกกล่องแล้วปิด */}
-          <div style={{ position: 'fixed', inset: 0, zIndex: 300 }} onMouseDown={closeList} />
-          <div className="card select-panel" role="listbox"
+          <div style={{ position: 'fixed', inset: 0, zIndex: 300, pointerEvents: leaving ? 'none' : 'auto' }} onMouseDown={closeList} />
+          <div className={'card select-panel'+(leaving?' is-closing':'')} role="listbox"
             style={{ position: 'fixed', left: box.left, top: box.top, bottom: box.bottom,
               width: box.width, minWidth: 180, maxHeight: box.maxHeight, zIndex: 301,
               display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: 'var(--sh-lg)' }}>
@@ -1029,7 +1076,7 @@ export function Select({
                     onMouseEnter={() => setActiveIndex(i)}
                     onClick={() => pick(o)}
                     className="select-option"
-                    style={{ background: isActive ? 'var(--blue-50)' : 'transparent',
+                    style={{ background: isActive ? 'var(--peach-50)' : 'transparent',
                       fontWeight: isSelected ? 700 : 500 }}>
                     <span style={{ flex: 1, minWidth: 0 }}>{o.label}</span>
                     {isSelected && <Icon name="check" size={15} style={{ flex: 'none', color: 'var(--navy-700)' }} />}
