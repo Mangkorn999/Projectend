@@ -173,7 +173,10 @@ export function buildNotifications({ role, examResults = [], news = [], lang = '
   // ผู้บริหาร/ผู้ตรวจไม่มีหน้าประกาศ → ไป dashboard (เดิมทุก role ไป 'news' เจ้าหน้าที่เลยเจอ "ไม่พบหน้าที่ต้องการ")
   const newsPage = role === 'student' ? 'news' : role === 'officer' ? 'newsmgmt' : 'dashboard';
 
-  for (const n of othersNews.slice(0, NEWS_LIMIT)) {
+  // ผู้ตรวจสอบ (reviewer) ไม่เกี่ยวกับประกาศ — ไม่มีหน้าประกาศให้พาไป เลยไม่ต้องเตือนเลย
+  const shownNews = role === 'reviewer' ? [] : othersNews;
+
+  for (const n of shownNews.slice(0, NEWS_LIMIT)) {
     items.push({
       key: newsKey(n), tone: 'wait', icon: 'bell', page: newsPage,
       title: tt('notif.newsTitle'), sub: n.title, at: n.posted_at,

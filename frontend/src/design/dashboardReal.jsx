@@ -42,7 +42,7 @@ export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreVi
   const [history, setHistory] = useState(null);
   const [year, setYear] = useState(null); // ปีการศึกษาที่กำลังดู
   // ปีของโซน "สถิติเชิงรายงาน" แยกอิสระจาก year ด้านบน — ไม่ผูกกับที่เลือกบนสุด/RoundTabs
-  // ติ๊กเลือกได้สูงสุด 3 ปี จากทั้งหมดที่มีจริง (ไม่จำกัดแค่ 3 ปีล่าสุดเหมือน yearOptions ด้านบน)
+  // ติ๊กเลือกได้สูงสุด 3 ปี จากทั้งหมดที่มีจริง (ตัวเลือกปีด้านบนก็แสดงทุกปีเหมือนกัน แต่เลือกทีละปี)
   const [reportYears, setReportYears] = useState([]);
   const [tab, setTab] = useState(ALL_ROUNDS); // ALL_ROUNDS = รวมทั้งปี, ไม่งั้นเป็น round_id
   // แท็บบนสุด 3 อัน แทนที่การเรียง Donut/อัตราผ่านรายวิชา/สถิติเชิงรายงานต่อกันเป็นแถวยาวแบบเดิม
@@ -134,10 +134,11 @@ export function DashboardReal({ go, readonly, lang, setStudentsFilter, restoreVi
     );
   }
 
-  // 3 ปีล่าสุดที่มีรอบอยู่จริง — ใช้เป็นตัวเลือกปี ทั้งฝั่งเจ้าหน้าที่และผู้บริหาร
+  // ทุกปีที่มีรอบอยู่จริง เรียงใหม่→เก่า — ใช้เป็นตัวเลือกปี ทั้งฝั่งเจ้าหน้าที่และผู้บริหาร
+  // ไม่ตัดแค่ 3 ปี: สร้างรอบของปีใหม่เมื่อไหร่ ปีนั้นก็โผล่ในรายการเองโดยไม่ต้องแก้โค้ด
+  // (เดิมตัดไว้ 3 ปีล่าสุด ปีเก่าอย่าง 2565-2567 เลยเลือกดูไม่ได้ ทั้งที่มีข้อมูลอยู่)
   const yearOptions = [...new Set(rounds.map(r => r.academic_year))]
-    .sort((a, b) => b - a)
-    .slice(0, 3);
+    .sort((a, b) => b - a);
   const openRound = rounds.find(r => r.status === 'open');
   const currentYear = openRound ? openRound.academic_year : yearOptions[0];
 

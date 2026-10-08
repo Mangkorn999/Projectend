@@ -189,7 +189,7 @@ export function App() {
   // แจ้งเตือน — ดึงใหม่ทุกครั้งที่เปลี่ยนหน้า + poll ทุก 30 วิระหว่างอยู่หน้าเดิม
   // นักศึกษา:        ตาราง notifications (ผลถูกยืนยัน/ตีกลับ, เปิดสิทธิ์) + ประกาศ
   // เจ้าหน้าที่/ผู้บริหาร: alert สดจาก /dashboard/alerts (รอบใกล้ปิด, ค้างตรวจ, ยังไม่ส่งผล) + ประกาศของคนอื่น
-  // reviewer:        ประกาศอย่างเดียว (ไม่มีสิทธิ์เรียก /dashboard/alerts)
+  // reviewer:        ไม่มีแจ้งเตือนเลย — ไม่เกี่ยวกับประกาศ (ไม่มีหน้าประกาศ) และไม่มีสิทธิ์เรียก /dashboard/alerts
   useEffect(()=>{
     if (!role || !currentUser) { setNotifications([]); setUnread(0); return; }
     let dropped = false;
@@ -198,7 +198,8 @@ export function App() {
       // ยิงพร้อมกันทั้ง 3 เส้น ไม่ใช่รอทีละเส้น — กระดิ่งจะได้ไม่ค้างนานตอนเปลี่ยนหน้า
       // .catch(()=>[]) ทุกเส้น เพราะเส้นไหนล้มก็ไม่ควรทำให้กระดิ่งว่างทั้งอัน
       const [news, rows, alertRes] = await Promise.all([
-        apiFetch('/news').catch(()=>[]),
+        // ผู้ตรวจสอบไม่เกี่ยวกับประกาศ ไม่ต้องดึง (ดึงมาก็ไม่แสดง)
+        role === 'reviewer' ? Promise.resolve([]) : apiFetch('/news').catch(()=>[]),
         role === 'student' ? apiFetch('/notifications/me').catch(()=>[]) : Promise.resolve([]),
         wantsAlerts ? apiFetch('/dashboard/alerts').catch(()=>null) : Promise.resolve(null),
       ]);
