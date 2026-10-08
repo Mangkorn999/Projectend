@@ -58,6 +58,7 @@ const cleanProfileInput = (body, requireAll) => {
   return out;
 };
 
+// GET /students — list นักศึกษาทั้งหมด (เจ้าหน้าที่/ผู้ช่วยตรวจ)
 export const getAll = async (req, res, next) => {
   try {
     const students = await studentRepo.findAll();
@@ -67,6 +68,7 @@ export const getAll = async (req, res, next) => {
   }
 };
 
+// GET /students/:id — รายคน; นักศึกษาดูได้แค่ของตัวเอง (403 ถ้าดูคนอื่น)
 export const getById = async (req, res, next) => {
   try {
     // นักศึกษาดูได้แค่ข้อมูลตัวเอง — เจ้าหน้าที่/ผู้บริหารดูได้ทุกคน
@@ -319,6 +321,7 @@ export const update = async (req, res, next) => {
   }
 };
 
+// PATCH /students/bulk-eligible — เปิด/ปิดสิทธิ์กรอกผลสอบหลายคน; ต้องมี student_ids ไม่งั้น updateMany จะกวาดทั้งระบบ
 export const bulkSetEligible = async (req, res, next) => {
   try {
     const { student_ids, exam_eligible } = req.body;
@@ -832,6 +835,7 @@ export const listPendingAccounts = async (req, res, next) => {
 // ลบบัญชีที่ยังไม่กรอกโปรไฟล์ — body { student_ids: ["6610210001", ...] } (ส่งคนเดียวก็ใส่ array 1 ตัว)
 // ลบเฉพาะบัญชีที่ยังไม่มีโปรไฟล์จริง (repository กันไว้ใน where) คนที่กรอกแล้วจะไม่ถูกแตะ — นับแยกให้ดูว่าข้ามกี่คน
 const MAX_BULK_DELETE = 1000;
+// POST /students/pending-accounts/delete — ลบบัญชีที่ import แล้วยังไม่เคย login (จำกัดจำนวนต่อครั้ง)
 export const removePendingAccounts = async (req, res, next) => {
   try {
     const ids = req.body?.student_ids;

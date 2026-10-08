@@ -11,6 +11,7 @@ const PUBLIC_USER_FIELDS = {
   phone: true,
 };
 
+// นักศึกษาทั้งหมด + user/คณะ/ห้อง เรียงรุ่นใหม่ก่อน
 export const findAll = () => {
   return prisma.student.findMany({
     include: { user: { select: PUBLIC_USER_FIELDS }, faculty: true, room: true },
@@ -67,6 +68,7 @@ export const findMatchingSubjectResult = async ({ subjectCode, passed, roundId, 
     .filter((s) => s.everPassed === passed)
     .map((s) => ({ student: s.student, submitted_at: s.submitted_at }));
 };
+// นักศึกษา 1 คน + user/คณะ/ห้อง
 export const findById = async (id) => {
   const student = await prisma.student.findUnique({
     where: { student_id: id },
@@ -110,16 +112,21 @@ export const findExistingStudentIds = async (studentIds) => {
   return ids;
 };
 
+// หา role จากชื่อ (เช่น "student")
 export const findRoleByName = (role_name) =>
   prisma.role.findFirst({ where: { role_name } });
 
+// คณะ (ระบบนี้มีคณะพยาบาลคณะเดียว)
 export const findFaculty = () => prisma.faculty.findFirst();
 
+// ห้องเรียนทั้งหมด
 export const findAllRooms = () => prisma.room.findMany({ orderBy: { room_id: "asc" } });
 
+// ห้องเรียนตาม id
 export const findRoomById = (room_id) =>
   prisma.room.findUnique({ where: { room_id } });
 
+// หาผู้ใช้จากรหัส login (psu_passport_id)
 export const findByPsuId = (psu_passport_id) =>
   prisma.user.findUnique({ where: { psu_passport_id } });
 

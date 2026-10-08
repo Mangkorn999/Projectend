@@ -686,6 +686,7 @@ const daysUntil = (date) => ictDayNumber(date) - ictDayNumber(new Date());
 
 const CLOSING_SOON_DAYS = 7; // เตือนล่วงหน้ากี่วันก่อนปิดรอบ
 
+// ป้ายเตือนบน Dashboard: รอบเลยกำหนดปิด / ใกล้ปิด / ยังไม่ส่งผลสอบกี่คน และ (เฉพาะ officer) มีใบรอตรวจกี่ใบ
 export const buildAlerts = async (role) => {
   const rounds = await dashRepo.findRoundsByYears(
     await dashRepo.findAcademicYears(),

@@ -75,6 +75,7 @@ export const getMine = async (req, res, next) => {
   }
 };
 
+// PATCH /:id/read — กดอ่านทีละอัน (repository กันด้วย student_id ไม่ให้อ่านของคนอื่น)
 export const markRead = async (req, res, next) => {
   try {
     await notifRepo.markRead(req.params.id, req.user.studentId);
@@ -84,6 +85,7 @@ export const markRead = async (req, res, next) => {
   }
 };
 
+// PATCH /read-all — ปุ่ม "อ่านทั้งหมด" ของนักศึกษาคนนั้น
 export const markAllRead = async (req, res, next) => {
   try {
     await notifRepo.markAllRead(req.user.studentId);

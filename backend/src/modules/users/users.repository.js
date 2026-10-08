@@ -40,10 +40,12 @@ export const findRoleByName = (role_name) => {
   return prisma.role.findFirst({ where: { role_name } });
 };
 
+// หาผู้ใช้จากรหัส login (psu_passport_id)
 export const findByPsuId = (psu_passport_id) => {
   return prisma.user.findUnique({ where: { psu_passport_id } });
 };
 
+// สร้างผู้ใช้ → คืนข้อมูลที่ไม่มี hash รหัสผ่าน
 export const create = async (data) => {
   const user = await prisma.user.create({ data, select: USER_FIELDS_WITH_HASH });
   return toPublicUser(user);

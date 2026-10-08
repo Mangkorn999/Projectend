@@ -1,5 +1,6 @@
 import prisma from "../../config/db.js";
 
+// สร้างแจ้งเตือนใหม่ให้นักศึกษา
 export const create = ({ student_id, type, message, round_id = null }) =>
   prisma.notification.create({ data: { student_id, type, message, round_id } });
 
@@ -48,6 +49,7 @@ const requireStudentId = (student_id) => {
   return student_id;
 };
 
+// แจ้งเตือนของนักศึกษา 50 อันล่าสุด
 export const findByStudent = (student_id) =>
   prisma.notification.findMany({
     where: { student_id: requireStudentId(student_id) },
@@ -55,6 +57,7 @@ export const findByStudent = (student_id) =>
     take: 50,
   });
 
+// ตั้งอ่านแล้ว 1 อัน
 export const markRead = (notification_id, student_id) =>
   // where กันด้วย student_id เสมอ — ไม่ให้ mark ของคนอื่นได้แม้เดา id ถูก
   prisma.notification.updateMany({
@@ -65,6 +68,7 @@ export const markRead = (notification_id, student_id) =>
     data: { is_read: true },
   });
 
+// ตั้งอ่านแล้วทุกอันที่ยังไม่อ่าน
 export const markAllRead = (student_id) =>
   prisma.notification.updateMany({
     where: { student_id: requireStudentId(student_id), is_read: false },

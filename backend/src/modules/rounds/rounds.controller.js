@@ -13,6 +13,7 @@ const httpError = (message, statusCode) => {
   return err;
 };
 
+// GET /rounds — list รอบ + แปะ phase (รอเปิด/เปิดอยู่/เลยกำหนด) นักศึกษาไม่เห็นชื่อผู้สร้าง
 export const getAll = async (req, res, next) => {
   try {
     const rounds = await roundsRepo.findAll();
@@ -347,6 +348,7 @@ const ensureNoOtherOpenRound = async (exceptRoundId) => {
 const asDuplicateRoundError = (err) =>
   err.code === "P2002" ? httpError("ปีการศึกษานี้มีรอบครั้งที่นี้อยู่แล้ว", 400) : err;
 
+// POST /rounds — ปุ่ม "สร้างรอบ": ตรวจวันที่/ปีการศึกษา/วิชา แล้วบันทึกรอบ
 export const create = async (req, res, next) => {
   try {
     const {
@@ -403,6 +405,7 @@ export const create = async (req, res, next) => {
   }
 };
 
+// PUT /rounds/:id — แก้รอบ / เปิด-ปิดรอบ: ตรวจเหมือน create แล้วอัปเดตเฉพาะฟิลด์ที่ส่งมา
 export const update = async (req, res, next) => {
   try {
     const {

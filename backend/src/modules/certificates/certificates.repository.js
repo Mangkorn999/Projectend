@@ -7,6 +7,7 @@ export const CERTIFICATE_TYPE = {
   LICENSE: "license", // ใบประกอบวิชาชีพ
 };
 
+// หาไฟล์หลักฐานตาม id
 export const findById = (id) =>
   prisma.certificate.findUnique({ where: { certificate_id: Number(id) } });
 

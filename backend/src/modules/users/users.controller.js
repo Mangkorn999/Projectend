@@ -4,6 +4,7 @@ import * as UserRepo from "./users.repository.js";
 const SALT_ROUNDS = 10;
 const MIN_PASSWORD_LENGTH = 8;
 
+// GET /users — list ผู้ใช้ทั้งหมด (ไม่ส่ง hash รหัสผ่าน)
 export const getAll = async (req, res, next) => {
   try {
     const users = await UserRepo.findAll();
@@ -16,6 +17,7 @@ export const getAll = async (req, res, next) => {
 // เจ้าหน้าที่สร้างบัญชี officer/executive/reviewer ให้คนอื่น — ไม่มีสมัครเอง 3 บทบาทนี้ (กันปลอมตัว)
 const CREATABLE_ROLES = ["officer", "executive", "reviewer"];
 
+// POST /users — ปุ่ม "เพิ่มผู้ใช้": ตรวจ role ที่สร้างได้ + รหัสซ้ำ → hash รหัสผ่าน → บันทึก
 export const create = async (req, res, next) => {
   try {
     const {
@@ -104,6 +106,7 @@ export const create = async (req, res, next) => {
 
 const ASSIGNABLE_ROLES = ["officer", "executive", "reviewer"];
 
+// POST /users/:id/role — ปุ่มเปลี่ยนสิทธิ์: ตรวจ role ที่เปลี่ยนให้ได้ แล้วอัปเดต role_id
 export const updateRole = async (req, res, next) => {
   try {
     const { role_name } = req.body;

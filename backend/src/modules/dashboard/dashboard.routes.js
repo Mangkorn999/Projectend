@@ -12,24 +12,28 @@ import {
 
 const router = express.Router();
 
+// หน้า Dashboard/รายงาน → นับผ่าน/ไม่ผ่านต่อรอบ ต่อวิชา (นับเฉพาะใบ approved)
 router.get(
   "/stats",
   authenticate,
   requireRole("officer", "executive"),
   getStats,
 );
+// กราฟเทียบหลายปี → สรุปรายปีการศึกษา
 router.get(
   "/history",
   authenticate,
   requireRole("officer", "executive"),
   getHistory,
 );
+// ป้ายเตือนบน Dashboard (เช่น มีใบรอตรวจค้าง)
 router.get(
   "/alerts",
   authenticate,
   requireRole("officer", "executive"),
   getAlerts,
 );
+// ปุ่มส่งออกรายงาน (Excel/PDF)
 router.get("/export", authenticate, requireRole("officer"), exportReport);
 // รายชื่อผ่าน/ไม่ผ่านครั้งแรกของปีการศึกษา (Excel หรือ PDF) — เฉพาะ officer เหมือน /export (ข้อมูลรายบุคคล)
 router.get("/export-first-attempt", authenticate, requireRole("officer"), exportFirstAttempt);

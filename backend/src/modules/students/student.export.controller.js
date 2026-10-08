@@ -156,6 +156,7 @@ const paperStatusLabel = (r) => {
 //       หรือ { year: 2569 } = ทั้งรุ่นของปีนั้น (ใช้จากหน้ารายงานสรุป)
 // ใช้ POST เพราะรายชื่อรหัสยาวเกินขนาด URL — ไฟล์ Excel ที่ได้ไม่มีเลขบัตรประชาชน
 const EXPORT_MAX_IDS = 5000;
+// POST /students/export — ส่งออกรายชื่อเป็น Excel (ไม่มีเลขบัตร) ตาม student_ids หรือ ปีการศึกษาที่ส่งมา
 export const exportStudents = async (req, res, next) => {
   try {
     const { student_ids, year, by_round } = req.body ?? {};

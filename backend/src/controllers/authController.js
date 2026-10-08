@@ -178,6 +178,7 @@ export const changePassword = async (req, res) => {
   }
 };
 
+// GET /auth/me — เปิดเว็บ/รีเฟรช: อ่าน userId จาก token → ส่งชื่อ, role, ต้องเปลี่ยนรหัสไหม, โปรไฟล์ครบไหม
 export const getme = async (req, res) => {
   try {
     //ดึงข้อมูลจาก jwt

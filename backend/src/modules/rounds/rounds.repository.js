@@ -11,6 +11,7 @@ export const findAll = async () => {
   return rows.map((r) => ({ ...r, creator: toActor(r.creator), updater: toActor(r.updater) }));
 };
 
+// หารอบตาม id
 export const findById = (id) =>
   prisma.submissionRound.findUnique({
     where: { round_id: Number(id) },
@@ -94,6 +95,7 @@ export const findByYearAndAttempt = (academicYear, attemptNumber) =>
 export const findOpen = () =>
   prisma.submissionRound.findFirst({ where: { status: "open" } });
 
+// สร้างรอบ
 export const create = (data) => prisma.submissionRound.create({ data });
 
 // จำนวนผลสอบที่ผูกกับรอบนี้ — ใช้กันลบรอบที่นักศึกษากรอกไปแล้ว
@@ -104,9 +106,11 @@ export const countExamResults = (id) =>
 export const countNews = (id) =>
   prisma.news.count({ where: { round_id: Number(id) } });
 
+// ลบรอบ
 export const remove = (id) =>
   prisma.submissionRound.delete({ where: { round_id: Number(id) } });
 
+// แก้รอบ
 export const update = (id, data) =>
   prisma.submissionRound.update({
     where: { round_id: Number(id) },

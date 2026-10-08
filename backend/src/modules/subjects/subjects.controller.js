@@ -42,6 +42,7 @@ const ensureCodeFree = async (subject_code, exceptId = null) => {
   }
 };
 
+// GET /subjects — list วิชาทั้งหมด
 export const getAll = async (req, res, next) => {
   try {
     const subject = await subjectrepo.findAll();
@@ -51,6 +52,7 @@ export const getAll = async (req, res, next) => {
   }
 };
 
+// POST /subjects — ปุ่ม "เพิ่มวิชา"
 export const createAll = async (req, res, next) => {
   try {
     const data = cleanSubjectInput(req.body, true);
@@ -62,6 +64,7 @@ export const createAll = async (req, res, next) => {
   }
 };
 
+// PUT /subjects/:id — ปุ่ม "แก้วิชา"
 export const updatasubject = async (req, res, next) => {
   try {
     const id = Number(req.params.id);
@@ -75,6 +78,7 @@ export const updatasubject = async (req, res, next) => {
   }
 };
 
+// DELETE /subjects/:id — ปุ่ม "ลบวิชา"
 export const deleteSubject = async (req, res, next) => {
   try {
     const id = Number(req.params.id);

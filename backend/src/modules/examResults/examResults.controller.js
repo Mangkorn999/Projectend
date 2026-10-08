@@ -473,12 +473,14 @@ export const revokeApproval = (req, res, next) =>
     noReasonMessage: "ต้องระบุเหตุผลที่ถอนการยืนยัน",
   });
 
+// PATCH /:id/approve — ปุ่ม "ยืนยัน": ใช้ reviewExamResult ตัวเดียวกับ reject (ต่างแค่สถานะ + ไม่บังคับ remark)
 export const approve = (req, res, next) =>
   reviewExamResult(req, res, next, {
     staff_status: STAFF_STATUS.APPROVED,
     requireRemark: false,
   });
 
+// PATCH /:id/reject — ปุ่ม "ตีกลับ": สถานะ rejected + ต้องมี remark
 export const reject = (req, res, next) =>
   reviewExamResult(req, res, next, {
     staff_status: STAFF_STATUS.REJECTED,

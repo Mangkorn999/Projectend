@@ -3,6 +3,7 @@ import { ACTOR_SELECT, toActor } from "../../utils/actor.js";
 
 // ค่าที่ใช้ในคอลัมน์สถานะ (ใช้ให้ตรงกันทั้งระบบ)
 export const STUDENT_STATUS = { DRAFT: "draft", SUBMITTED: "submitted" };
+// สถานะที่เจ้าหน้าที่ตั้ง: pending = รอตรวจ, approved = ยืนยัน, rejected = ตีกลับ
 export const STAFF_STATUS = {
   PENDING: "pending",
   APPROVED: "approved",
@@ -59,6 +60,7 @@ const buildExcludeRound = (excludeRoundId) => {
   return { NOT: { round_id: Number(excludeRoundId) } };
 };
 
+// วิชาที่นักศึกษาสอบผ่านจริงแล้ว (ไม่นับแถวยกผลมา) — ใช้ล็อกวิชาที่ผ่านแล้วไม่ต้องกรอกซ้ำ
 export const findPassedSubjectIds = async (student_id, excludeRoundId = null) => {
   const rows = await prisma.subjectResult.findMany({
     where: {
@@ -197,6 +199,7 @@ export const reopenIfStatus = (result_id, fromStatus) =>
 export const revokeApprovalIfApproved = (result_id) =>
   reopenIfStatus(result_id, STAFF_STATUS.APPROVED);
 
+// ใบผลสอบทุกรอบของนักศึกษาคนหนึ่ง เรียงใหม่สุดก่อน
 export const findByStudent = (student_id) =>
   prisma.examResult.findMany({
     where: { student_id },
@@ -204,6 +207,7 @@ export const findByStudent = (student_id) =>
     orderBy: { submitted_at: "desc" },
   });
 
+// ใบผลสอบใบเดียว พร้อมรายวิชา/ไฟล์หลักฐาน
 export const findById = (result_id) =>
   prisma.examResult.findUnique({
     where: { result_id: Number(result_id) },
