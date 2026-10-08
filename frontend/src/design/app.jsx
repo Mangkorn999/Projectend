@@ -2,7 +2,7 @@
 /* ============================================================
    Main app — role routing, shell, tweaks
    ============================================================ */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { TopBar, Sidebar, Toast, useToast, Empty, NotifToastStack, useNotifToasts } from './components.jsx';
 import { t as translate } from './i18n.js';
 import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakToggle, TweakColor } from './tweaks-panel.jsx';
@@ -296,18 +296,36 @@ export function App() {
   };
 
   // นับผลสอบที่ยังรอตรวจใหม่ทุกครั้งที่เปลี่ยนหน้า — ตรวจเสร็จกลับมา badge ต้องลดลงเอง
-  // นับ "ทุกรอบ" ที่ยังมีใบรอตรวจ — ใบที่ค้างตอนปิดรอบต้องยังขึ้นเลขเตือน ไม่ให้ถูกลืม
-  // (เดิมนับเฉพาะรอบที่เปิดอยู่ เลยไม่เห็นใบค้างของรอบเก่า แม้หน้าคิวตรวจเลือกดูรอบนั้นได้)
-  // ส่งไม่ระบุ round_id = ทุกรอบ (backend รองรับ) · ตัวเลขจึงอาจมากกว่าแท็บ "รอตรวจ" ของรอบที่เลือกอยู่ในหน้าคิวตรวจ
+  // นับเฉพาะ "รอบที่เลือกอยู่" ในหน้าคิวตรวจ (ตรงกับตัวเลขในแท็บ "รอตรวจสอบ") ไม่รวมทุกรอบ
+  //   เดิมนับทุกรอบ เลยได้เลขเดิมไม่ว่าจะเลือกรอบไหน (รอบ 3 ไม่มีใบรอตรวจแต่ badge ยังขึ้น 13)
+  // หน้าคิวตรวจแจ้งรอบที่เลือกผ่าน event 'review-round-selected' → จำไว้ใน reviewRoundRef แล้วใช้ต่อทุกหน้า
+  // ยังไม่เคยเปิดหน้าคิวตรวจ = ใช้รอบเริ่มต้นแบบเดียวกับหน้านั้น (รอบที่เปิดรับอยู่ ไม่มีก็รอบล่าสุด)
   // นับใหม่อีกเมื่อหน้ารายละเอียดยิง 'review-changed' (ยืนยัน/ตีกลับเสร็จ) — เจ้าหน้าที่ยังอยู่หน้าเดิม page ไม่เปลี่ยน
+  const reviewRoundRef = useRef(null);
   useEffect(()=>{
     if (role !== 'officer') { setPendingCount(0); return; }
-    const recount = () => apiFetch('/exam-results?staff_status=pending')
-      .then(rows => setPendingCount(rows.length))
-      .catch(()=>{});
+    const recount = async () => {
+      try {
+        let roundId = reviewRoundRef.current;
+        if (!roundId) {
+          const rounds = await apiFetch('/rounds');
+          roundId = (rounds.find(r => r.status === 'open') || rounds[0])?.round_id;
+        }
+        if (!roundId) { setPendingCount(0); return; }
+        const rows = await apiFetch(`/exam-results?staff_status=pending&round_id=${roundId}`);
+        setPendingCount(rows.length);
+      } catch {
+        // นับไม่ได้ก็ปล่อยเลขเดิม — badge ไม่ควรทำให้หน้าอื่นพัง
+      }
+    };
+    const onRoundSelected = (e) => { reviewRoundRef.current = e.detail; recount(); };
     recount();
     window.addEventListener('review-changed', recount);
-    return () => window.removeEventListener('review-changed', recount);
+    window.addEventListener('review-round-selected', onRoundSelected);
+    return () => {
+      window.removeEventListener('review-changed', recount);
+      window.removeEventListener('review-round-selected', onRoundSelected);
+    };
   }, [role, page]);
 
   // เช็คใบที่ถูกตีกลับทุกครั้งที่เปลี่ยนหน้า — กรอกส่งใหม่แล้ว badge ต้องหายเอง

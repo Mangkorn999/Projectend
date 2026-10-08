@@ -84,6 +84,11 @@ export function OfficerReviewReal({ go, setSel, setDetailFrom, lang, role, resto
     return () => { dropped = true; };
   }, [roundId, canSeeNotStarted]);
 
+  // บอก app.jsx ว่าเลือกรอบไหนอยู่ — badge เมนู "ตรวจสอบ/ยืนยันผล" นับเฉพาะรอบนี้ให้ตรงกับแท็บ "รอตรวจสอบ"
+  useEffect(() => {
+    if (roundId) window.dispatchEvent(new CustomEvent('review-round-selected', { detail: roundId }));
+  }, [roundId]);
+
   // เปลี่ยนแท็บ/เปลี่ยนรอบ ต้องเด้งกลับหน้า 1 ไม่งั้นค้างอยู่หน้า 5 ของลิสต์ที่มี 2 หน้า
   const selectTab = (k) => { setTab(k); setPage(0); };
   const selectRound = (id) => { setRoundId(id); setPage(0); };
