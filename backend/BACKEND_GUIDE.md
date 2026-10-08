@@ -1159,6 +1159,7 @@ curl -H "Authorization: Bearer <token>" http://localhost:3000/api/subjects/1
 
 | วันที่ | เปลี่ยนอะไร |
 |---|---|
+| 2026-10-08 | เพิ่ม script `npm run dev` (`node --watch src/server.js`) — แก้โค้ด backend แล้ว restart เองอัตโนมัติ (`package.json`) |
 | 2026-10-08 | **บันทึกทุก HTTP request ลง terminal ของ backend** — เพิ่ม `src/middlewares/requestLogger.js` (พิมพ์ `[เวลา] METHOD url -> status (ms) user=… role=…`, ไม่เก็บ body/password/token) ผูกเป็น middleware ตัวแรกใน `app.js` · ไม่เปลี่ยน endpoint/response · ฝั่งเบราว์เซอร์ดูได้ที่ F12 → Network อยู่แล้ว |
 | 2026-10-06 | เพิ่มเทสอีก 2 ชุด (ไม่แตะ backend): `npm run test:real` (คัดลอก DB จริงไป schema ชั่วคราวแบบอ่านอย่างเดียว — `tests/e2e/copyRealData.mjs`, ตรวจความสอดคล้องของสถิติ/ส่งออก/ทุกหน้า) และ `npm run test:e2e:devices` (12 อุปกรณ์มือถือ/แท็บเล็ต แตะกรอกผล/ยืนยัน) · ตัวช่วย `tests/e2e/forgeSession.mjs` เซ็ต token เองเฉพาะฐานเทส · แก้ CSS จอ 320px + ตารางรายงานบนจอแนวนอน (frontend) |
 | 2026-10-06 | **แดชบอร์ดบอกว่า "ทั้งรุ่น" รวมคนที่ยังไม่เข้าระบบกี่คน** — `GET /dashboard/stats` และแต่ละปีใน `/dashboard/history` เพิ่มฟิลด์ `pending_accounts` (`dashboard.repository.js → countPendingByYear`) หน้าจอแสดง "(รวมยังไม่เข้าระบบ N คน)" ต่อท้ายจำนวนนักศึกษาในหัวหน้า (เจ้าหน้าที่และผู้บริหาร) · เพิ่มฟิลด์อย่างเดียว ไม่เปลี่ยนฟิลด์เดิม |
