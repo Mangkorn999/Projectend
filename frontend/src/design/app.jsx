@@ -418,10 +418,29 @@ export function App() {
     replaceUrl(PAGE_PATH[p]);
   };
 
-  // เปลี่ยนรหัสสำเร็จแล้ว — token เดิมใช้ต่อไม่ได้ (mustChangePassword ฝังใน JWT) ต้อง login ใหม่
-  const handlePasswordChanged = ()=>{
-    setMustChangePassword(false); setRole(null); setCurrentUser(null);
-    replaceUrl(LOGIN_PATH);
+  // เปลี่ยนรหัสสำเร็จแล้ว — cookie เดิมใช้ต่อได้ (authenticate เช็ค must_change_password จาก DB สดทุก request)
+  // ถาม /auth/me ใหม่ แล้วเข้าแอปต่อเลยไม่ต้อง login ใหม่ · นักศึกษาที่ยังไม่กรอกโปรไฟล์ไปหน้ากรอกโปรไฟล์ต่อ
+  // ต้อง setSession ด้วย mustChange=false ไม่งั้น refresh แล้วหน้าบังคับเปลี่ยนรหัสโผล่อีก (localStorage ยังจำค่าเก่าอยู่)
+  const handlePasswordChanged = async ()=>{
+    try {
+      const me = await apiFetch('/auth/me');
+      const user = { id: me.id, name: me.name, role: me.role };
+      setSession(user, false, !!me.profile_incomplete);
+      setMustChangePassword(false);
+      if (me.profile_incomplete) {
+        setProfileIncomplete(true);
+        replaceUrl(COMPLETE_PROFILE_PATH);
+        return;
+      }
+      setCurrentUser(user);
+      setRole(user.role);
+      const p = DEFAULT_PAGE[user.role];
+      setPage(p);
+      replaceUrl(PAGE_PATH[p]);
+    } catch (err) {
+      // cookie หมดอายุพอดี — apiFetch เด้งกลับ login ให้เองแล้ว (forceLogout)
+      console.error('refresh session after change-password failed:', err);
+    }
   };
 
   // กรอกโปรไฟล์สำเร็จ — มี Student row แล้ว, cookie เดิมยังใช้ได้ (authenticate เช็ค studentId จาก DB สดทุก request)

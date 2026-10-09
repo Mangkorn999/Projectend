@@ -396,7 +396,7 @@ const token = jwt.sign({ userId, role, studentId, mustChangePassword }, JWT_SECR
 - เดิมไม่มี endpoint นี้ (frontend ลบ localStorage เองได้) แต่ httpOnly cookie ฝั่ง JS แตะไม่ได้ ต้องให้ server สั่งลบเท่านั้น
 - **ข้อจำกัดที่ต้องรู้:** JWT เป็น stateless — logout ลบแค่ cookie ในเบราว์เซอร์ ตัว token ยังใช้ได้จนหมดอายุถ้ามีใครก๊อปไว้. ด่านที่ปิดช่องนี้จริงคือด่าน 2 ของ `authenticate` (เช็ค DB ทุก request) ถ้าจะ revoke แบบตรงๆ ต้องเอาตาราง `sessions` มาใช้ (ยังไม่ทำ)
 
-**`changePassword`** — ต้องกรอกรหัสเดิมถูกก่อน + รหัสใหม่ห้ามซ้ำของเดิม. เปลี่ยนเสร็จ token ใบเก่ายังมี `mustChangePassword: true` ค้างอยู่ → **ต้อง login ใหม่**.
+**`changePassword`** — ต้องกรอกรหัสเดิมถูกก่อน + รหัสใหม่ห้ามซ้ำของเดิม. เปลี่ยนเสร็จ cookie เดิมใช้ต่อได้เลย (`authenticate` เช็ค `must_change_password` จาก DB สดทุก request) → **ไม่ต้อง login ใหม่**.
 
 ### 7.2 subjects — รายวิชา
 
@@ -1159,6 +1159,8 @@ curl -H "Authorization: Bearer <token>" http://localhost:3000/api/subjects/1
 
 | วันที่ | เปลี่ยนอะไร |
 |---|---|
+| 2026-10-09 | เปลี่ยนรหัสผ่านครั้งแรกแล้วเข้าระบบต่อได้เลย ไม่ต้อง login ใหม่ — backend ไม่เปลี่ยน logic (`authenticate` เช็ค `must_change_password` จาก DB อยู่แล้ว) แก้เฉพาะข้อความ/คอมเมนต์ใน `changePassword` (`authController.js`) · frontend `forceChangePassword.jsx` + `app.jsx` เรียก `/auth/me` แล้วเข้าแอปต่อ |
+| 2026-10-09 | แก้ข้อมูลตัวอย่างให้ตรงกฎ ปีจบ = ปีที่เข้า + 4 (รหัส 66 → จบ 2570) — `prisma/seedDemoYears.js` เดิมใช้ `year - 3` เปลี่ยนเป็น `year - 4` (รุ่น 2565–2569 ได้รหัส 61–65), `prisma/demoSeed.js` เลื่อนรหัสนักศึกษาลงหนึ่งรุ่น (64/65/66 → 63/64/65) · seed ใหม่ด้วย `npm run seed:demo-years` |
 | 2026-10-08 | **ลบรอบแล้วลบทุกอย่างที่ผูกอยู่ (ต้องยืนยัน)** — `DELETE /rounds/:id` ถ้ามีผลสอบหรือประกาศผูกอยู่และไม่ส่ง `?delete_linked=true` ตอบ 409 `has_linked_data` + `result_count`/`news_count` (เดิมตอบ 400 ลบไม่ได้) · ส่งค่ายืนยันแล้วลบผลสอบ/เอกสาร/ประวัติตรวจ/ประกาศ(+รูป)/แจ้งเตือนของรอบพร้อมตัวรอบ (`removeCascade`) + log `[AUDIT]` · `remove` เดิมลบแจ้งเตือน `round_open` ของรอบด้วย กัน FK ค้าง (`rounds.controller.js`, `rounds.repository.js`) · หน้าจัดการรอบมีคำเตือนขั้นที่ 2 (`manageRoundsSubjectsReal.jsx`, `i18n.js`) |
 | 2026-10-08 | เพิ่ม script `npm run dev` (`node --watch src/server.js`) — แก้โค้ด backend แล้ว restart เองอัตโนมัติ (`package.json`) |
 | 2026-10-08 | **บันทึกทุก HTTP request ลง terminal ของ backend** — เพิ่ม `src/middlewares/requestLogger.js` (พิมพ์ `[เวลา] METHOD url -> status (ms) user=… role=…`, ไม่เก็บ body/password/token) ผูกเป็น middleware ตัวแรกใน `app.js` · ไม่เปลี่ยน endpoint/response · ฝั่งเบราว์เซอร์ดูได้ที่ F12 → Network อยู่แล้ว |

@@ -167,10 +167,11 @@ export const changePassword = async (req, res) => {
       },
     });
 
-    // token เดิมยังมี mustChangePassword: true อยู่ ต้อง login ใหม่เพื่อเอา token ใหม่
+    // cookie เดิมใช้ต่อได้เลย — authenticate เช็ค must_change_password จาก DB สดทุก request ไม่ได้ดูค่าใน token
+    // frontend ถาม /auth/me แล้วเข้าระบบต่อ ไม่ต้อง login ใหม่
     res.json({
       success: true,
-      data: { message: "เปลี่ยนรหัสผ่านสำเร็จ กรุณาเข้าสู่ระบบใหม่" },
+      data: { message: "เปลี่ยนรหัสผ่านสำเร็จ" },
     });
   } catch (error) {
     console.error(error);

@@ -2,12 +2,12 @@
    บังคับเปลี่ยนรหัสผ่าน — บัญชี officer/executive ที่เจ้าหน้าที่สร้างให้
    ยังไม่เคยเปลี่ยนจากรหัสชั่วคราว (must_change_password = true)
    backend block ทุก endpoint ยกเว้น /me กับ /password จนกว่าจะเปลี่ยนสำเร็จ
-   เปลี่ยนเสร็จแล้วต้อง login ใหม่ (token เดิมยังมี mustChangePassword ค้างอยู่)
+   เปลี่ยนเสร็จแล้วเข้าระบบต่อได้เลย ไม่ต้อง login ใหม่ (backend เช็ค must_change_password จาก DB สดทุก request ไม่ได้ดูใน token)
    ============================================================ */
 import { useState } from 'react';
 import { Icon } from './data.jsx';
 import { Logo } from './logos.jsx';
-import { apiFetch, ApiError, logout } from './api.js';
+import { apiFetch, ApiError } from './api.js';
 
 export function ForceChangePassword({ onDone }) {
   const [currentPassword, setCurrentPassword] = useState('');
@@ -27,10 +27,9 @@ export function ForceChangePassword({ onDone }) {
         method: 'PATCH',
         body: { current_password: currentPassword, new_password: newPassword },
       });
-      // token เดิมใช้ต่อไม่ได้ (mustChangePassword ฝังอยู่ใน JWT) — ต้องให้ backend ลบ cookie
-      // แล้ว login ใหม่เพื่อรับ cookie ใบใหม่ที่ mustChangePassword เป็น false
-      await logout();
-      onDone();
+      // cookie เดิมใช้ต่อได้เลย — backend ตั้ง must_change_password = false ใน DB แล้ว
+      // ให้ app ถาม /auth/me แล้วพาเข้าหน้าเริ่มต้นตาม role (ไม่ต้องพามา login ใหม่)
+      await onDone();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'เกิดข้อผิดพลาด');
     } finally {
