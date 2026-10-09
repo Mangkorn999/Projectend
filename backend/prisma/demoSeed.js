@@ -37,70 +37,70 @@ const ROUNDS = [
 // room: 1 = ห้องเรียนปกติ, 2 = ห้องเรียนอังกฤษ (แม็พตามลำดับที่มีใน DB)
 const STUDENTS = [
   // --- รุ่น 2567 (7 คน) ---
-  { id: "6410210001", first: "ณัฐพงศ์", last: "ศรีสมบัติ", year: 2567, room: 0 },
-  { id: "6410210002", first: "พิมพ์ชนก", last: "แก้วมณี", year: 2567, room: 0 },
-  { id: "6410210003", first: "ธนกฤต", last: "วงศ์อารีย์", year: 2567, room: 1 },
-  { id: "6410210004", first: "สุพรรษา", last: "จันทร์เพ็ญ", year: 2567, room: 0 },
-  { id: "6410210005", first: "อรรถพล", last: "บุญมาก", year: 2567, room: 1 },
-  { id: "6410210006", first: "กมลชนก", last: "ทองสุข", year: 2567, room: 0 },
-  { id: "6410210007", first: "วรเมธ", last: "อินทร์ทอง", year: 2567, room: 1 },
+  { id: "6310210001", first: "ณัฐพงศ์", last: "ศรีสมบัติ", year: 2567, room: 0 },
+  { id: "6310210002", first: "พิมพ์ชนก", last: "แก้วมณี", year: 2567, room: 0 },
+  { id: "6310210003", first: "ธนกฤต", last: "วงศ์อารีย์", year: 2567, room: 1 },
+  { id: "6310210004", first: "สุพรรษา", last: "จันทร์เพ็ญ", year: 2567, room: 0 },
+  { id: "6310210005", first: "อรรถพล", last: "บุญมาก", year: 2567, room: 1 },
+  { id: "6310210006", first: "กมลชนก", last: "ทองสุข", year: 2567, room: 0 },
+  { id: "6310210007", first: "วรเมธ", last: "อินทร์ทอง", year: 2567, room: 1 },
   // --- รุ่น 2568 (7 คน) ---
-  { id: "6510210001", first: "ปิยะนุช", last: "สมบูรณ์ดี", year: 2568, room: 0 },
-  { id: "6510210002", first: "ชนาธิป", last: "รัตนพล", year: 2568, room: 0 },
-  { id: "6510210003", first: "ศิริพร", last: "เกตุแก้ว", year: 2568, room: 1 },
-  { id: "6510210004", first: "ภาณุพงษ์", last: "ดวงจันทร์", year: 2568, room: 0 },
-  { id: "6510210005", first: "จิราพร", last: "แซ่ลิ้ม", year: 2568, room: 1 },
-  { id: "6510210006", first: "อนุชา", last: "พรหมมา", year: 2568, room: 0 },
-  { id: "6510210007", first: "เบญจวรรณ", last: "ชูเชิด", year: 2568, room: 1 },
+  { id: "6410210001", first: "ปิยะนุช", last: "สมบูรณ์ดี", year: 2568, room: 0 },
+  { id: "6410210002", first: "ชนาธิป", last: "รัตนพล", year: 2568, room: 0 },
+  { id: "6410210003", first: "ศิริพร", last: "เกตุแก้ว", year: 2568, room: 1 },
+  { id: "6410210004", first: "ภาณุพงษ์", last: "ดวงจันทร์", year: 2568, room: 0 },
+  { id: "6410210005", first: "จิราพร", last: "แซ่ลิ้ม", year: 2568, room: 1 },
+  { id: "6410210006", first: "อนุชา", last: "พรหมมา", year: 2568, room: 0 },
+  { id: "6410210007", first: "เบญจวรรณ", last: "ชูเชิด", year: 2568, room: 1 },
   // --- รุ่น 2569 (6 คน) ---
-  { id: "6610210001", first: "รัตนาภรณ์", last: "ขวัญเมือง", year: 2569, room: 0 },
-  { id: "6610210002", first: "กิตติศักดิ์", last: "นวลจันทร์", year: 2569, room: 0 },
-  { id: "6610210003", first: "สุธาสินี", last: "ปานทอง", year: 2569, room: 1 },
-  { id: "6610210004", first: "ธีรภัทร", last: "เพชรรัตน์", year: 2569, room: 0 },
-  { id: "6610210005", first: "นภัสสร", last: "หมื่นสุข", year: 2569, room: 1 },
-  { id: "6610210006", first: "ชยพล", last: "มณีโชติ", year: 2569, room: 0 },
+  { id: "6510210001", first: "รัตนาภรณ์", last: "ขวัญเมือง", year: 2569, room: 0 },
+  { id: "6510210002", first: "กิตติศักดิ์", last: "นวลจันทร์", year: 2569, room: 0 },
+  { id: "6510210003", first: "สุธาสินี", last: "ปานทอง", year: 2569, room: 1 },
+  { id: "6510210004", first: "ธีรภัทร", last: "เพชรรัตน์", year: 2569, room: 0 },
+  { id: "6510210005", first: "นภัสสร", last: "หมื่นสุข", year: 2569, room: 1 },
+  { id: "6510210006", first: "ชยพล", last: "มณีโชติ", year: 2569, room: 0 },
 ];
 
 // ผลสอบ — เขียนแค่ "วิชาที่ตก" ที่เหลือถือว่าผ่าน
 // retake: true = รอบแก้ตัว วิชาที่ไม่ได้สอบรอบนี้จะยกผลผ่านมาจากรอบก่อน (carried_forward)
 const RESULTS = [
   // ===== 2567 รอบ 1 — ครบ 8 วิชา =====
-  { student: "6410210001", year: 2567, attempt: 1, failed: [] },
-  { student: "6410210002", year: 2567, attempt: 1, failed: [] },
-  { student: "6410210003", year: 2567, attempt: 1, failed: [] },
-  { student: "6410210004", year: 2567, attempt: 1, failed: ["NUR03"] },
-  { student: "6410210005", year: 2567, attempt: 1, failed: ["NUR03", "NUR05"] },
-  { student: "6410210006", year: 2567, attempt: 1, failed: ["NUR07"] },
-  { student: "6410210007", year: 2567, attempt: 1, failed: ["NUR02", "NUR03", "NUR06"] },
+  { student: "6310210001", year: 2567, attempt: 1, failed: [] },
+  { student: "6310210002", year: 2567, attempt: 1, failed: [] },
+  { student: "6310210003", year: 2567, attempt: 1, failed: [] },
+  { student: "6310210004", year: 2567, attempt: 1, failed: ["NUR03"] },
+  { student: "6310210005", year: 2567, attempt: 1, failed: ["NUR03", "NUR05"] },
+  { student: "6310210006", year: 2567, attempt: 1, failed: ["NUR07"] },
+  { student: "6310210007", year: 2567, attempt: 1, failed: ["NUR02", "NUR03", "NUR06"] },
 
   // ===== 2567 รอบ 2 — เฉพาะคนที่ตก มาสอบแก้ =====
   // สอบจริงแค่วิชาที่ตัวเองตก ที่เหลือ carried_forward
-  { student: "6410210004", year: 2567, attempt: 2, retake: true, sat: ["NUR03"], failed: [] },
-  { student: "6410210005", year: 2567, attempt: 2, retake: true, sat: ["NUR03", "NUR05"], failed: ["NUR05"] },
-  { student: "6410210006", year: 2567, attempt: 2, retake: true, sat: ["NUR07"], failed: [] },
-  { student: "6410210007", year: 2567, attempt: 2, retake: true, sat: ["NUR02", "NUR03", "NUR06"], failed: ["NUR06"] },
+  { student: "6310210004", year: 2567, attempt: 2, retake: true, sat: ["NUR03"], failed: [] },
+  { student: "6310210005", year: 2567, attempt: 2, retake: true, sat: ["NUR03", "NUR05"], failed: ["NUR05"] },
+  { student: "6310210006", year: 2567, attempt: 2, retake: true, sat: ["NUR07"], failed: [] },
+  { student: "6310210007", year: 2567, attempt: 2, retake: true, sat: ["NUR02", "NUR03", "NUR06"], failed: ["NUR06"] },
 
   // ===== 2568 รอบ 1 =====
-  { student: "6510210001", year: 2568, attempt: 1, failed: [] },
-  { student: "6510210002", year: 2568, attempt: 1, failed: [] },
-  { student: "6510210003", year: 2568, attempt: 1, failed: [] },
-  { student: "6510210004", year: 2568, attempt: 1, failed: [] },
-  { student: "6510210005", year: 2568, attempt: 1, failed: ["NUR01"] },
-  { student: "6510210006", year: 2568, attempt: 1, failed: ["NUR04", "NUR08"] },
-  { student: "6510210007", year: 2568, attempt: 1, failed: ["NUR01", "NUR04"] },
+  { student: "6410210001", year: 2568, attempt: 1, failed: [] },
+  { student: "6410210002", year: 2568, attempt: 1, failed: [] },
+  { student: "6410210003", year: 2568, attempt: 1, failed: [] },
+  { student: "6410210004", year: 2568, attempt: 1, failed: [] },
+  { student: "6410210005", year: 2568, attempt: 1, failed: ["NUR01"] },
+  { student: "6410210006", year: 2568, attempt: 1, failed: ["NUR04", "NUR08"] },
+  { student: "6410210007", year: 2568, attempt: 1, failed: ["NUR01", "NUR04"] },
 
   // ===== 2568 รอบ 2 =====
-  { student: "6510210005", year: 2568, attempt: 2, retake: true, sat: ["NUR01"], failed: [] },
-  { student: "6510210006", year: 2568, attempt: 2, retake: true, sat: ["NUR04", "NUR08"], failed: [] },
-  { student: "6510210007", year: 2568, attempt: 2, retake: true, sat: ["NUR01", "NUR04"], failed: ["NUR04"] },
+  { student: "6410210005", year: 2568, attempt: 2, retake: true, sat: ["NUR01"], failed: [] },
+  { student: "6410210006", year: 2568, attempt: 2, retake: true, sat: ["NUR04", "NUR08"], failed: [] },
+  { student: "6410210007", year: 2568, attempt: 2, retake: true, sat: ["NUR01", "NUR04"], failed: ["NUR04"] },
 
   // ===== 2569 รอบ 1 — รอบล่าสุด ยังไม่มีรอบแก้ตัว =====
-  { student: "6610210001", year: 2569, attempt: 1, failed: [] },
-  { student: "6610210002", year: 2569, attempt: 1, failed: [] },
-  { student: "6610210003", year: 2569, attempt: 1, failed: [] },
-  { student: "6610210004", year: 2569, attempt: 1, failed: ["NUR05"] },
-  { student: "6610210005", year: 2569, attempt: 1, failed: ["NUR02", "NUR06"] },
-  { student: "6610210006", year: 2569, attempt: 1, failed: ["NUR03", "NUR05", "NUR07"] },
+  { student: "6510210001", year: 2569, attempt: 1, failed: [] },
+  { student: "6510210002", year: 2569, attempt: 1, failed: [] },
+  { student: "6510210003", year: 2569, attempt: 1, failed: [] },
+  { student: "6510210004", year: 2569, attempt: 1, failed: ["NUR05"] },
+  { student: "6510210005", year: 2569, attempt: 1, failed: ["NUR02", "NUR06"] },
+  { student: "6510210006", year: 2569, attempt: 1, failed: ["NUR03", "NUR05", "NUR07"] },
 ];
 
 // ไฟล์ PDF ที่มีอยู่จริงใน uploads/certificates — เอามาแปะให้บางใบมีหลักฐานแนบ
@@ -324,7 +324,7 @@ async function main() {
   console.log("\nบัญชีสำหรับเดโม (password = username):");
   console.log(`  officer   : ${officer.psu_passport_id}`);
   if (executive) console.log(`  executive : ${executive.psu_passport_id}`);
-  console.log("  student   : 6610210001 (ผ่านครบ) / 6610210006 (ตก 3 วิชา) / 6410210004 (สอบแก้ตัวผ่าน)");
+  console.log("  student   : 6510210001 (ผ่านครบ) / 6510210006 (ตก 3 วิชา) / 6310210004 (สอบแก้ตัวผ่าน)");
 }
 
 main()
