@@ -7,12 +7,13 @@
    ============================================================ */
 import { useState, useEffect, useRef } from 'react';
 import { Icon } from './data.jsx';
-import { PageHead, StatusBadge, FirstAttemptSubjectTable, Select, ExportMenu, Loading, Empty } from './components.jsx';
+import { PageHead, StatusBadge, FirstAttemptSubjectTable, Select, ExportMenu, Loading, Empty, Modal } from './components.jsx';
 import { Logo } from './logos.jsx';
 import { apiFetch, downloadFile } from './api.js';
 import { saveElementAsPdf } from './exportReportPdf.js';
 import { downloadFirstYearList } from './yearExports.js';
 import { SubjectResultModal } from './subjectResultModal.jsx';
+import { ExportPreviewPanel } from './exportPreviewPanel.jsx';
 import { t, subjectName, roomName } from './i18n.js';
 
 export function ReportsReal({ toast, readonly, lang }) {
@@ -76,6 +77,12 @@ export function ReportsReal({ toast, readonly, lang }) {
 
   // รายงานสรุปของรอบที่เลือก (PDF) — ปุ่มบนหัวหน้าที่เดียว
   // ได้ไฟล์ที่หน้าตาเหมือนรายงานบนจอเป๊ะ (ถ่ายจากกล่องรายงานที่เห็นอยู่) ไม่ใช่ PDF จาก backend อีกแบบหนึ่ง
+  // ป๊อปอัพตัวอย่างไฟล์ — previewRow คงไว้หลังปิดเพื่อให้เนื้อในไม่หายระหว่าง Modal เล่นจางออก
+  // previewRun เพิ่มทุกครั้งที่เปิด ใช้เป็น key ให้แผงตัวอย่างโหลดข้อมูลสดใหม่
+  const [previewRow, setPreviewRow] = useState(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewRun, setPreviewRun] = useState(0);
+  const openPreview = (row) => { setPreviewRow(row); setPreviewRun(n => n + 1); setPreviewOpen(true); };
   const [pdfBusy, setPdfBusy] = useState(false);
   const downloadReportPdf = async () => {
     setPdfBusy(true);
@@ -148,15 +155,19 @@ export function ReportsReal({ toast, readonly, lang }) {
     return items;
   };
   const exportRows = [
-    { key: 'pass', title: tt('export.rowFirstPass', { year: exportYear }), sub: tt('export.rowFirstPassSub'), items: firstAttemptItems(true) },
-    { key: 'fail', title: tt('export.rowFirstFail', { year: exportYear }), sub: tt('export.rowFirstFailSub'), items: firstAttemptItems(false) },
-    { key: 'yearPass', title: tt('export.rowFirstYearPass', { year: exportYear }), sub: tt('export.rowFirstYearPassSub'), items: firstYearItems(true) },
-    { key: 'yearFail', title: tt('export.rowFirstYearFail', { year: exportYear }), sub: tt('export.rowFirstYearFailSub'), items: firstYearItems(false) },
-    { key: 'students', title: tt('export.rowStudents', { year: exportYear }), items: [
-      {
-        key: 'xlsx', label: tt('export.studentsExcel'), icon: 'report',
-        run: () => downloadFile('/students/export', { method: 'POST', body: { year: exportYear }, filename: `ข้อมูลนักศึกษา-รุ่น ${exportYear}.xlsx` }),
-      },
+    { key: 'pass', title: tt('export.rowFirstPass', { year: exportYear }), sub: tt('export.rowFirstPassSub'), items: firstAttemptItems(true),
+      preview: { kind: 'first-attempt', year: exportYear, passed: true } },
+    { key: 'fail', title: tt('export.rowFirstFail', { year: exportYear }), sub: tt('export.rowFirstFailSub'), items: firstAttemptItems(false),
+      preview: { kind: 'first-attempt', year: exportYear, passed: false } },
+    { key: 'yearPass', title: tt('export.rowFirstYearPass', { year: exportYear }), sub: tt('export.rowFirstYearPassSub'), items: firstYearItems(true),
+      preview: { kind: 'first-year', year: exportYear, passed: true } },
+    { key: 'yearFail', title: tt('export.rowFirstYearFail', { year: exportYear }), sub: tt('export.rowFirstYearFailSub'), items: firstYearItems(false),
+      preview: { kind: 'first-year', year: exportYear, passed: false } },
+    { key: 'students', title: tt('export.rowStudents', { year: exportYear }),
+      preview: { kind: 'students', year: exportYear }, // ตัวอย่างแสดงทุกชีต (ข้อมูลนักศึกษา + แต่ละรอบ) เหมือนไฟล์แยกรอบ
+      items: [
+      // ไฟล์เดียว: ชีตแรกคือข้อมูลนักศึกษาทั้งรุ่น (เหมือนไฟล์ "ข้อมูลนักศึกษา" ธรรมดาเป๊ะ) แล้วต่อด้วยชีตรายรอบ
+      // จึงไม่แยกเป็น 2 ปุ่มให้เลือก — เหลือรายการเดียว กดแล้วดาวน์โหลดเลย
       {
         key: 'byRound', label: tt('export.studentsByRoundExcel'), icon: 'report',
         run: () => downloadFile('/students/export', { method: 'POST', body: { year: exportYear, by_round: true }, filename: `ข้อมูลนักศึกษา-รุ่น ${exportYear}-แยกรอบ.xlsx` }),
@@ -190,12 +201,18 @@ export function ReportsReal({ toast, readonly, lang }) {
           <div style={{ fontWeight: 800, fontSize: 17 }}>{tt('export.panelTitle')}</div>
           <div style={{ color: 'var(--ink-500)', fontSize: 14.5, margin: '2px 0 8px' }}>{tt('export.panelSub', { year: exportYear })}</div>
           {exportRows.map(row => (
-            <div key={row.key} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 0', borderTop: '1px solid var(--ink-100)' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: 15.5 }}>{row.title}</div>
-                {row.sub && <div style={{ color: 'var(--ink-500)', fontSize: 14 }}>{row.sub}</div>}
+            <div key={row.key} style={{ borderTop: '1px solid var(--ink-100)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 0' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 15.5 }}>{row.title}</div>
+                  {row.sub && <div style={{ color: 'var(--ink-500)', fontSize: 14 }}>{row.sub}</div>}
+                </div>
+                {/* ดูตัวอย่างเป็นป๊อปอัพ (ตารางแบบ Excel) ไม่ต้องดาวน์โหลดไฟล์ — ปุ่มส่งออกยังอยู่ข้างๆ */}
+                <button className="btn btn-ghost" onClick={() => openPreview(row)}>
+                  <Icon name="eye" size={16} /> {tt('export.previewBtn')}
+                </button>
+                <ExportMenu items={row.items} tt={tt} align="right" onError={msg => toast(msg, 'error')} style={{ width: 128 }} />
               </div>
-              <ExportMenu items={row.items} tt={tt} align="right" onError={msg => toast(msg, 'error')} style={{ width: 128 }} />
             </div>
           ))}
         </div>
@@ -351,6 +368,15 @@ export function ReportsReal({ toast, readonly, lang }) {
           </>
         )}
       </div>
+
+      {/* ตัวอย่างไฟล์ส่งออก — ข้อมูลชุดเดียวกับไฟล์ที่จะดาวน์โหลด ส่งออกต่อได้จากท้ายป๊อปอัพ */}
+      <Modal open={previewOpen} onClose={() => setPreviewOpen(false)} width={1040} title={previewRow ? previewRow.title : ''}
+        footer={previewRow && <>
+          <button className="btn btn-ghost" onClick={() => setPreviewOpen(false)}>{tt('export.previewClose')}</button>
+          <ExportMenu items={previewRow.items} tt={tt} align="right" up onError={msg => toast(msg, 'error')} />
+        </>}>
+        {previewRow && <ExportPreviewPanel key={previewRun} spec={previewRow.preview} lang={lang} />}
+      </Modal>
 
       {/* รายชื่อผ่าน/ไม่ผ่านรายวิชาของรอบที่เลือก — component กลางตัวเดียวกับแดชบอร์ด */}
       {subjectModal && (
