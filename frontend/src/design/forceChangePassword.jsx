@@ -9,7 +9,7 @@ import { Icon } from './data.jsx';
 import { Logo } from './logos.jsx';
 import { apiFetch, ApiError } from './api.js';
 
-export function ForceChangePassword({ onDone }) {
+export function ForceChangePassword({ onDone, onBack }) {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -70,6 +70,9 @@ export function ForceChangePassword({ onDone }) {
             borderRadius:9, padding:'9px 12px', fontSize:15, marginBottom:14 }}>{error}</div>}
           <button className="btn btn-primary btn-lg btn-block" onClick={submit} disabled={loading}>
             {loading ? 'กำลังเปลี่ยนรหัสผ่าน…' : 'เปลี่ยนรหัสผ่าน'}
+          </button>
+          <button className="btn btn-ghost btn-block" style={{ marginTop:10 }} onClick={onBack} disabled={loading}>
+            กลับไปหน้าเข้าสู่ระบบ
           </button>
         </div>
       </div>

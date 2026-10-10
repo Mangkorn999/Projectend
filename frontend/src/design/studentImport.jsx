@@ -659,11 +659,11 @@ function ManualAdd({ toast, tt }) {
         <FormSection title={tt('importReal.sectionStudent')}>
           <div className="field">
             <label>{tt('importReal.fieldStudentId')} <Req /></label>
-            <input className="input mono" value={form.student_id} onChange={set('student_id')} placeholder="6610210001" />
+            <input className="input mono" value={form.student_id} onChange={set('student_id')} placeholder="6610410xxx" />
           </div>
           <div className="field">
             <label>{tt('importReal.fieldNationalId')} <Req /></label>
-            <input className="input mono" value={form.national_id} onChange={set('national_id')} placeholder="1234567890123" />
+            <input className="input mono" value={form.national_id} onChange={set('national_id')} placeholder="xxxx-xxxxxx-xx-x" />
           </div>
           <div className="field">
             <label>{tt('importReal.fieldYear')} <span style={{ fontWeight:400, color:'var(--ink-500)' }}>({tt('importReal.fieldYearOptional')})</span></label>

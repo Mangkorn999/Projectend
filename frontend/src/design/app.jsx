@@ -462,7 +462,15 @@ export function App() {
     }
   };
 
-  if (mustChangePassword) return <ForceChangePassword onDone={handlePasswordChanged} />;
+  // ปุ่ม "กลับไปหน้าเข้าสู่ระบบ" ในหน้าบังคับเปลี่ยนรหัส — ต้อง logout จริง (ลบ cookie + localStorage)
+  // ถ้าแค่เปลี่ยน URL, refresh แล้วจะเด้งกลับหน้านี้อีก เพราะ cookie ยังอยู่และ localStorage จำ mustChangePassword ไว้
+  const handleBackToLogin = async ()=>{
+    await logout();
+    setMustChangePassword(false);
+    replaceUrl(LOGIN_PATH);
+  };
+
+  if (mustChangePassword) return <ForceChangePassword onDone={handlePasswordChanged} onBack={handleBackToLogin} />;
   if (profileIncomplete) return <CompleteProfile onDone={handleProfileCompleted} />;
   if(!role) return <Login onLogin={handleLogin} />;
 
