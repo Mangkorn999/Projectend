@@ -153,6 +153,17 @@ const main = async () => {
       check(`${who} export-first-attempt -> 403`, (await call("GET", `/api/dashboard/export-first-attempt?year=${YEAR}&passed=true`, { token: t })).status, 403);
       check(`${who} POST students/export -> 403`, (await call("POST", "/api/students/export", { token: t, body: { year: YEAR } })).status, 403);
     }
+    // ตัวอย่างตาราง (format=json) — ชุดเดียวกับไฟล์ ไม่ใช่ไฟล์
+    for (const [route, label] of [["export-first-attempt", "รอบแรก"], ["export-first-year", "ปีแรก"]]) {
+      for (const passed of [true, false]) {
+        const jx = await call("GET", `/api/dashboard/${route}?year=${YEAR}&passed=${passed}&format=xlsx`, { token: oToken });
+        const jj = await call("GET", `/api/dashboard/${route}?year=${YEAR}&passed=${passed}&format=json`, { token: oToken });
+        const sh = jj.json.data?.sheets?.[0];
+        const fileIds = idsOf(await parse(jx.buffer)).sort();
+        check(`preview ${label} passed=${passed} -> JSON ตารางเดียวกับไฟล์`, [jj.status, jj.buffer, sh?.rows.map((r) => r.student_id).sort(), sh?.total], [200, null, fileIds, fileIds.length]);
+      }
+    }
+    check("preview ผู้ไม่ใช่ officer -> 403", (await call("GET", `/api/dashboard/export-first-attempt?year=${YEAR}&passed=true&format=json`, { token: await login("789", "789") })).status, 403);
     check("ไม่ login export-first-attempt -> 401", (await call("GET", `/api/dashboard/export-first-attempt?year=${YEAR}&passed=true`)).status, 401);
 
     // ── 2. ข้อมูลนักศึกษา (Excel) ──
@@ -172,6 +183,17 @@ const main = async () => {
     const byIds = await call("POST", "/api/students/export", { token: oToken, body: { student_ids: [ID.A, ID.C, ID.A, "ไม่มีรหัสนี้"] } });
     const S2 = await parse(byIds.buffer);
     check("POST students/export {student_ids} -> เฉพาะที่ส่งมา (ซ้ำรวมกัน รหัสที่ไม่มีข้ามไป)", idsOf(S2).sort(), [ID.A, ID.C].sort());
+
+    // ── 2.1 ตัวอย่างก่อนดาวน์โหลด (preview: true) — JSON ชุดเดียวกับในไฟล์ ไม่สร้างไฟล์ ──
+    const pv = await call("POST", "/api/students/export", { token: oToken, body: { year: YEAR, preview: true } });
+    const pvSheet = pv.json.data?.sheets?.[0];
+    check("preview {year} -> 200 JSON (ไม่ใช่ไฟล์) 1 ชีต", [pv.status, pv.buffer, pv.json.data?.sheets?.length], [200, null, 1]);
+    check("  ชีตแรก total = 5 คน และมีหัวคอลัมน์เท่าไฟล์", [pvSheet?.total, pvSheet?.columns.map((c) => c.header)], [5, S.header]);
+    check("  แถวตัวอย่างรหัสตรงกับไฟล์", pvSheet?.rows.map((r) => r.student_id).sort(), Object.values(ID).sort());
+    check("  ตัวอย่างไม่มีเลขบัตรประชาชน", [1, 2, 3, 4, 5].some((n) => JSON.stringify(pv.json).includes(nid(n))), false);
+    const pvRound = await call("POST", "/api/students/export", { token: oToken, body: { year: YEAR, by_round: true, preview: true } });
+    check("preview {by_round} -> ชีตแรก = ข้อมูลนักศึกษา + มีชีตรอบต่อท้าย", [pvRound.status, pvRound.json.data?.sheets?.[0]?.sheet_name, pvRound.json.data?.sheets?.length > 1], [200, "ข้อมูลนักศึกษา", true]);
+    // สิทธิ์: preview ใช้ route เดียวกับ export (officer เท่านั้น) — ทดสอบ 403 ของ reviewer/executive/student ไว้ข้างบนแล้ว
 
     for (const [name, body, want] of [
       ["ไม่ส่งอะไรเลย", {}, 400],

@@ -6,6 +6,7 @@
 import * as studentRepo from "./student.repository.js";
 import * as subjectsRepo from "../subjects/subjects.repository.js";
 import * as roundsRepo from "../rounds/rounds.repository.js";
+import * as dashService from "../dashboard/dashboard.service.js";
 import { buildSubjectListPdf } from "./students.pdf.js";
 import { buildXlsx, buildXlsxWorkbook, sendXlsx } from "../../utils/xlsxExport.js";
 
@@ -156,10 +157,12 @@ const paperStatusLabel = (r) => {
 //       หรือ { year: 2569 } = ทั้งรุ่นของปีนั้น (ใช้จากหน้ารายงานสรุป)
 // ใช้ POST เพราะรายชื่อรหัสยาวเกินขนาด URL — ไฟล์ Excel ที่ได้ไม่มีเลขบัตรประชาชน
 const EXPORT_MAX_IDS = 5000;
+// จำนวนแถวสูงสุดต่อชีตที่ส่งกลับตอนขอดูตัวอย่าง
+const PREVIEW_MAX_ROWS = 1000;
 // POST /students/export — ส่งออกรายชื่อเป็น Excel (ไม่มีเลขบัตร) ตาม student_ids หรือ ปีการศึกษาที่ส่งมา
 export const exportStudents = async (req, res, next) => {
   try {
-    const { student_ids, year, by_round } = req.body ?? {};
+    const { student_ids, year, by_round, preview } = req.body ?? {};
     let where;
     let scopeName;
     if (student_ids !== undefined) {
@@ -228,29 +231,40 @@ export const exportStudents = async (req, res, next) => {
       rows,
     };
 
-    let buffer;
+    // รวมชีตทั้งหมดไว้ก่อน — ใช้ทั้งตอนสร้างไฟล์ Excel และตอนขอดูตัวอย่าง (ข้อมูลชุดเดียวกัน ไม่คำนวณซ้ำสองที่)
+    const sheets = [studentSheet];
     if (by_round === true) {
       // แยกตามรอบ: ชีตแรกเป็นข้อมูลนักศึกษาเหมือนเดิม แล้วต่อด้วย 1 ชีตต่อ 1 รอบสอบ
-      // แต่ละชีตมีเฉพาะนักศึกษาที่มีใบผลสอบในรอบนั้น เรียงรอบใหม่ → เก่า
-      const roundSheets = new Map(); // "ปี-ครั้งที่" → { year, attempt, rows }
-      for (const s of students) {
-        for (const r of s.exam_results) {
-          const key = `${r.round.academic_year}-${r.round.attempt_number}`;
-          if (!roundSheets.has(key)) {
-            roundSheets.set(key, { year: r.round.academic_year, attempt: r.round.attempt_number, rows: [] });
-          }
-          roundSheets.get(key).rows.push({
+      // แต่ละชีตมี "คนของรอบนั้น" ครบตามจำนวนที่ Dashboard แสดง (ยังต้องกรอกในรอบนั้น + มีใบอยู่แล้ว)
+      // คนที่ยังไม่ได้กรอกก็อยู่ในชีตด้วย สถานะ "ยังไม่ได้กรอก" — ไม่ใช่เฉพาะคนที่มีใบ
+      // คนที่ผ่านครบตั้งแต่รอบก่อนไม่ต้องกรอกรอบนี้ จึงไม่อยู่ในชีต (เหมือนที่ Dashboard ไม่นับ)
+      const years = [...new Set(students.map((s) => s.academic_year))];
+      const roundsWithPeople = await dashService.findRoundsWithPeople(years);
+      const roundSheets = [];
+      for (const { round, peopleIds } of roundsWithPeople) {
+        const rows = [];
+        for (const s of students) {
+          if (s.academic_year !== round.academic_year) continue;
+          // มีใบในรอบนี้ไหม — เทียบด้วยปี + ครั้งที่สอบ (ผลที่ดึงมาไม่มี round_id)
+          const r = s.exam_results.find(
+            (x) => x.round.academic_year === round.academic_year && x.round.attempt_number === round.attempt_number,
+          );
+          if (!r && !peopleIds.has(s.student_id)) continue;
+          rows.push({
             student_id: s.student_id,
             first_name: s.user.first_name,
             last_name: s.user.last_name,
             first_name_en: s.first_name_en,
             last_name_en: s.last_name_en,
             room_name: s.room?.room_name ?? "",
-            paper_status: paperStatusLabel(r),
-            passed_text: `${r.subject_results.filter((sr) => sr.is_passed).length}/${r.subject_results.length}`,
-            submitted_at: formatThaiDateTime(r.submitted_at),
-            confirmed_at: formatThaiDateTime(r.confirmed_at),
+            paper_status: r ? paperStatusLabel(r) : "ยังไม่ได้กรอก",
+            passed_text: r ? `${r.subject_results.filter((sr) => sr.is_passed).length}/${r.subject_results.length}` : "",
+            submitted_at: r ? formatThaiDateTime(r.submitted_at) : "",
+            confirmed_at: r ? formatThaiDateTime(r.confirmed_at) : "",
           });
+        }
+        if (rows.length > 0) {
+          roundSheets.push({ year: round.academic_year, attempt: round.attempt_number, rows });
         }
       }
       const roundColumns = [
@@ -265,15 +279,32 @@ export const exportStudents = async (req, res, next) => {
         { header: "ส่งเมื่อ", key: "submitted_at", width: 20 },
         { header: "ยืนยันเมื่อ", key: "confirmed_at", width: 20 },
       ];
-      const sortedRounds = [...roundSheets.values()].sort((a, b) => b.year - a.year || a.attempt - b.attempt);
-      buffer = await buildXlsxWorkbook([
-        studentSheet,
-        ...sortedRounds.map((r) => ({
-          sheetName: `รอบ ${r.attempt}-${r.year}`,
-          columns: roundColumns,
-          rows: r.rows,
-        })),
-      ]);
+      const sortedRounds = roundSheets.sort((a, b) => b.year - a.year || a.attempt - b.attempt);
+      for (const r of sortedRounds) {
+        sheets.push({ sheetName: `รอบ ${r.attempt}-${r.year}`, columns: roundColumns, rows: r.rows });
+      }
+    }
+
+    // ขอดูตัวอย่าง (preview: true) — ส่งตารางเป็น JSON ให้หน้าจอวาดเหมือนเปิด Excel ไม่สร้างไฟล์
+    // ตัดที่ PREVIEW_MAX_ROWS แถวต่อชีตกันตอบใหญ่เกิน บอก total จริงไว้ให้หน้าจอแสดง "แสดง N จาก M"
+    if (preview === true) {
+      res.json({
+        success: true,
+        data: {
+          sheets: sheets.map((sheet) => ({
+            sheet_name: sheet.sheetName,
+            columns: sheet.columns.map((c) => ({ header: c.header, key: c.key })),
+            total: sheet.rows.length,
+            rows: sheet.rows.slice(0, PREVIEW_MAX_ROWS),
+          })),
+        },
+      });
+      return;
+    }
+
+    let buffer;
+    if (by_round === true) {
+      buffer = await buildXlsxWorkbook(sheets);
     } else {
       buffer = await buildXlsx(studentSheet);
     }

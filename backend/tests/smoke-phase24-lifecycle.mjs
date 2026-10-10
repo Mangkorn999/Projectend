@@ -212,11 +212,21 @@ const main = async () => {
     check("ส่งออกแยกรอบ -> 200 เป็น Excel", [multi.status, /spreadsheetml/.test(multi.type)], [200, true]);
     check("  ชีต = ข้อมูลนักศึกษา + รอบ 1 + รอบ 2 + รอบ 3", sheets.map((s) => s.sheet), ["ข้อมูลนักศึกษา", "รอบ 1-2593", "รอบ 2-2593", "รอบ 3-2593"]);
     const idsIn = (sheet) => sheet.data.slice(1).map((r) => r[0]).sort();
-    check("  รอบ 1 มี S1,S2,S3", idsIn(sheets[1]), [ID.S1, ID.S2, ID.S3].sort());
-    check("  รอบ 2 มี S2 คนเดียว", idsIn(sheets[2]), [ID.S2]);
-    check("  รอบ 3 มี S4 คนเดียว", idsIn(sheets[3]), [ID.S4]);
+    // ชีตรายรอบต้องมี "คนของรอบ" ครบเท่าตัวเลข roundTotal บน Dashboard — รวมคนที่ยังไม่กรอก (สถานะ "ยังไม่ได้กรอก")
+    // ไม่ใช่แค่คนที่มีใบ (เคยทำให้รอบ 2 ที่ต้องกรอก 45 คน ไฟล์มีแค่ 30 กว่า)
+    for (const [i, roundId] of [[1, round1], [2, round2], [3, round3]]) {
+      const st = (await call("GET", `/api/dashboard/stats?round_id=${roundId}`, { token: oToken })).json.data;
+      check(`  ชีตรอบ ${i} = ${st.roundTotal} คน ตรงกับ roundTotal บน Dashboard`, sheets[i].data.length - 1, st.roundTotal);
+    }
+    check("  รอบ 1 มี S1,S2,S3 (มีใบทั้งหมด)", idsIn(sheets[1]).filter((id) => [ID.S1, ID.S2, ID.S3].includes(id)), [ID.S1, ID.S2, ID.S3].sort());
+    check("  รอบ 2 มี S2 (มีใบ)", idsIn(sheets[2]).includes(ID.S2), true);
+    check("  รอบ 3 มี S4 (มีใบ)", idsIn(sheets[3]).includes(ID.S4), true);
+    const statusCol = sheets[2].data[0].indexOf("สถานะใบผลสอบ");
+    const notStarted = sheets[2].data.slice(1).filter((r) => r[statusCol] === "ยังไม่ได้กรอก");
+    check("  คนที่ไม่มีใบในรอบ 2 ขึ้นสถานะ \"ยังไม่ได้กรอก\" และไม่มีเวลาส่ง/ยืนยัน",
+      [notStarted.length > 0, notStarted.every((r) => !r[sheets[2].data[0].indexOf("ส่งเมื่อ")] && !r[sheets[2].data[0].indexOf("ยืนยันเมื่อ")])], [true, true]);
     const h2 = sheets[2].data[0];
-    const r2row = sheets[2].data[1];
+    const r2row = sheets[2].data.find((r) => r[0] === ID.S2);
     check("  รอบ 2 ของ S2 = ยืนยันแล้ว ผ่าน 3/3", [r2row[h2.indexOf("สถานะใบผลสอบ")], r2row[h2.indexOf("ผ่านกี่วิชา")]], ["ยืนยันแล้ว", "3/3"]);
     check("  ทุกชีตรอบมีคอลัมน์ส่งเมื่อ/ยืนยันเมื่อ", [h2.includes("ส่งเมื่อ"), h2.includes("ยืนยันเมื่อ")], [true, true]);
     check("  by_round ไม่ใช่ true (เช่น \"yes\") -> ใช้แบบ 1 ชีต", (await readXlsxFile((await call("POST", "/api/students/export", { token: oToken, body: { year: YEAR, by_round: "yes" } })).buffer)).length, 1);

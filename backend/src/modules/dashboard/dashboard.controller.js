@@ -1,4 +1,5 @@
 import * as dashService from "./dashboard.service.js";
+import { buildAlerts } from "./dashboard.alerts.js";
 import { buildReportPdf, buildPassListPdf } from "./dashboard.pdf.js";
 import { buildXlsx, sendXlsx } from "../../utils/xlsxExport.js";
 
@@ -34,12 +35,12 @@ export const getHistory = async (req, res, next) => {
   }
 };
 
-// GET /api/dashboard/alerts — officer, executive
+// GET /api/dashboard/alerts — officer, executive  (logic อยู่ที่ dashboard.alerts.js)
 // แจ้งเตือนสถานะปัจจุบัน (รอบใกล้ปิด / ยังไม่ส่งผล / รอตรวจ)
 // role อ่านจาก JWT เท่านั้น — ผู้บริหารจะไม่ได้เรื่อง "รอตรวจ" เพราะไม่มีสิทธิ์ตรวจ
 export const getAlerts = async (req, res, next) => {
   try {
-    const data = await dashService.buildAlerts(req.user.role);
+    const data = await buildAlerts(req.user.role);
     res.json({ success: true, data });
   } catch (err) {
     next(err);
@@ -93,7 +94,8 @@ const readListExportQuery = (query) => {
   if (format === undefined) {
     format = "xlsx";
   }
-  if (format !== "xlsx" && format !== "pdf") {
+  // json = ขอดูตัวอย่างตาราง (ไม่ใช่ไฟล์) — หน้ารายงานใช้แสดงแบบ Excel ก่อนกดดาวน์โหลด
+  if (format !== "xlsx" && format !== "pdf" && format !== "json") {
     throw badRequest("รูปแบบไฟล์ไม่ถูกต้อง กรุณาเลือก Excel หรือ PDF");
   }
 
@@ -126,6 +128,25 @@ const withRowNumbers = (rows) => {
     numbered.push(row);
   }
   return numbered;
+};
+
+// ตอบตัวอย่างตาราง (format=json) — รูปแบบเดียวกับ POST /students/export {preview:true}
+// ใช้ columns/rows ชุดเดียวกับที่ใส่ลง Excel จึงเห็นตรงกับไฟล์จริง · ตัดที่ PREVIEW_MAX_ROWS แถว บอก total จริงไว้
+const PREVIEW_MAX_ROWS = 1000;
+const sendSheetPreview = (res, sheetName, columns, rows) => {
+  res.json({
+    success: true,
+    data: {
+      sheets: [
+        {
+          sheet_name: sheetName,
+          columns: columns.map((c) => ({ header: c.header, key: c.key })),
+          total: rows.length,
+          rows: rows.slice(0, PREVIEW_MAX_ROWS),
+        },
+      ],
+    },
+  });
 };
 
 // ส่ง PDF กลับ — ชื่อไฟล์ภาษาไทยต้องมี filename ASCII สำรอง + filename*=UTF-8'' คู่กัน
@@ -167,11 +188,13 @@ export const exportFirstAttempt = async (req, res, next) => {
       return;
     }
 
-    const buffer = await buildXlsx({
-      sheetName: `${label} ${year}`,
-      columns: listColumns("สถานะใบผลสอบรอบแรก", "วิชาที่ไม่ผ่าน"),
-      rows: withRowNumbers(list.rows),
-    });
+    const columns = listColumns("สถานะใบผลสอบรอบแรก", "วิชาที่ไม่ผ่าน");
+    const rows = withRowNumbers(list.rows);
+    if (format === "json") {
+      sendSheetPreview(res, `${label} ${year}`, columns, rows);
+      return;
+    }
+    const buffer = await buildXlsx({ sheetName: `${label} ${year}`, columns, rows });
     sendXlsx(res, fileName, buffer);
   } catch (err) {
     next(err);
@@ -209,11 +232,13 @@ export const exportFirstYear = async (req, res, next) => {
       return;
     }
 
-    const buffer = await buildXlsx({
-      sheetName: `${label} ${year}`,
-      columns: listColumns("สถานะใบล่าสุด", "วิชาที่ยังไม่ผ่าน"),
-      rows: withRowNumbers(list.rows),
-    });
+    const columns = listColumns("สถานะใบล่าสุด", "วิชาที่ยังไม่ผ่าน");
+    const rows = withRowNumbers(list.rows);
+    if (format === "json") {
+      sendSheetPreview(res, `${label} ${year}`, columns, rows);
+      return;
+    }
+    const buffer = await buildXlsx({ sheetName: `${label} ${year}`, columns, rows });
     sendXlsx(res, fileName, buffer);
   } catch (err) {
     next(err);

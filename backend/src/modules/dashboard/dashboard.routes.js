@@ -26,7 +26,7 @@ router.get(
   requireRole("officer", "executive"),
   getHistory,
 );
-// ป้ายเตือนบน Dashboard (เช่น มีใบรอตรวจค้าง)
+// ป้ายเตือนบน Dashboard (เช่น มีใบรอตรวจค้าง) — logic อยู่ที่ dashboard.alerts.js
 router.get(
   "/alerts",
   authenticate,
