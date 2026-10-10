@@ -400,7 +400,10 @@ export function FirstAttemptSubjectTable({ data, year, lang='TH' }) {
   const NUM = { padding: '9px 10px', textAlign: 'right', whiteSpace: 'nowrap', border: BORDER };
 
   // ช่องจำนวน+ร้อยละคู่กัน — วิชาที่ไม่มีใครสอบขึ้นขีดแทน 0.00% (0% แปลว่าสอบแล้วตกหมด คนละเรื่อง)
-  const Cell = ({ count, rate, bold, dash }) => (
+  // เป็นฟังก์ชันที่ "เรียกใช้ตรงๆ" ไม่ใช่คอมโพเนนต์ <Cell /> — ถ้าประกาศเป็นคอมโพเนนต์ในนี้ ทุกครั้งที่ hover แถว
+  // (hoverRow เปลี่ยน → render ใหม่) React จะมองว่าเป็นคอมโพเนนต์ตัวใหม่ แล้วถอด/ใส่ <td> ใหม่ทั้งตาราง
+  // ทำให้อนิเมชัน .card .tnum (numIn: จางเข้า + เลื่อนขึ้น) เล่นซ้ำทุกครั้ง ตัวเลขเลยซีดวูบและมี scrollbar แวบ
+  const renderCells = ({ count, rate, bold, dash }) => (
     <>
       <td className="tnum" style={{ ...NUM, fontWeight: bold ? 700 : 500, color: 'var(--ink-900)' }}>
         {dash ? '—' : count}
@@ -415,7 +418,8 @@ export function FirstAttemptSubjectTable({ data, year, lang='TH' }) {
     <div className="card card-pad">
       <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{tt('firstBySubject.title')}</h3>
 
-      <div style={{ overflowX: 'auto', marginTop: 16 }}>
+      {/* overflowY hidden: มี overflowX แล้ว overflowY จะกลายเป็น auto เอง — กัน scrollbar แนวตั้งโผล่ตอนตัวเลขเลื่อนเข้า */}
+      <div style={{ overflowX: 'auto', overflowY: 'hidden', marginTop: 16 }}>
         <table style={{ width: '100%', minWidth: 560, borderCollapse: 'collapse', fontSize: 15, border: BORDER }}>
           <thead>
             {/* หัวตาราง 2 ชั้น: ชั้นบนคลุมกลุ่ม (สอบผ่าน/สอบไม่ผ่าน) ชั้นล่างแยกจำนวน/ร้อยละของแต่ละกลุ่ม */}
@@ -448,8 +452,8 @@ export function FirstAttemptSubjectTable({ data, year, lang='TH' }) {
                     {subjectName(lang, s.subject_code, s.subject_name)}
                   </td>
                   <td className="tnum" style={{ ...NUM, color: 'var(--ink-900)' }}>{cohort}</td>
-                  <Cell count={s.pass} rate={s.pass_rate} dash={noSat} />
-                  <Cell count={s.fail} rate={s.fail_rate} dash={noSat} />
+                  {renderCells({ count: s.pass, rate: s.pass_rate, dash: noSat })}
+                  {renderCells({ count: s.fail, rate: s.fail_rate, dash: noSat })}
                 </tr>
               );
             })}
@@ -461,8 +465,8 @@ export function FirstAttemptSubjectTable({ data, year, lang='TH' }) {
             <tr>
               <td style={{ padding: '10px', fontWeight: 700, border: BORDER }}>{tt('firstBySubject.rowTotal')}</td>
               <td className="tnum" style={{ ...NUM, fontWeight: 700, color: 'var(--ink-900)' }}>{cohort}</td>
-              <Cell count={passedAll} rate={passedAllRate} bold />
-              <Cell count={failedAny} rate={failedAnyRate} bold />
+              {renderCells({ count: passedAll, rate: passedAllRate, bold: true })}
+              {renderCells({ count: failedAny, rate: failedAnyRate, bold: true })}
             </tr>
           </tfoot>
         </table>
